@@ -47,6 +47,8 @@ cd ..
 ./tcc_27_layered -c libc_boot4.c -o libc_boot4.o
 ./tcc_27_layered -c libc_static.c -o libc_static.o
 
+./tcc_27_layered -nostdlib -static libc_static.o libc_boot4.o libtcc1.o tcc.o -o tcc_27_boot_static.exe
+
 cd ..
 
 # show total lines
