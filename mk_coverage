@@ -23,6 +23,8 @@ cd ..
 ./coverage.exe -c ./lib/libtcc1.c -o libtcc1.o
 ./coverage.exe -c libc_boot4.c -o libc_boot4.o
 ./coverage.exe -c libc_static.c -o libc_static.o
+./coverage.exe -nostdlib -static libc_static.o libc_boot4.o libtcc1.o tcc.o -o tcc_27_boot_static.exe
+
 
 # for some reason we need to be in the directory above to run gcovr?
 cd ..
