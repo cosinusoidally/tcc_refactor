@@ -50,6 +50,10 @@ var cc1_current_function_statement_count;
 var cc1_max_function_statement_count;
 var cc1_current_function_local_count;
 var cc1_max_function_local_count;
+var cc1_body_expr_statement_count;
+var cc1_body_call_statement_count;
+var cc1_body_return_call_count;
+var cc1_body_local_init_count;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -85,6 +89,10 @@ cc1_current_function_statement_count = 0;
 cc1_max_function_statement_count = 0;
 cc1_current_function_local_count = 0;
 cc1_max_function_local_count = 0;
+cc1_body_expr_statement_count = 0;
+cc1_body_call_statement_count = 0;
+cc1_body_return_call_count = 0;
+cc1_body_local_init_count = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -119,6 +127,10 @@ function cc1_reset()
     cc1_max_function_statement_count = 0;
     cc1_current_function_local_count = 0;
     cc1_max_function_local_count = 0;
+    cc1_body_expr_statement_count = 0;
+    cc1_body_call_statement_count = 0;
+    cc1_body_return_call_count = 0;
+    cc1_body_local_init_count = 0;
     return 0;
 }
 
@@ -844,18 +856,36 @@ function cc1_parse_balanced_parens_tokens()
     return cc1_scan_paren_expr_tokens(0, 1);
 }
 
-function cc1_parse_statement_tail_tokens()
+function cc1_parse_statement_tail_tokens(mode)
 {
+    var has_assignment;
+    var has_call;
     var previous_was_name;
+    has_assignment = 0;
+    has_call = 0;
     previous_was_name = 0;
     while (cc0_get_tok_class() != CC0_TOK_EOF) {
         if (cc1_at_punct(CC0_CH_SEMI)) {
+            if (mode == 1) {
+                if (has_call)
+                    cc1_body_return_call_count = cc1_body_return_call_count + 1;
+            } else {
+                if (mode == 2) {
+                    if (has_assignment)
+                        cc1_body_local_init_count = cc1_body_local_init_count + 1;
+                } else {
+                    cc1_body_expr_statement_count = cc1_body_expr_statement_count + 1;
+                    if (has_call)
+                        cc1_body_call_statement_count = cc1_body_call_statement_count + 1;
+                }
+            }
             cc1_body_semi_count = cc1_body_semi_count + 1;
             cc0_scan_next();
             return 1;
         }
         if (cc1_at_punct(CC0_CH_LPAREN)) {
             if (previous_was_name) {
+                has_call = 1;
                 cc1_body_call_count = cc1_body_call_count + 1;
                 if (!cc1_scan_paren_expr_tokens(1, 1))
                     return 0;
@@ -866,8 +896,10 @@ function cc1_parse_statement_tail_tokens()
             previous_was_name = 0;
             continue;
         }
-        if (cc1_current_equal_is_assignment())
+        if (cc1_current_equal_is_assignment()) {
+            has_assignment = 1;
             cc1_body_assignment_count = cc1_body_assignment_count + 1;
+        }
         if (cc1_at_punct(CC0_CH_RPAREN)) {
             cc1_error = 53;
             return 0;
@@ -985,14 +1017,14 @@ function cc1_parse_var_statement_tokens()
         return 0;
     }
     cc0_scan_next();
-    return cc1_parse_statement_tail_tokens();
+    return cc1_parse_statement_tail_tokens(2);
 }
 
 function cc1_parse_return_statement_tokens()
 {
     cc1_return_count = cc1_return_count + 1;
     cc0_scan_next();
-    return cc1_parse_statement_tail_tokens();
+    return cc1_parse_statement_tail_tokens(1);
 }
 
 function cc1_parse_if_statement_tokens(body_depth)
@@ -1046,7 +1078,7 @@ function cc1_parse_body_statement_tokens(body_depth)
         return cc1_parse_var_statement_tokens();
     if (cc1_at_punct(CC0_CH_LBRACE))
         return cc1_parse_block_tokens(body_depth + 1);
-    return cc1_parse_statement_tail_tokens();
+    return cc1_parse_statement_tail_tokens(0);
 }
 
 function cc1_skip_function_body_tokens()
@@ -1366,4 +1398,24 @@ function cc1_get_max_function_statement_count()
 function cc1_get_max_function_local_count()
 {
     return cc1_max_function_local_count;
+}
+
+function cc1_get_body_expr_statement_count()
+{
+    return cc1_body_expr_statement_count;
+}
+
+function cc1_get_body_call_statement_count()
+{
+    return cc1_body_call_statement_count;
+}
+
+function cc1_get_body_return_call_count()
+{
+    return cc1_body_return_call_count;
+}
+
+function cc1_get_body_local_init_count()
+{
+    return cc1_body_local_init_count;
 }

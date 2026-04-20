@@ -66,6 +66,10 @@ int cc1_get_body_assignment_count();
 int cc1_get_max_body_expr_depth();
 int cc1_get_max_function_statement_count();
 int cc1_get_max_function_local_count();
+int cc1_get_body_expr_statement_count();
+int cc1_get_body_call_statement_count();
+int cc1_get_body_return_call_count();
+int cc1_get_body_local_init_count();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -408,6 +412,14 @@ int main()
         return 168;
     if (cc1_get_max_function_local_count() != 1)
         return 169;
+    if (cc1_get_body_expr_statement_count() != 1)
+        return 170;
+    if (cc1_get_body_call_statement_count() != 0)
+        return 171;
+    if (cc1_get_body_return_call_count() != 0)
+        return 172;
+    if (cc1_get_body_local_init_count() != 1)
+        return 173;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)

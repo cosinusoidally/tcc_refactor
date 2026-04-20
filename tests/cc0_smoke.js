@@ -499,6 +499,18 @@ if (cc1_get_max_function_statement_count() !== 4)
 if (cc1_get_max_function_local_count() !== 1)
     throw new Error("cc1 cc0 source shell max function local count failed");
 
+if (cc1_get_body_expr_statement_count() !== 1)
+    throw new Error("cc1 cc0 source shell expr statement count failed");
+
+if (cc1_get_body_call_statement_count() !== 0)
+    throw new Error("cc1 cc0 source shell call statement count failed");
+
+if (cc1_get_body_return_call_count() !== 0)
+    throw new Error("cc1 cc0 source shell return call count failed");
+
+if (cc1_get_body_local_init_count() !== 1)
+    throw new Error("cc1 cc0 source shell local init count failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -561,6 +573,18 @@ if (cc1_get_max_function_statement_count() !== 54)
 
 if (cc1_get_max_function_local_count() !== 2)
     throw new Error("cc1 cc0.c max function local count failed");
+
+if (cc1_get_body_expr_statement_count() !== 95)
+    throw new Error("cc1 cc0.c expr statement count failed");
+
+if (cc1_get_body_call_statement_count() !== 16)
+    throw new Error("cc1 cc0.c call statement count failed");
+
+if (cc1_get_body_return_call_count() !== 8)
+    throw new Error("cc1 cc0.c return call count failed");
+
+if (cc1_get_body_local_init_count() !== 0)
+    throw new Error("cc1 cc0.c local init count failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

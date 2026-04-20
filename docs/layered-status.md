@@ -135,7 +135,10 @@ call arity. The same scan now distinguishes body assignment operators from
 comparison operators and records maximum nested expression-parenthesis depth.
 It also records the maximum statement count and local declaration count seen in
 any single function body. Function signature parsing also records total and
-maximum parameter counts for the real cc0 source. This is
+maximum parameter counts for the real cc0 source. Semicolon-terminated tails are
+now also classified into plain expression statements, call-bearing expression
+statements, return statements whose expression contains a call, and `var`
+declarations with initializers. This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
 self-checking in both runtimes before larger grammar work is moved over.
