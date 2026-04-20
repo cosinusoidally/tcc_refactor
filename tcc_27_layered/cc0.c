@@ -15,6 +15,9 @@ var CC0_TOK_NAME;
 var CC0_TOK_NUMBER;
 var CC0_TOK_SPACE;
 var CC0_TOK_PUNCT;
+var CC0_SOURCE_NONE;
+var CC0_SOURCE_CELLS;
+var CC0_SOURCE_STRING;
 var CC0_CH_NUL;
 var CC0_CH_TAB;
 var CC0_CH_LF;
@@ -62,6 +65,8 @@ var cc0_src_12;
 var cc0_src_13;
 var cc0_src_14;
 var cc0_src_15;
+var cc0_source_kind;
+var cc0_source_ptr;
 var cc0_scan_pos;
 var cc0_tok_class;
 var cc0_tok_start;
@@ -74,6 +79,9 @@ CC0_TOK_NAME = 1;
 CC0_TOK_NUMBER = 2;
 CC0_TOK_SPACE = 3;
 CC0_TOK_PUNCT = 4;
+CC0_SOURCE_NONE = 0;
+CC0_SOURCE_CELLS = 1;
+CC0_SOURCE_STRING = 2;
 CC0_CH_NUL = 0;
 CC0_CH_TAB = 9;
 CC0_CH_LF = 10;
@@ -121,6 +129,8 @@ cc0_src_12 = -1;
 cc0_src_13 = -1;
 cc0_src_14 = -1;
 cc0_src_15 = -1;
+cc0_source_kind = 0;
+cc0_source_ptr = 0;
 cc0_scan_pos = 0;
 cc0_tok_class = 0;
 cc0_tok_start = 0;
@@ -308,6 +318,8 @@ function cc0_token_class(c)
 
 function cc0_source_set8(c0, c1, c2, c3, c4, c5, c6, c7)
 {
+    cc0_source_kind = CC0_SOURCE_CELLS;
+    cc0_source_ptr = 0;
     cc0_src_0 = c0;
     cc0_src_1 = c1;
     cc0_src_2 = c2;
@@ -334,6 +346,8 @@ function cc0_source_set8(c0, c1, c2, c3, c4, c5, c6, c7)
 
 function cc0_source_set16(c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
 {
+    cc0_source_kind = CC0_SOURCE_CELLS;
+    cc0_source_ptr = 0;
     cc0_src_0 = c0;
     cc0_src_1 = c1;
     cc0_src_2 = c2;
@@ -358,8 +372,27 @@ function cc0_source_set16(c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12,
     return 0;
 }
 
+function cc0_source_set_string(ptr)
+{
+    cc0_source_kind = CC0_SOURCE_STRING;
+    cc0_source_ptr = ptr;
+    cc0_scan_pos = 0;
+    cc0_tok_class = CC0_TOK_EOF;
+    cc0_tok_start = 0;
+    cc0_tok_len = 0;
+    cc0_tok_value = 0;
+    return 0;
+}
+
 function cc0_source_at(pos)
 {
+    var c;
+    if (cc0_source_kind == CC0_SOURCE_STRING) {
+        c = cc0_heap_get(cc0_source_ptr, pos);
+        if (c == CC0_CH_NUL)
+            return -1;
+        return c;
+    }
     if (pos == 0)
         return cc0_src_0;
     if (pos == 1)
@@ -426,7 +459,7 @@ function cc0_scan_next()
     }
     if (cc0_tok_class == CC0_TOK_NUMBER) {
         while (cc0_is_digit(c)) {
-            cc0_tok_value = cc0_tok_value * 10 + c - 48;
+            cc0_tok_value = cc0_tok_value * 10 + c - CC0_CH_0;
             cc0_scan_pos = cc0_scan_pos + 1;
             cc0_tok_len = cc0_tok_len + 1;
             c = cc0_source_at(cc0_scan_pos);

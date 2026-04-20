@@ -19,6 +19,7 @@ int cc0_to_upper();
 int cc0_token_class();
 int cc0_source_set8();
 int cc0_source_set16();
+int cc0_source_set_string();
 int cc0_scan_next();
 int cc0_get_tok_class();
 int cc0_get_tok_start();
@@ -28,9 +29,12 @@ int cc1_compile_unit();
 int cc1_has_real_parser();
 int cc1_bind_name_value();
 int cc1_parse_expr8();
+int cc1_parse_expr_string();
 int cc1_parse_sum8();
 int cc1_parse_assignment8();
+int cc1_parse_assignment_string();
 int cc1_parse_program16();
+int cc1_parse_program_string();
 int cc1_get_last_name();
 int cc1_get_last_value();
 int cc1_get_error();
@@ -116,6 +120,17 @@ int main()
         return 25;
     if (cc0_get_tok_start() != 8 || cc0_get_tok_value() != 4)
         return 26;
+    cc0_source_set_string(mks("  abc1 23"));
+    if (cc0_scan_next() != 1)
+        return 59;
+    if (cc0_get_tok_start() != 2 || cc0_get_tok_len() != 4)
+        return 60;
+    if (cc0_scan_next() != 2)
+        return 61;
+    if (cc0_get_tok_value() != 23)
+        return 62;
+    if (cc0_scan_next() != 0)
+        return 63;
     if (cc1_compile_unit(0) != 1)
         return 27;
     if (cc1_has_real_parser() != 1)
@@ -154,6 +169,18 @@ int main()
         return 44;
     if (cc1_get_last_value() != 12)
         return 45;
+    if (cc1_parse_assignment_string(mks("c=7+8*2")) != 1)
+        return 64;
+    if (cc1_get_last_name() != 'c' || cc1_get_last_value() != 23)
+        return 65;
+    if (cc1_parse_program_string(mks("a=1;b=a+2;c=(b+3)*4")) != 1)
+        return 66;
+    if (cc1_get_last_name() != 'c' || cc1_get_last_value() != 24)
+        return 67;
+    if (cc1_parse_expr_string(mks("c+1")) != 1)
+        return 68;
+    if (cc1_get_last_value() != 25)
+        return 69;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)

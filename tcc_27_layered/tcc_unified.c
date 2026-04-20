@@ -12,6 +12,7 @@
 #define var int
 #include "cc0.c"
 #include "cc2.c"
+#include "cc0_support.c"
 #define TCC_LAYERED_LOWER_INCLUDED 1
 #undef function
 #undef var

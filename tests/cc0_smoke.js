@@ -107,6 +107,23 @@ if (cc0_scan_next() !== 2)
 if (cc0_get_tok_start() !== 8 || cc0_get_tok_value() !== 4)
     throw new Error("cc0 scanner 16-byte window value failed");
 
+cc0_source_set_string(mks("  abc1 23"));
+
+if (cc0_scan_next() !== CC0_TOK_NAME)
+    throw new Error("cc0 string scanner name class failed");
+
+if (cc0_get_tok_start() !== 2 || cc0_get_tok_len() !== 4)
+    throw new Error("cc0 string scanner name span failed");
+
+if (cc0_scan_next() !== CC0_TOK_NUMBER)
+    throw new Error("cc0 string scanner number class failed");
+
+if (cc0_get_tok_value() !== 23)
+    throw new Error("cc0 string scanner number value failed");
+
+if (cc0_scan_next() !== CC0_TOK_EOF)
+    throw new Error("cc0 string scanner eof failed");
+
 load("../tcc_27_layered/cc1.c");
 load("../tcc_27_layered/cc2.c");
 
@@ -166,6 +183,24 @@ if (cc1_parse_expr8(98, 42, 52, -1, -1, -1, -1, -1) !== 1)
 
 if (cc1_get_last_value() !== 12)
     throw new Error("cc1 program binding value failed");
+
+if (cc1_parse_assignment_string(mks("c=7+8*2")) !== 1)
+    throw new Error("cc1 string assignment parse failed");
+
+if (cc1_get_last_name() !== mkc('c') || cc1_get_last_value() !== 23)
+    throw new Error("cc1 string assignment state failed");
+
+if (cc1_parse_program_string(mks("a=1;b=a+2;c=(b+3)*4")) !== 1)
+    throw new Error("cc1 string program parse failed");
+
+if (cc1_get_last_name() !== mkc('c') || cc1_get_last_value() !== 24)
+    throw new Error("cc1 string program final state failed");
+
+if (cc1_parse_expr_string(mks("c+1")) !== 1)
+    throw new Error("cc1 string expression parse failed");
+
+if (cc1_get_last_value() !== 25)
+    throw new Error("cc1 string expression value failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
