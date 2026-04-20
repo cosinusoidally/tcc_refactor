@@ -40,10 +40,12 @@ four-slot name/value table, a minimal `name = expr` assignment parser, and a
 semicolon-separated assignment program parser. The parser can still take fixed
 source windows for regression coverage, but the forward path uses `mks` strings
 so source length is not capped by the original test cells. It now has the first
-cc0-shaped function parser for `function name() { return expr; }`, which reuses
-the expression parser for the return value. That is not a C parser yet, but it
-gives the layered tree a tested lower-to-upper token stream and symbol-state
-boundary before preprocessing exists.
+cc0-shaped function parser for `function name() { var x = expr; return expr; }`
+style bodies. Local `var` statements bind through the same four-slot name table
+used by expressions, and the return expression reuses the expression parser.
+That is not a C parser yet, but it gives the layered tree a tested
+lower-to-upper token stream and symbol-state boundary before preprocessing
+exists.
 
 `cc0_unified.c` is the C unified build for the cc0 scaffold. It maps
 `function` and `var` to `int`, includes `cc0.c`, `cc1.c`, and `cc2.c`.

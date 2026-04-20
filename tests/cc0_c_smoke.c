@@ -200,6 +200,10 @@ int main()
         return 74;
     if (cc1_get_last_name() != 'm' || cc1_get_last_value() != 23)
         return 75;
+    if (cc1_parse_function_return_string(mks("function main(){var a=7;var b=a*2;return b+3;}")) != 1)
+        return 76;
+    if (cc1_get_last_name() != 'm' || cc1_get_last_value() != 17)
+        return 77;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)

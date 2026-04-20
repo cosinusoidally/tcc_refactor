@@ -223,6 +223,12 @@ if (cc1_parse_function_return_string(mks("function main(){return 7+8*2;}")) !== 
 if (cc1_get_last_name() !== mkc('m') || cc1_get_last_value() !== 23)
     throw new Error("cc1 function return state failed");
 
+if (cc1_parse_function_return_string(mks("function main(){var a=7;var b=a*2;return b+3;}")) !== 1)
+    throw new Error("cc1 function vars parse failed");
+
+if (cc1_get_last_name() !== mkc('m') || cc1_get_last_value() !== 17)
+    throw new Error("cc1 function vars state failed");
+
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
 

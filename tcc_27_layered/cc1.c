@@ -8,7 +8,8 @@
  *     expr    := product ("+" product)*
  *     product := primary ("*" primary)*
  *     primary := number | name | "(" expr ")"
- *     func    := "function" name "(" ")" "{" "return" expr ";" "}"
+ *     func    := "function" name "(" ")" "{" var_stmt* "return" expr ";" "}"
+ *     var_stmt := "var" name "=" expr ";"
  */
 
 var cc1_version;
@@ -313,6 +314,7 @@ function cc1_parse_program_string(source)
 
 function cc1_parse_function_return_tokens()
 {
+    var function_name;
     var value;
     if (!cc0_tok_is_word_function()) {
         cc1_error = 10;
@@ -323,7 +325,8 @@ function cc1_parse_function_return_tokens()
         cc1_error = 11;
         return 0;
     }
-    cc1_last_name = cc0_get_tok_first();
+    function_name = cc0_get_tok_first();
+    cc1_last_name = function_name;
     cc0_scan_next();
     if (!cc1_at_punct(CC0_CH_LPAREN)) {
         cc1_error = 12;
@@ -340,6 +343,16 @@ function cc1_parse_function_return_tokens()
         return 0;
     }
     cc0_scan_next();
+    while (cc0_tok_is_word_var()) {
+        cc0_scan_next();
+        if (!cc1_parse_assignment_tokens())
+            return 0;
+        if (!cc1_at_punct(CC0_CH_SEMI)) {
+            cc1_error = 18;
+            return 0;
+        }
+        cc0_scan_next();
+    }
     if (!cc0_tok_is_word_return()) {
         cc1_error = 15;
         return 0;
@@ -358,6 +371,7 @@ function cc1_parse_function_return_tokens()
         return 0;
     }
     cc0_scan_next();
+    cc1_last_name = function_name;
     cc1_last_value = value;
     return 1;
 }
