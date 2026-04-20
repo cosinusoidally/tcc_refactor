@@ -110,8 +110,10 @@ through the same cc1 name/value table. It now accepts simple comma-separated
 parameters and can bind supplied argument values before evaluating the body.
 The body parser also accepts a narrow sequence of `if (expr) return expr;`
 early-return guards, including equality and range-test conditions, matching a
-common cc0 control-flow shape without taking on full C statement parsing yet.
-This is intentionally below C syntax and below the
+common cc0 control-flow shape. It also accepts one nested guard,
+`if (expr) if (expr) return expr;`, which matches cc0's byte range classifiers
+without taking on full C statement parsing yet. This is intentionally below C
+syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
 self-checking in both runtimes before larger grammar work is moved over.
 

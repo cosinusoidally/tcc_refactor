@@ -49,7 +49,9 @@ supplied argument values before evaluating the body. Parameters and local `var`
 statements use the same four-slot name table used by expressions, and the
 return expression reuses the expression parser. A narrow sequence of
 `if (expr) return expr;` guards models cc0's common early-return control flow,
-including equality and range tests, without adding full C statement
+including equality and range tests. It also accepts the nested
+`if (expr) if (expr) return expr;` shape used by cc0's byte range classifiers,
+without adding full C statement
 parsing yet. That is not a C parser yet, but it gives the layered
 tree a tested lower-to-upper token stream and symbol-state boundary before
 preprocessing exists.

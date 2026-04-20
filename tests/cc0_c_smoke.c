@@ -276,6 +276,18 @@ int main()
         return 110;
     if (cc1_get_last_name() != 'd' || cc1_get_last_value() != 0)
         return 111;
+    if (cc1_parse_function2_string(mks("function nd(c){if(c>=48)if(c<=57)return 1;return 0;}"), 52, 0) != 1)
+        return 112;
+    if (cc1_get_last_name() != 'n' || cc1_get_last_value() != 1)
+        return 113;
+    if (cc1_parse_function2_string(mks("function nd(c){if(c>=48)if(c<=57)return 1;return 0;}"), 47, 0) != 1)
+        return 114;
+    if (cc1_get_last_name() != 'n' || cc1_get_last_value() != 0)
+        return 115;
+    if (cc1_parse_function2_string(mks("function nd(c){if(c>=48)if(c<=57)return 1;return 0;}"), 58, 0) != 1)
+        return 116;
+    if (cc1_get_last_name() != 'n' || cc1_get_last_value() != 0)
+        return 117;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)

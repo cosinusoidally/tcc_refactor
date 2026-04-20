@@ -12,7 +12,7 @@
  *     func    := "function" name "(" params? ")" "{" var_stmt* if_ret* "return" expr ";" "}"
  *     params  := name ("," name)*
  *     var_stmt := "var" name "=" expr ";"
- *     if_ret  := "if" "(" expr ")" "return" expr ";"
+ *     if_ret  := "if" "(" expr ")" ("if" "(" expr ")")? "return" expr ";"
  */
 
 var cc1_version;
@@ -424,9 +424,10 @@ function cc1_parse_program_string(source)
 
 function cc1_parse_function_return_tokens()
 {
+    var candidate_active;
+    var candidate_value;
     var function_name;
     var param_count;
-    var candidate_value;
     var selected_value;
     var selected_value_set;
     var value;
@@ -503,6 +504,25 @@ function cc1_parse_function_return_tokens()
             return 0;
         }
         cc0_scan_next();
+        candidate_active = value;
+        if (cc0_tok_is_word_if()) {
+            cc0_scan_next();
+            if (!cc1_at_punct(CC0_CH_LPAREN)) {
+                cc1_error = 27;
+                return 0;
+            }
+            cc0_scan_next();
+            value = cc1_parse_expr_tokens();
+            if (cc1_error)
+                return 0;
+            if (!cc1_at_punct(CC0_CH_RPAREN)) {
+                cc1_error = 28;
+                return 0;
+            }
+            cc0_scan_next();
+            if (!value)
+                candidate_active = 0;
+        }
         if (!cc0_tok_is_word_return()) {
             cc1_error = 24;
             return 0;
@@ -511,10 +531,10 @@ function cc1_parse_function_return_tokens()
         candidate_value = cc1_parse_expr_tokens();
         if (cc1_error)
             return 0;
-        if (value)
+        if (candidate_active)
             if (!selected_value_set)
                 selected_value = candidate_value;
-        if (value)
+        if (candidate_active)
             selected_value_set = 1;
         if (!cc1_at_punct(CC0_CH_SEMI)) {
             cc1_error = 25;

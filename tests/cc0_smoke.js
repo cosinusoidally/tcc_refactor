@@ -332,6 +332,24 @@ if (cc1_parse_function2_string(mks("function dg(c){if(c<48)return 0;if(c<=57)ret
 if (cc1_get_last_name() !== mkc('d') || cc1_get_last_value() !== 0)
     throw new Error("cc1 function less-equal fallback state failed");
 
+if (cc1_parse_function2_string(mks("function nd(c){if(c>=48)if(c<=57)return 1;return 0;}"), 52, 0) !== 1)
+    throw new Error("cc1 nested if digit parse failed");
+
+if (cc1_get_last_name() !== mkc('n') || cc1_get_last_value() !== 1)
+    throw new Error("cc1 nested if digit state failed");
+
+if (cc1_parse_function2_string(mks("function nd(c){if(c>=48)if(c<=57)return 1;return 0;}"), 47, 0) !== 1)
+    throw new Error("cc1 nested if low fallback parse failed");
+
+if (cc1_get_last_name() !== mkc('n') || cc1_get_last_value() !== 0)
+    throw new Error("cc1 nested if low fallback state failed");
+
+if (cc1_parse_function2_string(mks("function nd(c){if(c>=48)if(c<=57)return 1;return 0;}"), 58, 0) !== 1)
+    throw new Error("cc1 nested if high fallback parse failed");
+
+if (cc1_get_last_name() !== mkc('n') || cc1_get_last_value() !== 0)
+    throw new Error("cc1 nested if high fallback state failed");
+
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
 
