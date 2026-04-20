@@ -64,7 +64,8 @@ syntax, and the C build maps `function` and `var` to `int`. Function arguments
 therefore use old-style C implicit `int` parameters, which keeps the same file
 parseable by both SpiderMonkey and a C compiler. The active TCC preprocessor
 now calls cc0 for the low ASCII character flags used to seed its tokenizer
-table, so the cc0 layer is starting to replace front-end logic in the legacy
+table, for decimal digit checks, and for whitespace checks that must exclude
+newlines. The cc0 layer is starting to replace front-end logic in the legacy
 compiler instead of only being a standalone smoke target.
 
 `tcc_27_layered/cc1.c` is the next-layer scaffold. It stays in the same
@@ -85,11 +86,13 @@ the C and JS smoke tests.
 ## Current Legacy Shrink
 
 `tccpp.c` no longer owns the low ASCII tokenizer-table classifier directly; it
-gets those space/name/number flags from cc0. `tcctools.c` no longer owns the
-archive option character classifier, the PE import-definition tool, or the
-Win32 cross-exec/wildcard helpers. The layered target is i386 Linux/ELF, and the
-active archive path now calls into cc2 for the first migrated piece of tool
-behavior.
+gets those space/name/number flags from cc0. Its decimal digit checks and
+preprocessor whitespace checks are also moving onto cc0 helpers, and the old
+newline-excluding `is_space` copy has been removed from `tcc.h`. `tcctools.c` no
+longer owns the archive option character classifier, the PE import-definition
+tool, or the Win32 cross-exec/wildcard helpers. The layered target is i386
+Linux/ELF, and the active archive path now calls into cc2 for the first migrated
+piece of tool behavior.
 
 ## Removed Run Surface
 
@@ -102,7 +105,8 @@ link behavior.
 
 The current one-source build reaches the compiler through `tcc_unified.c`,
 which includes the lower-layer helpers before `tcc.c`; `tcc.c` includes
-`libtcc.c` and `tcctools.c`.
+`libtcc.c` and `tcctools.c`. If `tcc.c` is used directly as a `ONE_SOURCE`
+entry point, it includes the same lower helpers itself.
 
 `libtcc.c` owns high-level compilation and linking orchestration: creating a
 `TCCState`, defining target macros, adding include and library paths, dispatching

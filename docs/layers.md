@@ -16,8 +16,9 @@ class, start offset, length, and decimal value where applicable for names,
 decimal numbers, punctuation, and EOF. This keeps the earliest phase below the
 preprocessor and suitable for the JS/C dialect intersection. The active
 `tccpp.c` tokenizer table now also gets its low ASCII space/name/number flags
-from cc0, which is the first compiler-front-end behavior migrated into the
-layered files.
+from cc0, and the preprocessor's digit and horizontal-whitespace checks are
+starting to call the cc0 helpers directly. This is the first compiler-front-end
+behavior migrated into the layered files.
 
 `cc1.c` is the next-layer scaffold. It is also kept in the JavaScript/C
 intersection and now consumes the cc0 scanner for a tiny expression grammar:
@@ -40,8 +41,9 @@ ported into staged layers without losing the current bootstrap archive check.
 `tcc_unified.c` is the current full compiler layer. It maps the lower-layer
 `function` and `var` spelling to C, includes the active cc0/cc2 helpers, defines
 `ONE_SOURCE`, and includes `tcc.c`, which in turn includes `libtcc.c` and
-`tcctools.c`. This makes the one-source build an explicit source file instead
-of a command-line accident.
+`tcctools.c`. Direct `tcc.c` one-source builds include the same lower helpers
+when `tcc_unified.c` has not already done so. This makes the one-source build an
+explicit source file instead of a command-line accident.
 
 ## Current Full Compiler Modules
 

@@ -164,6 +164,13 @@ function cc0_tccpp_char_flags(c)
     return 0;
 }
 
+function cc0_tccpp_is_space(c)
+{
+    if (cc0_tccpp_char_flags(c) == 1)
+        return 1;
+    return 0;
+}
+
 function cc0_token_class(c)
 {
     if (c < 0)

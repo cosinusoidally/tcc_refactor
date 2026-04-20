@@ -2038,7 +2038,7 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf, int is_long
                         c = c - 'a' + 10;
                     else if (c >= 'A' && c <= 'F')
                         c = c - 'A' + 10;
-                    else if (isnum(c))
+                    else if (cc0_is_digit(c))
                         c = c - '0';
                     else
                         break;
@@ -2274,7 +2274,7 @@ static void parse_number(const char *p)
             t = ch - 'a' + 10;
         else if (ch >= 'A' && ch <= 'F')
             t = ch - 'A' + 10;
-        else if (isnum(ch))
+        else if (cc0_is_digit(ch))
             t = ch - '0';
         else
             break;
@@ -2767,7 +2767,7 @@ maybe_newline:
     case '.':
         /* special dot handling because it can also start a number */
         PEEKC(c, p);
-        if (isnum(c)) {
+        if (cc0_is_digit(c)) {
             t = '.';
             goto parse_num;
         } else if ((isidnum_table['.' - CH_EOF] & IS_ID)
@@ -3126,7 +3126,7 @@ static int paste_tokens(int t1, CValue *v1, int t2, CValue *v2)
         next_nomacro1();
         if (0 == *file->buf_ptr)
             break;
-        if (is_space(tok))
+        if (cc0_tccpp_is_space(tok))
             continue;
         tcc_warning("pasting \"%.*s\" and \"%s\" does not give a valid"
             " preprocessing token", n, cstr.data, (char*)cstr.data + n);
@@ -3212,7 +3212,7 @@ static int next_argstream(Sym **nested_list, TokenString *ws_str)
         if (macro_ptr) {
             p = macro_ptr, t = *p;
             if (ws_str) {
-                while (is_space(t) || TOK_LINEFEED == t || TOK_PLCHLDR == t)
+                while (cc0_tccpp_is_space(t) || TOK_LINEFEED == t || TOK_PLCHLDR == t)
                     tok_str_add(ws_str, t), t = *++p;
             }
             if (t == 0) {
@@ -3228,7 +3228,7 @@ static int next_argstream(Sym **nested_list, TokenString *ws_str)
         } else {
             ch = handle_eob();
             if (ws_str) {
-                while (is_space(ch) || ch == '\n' || ch == '/') {
+                while (cc0_tccpp_is_space(ch) || ch == '\n' || ch == '/') {
                     if (ch == '/') {
                         int c;
                         uint8_t *p = file->buf_ptr;
@@ -3355,7 +3355,7 @@ static int macro_subst_tok(
             for(;;) {
                 do {
                     next_argstream(nested_list, NULL);
-                } while (is_space(tok) || TOK_LINEFEED == tok);
+                } while (cc0_tccpp_is_space(tok) || TOK_LINEFEED == tok);
     empty_arg:
                 /* handle '()' case */
                 if (!args && !sa && tok == ')')
@@ -3488,7 +3488,7 @@ static void macro_subst(
                 end_macro ();
             }
             if (tok_str->len)
-                spc = is_space(t = tok_str->str[tok_str->lastlen]);
+                spc = cc0_tccpp_is_space(t = tok_str->str[tok_str->lastlen]);
         } else {
             if (t == '\\' && !(parse_flags & PARSE_FLAG_ACCEPT_STRAYS))
                 tcc_error("stray '\\' in program");
@@ -3859,7 +3859,7 @@ ST_FUNC int tcc_preprocess(TCCState *s1)
                 continue;
         }
 
-        if (is_space(tok)) {
+        if (cc0_tccpp_is_space(tok)) {
             if (spcs < sizeof white - 1)
                 white[spcs++] = tok;
             continue;

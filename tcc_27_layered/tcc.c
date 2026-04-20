@@ -18,6 +18,16 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#if ONE_SOURCE && !defined(TCC_LAYERED_LOWER_INCLUDED)
+# define function int
+# define var int
+# include "cc0.c"
+# include "cc2.c"
+# define TCC_LAYERED_LOWER_INCLUDED 1
+# undef function
+# undef var
+#endif
+
 #include "tcc.h"
 #if ONE_SOURCE
 # include "libtcc.c"

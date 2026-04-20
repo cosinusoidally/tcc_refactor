@@ -27,6 +27,9 @@ if (!cc0_is_space(32) || !cc0_is_space(10) || !cc0_is_space(12) || cc0_is_space(
 if (cc0_tccpp_char_flags(32) !== 1 || cc0_tccpp_char_flags(10) !== 0 || cc0_tccpp_char_flags(65) !== 2 || cc0_tccpp_char_flags(48) !== 4)
     throw new Error("cc0 tccpp char flags failed");
 
+if (!cc0_tccpp_is_space(32) || cc0_tccpp_is_space(10) || cc0_tccpp_is_space(65))
+    throw new Error("cc0 tccpp space failed");
+
 if (cc0_token_class(-1) !== 0)
     throw new Error("cc0 eof token failed");
 

@@ -1153,10 +1153,6 @@ ST_FUNC int tcc_preprocess(TCCState *s1);
 ST_FUNC void skip(int c);
 ST_FUNC NORETURN void expect(const char *msg);
 
-/* space excluding newline */
-static inline int is_space(int ch) {
-    return ch == ' ' || ch == '\t' || ch == '\v' || ch == '\f' || ch == '\r';
-}
 static inline int isid(int c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
