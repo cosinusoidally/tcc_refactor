@@ -44,9 +44,11 @@ cc0-shaped function parser for `function name() { var x = expr; return expr; }`
 style bodies. It also accepts simple comma-separated parameters and can bind
 supplied argument values before evaluating the body. Parameters and local `var`
 statements use the same four-slot name table used by expressions, and the
-return expression reuses the expression parser. That is not a C parser yet, but
-it gives the layered tree a tested lower-to-upper token stream and symbol-state
-boundary before preprocessing exists.
+return expression reuses the expression parser. A narrow `if (expr) return
+expr;` form models cc0's common early-return control flow without adding full C
+statement parsing yet. That is not a C parser yet, but it gives the layered
+tree a tested lower-to-upper token stream and symbol-state boundary before
+preprocessing exists.
 
 `cc0_unified.c` is the C unified build for the cc0 scaffold. It maps
 `function` and `var` to `int`, includes `cc0.c`, `cc1.c`, and `cc2.c`.

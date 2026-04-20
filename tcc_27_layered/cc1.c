@@ -8,9 +8,10 @@
  *     expr    := product ("+" product)*
  *     product := primary ("*" primary)*
  *     primary := number | name | "(" expr ")"
- *     func    := "function" name "(" params? ")" "{" var_stmt* "return" expr ";" "}"
+ *     func    := "function" name "(" params? ")" "{" var_stmt* if_ret? "return" expr ";" "}"
  *     params  := name ("," name)*
  *     var_stmt := "var" name "=" expr ";"
+ *     if_ret  := "if" "(" expr ")" "return" expr ";"
  */
 
 var cc1_version;
@@ -339,6 +340,8 @@ function cc1_parse_function_return_tokens()
 {
     var function_name;
     var param_count;
+    var selected_value;
+    var selected_value_set;
     var value;
     if (!cc0_tok_is_word_function()) {
         cc1_error = 10;
@@ -386,12 +389,45 @@ function cc1_parse_function_return_tokens()
         return 0;
     }
     cc0_scan_next();
+    selected_value = 0;
+    selected_value_set = 0;
     while (cc0_tok_is_word_var()) {
         cc0_scan_next();
         if (!cc1_parse_assignment_tokens())
             return 0;
         if (!cc1_at_punct(CC0_CH_SEMI)) {
             cc1_error = 18;
+            return 0;
+        }
+        cc0_scan_next();
+    }
+    if (cc0_tok_is_word_if()) {
+        cc0_scan_next();
+        if (!cc1_at_punct(CC0_CH_LPAREN)) {
+            cc1_error = 22;
+            return 0;
+        }
+        cc0_scan_next();
+        value = cc1_parse_sum_tokens();
+        if (cc1_error)
+            return 0;
+        if (!cc1_at_punct(CC0_CH_RPAREN)) {
+            cc1_error = 23;
+            return 0;
+        }
+        cc0_scan_next();
+        if (!cc0_tok_is_word_return()) {
+            cc1_error = 24;
+            return 0;
+        }
+        cc0_scan_next();
+        selected_value = cc1_parse_sum_tokens();
+        if (cc1_error)
+            return 0;
+        if (value)
+            selected_value_set = 1;
+        if (!cc1_at_punct(CC0_CH_SEMI)) {
+            cc1_error = 25;
             return 0;
         }
         cc0_scan_next();
@@ -414,6 +450,8 @@ function cc1_parse_function_return_tokens()
         return 0;
     }
     cc0_scan_next();
+    if (selected_value_set)
+        value = selected_value;
     cc1_last_name = function_name;
     cc1_last_value = value;
     return 1;

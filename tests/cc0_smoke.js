@@ -44,6 +44,10 @@ if (!cc0_is_word_return_chars(mkc('r'), mkc('e'), mkc('t'), mkc('u'), mkc('r'), 
     cc0_is_word_return_chars(mkc('r'), mkc('e'), mkc('t'), mkc('u'), mkc('r'), mkc('n'), mkc('s')))
     throw new Error("cc0 return word failed");
 
+if (!cc0_is_word_if_chars(mkc('i'), mkc('f'), 0) ||
+    cc0_is_word_if_chars(mkc('i'), mkc('f'), mkc('s')))
+    throw new Error("cc0 if word failed");
+
 if (!cc0_is_digit(48) || !cc0_is_digit(57) || cc0_is_digit(58))
     throw new Error("cc0_is_digit failed");
 
@@ -128,7 +132,7 @@ if (cc0_get_tok_value() !== 23)
 if (cc0_scan_next() !== CC0_TOK_EOF)
     throw new Error("cc0 string scanner eof failed");
 
-cc0_source_set_string(mks("function var return"));
+cc0_source_set_string(mks("function var return if"));
 
 if (cc0_scan_next() !== CC0_TOK_NAME || !cc0_tok_is_word_function())
     throw new Error("cc0 token function word failed");
@@ -138,6 +142,9 @@ if (cc0_scan_next() !== CC0_TOK_NAME || !cc0_tok_is_word_var())
 
 if (cc0_scan_next() !== CC0_TOK_NAME || !cc0_tok_is_word_return())
     throw new Error("cc0 token return word failed");
+
+if (cc0_scan_next() !== CC0_TOK_NAME || !cc0_tok_is_word_if())
+    throw new Error("cc0 token if word failed");
 
 load("../tcc_27_layered/cc1.c");
 load("../tcc_27_layered/cc2.c");
@@ -234,6 +241,18 @@ if (cc1_parse_function2_string(mks("function add(a,b){var c=a+b;return c*2;}"), 
 
 if (cc1_get_last_name() !== mkc('a') || cc1_get_last_value() !== 22)
     throw new Error("cc1 function params state failed");
+
+if (cc1_parse_function2_string(mks("function pick(a,b){if(a)return b;return 3;}"), 1, 9) !== 1)
+    throw new Error("cc1 function true if parse failed");
+
+if (cc1_get_last_name() !== mkc('p') || cc1_get_last_value() !== 9)
+    throw new Error("cc1 function true if state failed");
+
+if (cc1_parse_function2_string(mks("function pick(a,b){if(a)return b;return 3;}"), 0, 9) !== 1)
+    throw new Error("cc1 function false if parse failed");
+
+if (cc1_get_last_name() !== mkc('p') || cc1_get_last_value() !== 3)
+    throw new Error("cc1 function false if state failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

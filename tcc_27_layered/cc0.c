@@ -230,6 +230,17 @@ function cc0_is_word_return_chars(c0, c1, c2, c3, c4, c5, c6)
     return 1;
 }
 
+function cc0_is_word_if_chars(c0, c1, c2)
+{
+    if (c0 != CC0_CH_i)
+        return 0;
+    if (c1 != CC0_CH_f)
+        return 0;
+    if (c2 != CC0_CH_NUL)
+        return 0;
+    return 1;
+}
+
 function cc0_is_digit(c)
 {
     if (c >= CC0_CH_0)
@@ -569,5 +580,17 @@ function cc0_tok_is_word_return()
         cc0_source_at(cc0_tok_start + 3),
         cc0_source_at(cc0_tok_start + 4),
         cc0_source_at(cc0_tok_start + 5),
+        CC0_CH_NUL);
+}
+
+function cc0_tok_is_word_if()
+{
+    if (cc0_get_tok_class() != CC0_TOK_NAME)
+        return 0;
+    if (cc0_get_tok_len() != 2)
+        return 0;
+    return cc0_is_word_if_chars(
+        cc0_source_at(cc0_tok_start),
+        cc0_source_at(cc0_tok_start + 1),
         CC0_CH_NUL);
 }

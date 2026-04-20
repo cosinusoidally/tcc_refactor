@@ -5,6 +5,7 @@ int cc0_is_word_function_chars();
 int cc0_is_word_var_chars();
 int cc0_is_dialect_type_chars();
 int cc0_is_word_return_chars();
+int cc0_is_word_if_chars();
 int mks();
 int mkc();
 int cc0_heap_get();
@@ -29,6 +30,7 @@ int cc0_get_tok_value();
 int cc0_tok_is_word_function();
 int cc0_tok_is_word_var();
 int cc0_tok_is_word_return();
+int cc0_tok_is_word_if();
 int cc1_compile_unit();
 int cc1_has_real_parser();
 int cc1_bind_name_value();
@@ -83,6 +85,9 @@ int main()
     if (!cc0_is_word_return_chars('r', 'e', 't', 'u', 'r', 'n', 0) ||
         cc0_is_word_return_chars('r', 'e', 't', 'u', 'r', 'n', 's'))
         return 70;
+    if (!cc0_is_word_if_chars('i', 'f', 0) ||
+        cc0_is_word_if_chars('i', 'f', 's'))
+        return 80;
     if (!cc0_is_digit(48) || !cc0_is_digit(57) || cc0_is_digit(58))
         return 5;
     if (!cc0_is_oct_digit(48) || !cc0_is_oct_digit(55) || cc0_is_oct_digit(56))
@@ -140,13 +145,15 @@ int main()
         return 62;
     if (cc0_scan_next() != 0)
         return 63;
-    cc0_source_set_string(mks("function var return"));
+    cc0_source_set_string(mks("function var return if"));
     if (cc0_scan_next() != 1 || !cc0_tok_is_word_function())
         return 71;
     if (cc0_scan_next() != 1 || !cc0_tok_is_word_var())
         return 72;
     if (cc0_scan_next() != 1 || !cc0_tok_is_word_return())
         return 73;
+    if (cc0_scan_next() != 1 || !cc0_tok_is_word_if())
+        return 81;
     if (cc1_compile_unit(0) != 1)
         return 27;
     if (cc1_has_real_parser() != 1)
@@ -209,6 +216,14 @@ int main()
         return 78;
     if (cc1_get_last_name() != 'a' || cc1_get_last_value() != 22)
         return 79;
+    if (cc1_parse_function2_string(mks("function pick(a,b){if(a)return b;return 3;}"), 1, 9) != 1)
+        return 82;
+    if (cc1_get_last_name() != 'p' || cc1_get_last_value() != 9)
+        return 83;
+    if (cc1_parse_function2_string(mks("function pick(a,b){if(a)return b;return 3;}"), 0, 9) != 1)
+        return 84;
+    if (cc1_get_last_name() != 'p' || cc1_get_last_value() != 3)
+        return 85;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)
