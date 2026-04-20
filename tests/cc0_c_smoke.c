@@ -4,6 +4,10 @@ int cc0_not();
 int cc0_is_word_function_chars();
 int cc0_is_word_var_chars();
 int cc0_is_dialect_type_chars();
+int mks();
+int mkc();
+int cc0_heap_get();
+int cc0_heap_is_string();
 int cc0_is_digit();
 int cc0_is_oct_digit();
 int cc0_is_name_start();
@@ -37,6 +41,8 @@ int cc2_ar_is_exported_symbol();
 
 int main()
 {
+    int cc0_test_string;
+
     if (cc0_add(2, 3) != 5)
         return 1;
     if (cc0_select(1, 7, 9) != 7)
@@ -45,15 +51,24 @@ int main()
         return 3;
     if (cc0_not(0) != 1 || cc0_not(4) != 0)
         return 4;
-    if (!cc0_is_word_function_chars(102, 117, 110, 99, 116, 105, 111, 110, 0) ||
-        cc0_is_word_function_chars(102, 117, 110, 99, 116, 105, 111, 0, 0))
+    if (mkc('A') != 'A')
+        return 56;
+    cc0_test_string = mks("Az");
+    if (cc0_heap_get(cc0_test_string, 0) != 'A' ||
+        cc0_heap_get(cc0_test_string, 1) != 'z' ||
+        cc0_heap_get(cc0_test_string, 2) != 0)
+        return 57;
+    if (!cc0_heap_is_string(mks("var"), 'v', 'a', 'r', 0))
+        return 58;
+    if (!cc0_is_word_function_chars('f', 'u', 'n', 'c', 't', 'i', 'o', 'n', 0) ||
+        cc0_is_word_function_chars('f', 'u', 'n', 'c', 't', 'i', 'o', 0, 0))
         return 53;
-    if (!cc0_is_word_var_chars(118, 97, 114, 0) ||
-        cc0_is_word_var_chars(118, 97, 114, 115))
+    if (!cc0_is_word_var_chars('v', 'a', 'r', 0) ||
+        cc0_is_word_var_chars('v', 'a', 'r', 's'))
         return 54;
-    if (!cc0_is_dialect_type_chars(102, 117, 110, 99, 116, 105, 111, 110, 0) ||
-        !cc0_is_dialect_type_chars(118, 97, 114, 0, 0, 0, 0, 0, 0) ||
-        cc0_is_dialect_type_chars(105, 110, 116, 0, 0, 0, 0, 0, 0))
+    if (!cc0_is_dialect_type_chars('f', 'u', 'n', 'c', 't', 'i', 'o', 'n', 0) ||
+        !cc0_is_dialect_type_chars('v', 'a', 'r', 0, 0, 0, 0, 0, 0) ||
+        cc0_is_dialect_type_chars('i', 'n', 't', 0, 0, 0, 0, 0, 0))
         return 55;
     if (!cc0_is_digit(48) || !cc0_is_digit(57) || cc0_is_digit(58))
         return 5;

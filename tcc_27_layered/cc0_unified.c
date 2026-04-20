@@ -10,3 +10,7 @@
 #include "cc0.c"
 #include "cc1.c"
 #include "cc2.c"
+
+#undef function
+#undef var
+#include "cc0_support.c"

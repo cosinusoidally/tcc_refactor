@@ -1,4 +1,7 @@
 load("../tcc_27_layered/cc0.c");
+load("../tcc_27_layered/cc0_support.js");
+
+var cc0_test_string;
 
 if (cc0_add(2, 3) !== 5)
     throw new Error("cc0_add failed");
@@ -12,17 +15,29 @@ if (cc0_select(0, 7, 9) !== 9)
 if (cc0_not(0) !== 1 || cc0_not(4) !== 0)
     throw new Error("cc0_not failed");
 
-if (!cc0_is_word_function_chars(102, 117, 110, 99, 116, 105, 111, 110, 0) ||
-    cc0_is_word_function_chars(102, 117, 110, 99, 116, 105, 111, 0, 0))
+if (mkc('A') !== CC0_CH_A)
+    throw new Error("cc0 mkc failed");
+
+cc0_test_string = mks("Az");
+if (cc0_heap_get(cc0_test_string, 0) !== CC0_CH_A ||
+    cc0_heap_get(cc0_test_string, 1) !== CC0_CH_z ||
+    cc0_heap_get(cc0_test_string, 2) !== CC0_CH_NUL)
+    throw new Error("cc0 mks heap failed");
+
+if (!cc0_heap_is_string(mks("var"), CC0_CH_v, CC0_CH_a, CC0_CH_r, CC0_CH_NUL))
+    throw new Error("cc0 heap string check failed");
+
+if (!cc0_is_word_function_chars(mkc('f'), mkc('u'), mkc('n'), mkc('c'), mkc('t'), mkc('i'), mkc('o'), mkc('n'), 0) ||
+    cc0_is_word_function_chars(mkc('f'), mkc('u'), mkc('n'), mkc('c'), mkc('t'), mkc('i'), mkc('o'), 0, 0))
     throw new Error("cc0 function word failed");
 
-if (!cc0_is_word_var_chars(118, 97, 114, 0) ||
-    cc0_is_word_var_chars(118, 97, 114, 115))
+if (!cc0_is_word_var_chars(mkc('v'), mkc('a'), mkc('r'), 0) ||
+    cc0_is_word_var_chars(mkc('v'), mkc('a'), mkc('r'), mkc('s')))
     throw new Error("cc0 var word failed");
 
-if (!cc0_is_dialect_type_chars(102, 117, 110, 99, 116, 105, 111, 110, 0) ||
-    !cc0_is_dialect_type_chars(118, 97, 114, 0, 0, 0, 0, 0, 0) ||
-    cc0_is_dialect_type_chars(105, 110, 116, 0, 0, 0, 0, 0, 0))
+if (!cc0_is_dialect_type_chars(mkc('f'), mkc('u'), mkc('n'), mkc('c'), mkc('t'), mkc('i'), mkc('o'), mkc('n'), 0) ||
+    !cc0_is_dialect_type_chars(mkc('v'), mkc('a'), mkc('r'), 0, 0, 0, 0, 0, 0) ||
+    cc0_is_dialect_type_chars(mkc('i'), mkc('n'), mkc('t'), 0, 0, 0, 0, 0, 0))
     throw new Error("cc0 type word failed");
 
 if (!cc0_is_digit(48) || !cc0_is_digit(57) || cc0_is_digit(58))

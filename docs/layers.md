@@ -10,7 +10,12 @@ for the full TCC compatibility layer.
 `cc0.c` is the syntax seed for the base dialect. It is deliberately valid as
 both JavaScript and C with `function` and `var` defined as `int`. It now owns
 the first tiny compiler-shaped behavior: byte-oriented character/token
-classification helpers plus a minimal scanner state machine. The scanner uses
+classification helpers plus a minimal scanner state machine. String and
+character literals are written through wrapper calls: `mks("text")` stores a
+NUL-terminated byte string on the C heap or JS virtual heap, and `mkc('A')`
+normalizes a character literal/string to its byte code. The runtime-specific
+support is kept in `cc0_support.c` and `cc0_support.js`, while shared cc0 code
+uses named `CC0_CH_*` constants for byte values. The scanner uses
 fixed eight-byte and sixteen-byte source windows for now, skips whitespace, and reports token
 class, start offset, length, and decimal value where applicable for names,
 decimal numbers, punctuation, and EOF. This keeps the earliest phase below the

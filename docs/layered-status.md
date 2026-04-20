@@ -68,13 +68,18 @@ windows, skips whitespace, and records the class/start/length of name, decimal
 number, punctuation, and EOF tokens. Function declarations use JavaScript
 syntax, and the C build maps `function` and `var` to `int`. Function arguments
 therefore use old-style C implicit `int` parameters, which keeps the same file
-parseable by both SpiderMonkey and a C compiler. The active TCC preprocessor
-now calls cc0 for the low ASCII character flags used to seed its tokenizer
-table, for decimal and octal digit checks, for ASCII uppercase conversion, and
-for whitespace checks that must exclude newlines. It also calls cc0 to
-recognize the `function` and `var` type words used by the cc0 dialect parser
-mode. The cc0 layer is starting to replace front-end logic in the legacy
-compiler instead of only being a standalone smoke target.
+parseable by both SpiderMonkey and a C compiler. The cc0 dialect can use string
+and character literals through wrapper calls: `mks("text")` copies the string
+to the C heap or the JS virtual heap, and `mkc('A')` returns the character code.
+The support implementations live in `cc0_support.c` and `cc0_support.js`; the
+shared dialect source keeps character codes behind named `CC0_CH_*` constants
+so the low-level byte logic remains auditable. The active TCC preprocessor now
+calls cc0 for the low ASCII character flags used to seed its tokenizer table,
+for decimal and octal digit checks, for ASCII uppercase conversion, and for
+whitespace checks that must exclude newlines. It also calls cc0 to recognize
+the `function` and `var` type words used by the cc0 dialect parser mode. The
+cc0 layer is starting to replace front-end logic in the legacy compiler instead
+of only being a standalone smoke target.
 
 Layered TCC also accepts `-std=cc0`. In that mode the parser treats the
 identifier spellings `function` and `var` as integer type specifiers, so

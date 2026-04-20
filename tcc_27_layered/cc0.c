@@ -15,6 +15,31 @@ var CC0_TOK_NAME;
 var CC0_TOK_NUMBER;
 var CC0_TOK_SPACE;
 var CC0_TOK_PUNCT;
+var CC0_CH_NUL;
+var CC0_CH_TAB;
+var CC0_CH_LF;
+var CC0_CH_VT;
+var CC0_CH_FF;
+var CC0_CH_CR;
+var CC0_CH_SPACE;
+var CC0_CH_0;
+var CC0_CH_7;
+var CC0_CH_9;
+var CC0_CH_A;
+var CC0_CH_Z;
+var CC0_CH_UNDERSCORE;
+var CC0_CH_a;
+var CC0_CH_c;
+var CC0_CH_f;
+var CC0_CH_i;
+var CC0_CH_n;
+var CC0_CH_o;
+var CC0_CH_r;
+var CC0_CH_t;
+var CC0_CH_u;
+var CC0_CH_v;
+var CC0_CH_z;
+var CC0_LOWER_TO_UPPER_DELTA;
 var cc0_src_0;
 var cc0_src_1;
 var cc0_src_2;
@@ -43,6 +68,31 @@ CC0_TOK_NAME = 1;
 CC0_TOK_NUMBER = 2;
 CC0_TOK_SPACE = 3;
 CC0_TOK_PUNCT = 4;
+CC0_CH_NUL = 0;
+CC0_CH_TAB = 9;
+CC0_CH_LF = 10;
+CC0_CH_VT = 11;
+CC0_CH_FF = 12;
+CC0_CH_CR = 13;
+CC0_CH_SPACE = 32;
+CC0_CH_0 = 48;
+CC0_CH_7 = 55;
+CC0_CH_9 = 57;
+CC0_CH_A = 65;
+CC0_CH_Z = 90;
+CC0_CH_UNDERSCORE = 95;
+CC0_CH_a = 97;
+CC0_CH_c = 99;
+CC0_CH_f = 102;
+CC0_CH_i = 105;
+CC0_CH_n = 110;
+CC0_CH_o = 111;
+CC0_CH_r = 114;
+CC0_CH_t = 116;
+CC0_CH_u = 117;
+CC0_CH_v = 118;
+CC0_CH_z = 122;
+CC0_LOWER_TO_UPPER_DELTA = 32;
 cc0_src_0 = -1;
 cc0_src_1 = -1;
 cc0_src_2 = -1;
@@ -86,36 +136,36 @@ function cc0_not(value)
 
 function cc0_is_word_function_chars(c0, c1, c2, c3, c4, c5, c6, c7, c8)
 {
-    if (c0 != 102)
+    if (c0 != CC0_CH_f)
         return 0;
-    if (c1 != 117)
+    if (c1 != CC0_CH_u)
         return 0;
-    if (c2 != 110)
+    if (c2 != CC0_CH_n)
         return 0;
-    if (c3 != 99)
+    if (c3 != CC0_CH_c)
         return 0;
-    if (c4 != 116)
+    if (c4 != CC0_CH_t)
         return 0;
-    if (c5 != 105)
+    if (c5 != CC0_CH_i)
         return 0;
-    if (c6 != 111)
+    if (c6 != CC0_CH_o)
         return 0;
-    if (c7 != 110)
+    if (c7 != CC0_CH_n)
         return 0;
-    if (c8)
+    if (c8 != CC0_CH_NUL)
         return 0;
     return 1;
 }
 
 function cc0_is_word_var_chars(c0, c1, c2, c3)
 {
-    if (c0 != 118)
+    if (c0 != CC0_CH_v)
         return 0;
-    if (c1 != 97)
+    if (c1 != CC0_CH_a)
         return 0;
-    if (c2 != 114)
+    if (c2 != CC0_CH_r)
         return 0;
-    if (c3)
+    if (c3 != CC0_CH_NUL)
         return 0;
     return 1;
 }
@@ -131,32 +181,32 @@ function cc0_is_dialect_type_chars(c0, c1, c2, c3, c4, c5, c6, c7, c8)
 
 function cc0_is_digit(c)
 {
-    if (c >= 48)
-        if (c <= 57)
+    if (c >= CC0_CH_0)
+        if (c <= CC0_CH_9)
             return 1;
     return 0;
 }
 
 function cc0_is_oct_digit(c)
 {
-    if (c >= 48)
-        if (c <= 55)
+    if (c >= CC0_CH_0)
+        if (c <= CC0_CH_7)
             return 1;
     return 0;
 }
 
 function cc0_is_upper(c)
 {
-    if (c >= 65)
-        if (c <= 90)
+    if (c >= CC0_CH_A)
+        if (c <= CC0_CH_Z)
             return 1;
     return 0;
 }
 
 function cc0_is_lower(c)
 {
-    if (c >= 97)
-        if (c <= 122)
+    if (c >= CC0_CH_a)
+        if (c <= CC0_CH_z)
             return 1;
     return 0;
 }
@@ -173,7 +223,7 @@ function cc0_is_alpha(c)
 function cc0_to_upper(c)
 {
     if (cc0_is_lower(c))
-        return c - 32;
+        return c - CC0_LOWER_TO_UPPER_DELTA;
     return c;
 }
 
@@ -181,7 +231,7 @@ function cc0_is_name_start(c)
 {
     if (cc0_is_alpha(c))
         return 1;
-    if (c == 95)
+    if (c == CC0_CH_UNDERSCORE)
         return 1;
     return 0;
 }
@@ -197,17 +247,17 @@ function cc0_is_name_continue(c)
 
 function cc0_is_space(c)
 {
-    if (c == 32)
+    if (c == CC0_CH_SPACE)
         return 1;
-    if (c == 9)
+    if (c == CC0_CH_TAB)
         return 1;
-    if (c == 10)
+    if (c == CC0_CH_LF)
         return 1;
-    if (c == 11)
+    if (c == CC0_CH_VT)
         return 1;
-    if (c == 12)
+    if (c == CC0_CH_FF)
         return 1;
-    if (c == 13)
+    if (c == CC0_CH_CR)
         return 1;
     return 0;
 }
@@ -215,7 +265,7 @@ function cc0_is_space(c)
 function cc0_tccpp_char_flags(c)
 {
     if (cc0_is_space(c))
-        if (c != 10)
+        if (c != CC0_CH_LF)
             return 1;
     if (cc0_is_name_start(c))
         return 2;
