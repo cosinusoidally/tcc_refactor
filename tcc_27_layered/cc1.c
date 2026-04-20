@@ -34,6 +34,10 @@ var cc1_arg_2;
 var cc1_arg_3;
 var cc1_function_count;
 var cc1_top_decl_count;
+var cc1_return_count;
+var cc1_if_count;
+var cc1_while_count;
+var cc1_local_decl_count;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -53,6 +57,10 @@ cc1_arg_2 = 0;
 cc1_arg_3 = 0;
 cc1_function_count = 0;
 cc1_top_decl_count = 0;
+cc1_return_count = 0;
+cc1_if_count = 0;
+cc1_while_count = 0;
+cc1_local_decl_count = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -71,6 +79,10 @@ function cc1_reset()
     cc1_error = 0;
     cc1_function_count = 0;
     cc1_top_decl_count = 0;
+    cc1_return_count = 0;
+    cc1_if_count = 0;
+    cc1_while_count = 0;
+    cc1_local_decl_count = 0;
     return 0;
 }
 
@@ -731,6 +743,14 @@ function cc1_skip_function_body_tokens()
     }
     depth = 0;
     while (cc0_get_tok_class() != CC0_TOK_EOF) {
+        if (cc0_tok_is_word_return())
+            cc1_return_count = cc1_return_count + 1;
+        if (cc0_tok_is_word_if())
+            cc1_if_count = cc1_if_count + 1;
+        if (cc0_tok_is_word_while())
+            cc1_while_count = cc1_while_count + 1;
+        if (cc0_tok_is_word_var())
+            cc1_local_decl_count = cc1_local_decl_count + 1;
         if (cc1_at_punct(CC0_CH_LBRACE))
             depth = depth + 1;
         if (cc1_at_punct(CC0_CH_RBRACE)) {
@@ -985,4 +1005,24 @@ function cc1_get_function_count()
 function cc1_get_top_decl_count()
 {
     return cc1_top_decl_count;
+}
+
+function cc1_get_return_count()
+{
+    return cc1_return_count;
+}
+
+function cc1_get_if_count()
+{
+    return cc1_if_count;
+}
+
+function cc1_get_while_count()
+{
+    return cc1_while_count;
+}
+
+function cc1_get_local_decl_count()
+{
+    return cc1_local_decl_count;
 }

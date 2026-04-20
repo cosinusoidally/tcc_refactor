@@ -60,6 +60,7 @@ var CC0_CH_g;
 var CC0_CH_h;
 var CC0_CH_i;
 var CC0_CH_k;
+var CC0_CH_l;
 var CC0_CH_m;
 var CC0_CH_n;
 var CC0_CH_o;
@@ -69,6 +70,7 @@ var CC0_CH_s;
 var CC0_CH_t;
 var CC0_CH_u;
 var CC0_CH_v;
+var CC0_CH_w;
 var CC0_CH_z;
 var CC0_LOWER_TO_UPPER_DELTA;
 var cc0_src_0;
@@ -146,6 +148,7 @@ CC0_CH_g = 103;
 CC0_CH_h = 104;
 CC0_CH_i = 105;
 CC0_CH_k = 107;
+CC0_CH_l = 108;
 CC0_CH_m = 109;
 CC0_CH_n = 110;
 CC0_CH_o = 111;
@@ -155,6 +158,7 @@ CC0_CH_s = 115;
 CC0_CH_t = 116;
 CC0_CH_u = 117;
 CC0_CH_v = 118;
+CC0_CH_w = 119;
 CC0_CH_z = 122;
 CC0_LOWER_TO_UPPER_DELTA = 32;
 cc0_src_0 = -1;
@@ -297,6 +301,23 @@ function cc0_is_word_mks_chars(c0, c1, c2, c3)
     if (c2 != CC0_CH_s)
         return 0;
     if (c3 != CC0_CH_NUL)
+        return 0;
+    return 1;
+}
+
+function cc0_is_word_while_chars(c0, c1, c2, c3, c4, c5)
+{
+    if (c0 != CC0_CH_w)
+        return 0;
+    if (c1 != CC0_CH_h)
+        return 0;
+    if (c2 != CC0_CH_i)
+        return 0;
+    if (c3 != CC0_CH_l)
+        return 0;
+    if (c4 != CC0_CH_e)
+        return 0;
+    if (c5 != CC0_CH_NUL)
         return 0;
     return 1;
 }
@@ -730,5 +751,20 @@ function cc0_tok_is_word_mks()
         cc0_source_at(cc0_tok_start),
         cc0_source_at(cc0_tok_start + 1),
         cc0_source_at(cc0_tok_start + 2),
+        CC0_CH_NUL);
+}
+
+function cc0_tok_is_word_while()
+{
+    if (cc0_get_tok_class() != CC0_TOK_NAME)
+        return 0;
+    if (cc0_get_tok_len() != 5)
+        return 0;
+    return cc0_is_word_while_chars(
+        cc0_source_at(cc0_tok_start),
+        cc0_source_at(cc0_tok_start + 1),
+        cc0_source_at(cc0_tok_start + 2),
+        cc0_source_at(cc0_tok_start + 3),
+        cc0_source_at(cc0_tok_start + 4),
         CC0_CH_NUL);
 }

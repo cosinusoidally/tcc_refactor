@@ -60,7 +60,8 @@ parsing yet. cc1 also evaluates `mkc('A')`, `mks("text")`, and
 `cc0_heap_get(expr, expr)`, so the wrapper-literal convention is tested in both
 the C and JavaScript runtimes. It also has a whole-source cc0 shell parse that
 uses cc0 comment skipping to scan the real `cc0.c`, count top-level
-declarations/assignments, and validate function signatures with balanced bodies.
+declarations/assignments, validate function signatures with balanced bodies, and
+count body-level `return`, `if`, `while`, and local `var` tokens.
 That is not a C parser yet, but it gives the layered
 tree a tested lower-to-upper token stream and symbol-state boundary before
 preprocessing exists.

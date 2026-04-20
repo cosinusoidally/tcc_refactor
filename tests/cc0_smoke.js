@@ -448,23 +448,47 @@ if (cc1_parse_function2_string(mks("function nz(a,b){if(!a)return b;return a;}")
 if (cc1_get_last_name() !== mkc('n') || cc1_get_last_value() !== 5)
     throw new Error("cc1 unary not function false state failed");
 
-if (cc1_parse_cc0_source_string(mks("/*comment*/var a;a=1;function f(x){if(x)return 1;return 0;}")) !== 1)
+if (cc1_parse_cc0_source_string(mks("/*comment*/var a;a=1;function f(x){if(x)return 1;return 0;}function w(x){var y=0;while(x)y=y+1;return y;}")) !== 1)
     throw new Error("cc1 cc0 source shell parse failed");
 
-if (cc1_get_function_count() !== 1)
+if (cc1_get_function_count() !== 2)
     throw new Error("cc1 cc0 source shell function count failed");
 
 if (cc1_get_top_decl_count() !== 2)
     throw new Error("cc1 cc0 source shell top count failed");
 
+if (cc1_get_return_count() !== 3)
+    throw new Error("cc1 cc0 source shell return count failed");
+
+if (cc1_get_if_count() !== 1)
+    throw new Error("cc1 cc0 source shell if count failed");
+
+if (cc1_get_while_count() !== 1)
+    throw new Error("cc1 cc0 source shell while count failed");
+
+if (cc1_get_local_decl_count() !== 1)
+    throw new Error("cc1 cc0 source shell local count failed");
+
 if (cc1_parse_cc0_source_string(mks(read("../tcc_27_layered/cc0.c"))) !== 1)
     throw new Error("cc1 cc0.c parse failed: " + cc1_get_error());
 
-if (cc1_get_function_count() !== 39)
+if (cc1_get_function_count() !== 41)
     throw new Error("cc1 cc0.c function count failed");
 
-if (cc1_get_top_decl_count() !== 170)
+if (cc1_get_top_decl_count() !== 174)
     throw new Error("cc1 cc0.c top count failed");
+
+if (cc1_get_return_count() !== 148)
+    throw new Error("cc1 cc0.c return count failed");
+
+if (cc1_get_if_count() !== 115)
+    throw new Error("cc1 cc0.c if count failed");
+
+if (cc1_get_while_count() !== 7)
+    throw new Error("cc1 cc0.c while count failed");
+
+if (cc1_get_local_decl_count() !== 4)
+    throw new Error("cc1 cc0.c local count failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
