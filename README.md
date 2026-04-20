@@ -11,7 +11,8 @@ The current tree keeps two TCC source layouts:
 
 The goal is to keep the bootstrap chain within one understandable codebase
 rather than relying on a sequence of throwaway compilers. See
-`layered_bootstrap.txt` for the design sketch behind that direction.
+`layered_bootstrap.txt` for the design sketch behind that direction. Current
+implementation notes are tracked in `docs/layered-status.md`.
 
 ## Repository Layout
 
@@ -50,8 +51,12 @@ The build script:
 3. Rebuilds `tcc_27_layered` with the GCC-built binary.
 4. Rebuilds it a second time with the self-built binary.
 5. Compares the two self-built object files.
-6. Builds selected baseline `tcc_27` files with the layered compiler.
-7. Checks the generated files against `sums_tcc_27`.
+6. Uses the layered compiler's `-ar` mode to create `libtcc1.a`.
+7. Builds and starts a glibc-linked `tcc_27_layered` executable.
+8. Smoke-tests `-nostdinc`.
+9. Builds selected baseline `tcc_27` files with the layered compiler.
+10. Builds and starts a glibc-linked baseline `tcc_27` executable.
+11. Checks the generated hash fixtures against `sums_tcc_27`.
 
 ## Coverage
 

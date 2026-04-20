@@ -25,6 +25,19 @@ gcc -m32 tcc_27_layered2.o libtcc1_layered2.o -o tcc_27_layered -ldl
 diff -u -s tcc_27_layered.o tcc_27_layered2.o
 diff -u -s libtcc1_layered.o libtcc1_layered2.o
 
+# make sure the layered compiler can create its own runtime archive and use it
+# for a normal glibc-linked build of itself
+./tcc_27_layered -ar rcs libtcc1.a libtcc1_layered2.o
+./tcc_27_layered -B . -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered/include -I ../tcc_27_layered/ -DONE_SOURCE -U__linux__ ../tcc_27_layered/tcc.c -ldl -o tcc_27_layered_dyn_tcc
+chmod +x tcc_27_layered_dyn_tcc
+./tcc_27_layered_dyn_tcc -dumpversion >/dev/null
+
+# keep a smoke test for -nostdinc independent of host headers
+cat > nostdinc_smoke.c <<'EOF'
+int main() { return 0; }
+EOF
+./tcc_27_layered -nostdinc -c nostdinc_smoke.c -o nostdinc_smoke.o
+
 # build some test files
 
 # we have to symlink since tcc will include the file name in the object code
@@ -48,6 +61,13 @@ cd ..
 ./tcc_27_layered -c libc_static.c -o libc_static.o
 
 ./tcc_27_layered -nostdlib -static libc_static.o libc_boot4.o libtcc1.o tcc.o -o tcc_27_boot_static.exe
+
+# also make sure the baseline tcc_27 source can be built as a glibc-linked
+# executable by the layered compiler
+./tcc_27_layered -ar rcs libtcc1.a libtcc1.o
+./tcc_27_layered -B . -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27/include -I ../tcc_27/ -DONE_SOURCE -U__linux__ tcc.c -ldl -o tcc_27_dyn_tcc
+chmod +x tcc_27_dyn_tcc
+./tcc_27_dyn_tcc -dumpversion >/dev/null
 
 cd ..
 

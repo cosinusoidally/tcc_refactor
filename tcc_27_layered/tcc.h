@@ -164,10 +164,6 @@ extern long double strtold (const char *__nptr, char **__endptr);
 
 #if defined TCC_IS_NATIVE && !defined CONFIG_TCCBOOT
 # define CONFIG_TCC_BACKTRACE
-# if (defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64) \
-  && !defined TCC_UCLIBC && !defined TCC_MUSL
-# define CONFIG_TCC_BCHECK /* enable bound checking code */
-# endif
 #endif
 
 /* ------------ path configuration ------------ */
@@ -179,7 +175,7 @@ extern long double strtold (const char *__nptr, char **__endptr);
 # define CONFIG_TCCDIR "/usr/local/lib/tcc"
 #endif
 #ifndef CONFIG_LDDIR
-# define CONFIG_LDDIR "lib"
+# define CONFIG_LDDIR "lib32"
 #endif
 #ifdef CONFIG_TRIPLET
 # define USE_TRIPLET(s) s "/" CONFIG_TRIPLET
