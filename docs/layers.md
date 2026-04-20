@@ -41,6 +41,11 @@ exists.
 `cc0_unified.c` is the C unified build for the cc0 scaffold. It maps
 `function` and `var` to `int`, includes `cc0.c`, `cc1.c`, and `cc2.c`.
 
+`cc0_unified_cc0.c` is the same lower-layer scaffold built through the cc0
+dialect path. It includes `cc0.c`, `cc1.c`, and `cc2.c` without macro-mapping
+`function` and `var`; layered TCC builds it with `-std=cc0`, then links in the
+C literal-wrapper support.
+
 `cc2.c` is the first scaffold used by the active historical compiler path. It
 contains small archive-tool helpers used by `tcc -ar`: option character
 classification, 32-bit archive index byte swapping, and exported-symbol

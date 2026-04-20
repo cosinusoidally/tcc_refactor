@@ -56,7 +56,9 @@ to the static bootstrap hash checks, it now verifies that:
   with both GCC and the layered TCC using `-Dfunction=int -Dvar=int`, by
   compiling directly with layered TCC using `-std=cc0`, by
   building `cc0_unified.c` plus the C smoke test with both GCC and layered TCC,
-  and by loading the dialect files under SpiderMonkey `js`.
+  by building `cc0_unified_cc0.c` plus the C smoke test through both the normal
+  layered compiler and the cc0-built compiler using `-std=cc0`, and by loading
+  the dialect files under SpiderMonkey `js`.
 
 ## cc0 Dialect Seed
 
