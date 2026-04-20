@@ -7,13 +7,14 @@ This tree is being refactored toward the staged compiler described in
 
 ## Active Compiler Surface
 
-The current `tcc_27_layered` build is a 32-bit Linux/ELF compiler built with
-`-DONE_SOURCE`. It includes the shared front end, preprocessor, i386 code
+The current `tcc_27_layered` build is a 32-bit Linux/ELF compiler built through
+`tcc_unified.c`. It includes the shared front end, preprocessor, i386 code
 generator, assembler support, ELF writer, and command-line driver. Win32/PE
 builds are rejected in `tcc.h`, and the default target is always i386 for this
 layered tree. Its default library directory is `lib32`, matching the i386 target
 used by the bootstrap and allowing normal glibc dynamic links to find 32-bit crt
-and libc files on the current host layout.
+and libc files on the current host layout. See `docs/layers.md` for the current
+module map.
 
 The baseline source tree in `tcc_27/` is read-only for this refactor. It is
 compiled only as a fixture to prove that generated objects and the static
@@ -24,8 +25,10 @@ bootstrap executable still match the recorded hashes.
 Bounds checking is not part of the layered bootstrap target. The old native
 build auto-enabled `CONFIG_TCC_BCHECK` on i386/x86_64, which pulled in command
 line handling and object metadata for `-b`. That configuration is now disabled
-in `tcc_27_layered/tcc.h`, and the unused runtime implementation
-`tcc_27_layered/lib/bcheck.c` has been removed.
+in `tcc_27_layered/tcc.h`, the command-line/runtime hooks have been removed
+from the active compiler sources, and the unused runtime implementation
+`tcc_27_layered/lib/bcheck.c` has been removed. Non-i386 runtime files have
+also been removed from `tcc_27_layered/lib`.
 
 This should not change normal compilation output because the bounds machinery
 only affects builds that request `-b`. The required invariant is still the

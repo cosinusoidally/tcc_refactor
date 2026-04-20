@@ -12,7 +12,8 @@ The current tree keeps two TCC source layouts:
 The goal is to keep the bootstrap chain within one understandable codebase
 rather than relying on a sequence of throwaway compilers. See
 `layered_bootstrap.txt` for the design sketch behind that direction. Current
-implementation notes are tracked in `docs/layered-status.md`.
+implementation notes are tracked in `docs/layered-status.md` and
+`docs/layers.md`.
 
 ## Repository Layout
 

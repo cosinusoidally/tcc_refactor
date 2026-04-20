@@ -948,14 +948,6 @@ LIBTCCAPI int tcc_set_output_type(TCCState *s, int output_type)
         tcc_add_sysinclude_path(s, CONFIG_TCC_SYSINCLUDEPATHS);
     }
 
-#ifdef CONFIG_TCC_BCHECK
-    if (s->do_bounds_check) {
-        /* if bound checking, then add corresponding sections */
-        tccelf_bounds_new(s);
-        /* define symbol */
-        tcc_define_symbol(s, "__BOUNDS_CHECKING_ON", NULL);
-    }
-#endif
     if (s->do_debug) {
         /* add debug sections */
         tccelf_stab_new(s);
@@ -1505,9 +1497,6 @@ static const TCCOption tcc_options[] = {
 #ifdef CONFIG_TCC_BACKTRACE
     { "bt", TCC_OPTION_bt, TCC_OPTION_HAS_ARG },
 #endif
-#ifdef CONFIG_TCC_BCHECK
-    { "b", TCC_OPTION_b, 0 },
-#endif
     { "g", TCC_OPTION_g, TCC_OPTION_HAS_ARG | TCC_OPTION_NOSEP },
     { "c", TCC_OPTION_c, 0 },
     { "dumpversion", TCC_OPTION_dumpversion, 0},
@@ -1755,12 +1744,6 @@ reparse:
 #ifdef CONFIG_TCC_BACKTRACE
         case TCC_OPTION_bt:
             tcc_set_num_callers(atoi(optarg));
-            break;
-#endif
-#ifdef CONFIG_TCC_BCHECK
-        case TCC_OPTION_b:
-            s->do_bounds_check = 1;
-            s->do_debug = 1;
             break;
 #endif
         case TCC_OPTION_g:

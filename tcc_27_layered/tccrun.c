@@ -37,7 +37,6 @@
 #  define ucontext_t CONTEXT
 # endif
 ST_DATA int rt_num_callers = 6;
-ST_DATA const char **rt_bound_error_msg;
 ST_DATA void *rt_prog_main;
 static int rt_get_caller_pc(addr_t *paddr, ucontext_t *uc, int level);
 static void rt_error(ucontext_t *uc, const char *fmt, ...);
@@ -135,38 +134,6 @@ LIBTCCAPI int tcc_run(TCCState *s1, int argc, char **argv)
 /* LJW HACK remove errno use
     errno = 0;
 */
-#ifdef CONFIG_TCC_BCHECK
-    if (s1->do_bounds_check) {
-        void (*bound_init)(void);
-        void (*bound_exit)(void);
-        void (*bound_new_region)(void *p, addr_t size);
-        int  (*bound_delete_region)(void *p);
-        int i, ret;
-
-        /* set error function */
-        rt_bound_error_msg = tcc_get_symbol_err(s1, "__bound_error_msg");
-        /* XXX: use .init section so that it also work in binary ? */
-        bound_init = tcc_get_symbol_err(s1, "__bound_init");
-        bound_exit = tcc_get_symbol_err(s1, "__bound_exit");
-        bound_new_region = tcc_get_symbol_err(s1, "__bound_new_region");
-        bound_delete_region = tcc_get_symbol_err(s1, "__bound_delete_region");
-
-        bound_init();
-        /* mark argv area as valid */
-        bound_new_region(argv, argc*sizeof(argv[0]));
-        for (i=0; i<argc; ++i)
-            bound_new_region(argv[i], strlen(argv[i]) + 1);
-
-        ret = (*prog_main)(argc, argv);
-
-        /* unmark argv area */
-        for (i=0; i<argc; ++i)
-            bound_delete_region(argv[i]);
-        bound_delete_region(argv);
-        bound_exit();
-        return ret;
-    }
-#endif
     return (*prog_main)(argc, argv);
 }
 
@@ -522,10 +489,7 @@ static void sig_error(int signum, siginfo_t *siginf, void *puc)
         break;
     case SIGBUS:
     case SIGSEGV:
-        if (rt_bound_error_msg && *rt_bound_error_msg)
-            rt_error(uc, *rt_bound_error_msg);
-        else
-            rt_error(uc, "dereferencing invalid pointer");
+        rt_error(uc, "dereferencing invalid pointer");
         break;
     case SIGILL:
         rt_error(uc, "illegal instruction");
@@ -741,10 +705,7 @@ static long __stdcall cpu_exception_handler(EXCEPTION_POINTERS *ex_info)
     CONTEXT *uc = ex_info->ContextRecord;
     switch (er->ExceptionCode) {
     case EXCEPTION_ACCESS_VIOLATION:
-        if (rt_bound_error_msg && *rt_bound_error_msg)
-            rt_error(uc, *rt_bound_error_msg);
-        else
-	    rt_error(uc, "access violation");
+        rt_error(uc, "access violation");
         break;
     case EXCEPTION_STACK_OVERFLOW:
         rt_error(uc, "stack overflow");

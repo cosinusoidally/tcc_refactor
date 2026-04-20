@@ -599,10 +599,6 @@ struct TCCState {
 
     /* compile with debug symbol (and use them if error during execution) */
     int do_debug;
-#ifdef CONFIG_TCC_BCHECK
-    /* compile with built-in memory and bounds checker */
-    int do_bounds_check;
-#endif
 #ifdef TCC_TARGET_ARM
     enum float_abi float_abi; /* float ABI of the generated code*/
 #endif
@@ -1204,7 +1200,7 @@ ST_DATA Sym *local_label_stack;
 ST_DATA Sym *global_label_stack;
 ST_DATA Sym *define_stack;
 ST_DATA CType char_pointer_type, func_old_type, int_type, size_type;
-ST_DATA SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE], *vtop, *pvtop;
+ST_DATA SValue __vstack[1+VSTACK_SIZE], *vtop, *pvtop;
 #define vstack  (__vstack + 1)
 ST_DATA int rsym, anon_sym, ind, loc;
 
@@ -1297,12 +1293,6 @@ ST_DATA Section *cur_text_section; /* current section where function code is gen
 #ifdef CONFIG_TCC_ASM
 ST_DATA Section *last_text_section; /* to handle .previous asm directive */
 #endif
-#ifdef CONFIG_TCC_BCHECK
-/* bound check related sections */
-ST_DATA Section *bounds_section; /* contains global data bound description */
-ST_DATA Section *lbounds_section; /* contains local data bound description */
-ST_FUNC void tccelf_bounds_new(TCCState *s);
-#endif
 /* symbol sections */
 ST_DATA Section *symtab_section;
 /* debug sections */
@@ -1348,7 +1338,6 @@ ST_FUNC void relocate_section(TCCState *s1, Section *s);
 ST_FUNC int tcc_object_type(int fd, ElfW(Ehdr) *h);
 ST_FUNC int tcc_load_object_file(TCCState *s1, int fd, unsigned long file_offset);
 ST_FUNC int tcc_load_archive(TCCState *s1, int fd);
-ST_FUNC void tcc_add_bcheck(TCCState *s1);
 ST_FUNC void tcc_add_runtime(TCCState *s1);
 
 ST_FUNC void build_got_entries(TCCState *s1);
@@ -1556,7 +1545,6 @@ ST_FUNC void *dlsym(void *handle, const char *symbol);
 #endif
 #ifdef CONFIG_TCC_BACKTRACE
 ST_DATA int rt_num_callers;
-ST_DATA const char **rt_bound_error_msg;
 ST_DATA void *rt_prog_main;
 ST_FUNC void tcc_set_num_callers(int n);
 #endif
