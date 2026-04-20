@@ -834,13 +834,13 @@ ST_FUNC int set_idnum(int c, int val)
 
 static inline void skip_spaces(void)
 {
-    while (isidnum_table[ch - CH_EOF] & IS_SPC)
+    while (cc0_tccpp_is_space(ch))
         cinp();
 }
 
 static inline int check_space(int t, int *spc) 
 {
-    if (t < 256 && (isidnum_table[t - CH_EOF] & IS_SPC)) {
+    if (cc0_tccpp_is_space(t)) {
         if (*spc) 
             return 1;
         *spc = 1;
