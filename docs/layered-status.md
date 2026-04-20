@@ -73,13 +73,14 @@ and character literals through wrapper calls: `mks("text")` copies the string
 to the C heap or the JS virtual heap, and `mkc('A')` returns the character code.
 The support implementations live in `cc0_support.c` and `cc0_support.js`; the
 shared dialect source keeps character codes behind named `CC0_CH_*` constants
-so the low-level byte logic remains auditable. The active TCC preprocessor now
-calls cc0 for the low ASCII character flags used to seed its tokenizer table,
-for decimal and octal digit checks, for ASCII uppercase conversion, and for
-whitespace checks that must exclude newlines. It also calls cc0 to recognize
-the `function` and `var` type words used by the cc0 dialect parser mode. The
-cc0 layer is starting to replace front-end logic in the legacy compiler instead
-of only being a standalone smoke target.
+so the low-level byte logic remains auditable; cc1 also consumes those names for
+its punctuation grammar. The active TCC preprocessor now calls cc0 for the low
+ASCII character flags used to seed its tokenizer table, for decimal and octal
+digit checks, for ASCII uppercase conversion, and for whitespace checks that
+must exclude newlines. It also calls cc0 to recognize the `function` and `var`
+type words used by the cc0 dialect parser mode. The cc0 layer is starting to
+replace front-end logic in the legacy compiler instead of only being a
+standalone smoke target.
 
 Layered TCC also accepts `-std=cc0`. In that mode the parser treats the
 identifier spellings `function` and `var` as integer type specifiers, so

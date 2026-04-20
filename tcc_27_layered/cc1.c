@@ -141,12 +141,12 @@ function cc1_parse_primary()
         cc0_scan_next();
         return value;
     }
-    if (cc1_at_punct(40)) {
+    if (cc1_at_punct(CC0_CH_LPAREN)) {
         cc0_scan_next();
         value = cc1_parse_sum_tokens();
         if (cc1_error)
             return 0;
-        if (!cc1_at_punct(41)) {
+        if (!cc1_at_punct(CC0_CH_RPAREN)) {
             cc1_error = 4;
             return 0;
         }
@@ -163,7 +163,7 @@ function cc1_parse_product()
     var rhs;
     value = cc1_parse_primary();
     while (cc1_error == 0) {
-        if (!cc1_at_punct(42))
+        if (!cc1_at_punct(CC0_CH_STAR))
             return value;
         cc0_scan_next();
         rhs = cc1_parse_primary();
@@ -178,7 +178,7 @@ function cc1_parse_sum_tokens()
     var rhs;
     value = cc1_parse_product();
     while (cc1_error == 0) {
-        if (!cc1_at_punct(43))
+        if (!cc1_at_punct(CC0_CH_PLUS))
             return value;
         cc0_scan_next();
         rhs = cc1_parse_product();
@@ -218,7 +218,7 @@ function cc1_parse_assignment_tokens()
     }
     cc1_last_name = cc0_get_tok_first();
     cc0_scan_next();
-    if (!cc1_at_punct(61)) {
+    if (!cc1_at_punct(CC0_CH_EQUAL)) {
         cc1_error = 8;
         return 0;
     }
@@ -257,7 +257,7 @@ function cc1_parse_program16(c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c
             return 0;
         if (cc0_get_tok_class() == CC0_TOK_EOF)
             return 1;
-        if (!cc1_at_punct(59)) {
+        if (!cc1_at_punct(CC0_CH_SEMI)) {
             cc1_error = 9;
             return 0;
         }

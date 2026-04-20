@@ -15,7 +15,8 @@ character literals are written through wrapper calls: `mks("text")` stores a
 NUL-terminated byte string on the C heap or JS virtual heap, and `mkc('A')`
 normalizes a character literal/string to its byte code. The runtime-specific
 support is kept in `cc0_support.c` and `cc0_support.js`, while shared cc0 code
-uses named `CC0_CH_*` constants for byte values. The scanner uses
+uses named `CC0_CH_*` constants for byte values, including punctuation consumed
+by upper layers. The scanner uses
 fixed eight-byte and sixteen-byte source windows for now, skips whitespace, and reports token
 class, start offset, length, and decimal value where applicable for names,
 decimal numbers, punctuation, and EOF. This keeps the earliest phase below the
