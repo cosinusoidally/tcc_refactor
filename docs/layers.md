@@ -21,7 +21,9 @@ source windows for regression coverage, and it can also scan strings allocated
 through `mks("...")`. In C those strings live on the C heap; in JavaScript they
 live in the cc0 virtual heap. The scanner skips whitespace and reports token
 class, start offset, length, and decimal value where applicable for names,
-decimal numbers, punctuation, and EOF. This keeps the earliest phase below the
+decimal numbers, punctuation, and EOF. It also exposes token-word recognizers
+for `function`, `var`, and `return`, keeping keyword checks in the same
+byte-oriented layer as source access. This keeps the earliest phase below the
 preprocessor and suitable for the JS/C dialect intersection. The active
 `tccpp.c` tokenizer table now also gets its low ASCII space/name/number flags
 from cc0, and the compiler's digit, octal digit, uppercase conversion, and
@@ -37,9 +39,11 @@ numbers, names, parentheses, `*`, and `+` with normal precedence. It also has a
 four-slot name/value table, a minimal `name = expr` assignment parser, and a
 semicolon-separated assignment program parser. The parser can still take fixed
 source windows for regression coverage, but the forward path uses `mks` strings
-so source length is not capped by the original test cells. That is not a C
-parser yet, but it gives the layered tree a tested lower-to-upper token stream
-and symbol-state boundary before preprocessing exists.
+so source length is not capped by the original test cells. It now has the first
+cc0-shaped function parser for `function name() { return expr; }`, which reuses
+the expression parser for the return value. That is not a C parser yet, but it
+gives the layered tree a tested lower-to-upper token stream and symbol-state
+boundary before preprocessing exists.
 
 `cc0_unified.c` is the C unified build for the cc0 scaffold. It maps
 `function` and `var` to `int`, includes `cc0.c`, `cc1.c`, and `cc2.c`.

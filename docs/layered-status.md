@@ -69,7 +69,9 @@ preprocessing: it still operates over fixed eight-byte and sixteen-byte source
 windows for regression coverage, and it can now scan strings allocated through
 `mks("...")`, which removes the first source-length cap from the lower-layer
 path. It skips whitespace and records the class/start/length of name, decimal
-number, punctuation, and EOF tokens. Function declarations use JavaScript
+number, punctuation, and EOF tokens. It also recognizes the current token as
+`function`, `var`, or `return` without leaving the byte scanner layer. Function
+declarations use JavaScript
 syntax, and the C build maps `function` and `var` to `int`. Function arguments
 therefore use old-style C implicit `int` parameters, which keeps the same file
 parseable by both SpiderMonkey and a C compiler. The cc0 dialect can use string
@@ -97,10 +99,11 @@ numbers, names, parentheses, `*`, and `+` with normal precedence. It also has a
 four-slot name/value table, a minimal `name = expr` assignment parser, and a
 semicolon-separated assignment program parser. The old fixed-window entry
 points remain, but cc1 now also parses expressions, assignments, and simple
-programs from `mks` strings in both C and JavaScript. This is intentionally
-below C syntax and below the preprocessor; its purpose is to make the
-cc0-to-cc1 boundary executable and self-checking in both runtimes before larger
-grammar work is moved over.
+programs from `mks` strings in both C and JavaScript. It also has the first
+cc0-shaped function parser for `function name() { return expr; }`. This is
+intentionally below C syntax and below the preprocessor; its purpose is to make
+the cc0-to-cc1 boundary executable and self-checking in both runtimes before
+larger grammar work is moved over.
 
 `tcc_27_layered/cc2.c` starts moving active legacy tool behavior into the
 layered files. The archive writer still lives in `tcctools.c`, but the option

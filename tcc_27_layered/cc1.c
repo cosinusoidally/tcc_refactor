@@ -8,6 +8,7 @@
  *     expr    := product ("+" product)*
  *     product := primary ("*" primary)*
  *     primary := number | name | "(" expr ")"
+ *     func    := "function" name "(" ")" "{" "return" expr ";" "}"
  */
 
 var cc1_version;
@@ -308,6 +309,71 @@ function cc1_parse_program_string(source)
     cc0_source_set_string(source);
     cc0_scan_next();
     return cc1_parse_program_tokens();
+}
+
+function cc1_parse_function_return_tokens()
+{
+    var value;
+    if (!cc0_tok_is_word_function()) {
+        cc1_error = 10;
+        return 0;
+    }
+    cc0_scan_next();
+    if (cc0_get_tok_class() != CC0_TOK_NAME) {
+        cc1_error = 11;
+        return 0;
+    }
+    cc1_last_name = cc0_get_tok_first();
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_LPAREN)) {
+        cc1_error = 12;
+        return 0;
+    }
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_RPAREN)) {
+        cc1_error = 13;
+        return 0;
+    }
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_LBRACE)) {
+        cc1_error = 14;
+        return 0;
+    }
+    cc0_scan_next();
+    if (!cc0_tok_is_word_return()) {
+        cc1_error = 15;
+        return 0;
+    }
+    cc0_scan_next();
+    value = cc1_parse_sum_tokens();
+    if (cc1_error)
+        return 0;
+    if (!cc1_at_punct(CC0_CH_SEMI)) {
+        cc1_error = 16;
+        return 0;
+    }
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_RBRACE)) {
+        cc1_error = 17;
+        return 0;
+    }
+    cc0_scan_next();
+    cc1_last_value = value;
+    return 1;
+}
+
+function cc1_parse_function_return_string(source)
+{
+    cc1_reset();
+    cc0_source_set_string(source);
+    cc0_scan_next();
+    if (!cc1_parse_function_return_tokens())
+        return 0;
+    if (cc0_get_tok_class() != CC0_TOK_EOF) {
+        cc1_error = 2;
+        return 0;
+    }
+    return 1;
 }
 
 function cc1_get_last_value()
