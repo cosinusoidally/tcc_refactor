@@ -126,7 +126,10 @@ skipped by the cc0 scanner, top-level `var` declarations and assignments are
 recognized, and function signatures plus balanced bodies are counted. The body
 pass now also recognizes `return`, `if`, `while`, and local `var` tokens, so the
 SpiderMonkey smoke test checks the actual control-flow/declaration counts for
-the current `cc0.c` source. This is
+the current `cc0.c` source. It also checks balanced parentheses within each
+function body, total semicolon-terminated body statements, and maximum nested
+body depth. Function signature parsing also records total and maximum parameter
+counts for the real cc0 source. This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
 self-checking in both runtimes before larger grammar work is moved over.

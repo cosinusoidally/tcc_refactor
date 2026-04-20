@@ -469,6 +469,18 @@ if (cc1_get_while_count() !== 1)
 if (cc1_get_local_decl_count() !== 1)
     throw new Error("cc1 cc0 source shell local count failed");
 
+if (cc1_get_body_semi_count() !== 5)
+    throw new Error("cc1 cc0 source shell semicolon count failed");
+
+if (cc1_get_max_body_depth() !== 1)
+    throw new Error("cc1 cc0 source shell body depth failed");
+
+if (cc1_get_param_count() !== 2)
+    throw new Error("cc1 cc0 source shell param count failed");
+
+if (cc1_get_max_param_count() !== 1)
+    throw new Error("cc1 cc0 source shell max param count failed");
+
 if (cc1_parse_cc0_source_string(mks(read("../tcc_27_layered/cc0.c"))) !== 1)
     throw new Error("cc1 cc0.c parse failed: " + cc1_get_error());
 
@@ -489,6 +501,18 @@ if (cc1_get_while_count() !== 7)
 
 if (cc1_get_local_decl_count() !== 4)
     throw new Error("cc1 cc0.c local count failed");
+
+if (cc1_get_body_semi_count() !== 247)
+    throw new Error("cc1 cc0.c semicolon count failed");
+
+if (cc1_get_max_body_depth() !== 5)
+    throw new Error("cc1 cc0.c body depth failed");
+
+if (cc1_get_param_count() !== 90)
+    throw new Error("cc1 cc0.c param count failed");
+
+if (cc1_get_max_param_count() !== 16)
+    throw new Error("cc1 cc0.c max param count failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

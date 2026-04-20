@@ -56,6 +56,10 @@ int cc1_get_return_count();
 int cc1_get_if_count();
 int cc1_get_while_count();
 int cc1_get_local_decl_count();
+int cc1_get_body_semi_count();
+int cc1_get_max_body_depth();
+int cc1_get_param_count();
+int cc1_get_max_param_count();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -378,6 +382,14 @@ int main()
         return 154;
     if (cc1_get_local_decl_count() != 1)
         return 155;
+    if (cc1_get_body_semi_count() != 5)
+        return 156;
+    if (cc1_get_max_body_depth() != 1)
+        return 157;
+    if (cc1_get_param_count() != 2)
+        return 158;
+    if (cc1_get_max_param_count() != 1)
+        return 159;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)

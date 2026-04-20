@@ -61,7 +61,11 @@ parsing yet. cc1 also evaluates `mkc('A')`, `mks("text")`, and
 the C and JavaScript runtimes. It also has a whole-source cc0 shell parse that
 uses cc0 comment skipping to scan the real `cc0.c`, count top-level
 declarations/assignments, validate function signatures with balanced bodies, and
-count body-level `return`, `if`, `while`, and local `var` tokens.
+count body-level `return`, `if`, `while`, and local `var` tokens. The source
+pass also verifies balanced parentheses inside each body and records
+semicolon-terminated body statements plus maximum nested body depth. Function
+signature parsing records total and maximum parameter counts for the real cc0
+source.
 That is not a C parser yet, but it gives the layered
 tree a tested lower-to-upper token stream and symbol-state boundary before
 preprocessing exists.
