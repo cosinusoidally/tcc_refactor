@@ -45,6 +45,26 @@ int cc0_heap_get(ptr, offset)
     return p[offset];
 }
 
+int cc0_heap_slice(ptr, start, len)
+    int ptr;
+    int start;
+    int len;
+{
+    char *src;
+    char *copy;
+    int i;
+
+    src = (char *)ptr;
+    copy = malloc(len + 1);
+    i = 0;
+    while (i < len) {
+        copy[i] = src[start + i];
+        i = i + 1;
+    }
+    copy[i] = 0;
+    return (int)copy;
+}
+
 int cc0_heap_is_string(ptr, c0, c1, c2, c3)
     int ptr;
     int c0;

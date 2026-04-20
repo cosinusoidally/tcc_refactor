@@ -8,7 +8,8 @@
  *     expr    := sum (("==" | "!=" | "<" | "<=" | ">" | ">=") sum)*
  *     sum     := product (("+" | "-") product)*
  *     product := primary ("*" primary)*
- *     primary := number | name | "(" expr ")"
+ *     primary := number | name | mkc(char) | mks(string)
+ *              | cc0_heap_get(expr, expr) | "(" expr ")"
  *     func    := "function" name "(" params? ")" "{" var_stmt* if_ret* "return" expr ";" "}"
  *     params  := name ("," name)*
  *     var_stmt := "var" name "=" expr ";"
@@ -201,6 +202,39 @@ function cc1_tok_is_word_cc0_is_digit()
     return 1;
 }
 
+function cc1_tok_is_word_cc0_heap_get()
+{
+    if (cc0_get_tok_class() != CC0_TOK_NAME)
+        return 0;
+    if (cc0_get_tok_len() != 12)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start()) != CC0_CH_c)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 1) != CC0_CH_c)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 2) != CC0_CH_0)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 3) != CC0_CH_UNDERSCORE)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 4) != CC0_CH_h)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 5) != CC0_CH_e)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 6) != CC0_CH_a)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 7) != CC0_CH_p)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 8) != CC0_CH_UNDERSCORE)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 9) != CC0_CH_g)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 10) != CC0_CH_e)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 11) != CC0_CH_t)
+        return 0;
+    return 1;
+}
+
 function cc1_parse_call_cc0_is_digit()
 {
     var value;
@@ -219,6 +253,81 @@ function cc1_parse_call_cc0_is_digit()
     }
     cc0_scan_next();
     return cc0_is_digit(value);
+}
+
+function cc1_parse_call_mkc()
+{
+    var value;
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_LPAREN)) {
+        cc1_error = 31;
+        return 0;
+    }
+    cc0_scan_next();
+    if (cc0_get_tok_class() != CC0_TOK_CHAR) {
+        cc1_error = 32;
+        return 0;
+    }
+    value = cc0_get_tok_value();
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_RPAREN)) {
+        cc1_error = 33;
+        return 0;
+    }
+    cc0_scan_next();
+    return mkc(value);
+}
+
+function cc1_parse_call_mks()
+{
+    var value;
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_LPAREN)) {
+        cc1_error = 34;
+        return 0;
+    }
+    cc0_scan_next();
+    if (cc0_get_tok_class() != CC0_TOK_STRING) {
+        cc1_error = 35;
+        return 0;
+    }
+    value = cc0_get_tok_value();
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_RPAREN)) {
+        cc1_error = 36;
+        return 0;
+    }
+    cc0_scan_next();
+    return value;
+}
+
+function cc1_parse_call_cc0_heap_get()
+{
+    var ptr;
+    var offset;
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_LPAREN)) {
+        cc1_error = 37;
+        return 0;
+    }
+    cc0_scan_next();
+    ptr = cc1_parse_expr_tokens();
+    if (cc1_error)
+        return 0;
+    if (!cc1_at_punct(CC0_CH_COMMA)) {
+        cc1_error = 38;
+        return 0;
+    }
+    cc0_scan_next();
+    offset = cc1_parse_expr_tokens();
+    if (cc1_error)
+        return 0;
+    if (!cc1_at_punct(CC0_CH_RPAREN)) {
+        cc1_error = 39;
+        return 0;
+    }
+    cc0_scan_next();
+    return cc0_heap_get(ptr, offset);
 }
 
 function cc1_function_arg_value(index)
@@ -265,8 +374,14 @@ function cc1_parse_primary()
         return value;
     }
     if (cc0_get_tok_class() == CC0_TOK_NAME) {
+        if (cc0_tok_is_word_mkc())
+            return cc1_parse_call_mkc();
+        if (cc0_tok_is_word_mks())
+            return cc1_parse_call_mks();
         if (cc1_tok_is_word_cc0_is_digit())
             return cc1_parse_call_cc0_is_digit();
+        if (cc1_tok_is_word_cc0_heap_get())
+            return cc1_parse_call_cc0_heap_get();
         value = cc1_lookup_current_name();
         cc0_scan_next();
         return value;

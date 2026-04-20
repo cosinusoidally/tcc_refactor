@@ -20,11 +20,13 @@ by upper layers. The scanner still accepts fixed eight-byte and sixteen-byte
 source windows for regression coverage, and it can also scan strings allocated
 through `mks("...")`. In C those strings live on the C heap; in JavaScript they
 live in the cc0 virtual heap. The scanner skips whitespace and reports token
-class, start offset, length, and decimal value where applicable for names,
-decimal numbers, punctuation, and EOF. It also exposes token-word recognizers
-for `function`, `var`, and `return`, keeping keyword checks in the same
-byte-oriented layer as source access. This keeps the earliest phase below the
-preprocessor and suitable for the JS/C dialect intersection. The active
+class, start offset, length, and value where applicable for names, decimal
+numbers, character literals, string literals, punctuation, and EOF. String
+literal tokens are copied back into the heap model used by `mks`, giving later
+layers a concrete pointer value. It also exposes token-word recognizers for
+`function`, `var`, `return`, `if`, `mkc`, and `mks`, keeping keyword and wrapper
+checks in the same byte-oriented layer as source access. This keeps the earliest
+phase below the preprocessor and suitable for the JS/C dialect intersection. The active
 `tccpp.c` tokenizer table now also gets its low ASCII space/name/number flags
 from cc0, and the compiler's digit, octal digit, uppercase conversion, and
 horizontal-whitespace checks are starting to call the cc0 helpers directly.
@@ -54,7 +56,9 @@ including equality and range tests. It also accepts the nested
 and can resolve the first named `CC0_CH_*` digit constants used by those
 classifiers. The first expression-level helper call, `cc0_is_digit(expr)`, is
 also evaluated through the real cc0 helper without adding full C statement
-parsing yet. That is not a C parser yet, but it gives the layered
+parsing yet. cc1 also evaluates `mkc('A')`, `mks("text")`, and
+`cc0_heap_get(expr, expr)`, so the wrapper-literal convention is tested in both
+the C and JavaScript runtimes. That is not a C parser yet, but it gives the layered
 tree a tested lower-to-upper token stream and symbol-state boundary before
 preprocessing exists.
 

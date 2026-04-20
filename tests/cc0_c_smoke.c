@@ -9,6 +9,7 @@ int cc0_is_word_if_chars();
 int mks();
 int mkc();
 int cc0_heap_get();
+int cc0_heap_slice();
 int cc0_heap_is_string();
 int cc0_is_digit();
 int cc0_is_oct_digit();
@@ -31,6 +32,8 @@ int cc0_tok_is_word_function();
 int cc0_tok_is_word_var();
 int cc0_tok_is_word_return();
 int cc0_tok_is_word_if();
+int cc0_tok_is_word_mkc();
+int cc0_tok_is_word_mks();
 int cc1_compile_unit();
 int cc1_has_real_parser();
 int cc1_bind_name_value();
@@ -158,6 +161,24 @@ int main()
         return 73;
     if (cc0_scan_next() != 1 || !cc0_tok_is_word_if())
         return 81;
+    cc0_source_set_string(mks("mkc('A') mks(\"Az\")"));
+    if (cc0_scan_next() != 1 || !cc0_tok_is_word_mkc())
+        return 126;
+    if (cc0_scan_next() != 4 || cc0_scan_next() != 5)
+        return 127;
+    if (cc0_get_tok_value() != 'A')
+        return 128;
+    if (cc0_scan_next() != 4 || cc0_scan_next() != 1 || !cc0_tok_is_word_mks())
+        return 129;
+    if (cc0_scan_next() != 4 || cc0_scan_next() != 6)
+        return 130;
+    cc0_test_string = cc0_get_tok_value();
+    if (cc0_heap_get(cc0_test_string, 0) != 'A' ||
+        cc0_heap_get(cc0_test_string, 1) != 'z' ||
+        cc0_heap_get(cc0_test_string, 2) != 0)
+        return 131;
+    if (cc0_scan_next() != 4 || cc0_scan_next() != 0)
+        return 132;
     if (cc1_compile_unit(0) != 1)
         return 27;
     if (cc1_has_real_parser() != 1)
@@ -304,6 +325,22 @@ int main()
         return 124;
     if (cc1_get_last_name() != 'c' || cc1_get_last_value() != 0)
         return 125;
+    if (cc1_parse_expr_string(mks("mkc('A')")) != 1)
+        return 133;
+    if (cc1_get_last_value() != 'A')
+        return 134;
+    if (cc1_parse_expr_string(mks("cc0_heap_get(mks(\"Az\"),1)")) != 1)
+        return 135;
+    if (cc1_get_last_value() != 'z')
+        return 136;
+    if (cc1_parse_function_return_string(mks("function ch(){return mkc('C');}")) != 1)
+        return 137;
+    if (cc1_get_last_name() != 'c' || cc1_get_last_value() != 'C')
+        return 138;
+    if (cc1_parse_function_return_string(mks("function st(){return cc0_heap_get(mks(\"Hi\"),0);}")) != 1)
+        return 139;
+    if (cc1_get_last_name() != 's' || cc1_get_last_value() != 'H')
+        return 140;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)

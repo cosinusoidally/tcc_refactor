@@ -69,9 +69,12 @@ preprocessing: it still operates over fixed eight-byte and sixteen-byte source
 windows for regression coverage, and it can now scan strings allocated through
 `mks("...")`, which removes the first source-length cap from the lower-layer
 path. It skips whitespace and records the class/start/length of name, decimal
-number, punctuation, and EOF tokens. It also recognizes the current token as
-`function`, `var`, or `return` without leaving the byte scanner layer. Function
-declarations use JavaScript
+number, character literal, string literal, punctuation, and EOF tokens. String
+literal tokens copy their bytes back into the same C heap or JS virtual heap
+model used by `mks`, so later layers can evaluate wrapper literals without
+needing a preprocessor. It also recognizes the current token as `function`,
+`var`, `return`, `if`, `mkc`, or `mks` without leaving the byte scanner layer.
+Function declarations use JavaScript
 syntax, and the C build maps `function` and `var` to `int`. Function arguments
 therefore use old-style C implicit `int` parameters, which keeps the same file
 parseable by both SpiderMonkey and a C compiler. The cc0 dialect can use string
@@ -115,7 +118,9 @@ common cc0 control-flow shape. It also accepts one nested guard,
 and can resolve the first named `CC0_CH_*` digit constants used by those
 classifiers. The first expression-level helper call, `cc0_is_digit(expr)`, is
 evaluated through the real cc0 helper without taking on full C statement
-parsing yet. This is
+parsing yet. cc1 also evaluates `mkc('A')`, `mks("text")`, and
+`cc0_heap_get(expr, expr)`, so the wrapper-literal convention needed by cc0
+self-hosting is executable in both C and JavaScript smoke paths. This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
 self-checking in both runtimes before larger grammar work is moved over.

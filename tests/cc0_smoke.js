@@ -152,6 +152,32 @@ if (cc0_scan_next() !== CC0_TOK_NAME || !cc0_tok_is_word_return())
 if (cc0_scan_next() !== CC0_TOK_NAME || !cc0_tok_is_word_if())
     throw new Error("cc0 token if word failed");
 
+cc0_source_set_string(mks("mkc('A') mks(\"Az\")"));
+
+if (cc0_scan_next() !== CC0_TOK_NAME || !cc0_tok_is_word_mkc())
+    throw new Error("cc0 token mkc word failed");
+
+if (cc0_scan_next() !== CC0_TOK_PUNCT || cc0_scan_next() !== CC0_TOK_CHAR)
+    throw new Error("cc0 char literal token failed");
+
+if (cc0_get_tok_value() !== mkc('A'))
+    throw new Error("cc0 char literal value failed");
+
+if (cc0_scan_next() !== CC0_TOK_PUNCT || cc0_scan_next() !== CC0_TOK_NAME || !cc0_tok_is_word_mks())
+    throw new Error("cc0 token mks word failed");
+
+if (cc0_scan_next() !== CC0_TOK_PUNCT || cc0_scan_next() !== CC0_TOK_STRING)
+    throw new Error("cc0 string literal token failed");
+
+cc0_test_string = cc0_get_tok_value();
+if (cc0_heap_get(cc0_test_string, 0) !== mkc('A') ||
+    cc0_heap_get(cc0_test_string, 1) !== mkc('z') ||
+    cc0_heap_get(cc0_test_string, 2) !== 0)
+    throw new Error("cc0 string literal value failed");
+
+if (cc0_scan_next() !== CC0_TOK_PUNCT || cc0_scan_next() !== CC0_TOK_EOF)
+    throw new Error("cc0 wrapper literal eof failed");
+
 load("../tcc_27_layered/cc1.c");
 load("../tcc_27_layered/cc2.c");
 
@@ -373,6 +399,30 @@ if (cc1_parse_function2_string(mks("function cd(c){if(cc0_is_digit(c))return 1;r
 
 if (cc1_get_last_name() !== mkc('c') || cc1_get_last_value() !== 0)
     throw new Error("cc1 cc0_is_digit call fallback state failed");
+
+if (cc1_parse_expr_string(mks("mkc('A')")) !== 1)
+    throw new Error("cc1 mkc call parse failed");
+
+if (cc1_get_last_value() !== mkc('A'))
+    throw new Error("cc1 mkc call state failed");
+
+if (cc1_parse_expr_string(mks("cc0_heap_get(mks(\"Az\"),1)")) !== 1)
+    throw new Error("cc1 mks heap_get parse failed");
+
+if (cc1_get_last_value() !== mkc('z'))
+    throw new Error("cc1 mks heap_get state failed");
+
+if (cc1_parse_function_return_string(mks("function ch(){return mkc('C');}")) !== 1)
+    throw new Error("cc1 mkc function parse failed");
+
+if (cc1_get_last_name() !== mkc('c') || cc1_get_last_value() !== mkc('C'))
+    throw new Error("cc1 mkc function state failed");
+
+if (cc1_parse_function_return_string(mks("function st(){return cc0_heap_get(mks(\"Hi\"),0);}")) !== 1)
+    throw new Error("cc1 mks function parse failed");
+
+if (cc1_get_last_name() !== mkc('s') || cc1_get_last_value() !== mkc('H'))
+    throw new Error("cc1 mks function state failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

@@ -15,6 +15,8 @@ var CC0_TOK_NAME;
 var CC0_TOK_NUMBER;
 var CC0_TOK_SPACE;
 var CC0_TOK_PUNCT;
+var CC0_TOK_CHAR;
+var CC0_TOK_STRING;
 var CC0_SOURCE_NONE;
 var CC0_SOURCE_CELLS;
 var CC0_SOURCE_STRING;
@@ -26,6 +28,8 @@ var CC0_CH_FF;
 var CC0_CH_CR;
 var CC0_CH_SPACE;
 var CC0_CH_BANG;
+var CC0_CH_DQUOTE;
+var CC0_CH_SQUOTE;
 var CC0_CH_LPAREN;
 var CC0_CH_RPAREN;
 var CC0_CH_STAR;
@@ -52,10 +56,13 @@ var CC0_CH_d;
 var CC0_CH_e;
 var CC0_CH_f;
 var CC0_CH_g;
+var CC0_CH_h;
 var CC0_CH_i;
+var CC0_CH_k;
 var CC0_CH_m;
 var CC0_CH_n;
 var CC0_CH_o;
+var CC0_CH_p;
 var CC0_CH_r;
 var CC0_CH_s;
 var CC0_CH_t;
@@ -93,6 +100,8 @@ CC0_TOK_NAME = 1;
 CC0_TOK_NUMBER = 2;
 CC0_TOK_SPACE = 3;
 CC0_TOK_PUNCT = 4;
+CC0_TOK_CHAR = 5;
+CC0_TOK_STRING = 6;
 CC0_SOURCE_NONE = 0;
 CC0_SOURCE_CELLS = 1;
 CC0_SOURCE_STRING = 2;
@@ -104,6 +113,8 @@ CC0_CH_FF = 12;
 CC0_CH_CR = 13;
 CC0_CH_SPACE = 32;
 CC0_CH_BANG = 33;
+CC0_CH_DQUOTE = 34;
+CC0_CH_SQUOTE = 39;
 CC0_CH_LPAREN = 40;
 CC0_CH_RPAREN = 41;
 CC0_CH_STAR = 42;
@@ -130,10 +141,13 @@ CC0_CH_d = 100;
 CC0_CH_e = 101;
 CC0_CH_f = 102;
 CC0_CH_g = 103;
+CC0_CH_h = 104;
 CC0_CH_i = 105;
+CC0_CH_k = 107;
 CC0_CH_m = 109;
 CC0_CH_n = 110;
 CC0_CH_o = 111;
+CC0_CH_p = 112;
 CC0_CH_r = 114;
 CC0_CH_s = 115;
 CC0_CH_t = 116;
@@ -259,6 +273,32 @@ function cc0_is_word_if_chars(c0, c1, c2)
     return 1;
 }
 
+function cc0_is_word_mkc_chars(c0, c1, c2, c3)
+{
+    if (c0 != CC0_CH_m)
+        return 0;
+    if (c1 != CC0_CH_k)
+        return 0;
+    if (c2 != CC0_CH_c)
+        return 0;
+    if (c3 != CC0_CH_NUL)
+        return 0;
+    return 1;
+}
+
+function cc0_is_word_mks_chars(c0, c1, c2, c3)
+{
+    if (c0 != CC0_CH_m)
+        return 0;
+    if (c1 != CC0_CH_k)
+        return 0;
+    if (c2 != CC0_CH_s)
+        return 0;
+    if (c3 != CC0_CH_NUL)
+        return 0;
+    return 1;
+}
+
 function cc0_is_digit(c)
 {
     if (c >= CC0_CH_0)
@@ -371,6 +411,10 @@ function cc0_token_class(c)
         return CC0_TOK_NAME;
     if (cc0_is_digit(c))
         return CC0_TOK_NUMBER;
+    if (c == CC0_CH_SQUOTE)
+        return CC0_TOK_CHAR;
+    if (c == CC0_CH_DQUOTE)
+        return CC0_TOK_STRING;
     return CC0_TOK_PUNCT;
 }
 
@@ -524,6 +568,32 @@ function cc0_scan_next()
         }
         return cc0_tok_class;
     }
+    if (cc0_tok_class == CC0_TOK_CHAR) {
+        cc0_scan_pos = cc0_scan_pos + 1;
+        cc0_tok_value = cc0_source_at(cc0_scan_pos);
+        cc0_scan_pos = cc0_scan_pos + 1;
+        if (cc0_source_at(cc0_scan_pos) == CC0_CH_SQUOTE)
+            cc0_scan_pos = cc0_scan_pos + 1;
+        cc0_tok_len = 1;
+        return cc0_tok_class;
+    }
+    if (cc0_tok_class == CC0_TOK_STRING) {
+        cc0_scan_pos = cc0_scan_pos + 1;
+        cc0_tok_start = cc0_scan_pos;
+        c = cc0_source_at(cc0_scan_pos);
+        while (c >= 0) {
+            if (c == CC0_CH_DQUOTE) {
+                cc0_tok_value = cc0_heap_slice(cc0_source_ptr, cc0_tok_start, cc0_tok_len);
+                cc0_scan_pos = cc0_scan_pos + 1;
+                return cc0_tok_class;
+            }
+            cc0_scan_pos = cc0_scan_pos + 1;
+            cc0_tok_len = cc0_tok_len + 1;
+            c = cc0_source_at(cc0_scan_pos);
+        }
+        cc0_tok_value = 0;
+        return cc0_tok_class;
+    }
     cc0_scan_pos = cc0_scan_pos + 1;
     cc0_tok_len = 1;
     return cc0_tok_class;
@@ -610,5 +680,31 @@ function cc0_tok_is_word_if()
     return cc0_is_word_if_chars(
         cc0_source_at(cc0_tok_start),
         cc0_source_at(cc0_tok_start + 1),
+        CC0_CH_NUL);
+}
+
+function cc0_tok_is_word_mkc()
+{
+    if (cc0_get_tok_class() != CC0_TOK_NAME)
+        return 0;
+    if (cc0_get_tok_len() != 3)
+        return 0;
+    return cc0_is_word_mkc_chars(
+        cc0_source_at(cc0_tok_start),
+        cc0_source_at(cc0_tok_start + 1),
+        cc0_source_at(cc0_tok_start + 2),
+        CC0_CH_NUL);
+}
+
+function cc0_tok_is_word_mks()
+{
+    if (cc0_get_tok_class() != CC0_TOK_NAME)
+        return 0;
+    if (cc0_get_tok_len() != 3)
+        return 0;
+    return cc0_is_word_mks_chars(
+        cc0_source_at(cc0_tok_start),
+        cc0_source_at(cc0_tok_start + 1),
+        cc0_source_at(cc0_tok_start + 2),
         CC0_CH_NUL);
 }

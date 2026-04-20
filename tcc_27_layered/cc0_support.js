@@ -36,6 +36,22 @@ function cc0_heap_get(ptr, offset)
     return cc0_heap[ptr + offset];
 }
 
+function cc0_heap_slice(ptr, start, len)
+{
+    var base;
+    var i;
+
+    base = cc0_heap_next;
+    i = 0;
+    while (i < len) {
+        cc0_heap[base + i] = cc0_heap[ptr + start + i];
+        i = i + 1;
+    }
+    cc0_heap[base + i] = 0;
+    cc0_heap_next = base + i + 1;
+    return base;
+}
+
 function cc0_heap_is_string(ptr, c0, c1, c2, c3)
 {
     if (cc0_heap_get(ptr, 0) != c0)
