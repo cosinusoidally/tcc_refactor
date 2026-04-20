@@ -84,6 +84,51 @@ function cc0_not(value)
     return 1;
 }
 
+function cc0_is_word_function_chars(c0, c1, c2, c3, c4, c5, c6, c7, c8)
+{
+    if (c0 != 102)
+        return 0;
+    if (c1 != 117)
+        return 0;
+    if (c2 != 110)
+        return 0;
+    if (c3 != 99)
+        return 0;
+    if (c4 != 116)
+        return 0;
+    if (c5 != 105)
+        return 0;
+    if (c6 != 111)
+        return 0;
+    if (c7 != 110)
+        return 0;
+    if (c8)
+        return 0;
+    return 1;
+}
+
+function cc0_is_word_var_chars(c0, c1, c2, c3)
+{
+    if (c0 != 118)
+        return 0;
+    if (c1 != 97)
+        return 0;
+    if (c2 != 114)
+        return 0;
+    if (c3)
+        return 0;
+    return 1;
+}
+
+function cc0_is_dialect_type_chars(c0, c1, c2, c3, c4, c5, c6, c7, c8)
+{
+    if (cc0_is_word_function_chars(c0, c1, c2, c3, c4, c5, c6, c7, c8))
+        return 1;
+    if (cc0_is_word_var_chars(c0, c1, c2, c3))
+        return 1;
+    return 0;
+}
+
 function cc0_is_digit(c)
 {
     if (c >= 48)

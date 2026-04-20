@@ -12,6 +12,19 @@ if (cc0_select(0, 7, 9) !== 9)
 if (cc0_not(0) !== 1 || cc0_not(4) !== 0)
     throw new Error("cc0_not failed");
 
+if (!cc0_is_word_function_chars(102, 117, 110, 99, 116, 105, 111, 110, 0) ||
+    cc0_is_word_function_chars(102, 117, 110, 99, 116, 105, 111, 0, 0))
+    throw new Error("cc0 function word failed");
+
+if (!cc0_is_word_var_chars(118, 97, 114, 0) ||
+    cc0_is_word_var_chars(118, 97, 114, 115))
+    throw new Error("cc0 var word failed");
+
+if (!cc0_is_dialect_type_chars(102, 117, 110, 99, 116, 105, 111, 110, 0) ||
+    !cc0_is_dialect_type_chars(118, 97, 114, 0, 0, 0, 0, 0, 0) ||
+    cc0_is_dialect_type_chars(105, 110, 116, 0, 0, 0, 0, 0, 0))
+    throw new Error("cc0 type word failed");
+
 if (!cc0_is_digit(48) || !cc0_is_digit(57) || cc0_is_digit(58))
     throw new Error("cc0_is_digit failed");
 

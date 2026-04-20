@@ -4081,7 +4081,11 @@ static int parse_btype(CType *type, AttributeDef *ad)
                 && tok >= TOK_IDENT
                 && tok < tok_ident) {
                 cc0_name = get_tok_str(tok, NULL);
-                if (!strcmp(cc0_name, "function") || !strcmp(cc0_name, "var")) {
+                if (cc0_is_dialect_type_chars(cc0_name[0], cc0_name[1],
+                                              cc0_name[2], cc0_name[3],
+                                              cc0_name[4], cc0_name[5],
+                                              cc0_name[6], cc0_name[7],
+                                              cc0_name[8])) {
                     u = VT_INT;
                     goto basic_type;
                 }

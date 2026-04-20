@@ -1,6 +1,9 @@
 int cc0_add();
 int cc0_select();
 int cc0_not();
+int cc0_is_word_function_chars();
+int cc0_is_word_var_chars();
+int cc0_is_dialect_type_chars();
 int cc0_is_digit();
 int cc0_is_oct_digit();
 int cc0_is_name_start();
@@ -42,6 +45,16 @@ int main()
         return 3;
     if (cc0_not(0) != 1 || cc0_not(4) != 0)
         return 4;
+    if (!cc0_is_word_function_chars(102, 117, 110, 99, 116, 105, 111, 110, 0) ||
+        cc0_is_word_function_chars(102, 117, 110, 99, 116, 105, 111, 0, 0))
+        return 53;
+    if (!cc0_is_word_var_chars(118, 97, 114, 0) ||
+        cc0_is_word_var_chars(118, 97, 114, 115))
+        return 54;
+    if (!cc0_is_dialect_type_chars(102, 117, 110, 99, 116, 105, 111, 110, 0) ||
+        !cc0_is_dialect_type_chars(118, 97, 114, 0, 0, 0, 0, 0, 0) ||
+        cc0_is_dialect_type_chars(105, 110, 116, 0, 0, 0, 0, 0, 0))
+        return 55;
     if (!cc0_is_digit(48) || !cc0_is_digit(57) || cc0_is_digit(58))
         return 5;
     if (!cc0_is_oct_digit(48) || !cc0_is_oct_digit(55) || cc0_is_oct_digit(56))
