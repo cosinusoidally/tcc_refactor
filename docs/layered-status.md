@@ -42,6 +42,9 @@ to the static bootstrap hash checks, it now verifies that:
 - `tcc_27_layered` can create its private runtime archive with `tcc -ar`.
 - `tcc_27_layered` can build and start a normal glibc-linked executable of
   itself.
+- `tcc_27_layered` can compile the full compiler through
+  `tcc_unified_cc0.c` with `-std=cc0`, so the lower-layer `function` and `var`
+  spellings are accepted by the parser instead of by macro substitution.
 - `-nostdinc` remains usable on a source file that does not need host headers.
 - The existing static `-nostdlib` path still produces the hash-checked
   bootstrap executable.
@@ -115,6 +118,11 @@ The current one-source build reaches the compiler through `tcc_unified.c`,
 which includes the lower-layer helpers before `tcc.c`; `tcc.c` includes
 `libtcc.c` and `tcctools.c`. If `tcc.c` is used directly as a `ONE_SOURCE`
 entry point, it includes the same lower helpers itself.
+
+`tcc_unified_cc0.c` is the self-hosted dialect entry for the same full compiler.
+It is built by layered TCC with `-std=cc0` and includes `cc0.c` and `cc2.c`
+without defining `function` or `var` as macros first. The GCC seed still uses
+`tcc_unified.c` because host compilers do not understand the cc0 dialect.
 
 `libtcc.c` owns high-level compilation and linking orchestration: creating a
 `TCCState`, defining target macros, adding include and library paths, dispatching

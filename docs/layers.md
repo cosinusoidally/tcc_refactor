@@ -48,6 +48,12 @@ ported into staged layers without losing the current bootstrap archive check.
 when `tcc_unified.c` has not already done so. This makes the one-source build an
 explicit source file instead of a command-line accident.
 
+`tcc_unified_cc0.c` is the corresponding self-hosted dialect entry. It includes
+the lower layers without macro-mapping `function` and `var`; layered TCC builds
+it with `-std=cc0`, so those spellings are handled by the parser. This keeps the
+GCC seed path and the cc0 self-host path separate while the compiler is still
+being split into layers.
+
 ## Current Full Compiler Modules
 
 - `tcc.c`: command-line driver.
