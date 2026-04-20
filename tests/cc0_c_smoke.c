@@ -7,6 +7,7 @@ int cc0_is_name_continue();
 int cc0_is_space();
 int cc0_token_class();
 int cc0_source_set8();
+int cc0_source_set16();
 int cc0_scan_next();
 int cc0_get_tok_class();
 int cc0_get_tok_start();
@@ -18,6 +19,7 @@ int cc1_bind_name_value();
 int cc1_parse_expr8();
 int cc1_parse_sum8();
 int cc1_parse_assignment8();
+int cc1_parse_program16();
 int cc1_get_last_name();
 int cc1_get_last_value();
 int cc1_get_error();
@@ -65,39 +67,52 @@ int main()
         return 19;
     if (cc0_scan_next() != 0)
         return 20;
-    if (cc1_compile_unit(0) != 1)
+    cc0_source_set16(32, 32, 32, 32, 32, 32, 32, 32, 52, -1, -1, -1, -1, -1, -1, -1);
+    if (cc0_scan_next() != 2)
         return 21;
-    if (cc1_has_real_parser() != 1)
+    if (cc0_get_tok_start() != 8 || cc0_get_tok_value() != 4)
         return 22;
-    if (cc1_parse_sum8(49, 50, 43, 51, 32, -1, -1, -1) != 1)
+    if (cc1_compile_unit(0) != 1)
         return 23;
-    if (cc1_get_last_value() != 15)
+    if (cc1_has_real_parser() != 1)
         return 24;
-    if (cc1_parse_sum8(50, 43, 51, 42, 52, -1, -1, -1) != 1)
+    if (cc1_parse_sum8(49, 50, 43, 51, 32, -1, -1, -1) != 1)
         return 25;
-    if (cc1_get_last_value() != 14)
-        return 26;
-    if (cc1_parse_sum8(40, 50, 43, 51, 41, 42, 52, -1) != 1)
-        return 27;
-    if (cc1_get_last_value() != 20)
-        return 28;
-    if (cc1_bind_name_value(97, 4) != 1)
-        return 29;
-    if (cc1_parse_expr8(97, 42, 51, 43, 50, -1, -1, -1) != 1)
-        return 30;
-    if (cc1_get_last_value() != 14)
-        return 31;
-    if (cc1_parse_assignment8(98, 61, 50, 43, 51, 42, 52, -1) != 1)
-        return 32;
-    if (cc1_get_last_name() != 98 || cc1_get_last_value() != 14)
-        return 33;
-    if (cc1_parse_expr8(98, 43, 49, -1, -1, -1, -1, -1) != 1)
-        return 34;
     if (cc1_get_last_value() != 15)
+        return 26;
+    if (cc1_parse_sum8(50, 43, 51, 42, 52, -1, -1, -1) != 1)
+        return 27;
+    if (cc1_get_last_value() != 14)
+        return 28;
+    if (cc1_parse_sum8(40, 50, 43, 51, 41, 42, 52, -1) != 1)
+        return 29;
+    if (cc1_get_last_value() != 20)
+        return 30;
+    if (cc1_bind_name_value(97, 4) != 1)
+        return 31;
+    if (cc1_parse_expr8(97, 42, 51, 43, 50, -1, -1, -1) != 1)
+        return 32;
+    if (cc1_get_last_value() != 14)
+        return 33;
+    if (cc1_parse_assignment8(98, 61, 50, 43, 51, 42, 52, -1) != 1)
+        return 34;
+    if (cc1_get_last_name() != 98 || cc1_get_last_value() != 14)
         return 35;
-    if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
+    if (cc1_parse_expr8(98, 43, 49, -1, -1, -1, -1, -1) != 1)
         return 36;
-    if (cc1_get_error() == 0)
+    if (cc1_get_last_value() != 15)
         return 37;
+    if (cc1_parse_program16(97, 61, 49, 59, 98, 61, 97, 43, 50, -1, -1, -1, -1, -1, -1, -1) != 1)
+        return 38;
+    if (cc1_get_last_name() != 98 || cc1_get_last_value() != 3)
+        return 39;
+    if (cc1_parse_expr8(98, 42, 52, -1, -1, -1, -1, -1) != 1)
+        return 40;
+    if (cc1_get_last_value() != 12)
+        return 41;
+    if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
+        return 42;
+    if (cc1_get_error() == 0)
+        return 43;
     return 0;
 }

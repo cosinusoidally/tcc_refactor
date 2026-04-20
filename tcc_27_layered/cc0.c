@@ -23,6 +23,14 @@ var cc0_src_4;
 var cc0_src_5;
 var cc0_src_6;
 var cc0_src_7;
+var cc0_src_8;
+var cc0_src_9;
+var cc0_src_10;
+var cc0_src_11;
+var cc0_src_12;
+var cc0_src_13;
+var cc0_src_14;
+var cc0_src_15;
 var cc0_scan_pos;
 var cc0_tok_class;
 var cc0_tok_start;
@@ -43,6 +51,14 @@ cc0_src_4 = -1;
 cc0_src_5 = -1;
 cc0_src_6 = -1;
 cc0_src_7 = -1;
+cc0_src_8 = -1;
+cc0_src_9 = -1;
+cc0_src_10 = -1;
+cc0_src_11 = -1;
+cc0_src_12 = -1;
+cc0_src_13 = -1;
+cc0_src_14 = -1;
+cc0_src_15 = -1;
 cc0_scan_pos = 0;
 cc0_tok_class = 0;
 cc0_tok_start = 0;
@@ -155,6 +171,40 @@ function cc0_source_set8(c0, c1, c2, c3, c4, c5, c6, c7)
     cc0_src_5 = c5;
     cc0_src_6 = c6;
     cc0_src_7 = c7;
+    cc0_src_8 = -1;
+    cc0_src_9 = -1;
+    cc0_src_10 = -1;
+    cc0_src_11 = -1;
+    cc0_src_12 = -1;
+    cc0_src_13 = -1;
+    cc0_src_14 = -1;
+    cc0_src_15 = -1;
+    cc0_scan_pos = 0;
+    cc0_tok_class = CC0_TOK_EOF;
+    cc0_tok_start = 0;
+    cc0_tok_len = 0;
+    cc0_tok_value = 0;
+    return 0;
+}
+
+function cc0_source_set16(c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
+{
+    cc0_src_0 = c0;
+    cc0_src_1 = c1;
+    cc0_src_2 = c2;
+    cc0_src_3 = c3;
+    cc0_src_4 = c4;
+    cc0_src_5 = c5;
+    cc0_src_6 = c6;
+    cc0_src_7 = c7;
+    cc0_src_8 = c8;
+    cc0_src_9 = c9;
+    cc0_src_10 = c10;
+    cc0_src_11 = c11;
+    cc0_src_12 = c12;
+    cc0_src_13 = c13;
+    cc0_src_14 = c14;
+    cc0_src_15 = c15;
     cc0_scan_pos = 0;
     cc0_tok_class = CC0_TOK_EOF;
     cc0_tok_start = 0;
@@ -181,6 +231,22 @@ function cc0_source_at(pos)
         return cc0_src_6;
     if (pos == 7)
         return cc0_src_7;
+    if (pos == 8)
+        return cc0_src_8;
+    if (pos == 9)
+        return cc0_src_9;
+    if (pos == 10)
+        return cc0_src_10;
+    if (pos == 11)
+        return cc0_src_11;
+    if (pos == 12)
+        return cc0_src_12;
+    if (pos == 13)
+        return cc0_src_13;
+    if (pos == 14)
+        return cc0_src_14;
+    if (pos == 15)
+        return cc0_src_15;
     return -1;
 }
 

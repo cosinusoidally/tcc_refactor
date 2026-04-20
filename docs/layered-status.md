@@ -57,20 +57,21 @@ to the static bootstrap hash checks, it now verifies that:
 `tcc_27_layered/cc0.c` is the initial base dialect. It is not a compiler yet,
 but it now contains token-classification primitives and a minimal byte scanner
 used by both the C and JS smoke tests. The scanner intentionally sits before
-preprocessing: it operates over a fixed eight-byte source window, skips
-whitespace, and records the class/start/length of name, decimal number,
-punctuation, and EOF tokens. Function declarations use JavaScript syntax, and
-the C build maps `function` and `var` to `int`. Function arguments therefore
-use old-style C implicit `int` parameters, which keeps the same file parseable
-by both SpiderMonkey and a C compiler.
+preprocessing: it operates over fixed eight-byte and sixteen-byte source
+windows, skips whitespace, and records the class/start/length of name, decimal
+number, punctuation, and EOF tokens. Function declarations use JavaScript
+syntax, and the C build maps `function` and `var` to `int`. Function arguments
+therefore use old-style C implicit `int` parameters, which keeps the same file
+parseable by both SpiderMonkey and a C compiler.
 
 `tcc_27_layered/cc1.c` is the next-layer scaffold. It stays in the same
 C/JS intersection and now contains a tiny expression parser over cc0 tokens for
 numbers, names, parentheses, `*`, and `+` with normal precedence. It also has a
-four-slot name/value table and a minimal `name = expr` assignment parser. This
-is intentionally below C syntax and below the preprocessor; its purpose is to
-make the cc0-to-cc1 boundary executable and self-checking in both runtimes
-before larger grammar work is moved over.
+four-slot name/value table, a minimal `name = expr` assignment parser, and a
+semicolon-separated assignment program parser. This is intentionally below C
+syntax and below the preprocessor; its purpose is to make the cc0-to-cc1
+boundary executable and self-checking in both runtimes before larger grammar
+work is moved over.
 
 ## Removed Run Surface
 

@@ -209,12 +209,9 @@ function cc1_parse_sum8(c0, c1, c2, c3, c4, c5, c6, c7)
     return cc1_parse_expr8(c0, c1, c2, c3, c4, c5, c6, c7);
 }
 
-function cc1_parse_assignment8(c0, c1, c2, c3, c4, c5, c6, c7)
+function cc1_parse_assignment_tokens()
 {
     var value;
-    cc1_reset();
-    cc0_source_set8(c0, c1, c2, c3, c4, c5, c6, c7);
-    cc0_scan_next();
     if (cc0_get_tok_class() != CC0_TOK_NAME) {
         cc1_error = 7;
         return 0;
@@ -229,14 +226,43 @@ function cc1_parse_assignment8(c0, c1, c2, c3, c4, c5, c6, c7)
     value = cc1_parse_sum_tokens();
     if (cc1_error)
         return 0;
-    if (cc0_get_tok_class() != CC0_TOK_EOF) {
-        cc1_error = 2;
-        return 0;
-    }
     cc1_last_value = value;
     cc1_bind_name_value(cc1_last_name, value);
     if (cc1_error)
         return 0;
+    return 1;
+}
+
+function cc1_parse_assignment8(c0, c1, c2, c3, c4, c5, c6, c7)
+{
+    cc1_reset();
+    cc0_source_set8(c0, c1, c2, c3, c4, c5, c6, c7);
+    cc0_scan_next();
+    if (!cc1_parse_assignment_tokens())
+        return 0;
+    if (cc0_get_tok_class() != CC0_TOK_EOF) {
+        cc1_error = 2;
+        return 0;
+    }
+    return 1;
+}
+
+function cc1_parse_program16(c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
+{
+    cc1_reset();
+    cc0_source_set16(c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15);
+    cc0_scan_next();
+    while (cc0_get_tok_class() != CC0_TOK_EOF) {
+        if (!cc1_parse_assignment_tokens())
+            return 0;
+        if (cc0_get_tok_class() == CC0_TOK_EOF)
+            return 1;
+        if (!cc1_at_punct(59)) {
+            cc1_error = 9;
+            return 0;
+        }
+        cc0_scan_next();
+    }
     return 1;
 }
 
