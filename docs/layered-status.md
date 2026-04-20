@@ -45,6 +45,8 @@ to the static bootstrap hash checks, it now verifies that:
 - `tcc_27_layered` can compile the full compiler through
   `tcc_unified_cc0.c` with `-std=cc0`, so the lower-layer `function` and `var`
   spellings are accepted by the parser instead of by macro substitution.
+- The compiler produced through `tcc_unified_cc0.c` can rebuild the same cc0
+  dialect full-compiler object byte-for-byte.
 - `-nostdinc` remains usable on a source file that does not need host headers.
 - The existing static `-nostdlib` path still produces the hash-checked
   bootstrap executable.

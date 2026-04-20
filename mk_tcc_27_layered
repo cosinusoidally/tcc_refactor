@@ -30,6 +30,8 @@ diff -u -s libtcc1_layered.o libtcc1_layered2.o
 ./tcc_27_layered -std=cc0 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered/include -I ../tcc_27_layered/ -c ../tcc_27_layered/tcc_unified_cc0.c -U__linux__ -o tcc_27_layered_cc0.o
 gcc -m32 tcc_27_layered_cc0.o libtcc1_layered2.o -o tcc_27_layered_cc0 -ldl
 ./tcc_27_layered_cc0 -dumpversion >/dev/null
+./tcc_27_layered_cc0 -std=cc0 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered/include -I ../tcc_27_layered/ -c ../tcc_27_layered/tcc_unified_cc0.c -U__linux__ -o tcc_27_layered_cc0_2.o
+diff -u -s tcc_27_layered_cc0.o tcc_27_layered_cc0_2.o
 
 # make sure the layered compiler can create its own runtime archive and use it
 # for a normal glibc-linked build of itself

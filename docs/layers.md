@@ -52,7 +52,8 @@ explicit source file instead of a command-line accident.
 the lower layers without macro-mapping `function` and `var`; layered TCC builds
 it with `-std=cc0`, so those spellings are handled by the parser. This keeps the
 GCC seed path and the cc0 self-host path separate while the compiler is still
-being split into layers.
+being split into layers. The verification path also uses the cc0-built compiler
+to rebuild this same object and compare it byte-for-byte.
 
 ## Current Full Compiler Modules
 
