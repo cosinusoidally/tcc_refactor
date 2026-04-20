@@ -350,6 +350,18 @@ if (cc1_parse_function2_string(mks("function nd(c){if(c>=48)if(c<=57)return 1;re
 if (cc1_get_last_name() !== mkc('n') || cc1_get_last_value() !== 0)
     throw new Error("cc1 nested if high fallback state failed");
 
+if (cc1_parse_function2_string(mks("function dc(c){if(c>=CC0_CH_0)if(c<=CC0_CH_9)return 1;return 0;}"), 52, 0) !== 1)
+    throw new Error("cc1 named constant digit parse failed");
+
+if (cc1_get_last_name() !== mkc('d') || cc1_get_last_value() !== 1)
+    throw new Error("cc1 named constant digit state failed");
+
+if (cc1_parse_function2_string(mks("function dc(c){if(c>=CC0_CH_0)if(c<=CC0_CH_9)return 1;return 0;}"), 58, 0) !== 1)
+    throw new Error("cc1 named constant digit fallback parse failed");
+
+if (cc1_get_last_name() !== mkc('d') || cc1_get_last_value() !== 0)
+    throw new Error("cc1 named constant digit fallback state failed");
+
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
 

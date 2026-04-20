@@ -132,6 +132,42 @@ function cc1_lookup_name(name)
     return 0;
 }
 
+function cc1_tok_is_cc0_ch_digit(digit)
+{
+    if (cc0_get_tok_class() != CC0_TOK_NAME)
+        return 0;
+    if (cc0_get_tok_len() != 8)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start()) != CC0_CH_C)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 1) != CC0_CH_C)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 2) != CC0_CH_0)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 3) != CC0_CH_UNDERSCORE)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 4) != CC0_CH_C)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 5) != CC0_CH_H)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 6) != CC0_CH_UNDERSCORE)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 7) != digit)
+        return 0;
+    return 1;
+}
+
+function cc1_lookup_current_name()
+{
+    if (cc1_tok_is_cc0_ch_digit(CC0_CH_0))
+        return CC0_CH_0;
+    if (cc1_tok_is_cc0_ch_digit(CC0_CH_7))
+        return CC0_CH_7;
+    if (cc1_tok_is_cc0_ch_digit(CC0_CH_9))
+        return CC0_CH_9;
+    return cc1_lookup_name(cc0_get_tok_first());
+}
+
 function cc1_function_arg_value(index)
 {
     if (index == 0)
@@ -176,7 +212,7 @@ function cc1_parse_primary()
         return value;
     }
     if (cc0_get_tok_class() == CC0_TOK_NAME) {
-        value = cc1_lookup_name(cc0_get_tok_first());
+        value = cc1_lookup_current_name();
         cc0_scan_next();
         return value;
     }
