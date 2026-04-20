@@ -107,10 +107,10 @@ cc0-shaped function parser for `function name() { var x = expr; return expr; }`
 style bodies, with local `var` assignments feeding the return expression
 through the same cc1 name/value table. It now accepts simple comma-separated
 parameters and can bind supplied argument values before evaluating the body.
-The body parser also accepts a narrow `if (expr) return expr;` early-return
-form, including equality and inequality conditions, matching a common cc0
-control-flow shape without taking on full C statement parsing yet. This is
-intentionally below C syntax and below the
+The body parser also accepts a narrow sequence of `if (expr) return expr;`
+early-return guards, including equality and inequality conditions, matching a
+common cc0 control-flow shape without taking on full C statement parsing yet.
+This is intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
 self-checking in both runtimes before larger grammar work is moved over.
 

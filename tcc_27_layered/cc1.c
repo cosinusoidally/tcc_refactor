@@ -9,7 +9,7 @@
  *     sum     := product ("+" product)*
  *     product := primary ("*" primary)*
  *     primary := number | name | "(" expr ")"
- *     func    := "function" name "(" params? ")" "{" var_stmt* if_ret? "return" expr ";" "}"
+ *     func    := "function" name "(" params? ")" "{" var_stmt* if_ret* "return" expr ";" "}"
  *     params  := name ("," name)*
  *     var_stmt := "var" name "=" expr ";"
  *     if_ret  := "if" "(" expr ")" "return" expr ";"
@@ -384,6 +384,7 @@ function cc1_parse_function_return_tokens()
 {
     var function_name;
     var param_count;
+    var candidate_value;
     var selected_value;
     var selected_value_set;
     var value;
@@ -445,7 +446,7 @@ function cc1_parse_function_return_tokens()
         }
         cc0_scan_next();
     }
-    if (cc0_tok_is_word_if()) {
+    while (cc0_tok_is_word_if()) {
         cc0_scan_next();
         if (!cc1_at_punct(CC0_CH_LPAREN)) {
             cc1_error = 22;
@@ -465,9 +466,12 @@ function cc1_parse_function_return_tokens()
             return 0;
         }
         cc0_scan_next();
-        selected_value = cc1_parse_expr_tokens();
+        candidate_value = cc1_parse_expr_tokens();
         if (cc1_error)
             return 0;
+        if (value)
+            if (!selected_value_set)
+                selected_value = candidate_value;
         if (value)
             selected_value_set = 1;
         if (!cc1_at_punct(CC0_CH_SEMI)) {

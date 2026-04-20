@@ -242,6 +242,18 @@ int main()
         return 93;
     if (cc1_get_last_name() != 'e' || cc1_get_last_value() != 5)
         return 94;
+    if (cc1_parse_function2_string(mks("function ch(a,b){if(a==0)return 7;if(b!=0)return b;return 3;}"), 0, 9) != 1)
+        return 95;
+    if (cc1_get_last_name() != 'c' || cc1_get_last_value() != 7)
+        return 96;
+    if (cc1_parse_function2_string(mks("function ch(a,b){if(a==0)return 7;if(b!=0)return b;return 3;}"), 1, 9) != 1)
+        return 97;
+    if (cc1_get_last_name() != 'c' || cc1_get_last_value() != 9)
+        return 98;
+    if (cc1_parse_function2_string(mks("function ch(a,b){if(a==0)return 7;if(b!=0)return b;return 3;}"), 1, 0) != 1)
+        return 99;
+    if (cc1_get_last_name() != 'c' || cc1_get_last_value() != 3)
+        return 100;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)

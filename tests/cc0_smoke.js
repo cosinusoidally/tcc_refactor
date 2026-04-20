@@ -281,6 +281,24 @@ if (cc1_parse_function2_string(mks("function eq(a,b){if(a==b)return a+1;return b
 if (cc1_get_last_name() !== mkc('e') || cc1_get_last_value() !== 5)
     throw new Error("cc1 function equality if state failed");
 
+if (cc1_parse_function2_string(mks("function ch(a,b){if(a==0)return 7;if(b!=0)return b;return 3;}"), 0, 9) !== 1)
+    throw new Error("cc1 function first chained if parse failed");
+
+if (cc1_get_last_name() !== mkc('c') || cc1_get_last_value() !== 7)
+    throw new Error("cc1 function first chained if state failed");
+
+if (cc1_parse_function2_string(mks("function ch(a,b){if(a==0)return 7;if(b!=0)return b;return 3;}"), 1, 9) !== 1)
+    throw new Error("cc1 function second chained if parse failed");
+
+if (cc1_get_last_name() !== mkc('c') || cc1_get_last_value() !== 9)
+    throw new Error("cc1 function second chained if state failed");
+
+if (cc1_parse_function2_string(mks("function ch(a,b){if(a==0)return 7;if(b!=0)return b;return 3;}"), 1, 0) !== 1)
+    throw new Error("cc1 function chained fallback parse failed");
+
+if (cc1_get_last_name() !== mkc('c') || cc1_get_last_value() !== 3)
+    throw new Error("cc1 function chained fallback state failed");
+
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
 
