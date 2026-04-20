@@ -69,9 +69,17 @@ int main()
         return 23;
     if (cc1_get_last_value() != 15)
         return 24;
-    if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
+    if (cc1_parse_sum8(50, 43, 51, 42, 52, -1, -1, -1) != 1)
         return 25;
-    if (cc1_get_error() == 0)
+    if (cc1_get_last_value() != 14)
         return 26;
+    if (cc1_parse_sum8(40, 50, 43, 51, 41, 42, 52, -1) != 1)
+        return 27;
+    if (cc1_get_last_value() != 20)
+        return 28;
+    if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
+        return 29;
+    if (cc1_get_error() == 0)
+        return 30;
     return 0;
 }

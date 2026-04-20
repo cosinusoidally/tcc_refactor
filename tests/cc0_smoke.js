@@ -73,6 +73,18 @@ if (cc1_parse_sum8(49, 50, 43, 51, 32, -1, -1, -1) !== 1)
 if (cc1_get_last_value() !== 15)
     throw new Error("cc1 sum value failed");
 
+if (cc1_parse_sum8(50, 43, 51, 42, 52, -1, -1, -1) !== 1)
+    throw new Error("cc1 precedence parse failed");
+
+if (cc1_get_last_value() !== 14)
+    throw new Error("cc1 precedence value failed");
+
+if (cc1_parse_sum8(40, 50, 43, 51, 41, 42, 52, -1) !== 1)
+    throw new Error("cc1 parenthesized parse failed");
+
+if (cc1_get_last_value() !== 20)
+    throw new Error("cc1 parenthesized value failed");
+
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
 
