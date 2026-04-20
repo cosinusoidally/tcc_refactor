@@ -46,6 +46,10 @@ var cc1_body_call_count;
 var cc1_max_body_call_arg_count;
 var cc1_body_assignment_count;
 var cc1_max_body_expr_depth;
+var cc1_current_function_statement_count;
+var cc1_max_function_statement_count;
+var cc1_current_function_local_count;
+var cc1_max_function_local_count;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -77,6 +81,10 @@ cc1_body_call_count = 0;
 cc1_max_body_call_arg_count = 0;
 cc1_body_assignment_count = 0;
 cc1_max_body_expr_depth = 0;
+cc1_current_function_statement_count = 0;
+cc1_max_function_statement_count = 0;
+cc1_current_function_local_count = 0;
+cc1_max_function_local_count = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -107,6 +115,10 @@ function cc1_reset()
     cc1_max_body_call_arg_count = 0;
     cc1_body_assignment_count = 0;
     cc1_max_body_expr_depth = 0;
+    cc1_current_function_statement_count = 0;
+    cc1_max_function_statement_count = 0;
+    cc1_current_function_local_count = 0;
+    cc1_max_function_local_count = 0;
     return 0;
 }
 
@@ -700,6 +712,22 @@ function cc1_note_body_expr_depth(expr_depth)
     return 1;
 }
 
+function cc1_begin_function_body_metrics()
+{
+    cc1_current_function_statement_count = 0;
+    cc1_current_function_local_count = 0;
+    return 1;
+}
+
+function cc1_finish_function_body_metrics()
+{
+    if (cc1_current_function_statement_count > cc1_max_function_statement_count)
+        cc1_max_function_statement_count = cc1_current_function_statement_count;
+    if (cc1_current_function_local_count > cc1_max_function_local_count)
+        cc1_max_function_local_count = cc1_current_function_local_count;
+    return 1;
+}
+
 function cc1_prev_nonspace_from(pos)
 {
     var c;
@@ -950,6 +978,7 @@ function cc1_parse_function_signature_tokens()
 function cc1_parse_var_statement_tokens()
 {
     cc1_local_decl_count = cc1_local_decl_count + 1;
+    cc1_current_function_local_count = cc1_current_function_local_count + 1;
     cc0_scan_next();
     if (cc0_get_tok_class() != CC0_TOK_NAME) {
         cc1_error = 57;
@@ -1006,6 +1035,7 @@ function cc1_parse_block_tokens(body_depth)
 
 function cc1_parse_body_statement_tokens(body_depth)
 {
+    cc1_current_function_statement_count = cc1_current_function_statement_count + 1;
     if (cc0_tok_is_word_return())
         return cc1_parse_return_statement_tokens();
     if (cc0_tok_is_word_if())
@@ -1021,7 +1051,10 @@ function cc1_parse_body_statement_tokens(body_depth)
 
 function cc1_skip_function_body_tokens()
 {
-    return cc1_parse_block_tokens(1);
+    cc1_begin_function_body_metrics();
+    if (!cc1_parse_block_tokens(1))
+        return 0;
+    return cc1_finish_function_body_metrics();
 }
 
 function cc1_parse_cc0_source_tokens()
@@ -1323,4 +1356,14 @@ function cc1_get_body_assignment_count()
 function cc1_get_max_body_expr_depth()
 {
     return cc1_max_body_expr_depth;
+}
+
+function cc1_get_max_function_statement_count()
+{
+    return cc1_max_function_statement_count;
+}
+
+function cc1_get_max_function_local_count()
+{
+    return cc1_max_function_local_count;
 }

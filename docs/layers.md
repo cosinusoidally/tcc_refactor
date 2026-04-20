@@ -68,9 +68,11 @@ maximum nested body depth. It also records body call sites, giving the next
 lowering pass a tested route toward a cc0 call graph, and records maximum body
 call arity so the early call ABI can be bounded by observed source. The body
 expression scan also records assignment operators separately from comparison
-operators and tracks maximum nested expression-parenthesis depth. Function
-signature parsing records total and maximum parameter counts for the real cc0
-source.
+operators and tracks maximum nested expression-parenthesis depth. The body pass
+also records maximum per-function statement count and local declaration count,
+which gives early lowering passes an observed bound for function-body shape.
+Function signature parsing records total and maximum parameter counts for the
+real cc0 source.
 That is not a C parser yet, but it gives the layered
 tree a tested lower-to-upper token stream and symbol-state boundary before
 preprocessing exists.
