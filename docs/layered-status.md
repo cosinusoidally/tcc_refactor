@@ -98,7 +98,7 @@ remain ignored for compatibility with the historical TCC command line.
 
 `tcc_27_layered/cc1.c` is the next-layer scaffold. It stays in the same
 C/JS intersection and now contains a tiny expression parser over cc0 tokens for
-numbers, names, parentheses, `*`, `+`, `-`, equality, and relational
+numbers, names, parentheses, unary `!`, `*`, `+`, `-`, equality, and relational
 comparisons with normal precedence. The scanner still reports punctuation one
 byte at a time; cc1 recognizes adjacent multi-byte operators such as `==`,
 `!=`, `<=`, and `>=` so the byte scanner stays simple. It

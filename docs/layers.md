@@ -37,7 +37,7 @@ compiler-front-end behavior migrated into the layered files.
 
 `cc1.c` is the next-layer scaffold. It is also kept in the JavaScript/C
 intersection and now consumes the cc0 scanner for a tiny expression grammar:
-numbers, names, parentheses, `*`, `+`, `-`, equality, and relational
+numbers, names, parentheses, unary `!`, `*`, `+`, `-`, equality, and relational
 comparisons with normal precedence. Multi-byte operators such as `==`, `!=`,
 `<=`, and `>=` are parsed from adjacent one-byte punctuation tokens, so cc0
 remains a byte scanner and cc1 owns the grammar decision. It also has a

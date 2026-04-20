@@ -8,7 +8,7 @@
  *     expr    := sum (("==" | "!=" | "<" | "<=" | ">" | ">=") sum)*
  *     sum     := product (("+" | "-") product)*
  *     product := primary ("*" primary)*
- *     primary := number | name | mkc(char) | mks(string)
+ *     primary := "!" primary | number | name | mkc(char) | mks(string)
  *              | cc0_heap_get(expr, expr) | "(" expr ")"
  *     func    := "function" name "(" params? ")" "{" var_stmt* if_ret* "return" expr ";" "}"
  *     params  := name ("," name)*
@@ -368,6 +368,15 @@ function cc1_at_punct2(c0, c1)
 function cc1_parse_primary()
 {
     var value;
+    if (cc1_at_punct(CC0_CH_BANG)) {
+        cc0_scan_next();
+        value = cc1_parse_primary();
+        if (cc1_error)
+            return 0;
+        if (value)
+            return 0;
+        return 1;
+    }
     if (cc0_get_tok_class() == CC0_TOK_NUMBER) {
         value = cc1_parse_number();
         cc0_scan_next();

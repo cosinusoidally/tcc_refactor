@@ -341,6 +341,22 @@ int main()
         return 139;
     if (cc1_get_last_name() != 's' || cc1_get_last_value() != 'H')
         return 140;
+    if (cc1_parse_expr_string(mks("!0")) != 1)
+        return 141;
+    if (cc1_get_last_value() != 1)
+        return 142;
+    if (cc1_parse_expr_string(mks("!7")) != 1)
+        return 143;
+    if (cc1_get_last_value() != 0)
+        return 144;
+    if (cc1_parse_function2_string(mks("function nz(a,b){if(!a)return b;return a;}"), 0, 8) != 1)
+        return 145;
+    if (cc1_get_last_name() != 'n' || cc1_get_last_value() != 8)
+        return 146;
+    if (cc1_parse_function2_string(mks("function nz(a,b){if(!a)return b;return a;}"), 5, 8) != 1)
+        return 147;
+    if (cc1_get_last_name() != 'n' || cc1_get_last_value() != 5)
+        return 148;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)

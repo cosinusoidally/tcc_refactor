@@ -424,6 +424,30 @@ if (cc1_parse_function_return_string(mks("function st(){return cc0_heap_get(mks(
 if (cc1_get_last_name() !== mkc('s') || cc1_get_last_value() !== mkc('H'))
     throw new Error("cc1 mks function state failed");
 
+if (cc1_parse_expr_string(mks("!0")) !== 1)
+    throw new Error("cc1 unary not zero parse failed");
+
+if (cc1_get_last_value() !== 1)
+    throw new Error("cc1 unary not zero state failed");
+
+if (cc1_parse_expr_string(mks("!7")) !== 1)
+    throw new Error("cc1 unary not nonzero parse failed");
+
+if (cc1_get_last_value() !== 0)
+    throw new Error("cc1 unary not nonzero state failed");
+
+if (cc1_parse_function2_string(mks("function nz(a,b){if(!a)return b;return a;}"), 0, 8) !== 1)
+    throw new Error("cc1 unary not function true parse failed");
+
+if (cc1_get_last_name() !== mkc('n') || cc1_get_last_value() !== 8)
+    throw new Error("cc1 unary not function true state failed");
+
+if (cc1_parse_function2_string(mks("function nz(a,b){if(!a)return b;return a;}"), 5, 8) !== 1)
+    throw new Error("cc1 unary not function false parse failed");
+
+if (cc1_get_last_name() !== mkc('n') || cc1_get_last_value() !== 5)
+    throw new Error("cc1 unary not function false state failed");
+
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
 
