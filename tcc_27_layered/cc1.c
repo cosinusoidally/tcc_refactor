@@ -42,6 +42,7 @@ var cc1_body_semi_count;
 var cc1_max_body_depth;
 var cc1_param_count;
 var cc1_max_param_count;
+var cc1_body_call_count;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -69,6 +70,7 @@ cc1_body_semi_count = 0;
 cc1_max_body_depth = 0;
 cc1_param_count = 0;
 cc1_max_param_count = 0;
+cc1_body_call_count = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -95,6 +97,7 @@ function cc1_reset()
     cc1_max_body_depth = 0;
     cc1_param_count = 0;
     cc1_max_param_count = 0;
+    cc1_body_call_count = 0;
     return 0;
 }
 
@@ -677,15 +680,26 @@ function cc1_note_body_block_depth(depth)
 function cc1_parse_balanced_parens_tokens()
 {
     var depth;
+    var previous_was_name;
     if (!cc1_at_punct(CC0_CH_LPAREN)) {
         cc1_error = 51;
         return 0;
     }
     depth = 1;
+    previous_was_name = 0;
     cc0_scan_next();
     while (cc0_get_tok_class() != CC0_TOK_EOF) {
-        if (cc1_at_punct(CC0_CH_LPAREN))
+        if (cc1_at_punct(CC0_CH_LPAREN)) {
+            if (previous_was_name)
+                cc1_body_call_count = cc1_body_call_count + 1;
             depth = depth + 1;
+            previous_was_name = 0;
+        } else {
+            if (cc0_get_tok_class() == CC0_TOK_NAME)
+                previous_was_name = 1;
+            else
+                previous_was_name = 0;
+        }
         if (cc1_at_punct(CC0_CH_RPAREN)) {
             depth = depth - 1;
             cc0_scan_next();
@@ -702,10 +716,21 @@ function cc1_parse_balanced_parens_tokens()
 function cc1_parse_statement_tail_tokens()
 {
     var paren_depth;
+    var previous_was_name;
     paren_depth = 0;
+    previous_was_name = 0;
     while (cc0_get_tok_class() != CC0_TOK_EOF) {
-        if (cc1_at_punct(CC0_CH_LPAREN))
+        if (cc1_at_punct(CC0_CH_LPAREN)) {
+            if (previous_was_name)
+                cc1_body_call_count = cc1_body_call_count + 1;
             paren_depth = paren_depth + 1;
+            previous_was_name = 0;
+        } else {
+            if (cc0_get_tok_class() == CC0_TOK_NAME)
+                previous_was_name = 1;
+            else
+                previous_was_name = 0;
+        }
         if (cc1_at_punct(CC0_CH_RPAREN)) {
             paren_depth = paren_depth - 1;
             if (paren_depth < 0) {
@@ -1175,4 +1200,9 @@ function cc1_get_param_count()
 function cc1_get_max_param_count()
 {
     return cc1_max_param_count;
+}
+
+function cc1_get_body_call_count()
+{
+    return cc1_body_call_count;
 }

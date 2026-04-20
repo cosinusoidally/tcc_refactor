@@ -64,8 +64,9 @@ declarations/assignments, validate function signatures, and recursively parse
 statement-shell bodies. The source pass recognizes block statements, `return`,
 `if`, `while`, local `var`, and generic semicolon-terminated statements, then
 records balanced body parentheses, semicolon-terminated body statements, and
-maximum nested body depth. Function signature parsing records total and maximum
-parameter counts for the real cc0 source.
+maximum nested body depth. It also records body call sites, giving the next
+lowering pass a tested route toward a cc0 call graph. Function signature parsing
+records total and maximum parameter counts for the real cc0 source.
 That is not a C parser yet, but it gives the layered
 tree a tested lower-to-upper token stream and symbol-state boundary before
 preprocessing exists.

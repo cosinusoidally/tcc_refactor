@@ -481,6 +481,9 @@ if (cc1_get_param_count() !== 2)
 if (cc1_get_max_param_count() !== 1)
     throw new Error("cc1 cc0 source shell max param count failed");
 
+if (cc1_get_body_call_count() !== 0)
+    throw new Error("cc1 cc0 source shell body call count failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -525,6 +528,9 @@ if (cc1_get_param_count() !== 90)
 
 if (cc1_get_max_param_count() !== 16)
     throw new Error("cc1 cc0.c max param count failed");
+
+if (cc1_get_body_call_count() !== 89)
+    throw new Error("cc1 cc0.c body call count failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
