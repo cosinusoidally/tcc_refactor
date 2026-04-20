@@ -32,6 +32,8 @@ var cc1_arg_0;
 var cc1_arg_1;
 var cc1_arg_2;
 var cc1_arg_3;
+var cc1_function_count;
+var cc1_top_decl_count;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -49,6 +51,8 @@ cc1_arg_0 = 0;
 cc1_arg_1 = 0;
 cc1_arg_2 = 0;
 cc1_arg_3 = 0;
+cc1_function_count = 0;
+cc1_top_decl_count = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -65,6 +69,8 @@ function cc1_reset()
     cc1_last_value = 0;
     cc1_last_name = 0;
     cc1_error = 0;
+    cc1_function_count = 0;
+    cc1_top_decl_count = 0;
     return 0;
 }
 
@@ -637,6 +643,144 @@ function cc1_parse_program_string(source)
     return cc1_parse_program_tokens();
 }
 
+function cc1_skip_to_semi()
+{
+    while (cc0_get_tok_class() != CC0_TOK_EOF) {
+        if (cc1_at_punct(CC0_CH_SEMI)) {
+            cc0_scan_next();
+            return 1;
+        }
+        cc0_scan_next();
+    }
+    cc1_error = 40;
+    return 0;
+}
+
+function cc1_parse_top_var_decl_tokens()
+{
+    cc0_scan_next();
+    if (cc0_get_tok_class() != CC0_TOK_NAME) {
+        cc1_error = 41;
+        return 0;
+    }
+    cc1_top_decl_count = cc1_top_decl_count + 1;
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_SEMI)) {
+        cc1_error = 42;
+        return 0;
+    }
+    cc0_scan_next();
+    return 1;
+}
+
+function cc1_parse_top_assignment_tokens()
+{
+    if (cc0_get_tok_class() != CC0_TOK_NAME) {
+        cc1_error = 43;
+        return 0;
+    }
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_EQUAL)) {
+        cc1_error = 44;
+        return 0;
+    }
+    cc0_scan_next();
+    cc1_top_decl_count = cc1_top_decl_count + 1;
+    return cc1_skip_to_semi();
+}
+
+function cc1_parse_function_signature_tokens()
+{
+    cc0_scan_next();
+    if (cc0_get_tok_class() != CC0_TOK_NAME) {
+        cc1_error = 45;
+        return 0;
+    }
+    cc1_last_name = cc0_get_tok_first();
+    cc1_function_count = cc1_function_count + 1;
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_LPAREN)) {
+        cc1_error = 46;
+        return 0;
+    }
+    cc0_scan_next();
+    while (!cc1_at_punct(CC0_CH_RPAREN)) {
+        if (cc0_get_tok_class() != CC0_TOK_NAME) {
+            cc1_error = 47;
+            return 0;
+        }
+        cc0_scan_next();
+        if (cc1_at_punct(CC0_CH_RPAREN))
+            break;
+        if (!cc1_at_punct(CC0_CH_COMMA)) {
+            cc1_error = 48;
+            return 0;
+        }
+        cc0_scan_next();
+    }
+    cc0_scan_next();
+    return 1;
+}
+
+function cc1_skip_function_body_tokens()
+{
+    var depth;
+    if (!cc1_at_punct(CC0_CH_LBRACE)) {
+        cc1_error = 49;
+        return 0;
+    }
+    depth = 0;
+    while (cc0_get_tok_class() != CC0_TOK_EOF) {
+        if (cc1_at_punct(CC0_CH_LBRACE))
+            depth = depth + 1;
+        if (cc1_at_punct(CC0_CH_RBRACE)) {
+            depth = depth - 1;
+            cc0_scan_next();
+            if (depth == 0)
+                return 1;
+        } else {
+            cc0_scan_next();
+        }
+    }
+    cc1_error = 50;
+    return 0;
+}
+
+function cc1_parse_cc0_source_tokens()
+{
+    while (cc0_get_tok_class() != CC0_TOK_EOF) {
+        if (cc0_tok_is_word_var()) {
+            if (!cc1_parse_top_var_decl_tokens())
+                return 0;
+        } else {
+            if (cc0_tok_is_word_function()) {
+                if (!cc1_parse_function_signature_tokens())
+                    return 0;
+                if (!cc1_skip_function_body_tokens())
+                    return 0;
+            } else {
+                if (!cc1_parse_top_assignment_tokens())
+                    return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+function cc1_parse_cc0_source_string(source)
+{
+    cc1_reset();
+    cc0_source_set_string(source);
+    cc0_scan_next();
+    if (!cc1_parse_cc0_source_tokens())
+        return 0;
+    if (cc0_get_tok_class() != CC0_TOK_EOF) {
+        cc1_error = 2;
+        return 0;
+    }
+    return 1;
+}
+
 function cc1_parse_function_return_tokens()
 {
     var candidate_active;
@@ -831,4 +975,14 @@ function cc1_get_last_name()
 function cc1_get_error()
 {
     return cc1_error;
+}
+
+function cc1_get_function_count()
+{
+    return cc1_function_count;
+}
+
+function cc1_get_top_decl_count()
+{
+    return cc1_top_decl_count;
 }

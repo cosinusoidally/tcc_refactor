@@ -120,7 +120,10 @@ classifiers. The first expression-level helper call, `cc0_is_digit(expr)`, is
 evaluated through the real cc0 helper without taking on full C statement
 parsing yet. cc1 also evaluates `mkc('A')`, `mks("text")`, and
 `cc0_heap_get(expr, expr)`, so the wrapper-literal convention needed by cc0
-self-hosting is executable in both C and JavaScript smoke paths. This is
+self-hosting is executable in both C and JavaScript smoke paths. cc1 can now
+also run a whole-source cc0 shell parse over the real `cc0.c`: comments are
+skipped by the cc0 scanner, top-level `var` declarations and assignments are
+recognized, and function signatures plus balanced bodies are counted. This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
 self-checking in both runtimes before larger grammar work is moved over.

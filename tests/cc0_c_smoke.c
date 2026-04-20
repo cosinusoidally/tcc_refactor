@@ -44,11 +44,14 @@ int cc1_parse_assignment8();
 int cc1_parse_assignment_string();
 int cc1_parse_program16();
 int cc1_parse_program_string();
+int cc1_parse_cc0_source_string();
 int cc1_parse_function_return_string();
 int cc1_parse_function2_string();
 int cc1_get_last_name();
 int cc1_get_last_value();
 int cc1_get_error();
+int cc1_get_function_count();
+int cc1_get_top_decl_count();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -357,6 +360,12 @@ int main()
         return 147;
     if (cc1_get_last_name() != 'n' || cc1_get_last_value() != 5)
         return 148;
+    if (cc1_parse_cc0_source_string(mks("/*comment*/var a;a=1;function f(x){if(x)return 1;return 0;}")) != 1)
+        return 149;
+    if (cc1_get_function_count() != 1)
+        return 150;
+    if (cc1_get_top_decl_count() != 2)
+        return 151;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)

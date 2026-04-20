@@ -36,6 +36,7 @@ var CC0_CH_STAR;
 var CC0_CH_PLUS;
 var CC0_CH_COMMA;
 var CC0_CH_MINUS;
+var CC0_CH_SLASH;
 var CC0_CH_0;
 var CC0_CH_7;
 var CC0_CH_9;
@@ -121,6 +122,7 @@ CC0_CH_STAR = 42;
 CC0_CH_PLUS = 43;
 CC0_CH_COMMA = 44;
 CC0_CH_MINUS = 45;
+CC0_CH_SLASH = 47;
 CC0_CH_0 = 48;
 CC0_CH_7 = 55;
 CC0_CH_9 = 57;
@@ -533,10 +535,32 @@ function cc0_source_at(pos)
 function cc0_scan_skip_space()
 {
     var c;
+    var next;
     c = cc0_source_at(cc0_scan_pos);
     while (cc0_is_space(c)) {
         cc0_scan_pos = cc0_scan_pos + 1;
         c = cc0_source_at(cc0_scan_pos);
+    }
+    while (c == CC0_CH_SLASH) {
+        next = cc0_source_at(cc0_scan_pos + 1);
+        if (next != CC0_CH_STAR)
+            return c;
+        cc0_scan_pos = cc0_scan_pos + 2;
+        c = cc0_source_at(cc0_scan_pos);
+        while (c >= 0) {
+            if (c == CC0_CH_STAR)
+                if (cc0_source_at(cc0_scan_pos + 1) == CC0_CH_SLASH) {
+                    cc0_scan_pos = cc0_scan_pos + 2;
+                    c = cc0_source_at(cc0_scan_pos);
+                    while (cc0_is_space(c)) {
+                        cc0_scan_pos = cc0_scan_pos + 1;
+                        c = cc0_source_at(cc0_scan_pos);
+                    }
+                    break;
+                }
+            cc0_scan_pos = cc0_scan_pos + 1;
+            c = cc0_source_at(cc0_scan_pos);
+        }
     }
     return c;
 }
