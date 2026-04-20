@@ -32,11 +32,6 @@ ST_DATA Section *cur_text_section; /* current section where function code is gen
 #ifdef CONFIG_TCC_ASM
 ST_DATA Section *last_text_section; /* to handle .previous asm directive */
 #endif
-#ifdef CONFIG_TCC_BCHECK
-/* bound check related sections */
-ST_DATA Section *bounds_section; /* contains global data bound description */
-ST_DATA Section *lbounds_section; /* contains local data bound description */
-#endif
 /* symbol sections */
 ST_DATA Section *symtab_section;
 /* debug sections */
@@ -76,17 +71,6 @@ ST_FUNC void tccelf_new(TCCState *s)
                                       ".dynhashtab", SHF_PRIVATE);
     get_sym_attr(s, 0, 1);
 }
-
-#ifdef CONFIG_TCC_BCHECK
-ST_FUNC void tccelf_bounds_new(TCCState *s)
-{
-    /* create bounds sections */
-    bounds_section = new_section(s, ".bounds",
-                                 SHT_PROGBITS, SHF_ALLOC);
-    lbounds_section = new_section(s, ".lbounds",
-                                  SHT_PROGBITS, SHF_ALLOC);
-}
-#endif
 
 ST_FUNC void tccelf_stab_new(TCCState *s)
 {
