@@ -143,8 +143,24 @@ function cc0_is_space(c)
         return 1;
     if (c == 10)
         return 1;
+    if (c == 11)
+        return 1;
+    if (c == 12)
+        return 1;
     if (c == 13)
         return 1;
+    return 0;
+}
+
+function cc0_tccpp_char_flags(c)
+{
+    if (cc0_is_space(c))
+        if (c != 10)
+            return 1;
+    if (cc0_is_name_start(c))
+        return 2;
+    if (cc0_is_digit(c))
+        return 4;
     return 0;
 }
 

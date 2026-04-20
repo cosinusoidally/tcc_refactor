@@ -10,6 +10,7 @@
 
 #define function int
 #define var int
+#include "cc0.c"
 #include "cc2.c"
 #undef function
 #undef var

@@ -14,7 +14,10 @@ classification helpers plus a minimal scanner state machine. The scanner uses
 fixed eight-byte and sixteen-byte source windows for now, skips whitespace, and reports token
 class, start offset, length, and decimal value where applicable for names,
 decimal numbers, punctuation, and EOF. This keeps the earliest phase below the
-preprocessor and suitable for the JS/C dialect intersection.
+preprocessor and suitable for the JS/C dialect intersection. The active
+`tccpp.c` tokenizer table now also gets its low ASCII space/name/number flags
+from cc0, which is the first compiler-front-end behavior migrated into the
+layered files.
 
 `cc1.c` is the next-layer scaffold. It is also kept in the JavaScript/C
 intersection and now consumes the cc0 scanner for a tiny expression grammar:
@@ -34,9 +37,11 @@ classification, 32-bit archive index byte swapping, and exported-symbol
 classification. These moved out of `tcctools.c` so that the archive tool can be
 ported into staged layers without losing the current bootstrap archive check.
 
-`tcc_unified.c` is the current full compiler layer. It defines `ONE_SOURCE` and
-includes `tcc.c`, which in turn includes `libtcc.c` and `tcctools.c`. This makes
-the one-source build an explicit source file instead of a command-line accident.
+`tcc_unified.c` is the current full compiler layer. It maps the lower-layer
+`function` and `var` spelling to C, includes the active cc0/cc2 helpers, defines
+`ONE_SOURCE`, and includes `tcc.c`, which in turn includes `libtcc.c` and
+`tcctools.c`. This makes the one-source build an explicit source file instead
+of a command-line accident.
 
 ## Current Full Compiler Modules
 

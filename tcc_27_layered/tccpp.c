@@ -3627,11 +3627,7 @@ ST_FUNC void tccpp_new(TCCState *s)
 
     /* init isid table */
     for(i = CH_EOF; i<128; i++)
-        set_idnum(i,
-            is_space(i) ? IS_SPC
-            : isid(i) ? IS_ID
-            : isnum(i) ? IS_NUM
-            : 0);
+        set_idnum(i, cc0_tccpp_char_flags(i));
 
     for(i = 128; i<256; i++)
         set_idnum(i, IS_ID);
