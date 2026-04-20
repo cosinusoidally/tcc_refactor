@@ -667,6 +667,73 @@ function cc1_parse_program_string(source)
     return cc1_parse_program_tokens();
 }
 
+function cc1_note_body_block_depth(depth)
+{
+    if (depth > cc1_max_body_depth)
+        cc1_max_body_depth = depth;
+    return 1;
+}
+
+function cc1_parse_balanced_parens_tokens()
+{
+    var depth;
+    if (!cc1_at_punct(CC0_CH_LPAREN)) {
+        cc1_error = 51;
+        return 0;
+    }
+    depth = 1;
+    cc0_scan_next();
+    while (cc0_get_tok_class() != CC0_TOK_EOF) {
+        if (cc1_at_punct(CC0_CH_LPAREN))
+            depth = depth + 1;
+        if (cc1_at_punct(CC0_CH_RPAREN)) {
+            depth = depth - 1;
+            cc0_scan_next();
+            if (depth == 0)
+                return 1;
+        } else {
+            cc0_scan_next();
+        }
+    }
+    cc1_error = 52;
+    return 0;
+}
+
+function cc1_parse_statement_tail_tokens()
+{
+    var paren_depth;
+    paren_depth = 0;
+    while (cc0_get_tok_class() != CC0_TOK_EOF) {
+        if (cc1_at_punct(CC0_CH_LPAREN))
+            paren_depth = paren_depth + 1;
+        if (cc1_at_punct(CC0_CH_RPAREN)) {
+            paren_depth = paren_depth - 1;
+            if (paren_depth < 0) {
+                cc1_error = 53;
+                return 0;
+            }
+        }
+        if (paren_depth == 0) {
+            if (cc1_at_punct(CC0_CH_SEMI)) {
+                cc1_body_semi_count = cc1_body_semi_count + 1;
+                cc0_scan_next();
+                return 1;
+            }
+            if (cc1_at_punct(CC0_CH_LBRACE)) {
+                cc1_error = 54;
+                return 0;
+            }
+            if (cc1_at_punct(CC0_CH_RBRACE)) {
+                cc1_error = 55;
+                return 0;
+            }
+        }
+        cc0_scan_next();
+    }
+    cc1_error = 56;
+    return 0;
+}
+
 function cc1_skip_to_semi()
 {
     while (cc0_get_tok_class() != CC0_TOK_EOF) {
@@ -752,56 +819,81 @@ function cc1_parse_function_signature_tokens()
     return 1;
 }
 
-function cc1_skip_function_body_tokens()
+function cc1_parse_var_statement_tokens()
 {
-    var depth;
-    var paren_depth;
+    cc1_local_decl_count = cc1_local_decl_count + 1;
+    cc0_scan_next();
+    if (cc0_get_tok_class() != CC0_TOK_NAME) {
+        cc1_error = 57;
+        return 0;
+    }
+    cc0_scan_next();
+    return cc1_parse_statement_tail_tokens();
+}
+
+function cc1_parse_return_statement_tokens()
+{
+    cc1_return_count = cc1_return_count + 1;
+    cc0_scan_next();
+    return cc1_parse_statement_tail_tokens();
+}
+
+function cc1_parse_if_statement_tokens(body_depth)
+{
+    cc1_if_count = cc1_if_count + 1;
+    cc0_scan_next();
+    if (!cc1_parse_balanced_parens_tokens())
+        return 0;
+    return cc1_parse_body_statement_tokens(body_depth);
+}
+
+function cc1_parse_while_statement_tokens(body_depth)
+{
+    cc1_while_count = cc1_while_count + 1;
+    cc0_scan_next();
+    if (!cc1_parse_balanced_parens_tokens())
+        return 0;
+    return cc1_parse_body_statement_tokens(body_depth);
+}
+
+function cc1_parse_block_tokens(body_depth)
+{
     if (!cc1_at_punct(CC0_CH_LBRACE)) {
         cc1_error = 49;
         return 0;
     }
-    depth = 0;
-    paren_depth = 0;
+    cc1_note_body_block_depth(body_depth);
+    cc0_scan_next();
     while (cc0_get_tok_class() != CC0_TOK_EOF) {
-        if (cc0_tok_is_word_return())
-            cc1_return_count = cc1_return_count + 1;
-        if (cc0_tok_is_word_if())
-            cc1_if_count = cc1_if_count + 1;
-        if (cc0_tok_is_word_while())
-            cc1_while_count = cc1_while_count + 1;
-        if (cc0_tok_is_word_var())
-            cc1_local_decl_count = cc1_local_decl_count + 1;
-        if (cc1_at_punct(CC0_CH_SEMI))
-            cc1_body_semi_count = cc1_body_semi_count + 1;
-        if (cc1_at_punct(CC0_CH_LPAREN))
-            paren_depth = paren_depth + 1;
-        if (cc1_at_punct(CC0_CH_RPAREN)) {
-            paren_depth = paren_depth - 1;
-            if (paren_depth < 0) {
-                cc1_error = 51;
-                return 0;
-            }
-        }
-        if (cc1_at_punct(CC0_CH_LBRACE)) {
-            depth = depth + 1;
-            if (depth > cc1_max_body_depth)
-                cc1_max_body_depth = depth;
-        }
         if (cc1_at_punct(CC0_CH_RBRACE)) {
-            depth = depth - 1;
-            if (paren_depth != 0) {
-                cc1_error = 52;
-                return 0;
-            }
             cc0_scan_next();
-            if (depth == 0)
-                return 1;
-        } else {
-            cc0_scan_next();
+            return 1;
         }
+        if (!cc1_parse_body_statement_tokens(body_depth))
+            return 0;
     }
     cc1_error = 50;
     return 0;
+}
+
+function cc1_parse_body_statement_tokens(body_depth)
+{
+    if (cc0_tok_is_word_return())
+        return cc1_parse_return_statement_tokens();
+    if (cc0_tok_is_word_if())
+        return cc1_parse_if_statement_tokens(body_depth);
+    if (cc0_tok_is_word_while())
+        return cc1_parse_while_statement_tokens(body_depth);
+    if (cc0_tok_is_word_var())
+        return cc1_parse_var_statement_tokens();
+    if (cc1_at_punct(CC0_CH_LBRACE))
+        return cc1_parse_block_tokens(body_depth + 1);
+    return cc1_parse_statement_tail_tokens();
+}
+
+function cc1_skip_function_body_tokens()
+{
+    return cc1_parse_block_tokens(1);
 }
 
 function cc1_parse_cc0_source_tokens()

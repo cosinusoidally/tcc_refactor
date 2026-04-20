@@ -390,6 +390,14 @@ int main()
         return 158;
     if (cc1_get_max_param_count() != 1)
         return 159;
+    if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
+        return 160;
+    if (cc1_get_error() == 0)
+        return 161;
+    if (cc1_parse_cc0_source_string(mks("function bad(x){if((x)return 1;}")) != 0)
+        return 162;
+    if (cc1_get_error() == 0)
+        return 163;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)

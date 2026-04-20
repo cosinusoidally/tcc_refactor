@@ -481,6 +481,18 @@ if (cc1_get_param_count() !== 2)
 if (cc1_get_max_param_count() !== 1)
     throw new Error("cc1 cc0 source shell max param count failed");
 
+if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
+    throw new Error("cc1 accepted body return without semicolon");
+
+if (cc1_get_error() === 0)
+    throw new Error("cc1 missing semicolon did not report error");
+
+if (cc1_parse_cc0_source_string(mks("function bad(x){if((x)return 1;}")) !== 0)
+    throw new Error("cc1 accepted unbalanced if condition");
+
+if (cc1_get_error() === 0)
+    throw new Error("cc1 unbalanced if condition did not report error");
+
 if (cc1_parse_cc0_source_string(mks(read("../tcc_27_layered/cc0.c"))) !== 1)
     throw new Error("cc1 cc0.c parse failed: " + cc1_get_error());
 

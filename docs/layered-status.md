@@ -123,13 +123,15 @@ parsing yet. cc1 also evaluates `mkc('A')`, `mks("text")`, and
 self-hosting is executable in both C and JavaScript smoke paths. cc1 can now
 also run a whole-source cc0 shell parse over the real `cc0.c`: comments are
 skipped by the cc0 scanner, top-level `var` declarations and assignments are
-recognized, and function signatures plus balanced bodies are counted. The body
-pass now also recognizes `return`, `if`, `while`, and local `var` tokens, so the
-SpiderMonkey smoke test checks the actual control-flow/declaration counts for
-the current `cc0.c` source. It also checks balanced parentheses within each
-function body, total semicolon-terminated body statements, and maximum nested
-body depth. Function signature parsing also records total and maximum parameter
-counts for the real cc0 source. This is
+recognized, and function signatures plus recursive statement-shell bodies are
+parsed. The body pass recognizes block statements, `return`, `if`, `while`,
+local `var`, and generic semicolon-terminated statements, so malformed bodies
+such as missing semicolons or unbalanced conditions fail before expression
+lowering exists. The SpiderMonkey smoke test checks the actual
+control-flow/declaration counts for the current `cc0.c` source. It also checks
+balanced parentheses within each function body, total semicolon-terminated body
+statements, and maximum nested body depth. Function signature parsing also
+records total and maximum parameter counts for the real cc0 source. This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
 self-checking in both runtimes before larger grammar work is moved over.
