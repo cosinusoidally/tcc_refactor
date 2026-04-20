@@ -41,6 +41,11 @@ EOF
 # cc0.c is kept in a deliberate C/JS intersection
 gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int -c ../tcc_27_layered/cc0.c -o cc0_gcc.o
 ./tcc_27_layered -Dfunction=int -Dvar=int -c ../tcc_27_layered/cc0.c -o cc0_tcc.o
+gcc -m32 -std=gnu89 -I ../tcc_27_layered ../tcc_27_layered/cc0_unified.c ../tests/cc0_c_smoke.c -o cc0_gcc_smoke
+./cc0_gcc_smoke
+./tcc_27_layered -B . -I ../tcc_27_layered ../tcc_27_layered/cc0_unified.c ../tests/cc0_c_smoke.c -o cc0_tcc_smoke
+chmod +x cc0_tcc_smoke
+./cc0_tcc_smoke
 js ../tests/cc0_smoke.js
 
 # build some test files

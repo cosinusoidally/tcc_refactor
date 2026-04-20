@@ -11,3 +11,38 @@ if (cc0_select(0, 7, 9) !== 9)
 
 if (cc0_not(0) !== 1 || cc0_not(4) !== 0)
     throw new Error("cc0_not failed");
+
+if (!cc0_is_digit(48) || !cc0_is_digit(57) || cc0_is_digit(58))
+    throw new Error("cc0_is_digit failed");
+
+if (!cc0_is_name_start(95) || !cc0_is_name_start(65))
+    throw new Error("cc0_is_name_start failed");
+
+if (!cc0_is_name_continue(57) || cc0_is_name_continue(45))
+    throw new Error("cc0_is_name_continue failed");
+
+if (!cc0_is_space(32) || !cc0_is_space(10) || cc0_is_space(65))
+    throw new Error("cc0_is_space failed");
+
+if (cc0_token_class(-1) !== 0)
+    throw new Error("cc0 eof token failed");
+
+if (cc0_token_class(65) !== 1)
+    throw new Error("cc0 name token failed");
+
+if (cc0_token_class(52) !== 2)
+    throw new Error("cc0 number token failed");
+
+if (cc0_token_class(32) !== 3)
+    throw new Error("cc0 space token failed");
+
+if (cc0_token_class(43) !== 4)
+    throw new Error("cc0 punct token failed");
+
+load("../tcc_27_layered/cc1_stubs.c");
+
+if (cc1_compile_unit(0) !== 1)
+    throw new Error("cc1 stub compile failed");
+
+if (cc1_has_real_parser() !== 0)
+    throw new Error("cc1 parser stub failed");

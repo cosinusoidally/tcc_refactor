@@ -48,16 +48,22 @@ to the static bootstrap hash checks, it now verifies that:
 - `tcc_27_layered` can build and start a normal glibc-linked executable from
   the baseline `tcc_27` source fixture.
 - `cc0.c` remains in the C/JavaScript dialect intersection by compiling as C
-  with both GCC and the layered TCC using `-Dfunction=int -Dvar=int`, and by
-  loading under SpiderMonkey `js`.
+  with both GCC and the layered TCC using `-Dfunction=int -Dvar=int`, by
+  building `cc0_unified.c` plus the C smoke test with both GCC and layered TCC,
+  and by loading the dialect files under SpiderMonkey `js`.
 
 ## cc0 Dialect Seed
 
-`tcc_27_layered/cc0.c` is the initial placeholder for the base dialect. It is
-not a compiler yet; it is a checked-in syntax contract. Function declarations
-use JavaScript syntax, and the C build maps `function` and `var` to `int`.
-Function arguments therefore use old-style C implicit `int` parameters, which
-keeps the same file parseable by both SpiderMonkey and a C compiler.
+`tcc_27_layered/cc0.c` is the initial base dialect. It is not a compiler yet,
+but it now contains token-classification primitives used by both the C and JS
+smoke tests. Function declarations use JavaScript syntax, and the C build maps
+`function` and `var` to `int`. Function arguments therefore use old-style C
+implicit `int` parameters, which keeps the same file parseable by both
+SpiderMonkey and a C compiler.
+
+`tcc_27_layered/cc1_stubs.c` is the next-layer placeholder. It stays in the same
+C/JS intersection and returns explicit stub values until real cc1 behavior is
+ported.
 
 ## Internal Map
 
