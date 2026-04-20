@@ -64,9 +64,10 @@ syntax, and the C build maps `function` and `var` to `int`. Function arguments
 therefore use old-style C implicit `int` parameters, which keeps the same file
 parseable by both SpiderMonkey and a C compiler. The active TCC preprocessor
 now calls cc0 for the low ASCII character flags used to seed its tokenizer
-table, for decimal digit checks, and for whitespace checks that must exclude
-newlines. The cc0 layer is starting to replace front-end logic in the legacy
-compiler instead of only being a standalone smoke target.
+table, for decimal and octal digit checks, for ASCII uppercase conversion, and
+for whitespace checks that must exclude newlines. The cc0 layer is starting to
+replace front-end logic in the legacy compiler instead of only being a
+standalone smoke target.
 
 `tcc_27_layered/cc1.c` is the next-layer scaffold. It stays in the same
 C/JS intersection and now contains a tiny expression parser over cc0 tokens for
@@ -87,12 +88,13 @@ the C and JS smoke tests.
 
 `tccpp.c` no longer owns the low ASCII tokenizer-table classifier directly; it
 gets those space/name/number flags from cc0. Its decimal digit checks and
-preprocessor whitespace checks are also moving onto cc0 helpers, and the old
-newline-excluding `is_space` copy has been removed from `tcc.h`. `tcctools.c` no
-longer owns the archive option character classifier, the PE import-definition
-tool, or the Win32 cross-exec/wildcard helpers. The layered target is i386
-Linux/ELF, and the active archive path now calls into cc2 for the first migrated
-piece of tool behavior.
+preprocessor whitespace checks are also moving onto cc0 helpers. The old
+`isid`, `isnum`, `isoct`, `toup`, and newline-excluding `is_space` helper copies
+have been removed from `tcc.h`; the remaining layered compiler uses call cc0
+classification helpers instead. `tcctools.c` no longer owns the archive option
+character classifier, the PE import-definition tool, or the Win32
+cross-exec/wildcard helpers. The layered target is i386 Linux/ELF, and the active
+archive path now calls into cc2 for the first migrated piece of tool behavior.
 
 ## Removed Run Surface
 

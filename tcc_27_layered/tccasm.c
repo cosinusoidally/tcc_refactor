@@ -1009,9 +1009,9 @@ ST_FUNC int find_constraint(ASMOperand *operands, int nb_operands,
     TokenSym *ts;
     const char *p;
 
-    if (isnum(*name)) {
+    if (cc0_is_digit(*name)) {
         index = 0;
-        while (isnum(*name)) {
+        while (cc0_is_digit(*name)) {
             index = (index * 10) + (*name) - '0';
             name++;
         }

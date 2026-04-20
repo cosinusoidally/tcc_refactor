@@ -15,8 +15,14 @@ if (cc0_not(0) !== 1 || cc0_not(4) !== 0)
 if (!cc0_is_digit(48) || !cc0_is_digit(57) || cc0_is_digit(58))
     throw new Error("cc0_is_digit failed");
 
+if (!cc0_is_oct_digit(48) || !cc0_is_oct_digit(55) || cc0_is_oct_digit(56))
+    throw new Error("cc0_is_oct_digit failed");
+
 if (!cc0_is_name_start(95) || !cc0_is_name_start(65))
     throw new Error("cc0_is_name_start failed");
+
+if (cc0_to_upper(97) !== 65 || cc0_to_upper(65) !== 65 || cc0_to_upper(48) !== 48)
+    throw new Error("cc0_to_upper failed");
 
 if (!cc0_is_name_continue(57) || cc0_is_name_continue(45))
     throw new Error("cc0_is_name_continue failed");

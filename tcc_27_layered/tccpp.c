@@ -1551,7 +1551,7 @@ static CachedInclude *search_cached_include(TCCState *s1, const char *filename, 
     s = (unsigned char *) filename;
     while (*s) {
 #ifdef _WIN32
-        h = TOK_HASH_FUNC(h, toup(*s));
+        h = TOK_HASH_FUNC(h, cc0_to_upper(*s));
 #else
         h = TOK_HASH_FUNC(h, *s);
 #endif
@@ -2016,11 +2016,11 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf, int is_long
                 n = c - '0';
                 p++;
                 c = *p;
-                if (isoct(c)) {
+                if (cc0_is_oct_digit(c)) {
                     n = n * 8 + c - '0';
                     p++;
                     c = *p;
-                    if (isoct(c)) {
+                    if (cc0_is_oct_digit(c)) {
                         n = n * 8 + c - '0';
                         p++;
                     }
@@ -2360,7 +2360,7 @@ static void parse_number(const char *p)
             /* XXX: should patch directly float number */
             d = (double)bn[1] * 4294967296.0 + (double)bn[0];
             d = ldexp(d, exp_val - frac_bits);
-            t = toup(ch);
+            t = cc0_to_upper(ch);
             if (t == 'F') {
                 ch = *p++;
                 tok = TOK_CFLOAT;
@@ -2416,7 +2416,7 @@ static void parse_number(const char *p)
                 }
             }
             *q = '\0';
-            t = toup(ch);
+            t = cc0_to_upper(ch);
 /* LJW HACK remove errno use
             errno = 0;
 */
@@ -2476,7 +2476,7 @@ static void parse_number(const char *p)
         lcount = ucount = 0;
         p1 = p;
         for(;;) {
-            t = toup(ch);
+            t = cc0_to_upper(ch);
             if (t == 'L') {
                 if (lcount >= 2)
                     tcc_error("three 'l's in integer constant");
@@ -2751,7 +2751,7 @@ maybe_newline:
                             && !(parse_flags & PARSE_FLAG_ASM_FILE
                                 /* 0xe+1 is 3 tokens in asm */
                                 && ((char*)tokcstr.data)[0] == '0'
-                                && toup(((char*)tokcstr.data)[1]) == 'X'))
+                                && cc0_to_upper(((char*)tokcstr.data)[1]) == 'X'))
                           || t == 'p' || t == 'P'))))
                 break;
             t = c;
@@ -3803,7 +3803,7 @@ static int pp_need_space(int a, int b)
 /* maybe hex like 0x1e */
 static int pp_check_he0xE(int t, const char *p)
 {
-    if (t == TOK_PPNUM && toup(strchr(p, 0)[-1]) == 'E')
+    if (t == TOK_PPNUM && cc0_to_upper(strchr(p, 0)[-1]) == 'E')
         return 'E';
     return t;
 }

@@ -1248,7 +1248,7 @@ ST_FUNC void asm_compute_constraints(ASMOperand *operands,
         op = &operands[i];
         str = op->constraint;
         str = skip_constraint_modifiers(str);
-        if (isnum(*str) || *str == '[') {
+        if (cc0_is_digit(*str) || *str == '[') {
             /* this is a reference to another constraint */
             k = find_constraint(operands, nb_operands, str, NULL);
             if ((unsigned)k >= i || i < nb_outputs)

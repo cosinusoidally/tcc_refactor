@@ -1200,7 +1200,7 @@ static void tcc_add_linker_symbols(TCCState *s1)
                 ch = *p;
                 if (!ch)
                     break;
-                if (!isid(ch) && !isnum(ch))
+                if (!cc0_is_name_start(ch) && !cc0_is_digit(ch))
                     goto next_sec;
                 p++;
             }

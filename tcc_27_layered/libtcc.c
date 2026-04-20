@@ -1729,7 +1729,7 @@ reparse:
                 s->dflag = 7;
             else if (*optarg == 't')
                 s->dflag = 16;
-            else if (isnum(*optarg))
+            else if (cc0_is_digit(*optarg))
                 g_debug = atoi(optarg);
             else
                 goto unsupported_option;

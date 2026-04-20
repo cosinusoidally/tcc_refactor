@@ -1153,19 +1153,6 @@ ST_FUNC int tcc_preprocess(TCCState *s1);
 ST_FUNC void skip(int c);
 ST_FUNC NORETURN void expect(const char *msg);
 
-static inline int isid(int c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
-}
-static inline int isnum(int c) {
-    return c >= '0' && c <= '9';
-}
-static inline int isoct(int c) {
-    return c >= '0' && c <= '7';
-}
-static inline int toup(int c) {
-    return (c >= 'a' && c <= 'z') ? c - 'a' + 'A' : c;
-}
-
 /* ------------ tccgen.c ------------ */
 
 #define SYM_POOL_NB (8192 / sizeof(Sym))

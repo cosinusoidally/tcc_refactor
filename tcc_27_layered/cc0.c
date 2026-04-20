@@ -92,6 +92,14 @@ function cc0_is_digit(c)
     return 0;
 }
 
+function cc0_is_oct_digit(c)
+{
+    if (c >= 48)
+        if (c <= 55)
+            return 1;
+    return 0;
+}
+
 function cc0_is_upper(c)
 {
     if (c >= 65)
@@ -115,6 +123,13 @@ function cc0_is_alpha(c)
     if (cc0_is_lower(c))
         return 1;
     return 0;
+}
+
+function cc0_to_upper(c)
+{
+    if (cc0_is_lower(c))
+        return c - 32;
+    return c;
 }
 
 function cc0_is_name_start(c)
