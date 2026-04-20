@@ -36,6 +36,24 @@ var cc0_tok_class;
 var cc0_tok_start;
 var cc0_tok_len;
 var cc0_tok_value;
+var cc0_out_0;
+var cc0_out_1;
+var cc0_out_2;
+var cc0_out_3;
+var cc0_out_4;
+var cc0_out_5;
+var cc0_out_6;
+var cc0_out_7;
+var cc0_out_8;
+var cc0_out_9;
+var cc0_out_10;
+var cc0_out_11;
+var cc0_out_12;
+var cc0_out_13;
+var cc0_out_14;
+var cc0_out_15;
+var cc0_out_len;
+var cc0_out_error;
 
 cc0_dialect_version = 1;
 CC0_TOK_EOF = 0;
@@ -64,6 +82,24 @@ cc0_tok_class = 0;
 cc0_tok_start = 0;
 cc0_tok_len = 0;
 cc0_tok_value = 0;
+cc0_out_0 = 0;
+cc0_out_1 = 0;
+cc0_out_2 = 0;
+cc0_out_3 = 0;
+cc0_out_4 = 0;
+cc0_out_5 = 0;
+cc0_out_6 = 0;
+cc0_out_7 = 0;
+cc0_out_8 = 0;
+cc0_out_9 = 0;
+cc0_out_10 = 0;
+cc0_out_11 = 0;
+cc0_out_12 = 0;
+cc0_out_13 = 0;
+cc0_out_14 = 0;
+cc0_out_15 = 0;
+cc0_out_len = 0;
+cc0_out_error = 0;
 
 function cc0_add(a, b)
 {
@@ -286,6 +322,124 @@ function cc0_source_at(pos)
     if (pos == 15)
         return cc0_src_15;
     return -1;
+}
+
+function cc0_output_reset()
+{
+    cc0_out_0 = 0;
+    cc0_out_1 = 0;
+    cc0_out_2 = 0;
+    cc0_out_3 = 0;
+    cc0_out_4 = 0;
+    cc0_out_5 = 0;
+    cc0_out_6 = 0;
+    cc0_out_7 = 0;
+    cc0_out_8 = 0;
+    cc0_out_9 = 0;
+    cc0_out_10 = 0;
+    cc0_out_11 = 0;
+    cc0_out_12 = 0;
+    cc0_out_13 = 0;
+    cc0_out_14 = 0;
+    cc0_out_15 = 0;
+    cc0_out_len = 0;
+    cc0_out_error = 0;
+    return 0;
+}
+
+function cc0_output_store(pos, value)
+{
+    if (pos == 0)
+        cc0_out_0 = value;
+    if (pos == 1)
+        cc0_out_1 = value;
+    if (pos == 2)
+        cc0_out_2 = value;
+    if (pos == 3)
+        cc0_out_3 = value;
+    if (pos == 4)
+        cc0_out_4 = value;
+    if (pos == 5)
+        cc0_out_5 = value;
+    if (pos == 6)
+        cc0_out_6 = value;
+    if (pos == 7)
+        cc0_out_7 = value;
+    if (pos == 8)
+        cc0_out_8 = value;
+    if (pos == 9)
+        cc0_out_9 = value;
+    if (pos == 10)
+        cc0_out_10 = value;
+    if (pos == 11)
+        cc0_out_11 = value;
+    if (pos == 12)
+        cc0_out_12 = value;
+    if (pos == 13)
+        cc0_out_13 = value;
+    if (pos == 14)
+        cc0_out_14 = value;
+    if (pos == 15)
+        cc0_out_15 = value;
+    return value;
+}
+
+function cc0_output_emit(value)
+{
+    if (cc0_out_len >= 16) {
+        cc0_out_error = 1;
+        return 0;
+    }
+    cc0_output_store(cc0_out_len, value);
+    cc0_out_len = cc0_out_len + 1;
+    return 1;
+}
+
+function cc0_output_at(pos)
+{
+    if (pos == 0)
+        return cc0_out_0;
+    if (pos == 1)
+        return cc0_out_1;
+    if (pos == 2)
+        return cc0_out_2;
+    if (pos == 3)
+        return cc0_out_3;
+    if (pos == 4)
+        return cc0_out_4;
+    if (pos == 5)
+        return cc0_out_5;
+    if (pos == 6)
+        return cc0_out_6;
+    if (pos == 7)
+        return cc0_out_7;
+    if (pos == 8)
+        return cc0_out_8;
+    if (pos == 9)
+        return cc0_out_9;
+    if (pos == 10)
+        return cc0_out_10;
+    if (pos == 11)
+        return cc0_out_11;
+    if (pos == 12)
+        return cc0_out_12;
+    if (pos == 13)
+        return cc0_out_13;
+    if (pos == 14)
+        return cc0_out_14;
+    if (pos == 15)
+        return cc0_out_15;
+    return 0;
+}
+
+function cc0_output_len()
+{
+    return cc0_out_len;
+}
+
+function cc0_output_error()
+{
+    return cc0_out_error;
 }
 
 function cc0_scan_skip_space()

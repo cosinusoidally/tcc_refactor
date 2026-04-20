@@ -79,6 +79,14 @@ if (cc0_scan_next() !== 2)
 if (cc0_get_tok_start() !== 8 || cc0_get_tok_value() !== 4)
     throw new Error("cc0 scanner 16-byte window value failed");
 
+cc0_output_reset();
+if (cc0_output_len() !== 0 || cc0_output_error() !== 0)
+    throw new Error("cc0 output reset failed");
+if (!cc0_output_emit(7) || !cc0_output_emit(9))
+    throw new Error("cc0 output emit failed");
+if (cc0_output_len() !== 2 || cc0_output_at(0) !== 7 || cc0_output_at(1) !== 9)
+    throw new Error("cc0 output cells failed");
+
 load("../tcc_27_layered/cc1.c");
 load("../tcc_27_layered/cc2.c");
 
@@ -138,6 +146,12 @@ if (cc1_parse_expr8(98, 42, 52, -1, -1, -1, -1, -1) !== 1)
 
 if (cc1_get_last_value() !== 12)
     throw new Error("cc1 program binding value failed");
+
+if (cc1_compile_program16(97, 61, 49, 59, 98, 61, 97, 43, 50, -1, -1, -1, -1, -1, -1, -1) !== 1)
+    throw new Error("cc1 program compile failed");
+
+if (cc0_output_len() !== 7 || cc0_output_at(0) !== 1 || cc0_output_at(1) !== 97 || cc0_output_at(2) !== 1 || cc0_output_at(3) !== 1 || cc0_output_at(4) !== 98 || cc0_output_at(5) !== 3 || cc0_output_at(6) !== 0)
+    throw new Error("cc1 program output failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

@@ -14,7 +14,9 @@ classification helpers plus a minimal scanner state machine. The scanner uses
 fixed eight-byte and sixteen-byte source windows for now, skips whitespace, and reports token
 class, start offset, length, and decimal value where applicable for names,
 decimal numbers, punctuation, and EOF. This keeps the earliest phase below the
-preprocessor and suitable for the JS/C dialect intersection. The active
+preprocessor and suitable for the JS/C dialect intersection. cc0 also owns a
+fixed sixteen-cell output stream used by the next layer as the first
+parser-to-output boundary on the path to a self-hosted cc0 compiler. The active
 `tccpp.c` tokenizer table now also gets its low ASCII space/name/number flags
 from cc0, and the compiler's digit, octal digit, uppercase conversion, and
 horizontal-whitespace checks are starting to call the cc0 helpers directly.
@@ -25,9 +27,11 @@ intersection and now consumes the cc0 scanner for a tiny expression grammar:
 numbers, names, parentheses, `*`, and `+` with normal precedence. It also has a
 four-slot name/value table, a minimal `name = expr` assignment parser, and a
 semicolon-separated assignment program parser over the sixteen-byte source
-window. That is not a C parser yet, but it gives the layered tree a tested
-lower-to-upper token stream and symbol-state boundary before preprocessing
-exists.
+window. It can now lower that assignment program into cc0's output stream as
+triples of assignment opcode, one-byte name, and folded expression value,
+terminated by an end opcode. That is not a C parser yet, but it gives the
+layered tree a tested lower-to-upper token stream, symbol-state, and output
+boundary before preprocessing exists.
 
 `cc0_unified.c` is the C unified build for the cc0 scaffold. It maps
 `function` and `var` to `int`, includes `cc0.c`, `cc1.c`, and `cc2.c`.

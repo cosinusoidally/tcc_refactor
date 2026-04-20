@@ -22,6 +22,8 @@ var cc1_value_0;
 var cc1_value_1;
 var cc1_value_2;
 var cc1_value_3;
+var CC1_OP_END;
+var CC1_OP_ASSIGN;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -35,6 +37,8 @@ cc1_value_0 = 0;
 cc1_value_1 = 0;
 cc1_value_2 = 0;
 cc1_value_3 = 0;
+CC1_OP_END = 0;
+CC1_OP_ASSIGN = 1;
 
 function cc1_compile_unit(source_id)
 {
@@ -233,6 +237,23 @@ function cc1_parse_assignment_tokens()
     return 1;
 }
 
+function cc1_emit_assignment()
+{
+    if (!cc0_output_emit(CC1_OP_ASSIGN)) {
+        cc1_error = 10;
+        return 0;
+    }
+    if (!cc0_output_emit(cc1_last_name)) {
+        cc1_error = 10;
+        return 0;
+    }
+    if (!cc0_output_emit(cc1_last_value)) {
+        cc1_error = 10;
+        return 0;
+    }
+    return 1;
+}
+
 function cc1_parse_assignment8(c0, c1, c2, c3, c4, c5, c6, c7)
 {
     cc1_reset();
@@ -262,6 +283,37 @@ function cc1_parse_program16(c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c
             return 0;
         }
         cc0_scan_next();
+    }
+    return 1;
+}
+
+function cc1_compile_program16(c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15)
+{
+    cc1_reset();
+    cc0_output_reset();
+    cc0_source_set16(c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15);
+    cc0_scan_next();
+    while (cc0_get_tok_class() != CC0_TOK_EOF) {
+        if (!cc1_parse_assignment_tokens())
+            return 0;
+        if (!cc1_emit_assignment())
+            return 0;
+        if (cc0_get_tok_class() == CC0_TOK_EOF) {
+            if (!cc0_output_emit(CC1_OP_END)) {
+                cc1_error = 10;
+                return 0;
+            }
+            return 1;
+        }
+        if (!cc1_at_punct(59)) {
+            cc1_error = 9;
+            return 0;
+        }
+        cc0_scan_next();
+    }
+    if (!cc0_output_emit(CC1_OP_END)) {
+        cc1_error = 10;
+        return 0;
     }
     return 1;
 }
