@@ -44,6 +44,8 @@ var cc1_param_count;
 var cc1_max_param_count;
 var cc1_body_call_count;
 var cc1_max_body_call_arg_count;
+var cc1_body_assignment_count;
+var cc1_max_body_expr_depth;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -73,6 +75,8 @@ cc1_param_count = 0;
 cc1_max_param_count = 0;
 cc1_body_call_count = 0;
 cc1_max_body_call_arg_count = 0;
+cc1_body_assignment_count = 0;
+cc1_max_body_expr_depth = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -101,6 +105,8 @@ function cc1_reset()
     cc1_max_param_count = 0;
     cc1_body_call_count = 0;
     cc1_max_body_call_arg_count = 0;
+    cc1_body_assignment_count = 0;
+    cc1_max_body_expr_depth = 0;
     return 0;
 }
 
@@ -687,7 +693,58 @@ function cc1_note_body_call_args(arg_count)
     return 1;
 }
 
-function cc1_scan_paren_expr_tokens(is_call)
+function cc1_note_body_expr_depth(expr_depth)
+{
+    if (expr_depth > cc1_max_body_expr_depth)
+        cc1_max_body_expr_depth = expr_depth;
+    return 1;
+}
+
+function cc1_prev_nonspace_from(pos)
+{
+    var c;
+    pos = pos - 1;
+    c = cc0_source_at(pos);
+    while (cc0_is_space(c)) {
+        pos = pos - 1;
+        c = cc0_source_at(pos);
+    }
+    return c;
+}
+
+function cc1_next_nonspace_from(pos)
+{
+    var c;
+    c = cc0_source_at(pos);
+    while (cc0_is_space(c)) {
+        pos = pos + 1;
+        c = cc0_source_at(pos);
+    }
+    return c;
+}
+
+function cc1_current_equal_is_assignment()
+{
+    var next;
+    var prev;
+    if (!cc1_at_punct(CC0_CH_EQUAL))
+        return 0;
+    prev = cc1_prev_nonspace_from(cc0_get_tok_start());
+    next = cc1_next_nonspace_from(cc0_get_tok_start() + 1);
+    if (prev == CC0_CH_EQUAL)
+        return 0;
+    if (prev == CC0_CH_BANG)
+        return 0;
+    if (prev == CC0_CH_LT)
+        return 0;
+    if (prev == CC0_CH_GT)
+        return 0;
+    if (next == CC0_CH_EQUAL)
+        return 0;
+    return 1;
+}
+
+function cc1_scan_paren_expr_tokens(is_call, expr_depth)
 {
     var arg_count;
     var previous_was_name;
@@ -699,6 +756,7 @@ function cc1_scan_paren_expr_tokens(is_call)
     arg_count = 0;
     previous_was_name = 0;
     saw_arg = 0;
+    cc1_note_body_expr_depth(expr_depth);
     cc0_scan_next();
     while (cc0_get_tok_class() != CC0_TOK_EOF) {
         if (cc1_at_punct(CC0_CH_RPAREN)) {
@@ -722,16 +780,18 @@ function cc1_scan_paren_expr_tokens(is_call)
         if (cc1_at_punct(CC0_CH_LPAREN)) {
             if (previous_was_name) {
                 cc1_body_call_count = cc1_body_call_count + 1;
-                if (!cc1_scan_paren_expr_tokens(1))
+                if (!cc1_scan_paren_expr_tokens(1, expr_depth + 1))
                     return 0;
             } else {
-                if (!cc1_scan_paren_expr_tokens(0))
+                if (!cc1_scan_paren_expr_tokens(0, expr_depth + 1))
                     return 0;
             }
             previous_was_name = 0;
             saw_arg = 1;
             continue;
         }
+        if (cc1_current_equal_is_assignment())
+            cc1_body_assignment_count = cc1_body_assignment_count + 1;
         if (cc1_at_punct(CC0_CH_LBRACE)) {
             cc1_error = 58;
             return 0;
@@ -753,7 +813,7 @@ function cc1_scan_paren_expr_tokens(is_call)
 
 function cc1_parse_balanced_parens_tokens()
 {
-    return cc1_scan_paren_expr_tokens(0);
+    return cc1_scan_paren_expr_tokens(0, 1);
 }
 
 function cc1_parse_statement_tail_tokens()
@@ -769,15 +829,17 @@ function cc1_parse_statement_tail_tokens()
         if (cc1_at_punct(CC0_CH_LPAREN)) {
             if (previous_was_name) {
                 cc1_body_call_count = cc1_body_call_count + 1;
-                if (!cc1_scan_paren_expr_tokens(1))
+                if (!cc1_scan_paren_expr_tokens(1, 1))
                     return 0;
             } else {
-                if (!cc1_scan_paren_expr_tokens(0))
+                if (!cc1_scan_paren_expr_tokens(0, 1))
                     return 0;
             }
             previous_was_name = 0;
             continue;
         }
+        if (cc1_current_equal_is_assignment())
+            cc1_body_assignment_count = cc1_body_assignment_count + 1;
         if (cc1_at_punct(CC0_CH_RPAREN)) {
             cc1_error = 53;
             return 0;
@@ -1251,4 +1313,14 @@ function cc1_get_body_call_count()
 function cc1_get_max_body_call_arg_count()
 {
     return cc1_max_body_call_arg_count;
+}
+
+function cc1_get_body_assignment_count()
+{
+    return cc1_body_assignment_count;
+}
+
+function cc1_get_max_body_expr_depth()
+{
+    return cc1_max_body_expr_depth;
 }

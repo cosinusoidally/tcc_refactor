@@ -487,6 +487,12 @@ if (cc1_get_body_call_count() !== 0)
 if (cc1_get_max_body_call_arg_count() !== 0)
     throw new Error("cc1 cc0 source shell max body call arg count failed");
 
+if (cc1_get_body_assignment_count() !== 2)
+    throw new Error("cc1 cc0 source shell assignment count failed");
+
+if (cc1_get_max_body_expr_depth() !== 1)
+    throw new Error("cc1 cc0 source shell expression depth failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -537,6 +543,12 @@ if (cc1_get_body_call_count() !== 89)
 
 if (cc1_get_max_body_call_arg_count() !== 9)
     throw new Error("cc1 cc0.c max body call arg count failed");
+
+if (cc1_get_body_assignment_count() !== 94)
+    throw new Error("cc1 cc0.c assignment count failed");
+
+if (cc1_get_max_body_expr_depth() !== 2)
+    throw new Error("cc1 cc0.c expression depth failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

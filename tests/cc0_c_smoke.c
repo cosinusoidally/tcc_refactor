@@ -62,6 +62,8 @@ int cc1_get_param_count();
 int cc1_get_max_param_count();
 int cc1_get_body_call_count();
 int cc1_get_max_body_call_arg_count();
+int cc1_get_body_assignment_count();
+int cc1_get_max_body_expr_depth();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -396,6 +398,10 @@ int main()
         return 164;
     if (cc1_get_max_body_call_arg_count() != 0)
         return 165;
+    if (cc1_get_body_assignment_count() != 2)
+        return 166;
+    if (cc1_get_max_body_expr_depth() != 1)
+        return 167;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)
