@@ -52,7 +52,8 @@ return expression reuses the expression parser. A narrow sequence of
 including equality and range tests. It also accepts the nested
 `if (expr) if (expr) return expr;` shape used by cc0's byte range classifiers,
 and can resolve the first named `CC0_CH_*` digit constants used by those
-classifiers without adding full C statement
+classifiers. The first expression-level helper call, `cc0_is_digit(expr)`, is
+also evaluated through the real cc0 helper without adding full C statement
 parsing yet. That is not a C parser yet, but it gives the layered
 tree a tested lower-to-upper token stream and symbol-state boundary before
 preprocessing exists.

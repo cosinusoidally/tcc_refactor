@@ -113,7 +113,9 @@ early-return guards, including equality and range-test conditions, matching a
 common cc0 control-flow shape. It also accepts one nested guard,
 `if (expr) if (expr) return expr;`, which matches cc0's byte range classifiers
 and can resolve the first named `CC0_CH_*` digit constants used by those
-classifiers without taking on full C statement parsing yet. This is
+classifiers. The first expression-level helper call, `cc0_is_digit(expr)`, is
+evaluated through the real cc0 helper without taking on full C statement
+parsing yet. This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
 self-checking in both runtimes before larger grammar work is moved over.

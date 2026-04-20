@@ -362,6 +362,18 @@ if (cc1_parse_function2_string(mks("function dc(c){if(c>=CC0_CH_0)if(c<=CC0_CH_9
 if (cc1_get_last_name() !== mkc('d') || cc1_get_last_value() !== 0)
     throw new Error("cc1 named constant digit fallback state failed");
 
+if (cc1_parse_function2_string(mks("function cd(c){if(cc0_is_digit(c))return 1;return 0;}"), 52, 0) !== 1)
+    throw new Error("cc1 cc0_is_digit call parse failed");
+
+if (cc1_get_last_name() !== mkc('c') || cc1_get_last_value() !== 1)
+    throw new Error("cc1 cc0_is_digit call state failed");
+
+if (cc1_parse_function2_string(mks("function cd(c){if(cc0_is_digit(c))return 1;return 0;}"), 65, 0) !== 1)
+    throw new Error("cc1 cc0_is_digit call fallback parse failed");
+
+if (cc1_get_last_name() !== mkc('c') || cc1_get_last_value() !== 0)
+    throw new Error("cc1 cc0_is_digit call fallback state failed");
+
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
 

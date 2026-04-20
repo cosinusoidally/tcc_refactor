@@ -296,6 +296,14 @@ int main()
         return 120;
     if (cc1_get_last_name() != 'd' || cc1_get_last_value() != 0)
         return 121;
+    if (cc1_parse_function2_string(mks("function cd(c){if(cc0_is_digit(c))return 1;return 0;}"), 52, 0) != 1)
+        return 122;
+    if (cc1_get_last_name() != 'c' || cc1_get_last_value() != 1)
+        return 123;
+    if (cc1_parse_function2_string(mks("function cd(c){if(cc0_is_digit(c))return 1;return 0;}"), 65, 0) != 1)
+        return 124;
+    if (cc1_get_last_name() != 'c' || cc1_get_last_value() != 0)
+        return 125;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)

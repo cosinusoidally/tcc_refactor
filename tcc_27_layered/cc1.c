@@ -168,6 +168,59 @@ function cc1_lookup_current_name()
     return cc1_lookup_name(cc0_get_tok_first());
 }
 
+function cc1_tok_is_word_cc0_is_digit()
+{
+    if (cc0_get_tok_class() != CC0_TOK_NAME)
+        return 0;
+    if (cc0_get_tok_len() != 12)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start()) != CC0_CH_c)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 1) != CC0_CH_c)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 2) != CC0_CH_0)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 3) != CC0_CH_UNDERSCORE)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 4) != CC0_CH_i)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 5) != CC0_CH_s)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 6) != CC0_CH_UNDERSCORE)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 7) != CC0_CH_d)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 8) != CC0_CH_i)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 9) != CC0_CH_g)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 10) != CC0_CH_i)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 11) != CC0_CH_t)
+        return 0;
+    return 1;
+}
+
+function cc1_parse_call_cc0_is_digit()
+{
+    var value;
+    cc0_scan_next();
+    if (!cc1_at_punct(CC0_CH_LPAREN)) {
+        cc1_error = 29;
+        return 0;
+    }
+    cc0_scan_next();
+    value = cc1_parse_expr_tokens();
+    if (cc1_error)
+        return 0;
+    if (!cc1_at_punct(CC0_CH_RPAREN)) {
+        cc1_error = 30;
+        return 0;
+    }
+    cc0_scan_next();
+    return cc0_is_digit(value);
+}
+
 function cc1_function_arg_value(index)
 {
     if (index == 0)
@@ -212,6 +265,8 @@ function cc1_parse_primary()
         return value;
     }
     if (cc0_get_tok_class() == CC0_TOK_NAME) {
+        if (cc1_tok_is_word_cc0_is_digit())
+            return cc1_parse_call_cc0_is_digit();
         value = cc1_lookup_current_name();
         cc0_scan_next();
         return value;
