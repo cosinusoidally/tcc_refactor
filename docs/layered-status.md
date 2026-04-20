@@ -9,10 +9,11 @@ This tree is being refactored toward the staged compiler described in
 
 The current `tcc_27_layered` build is a 32-bit Linux/ELF compiler built with
 `-DONE_SOURCE`. It includes the shared front end, preprocessor, i386 code
-generator, assembler support, ELF writer, and command-line driver. Its default
-library directory is `lib32`, matching the i386 target used by the bootstrap
-and allowing normal glibc dynamic links to find 32-bit crt and libc files on
-the current host layout.
+generator, assembler support, ELF writer, and command-line driver. Win32/PE
+builds are rejected in `tcc.h`, and the default target is always i386 for this
+layered tree. Its default library directory is `lib32`, matching the i386 target
+used by the bootstrap and allowing normal glibc dynamic links to find 32-bit crt
+and libc files on the current host layout.
 
 The baseline source tree in `tcc_27/` is read-only for this refactor. It is
 compiled only as a fixture to prove that generated objects and the static

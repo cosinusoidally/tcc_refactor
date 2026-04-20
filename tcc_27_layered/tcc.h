@@ -34,48 +34,18 @@
 #include <setjmp.h>
 #include <time.h>
 
-#ifndef _WIN32
-# include <unistd.h>
-# include <sys/time.h>
-# ifndef CONFIG_TCC_STATIC
-#  include <dlfcn.h>
-# endif
+#if defined(_WIN32) || defined(TCC_TARGET_PE)
+# error tcc_27_layered is an i386 Linux/ELF bootstrap target
+#endif
+
+#include <unistd.h>
+#include <sys/time.h>
+#ifndef CONFIG_TCC_STATIC
+# include <dlfcn.h>
+#endif
 /* XXX: need to define this to use them in non ISOC99 context */
 extern float strtof (const char *__nptr, char **__endptr);
 extern long double strtold (const char *__nptr, char **__endptr);
-#endif
-
-#ifdef _WIN32
-# include <windows.h>
-# include <io.h> /* open, close etc. */
-# include <direct.h> /* getcwd */
-# ifdef __GNUC__
-#  include <stdint.h>
-# endif
-# define inline __inline
-# define snprintf _snprintf
-# define vsnprintf _vsnprintf
-# ifndef __GNUC__
-#  define strtold (long double)strtod
-#  define strtof (float)strtod
-#  define strtoll _strtoi64
-#  define strtoull _strtoui64
-# endif
-# ifdef LIBTCC_AS_DLL
-#  define LIBTCCAPI __declspec(dllexport)
-#  define PUB_FUNC LIBTCCAPI
-# endif
-# define inp next_inp /* inp is an intrinsic on msvc/mingw */
-# ifdef _MSC_VER
-#  pragma warning (disable : 4244)  // conversion from 'uint64_t' to 'int', possible loss of data
-#  pragma warning (disable : 4267)  // conversion from 'size_t' to 'int', possible loss of data
-#  pragma warning (disable : 4996)  // The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name
-#  pragma warning (disable : 4018)  // signed/unsigned mismatch
-#  pragma warning (disable : 4146)  // unary minus operator applied to unsigned type, result still unsigned
-#  define ssize_t intptr_t
-# endif
-# undef CONFIG_TCC_STATIC
-#endif
 
 #ifndef O_BINARY
 # define O_BINARY 0
@@ -89,25 +59,13 @@ extern long double strtold (const char *__nptr, char **__endptr);
 #define countof(tab) (sizeof(tab) / sizeof((tab)[0]))
 #endif
 
-#ifdef _MSC_VER
-# define NORETURN __declspec(noreturn)
-# define ALIGNED(x) __declspec(align(x))
-#else
-# define NORETURN __attribute__((noreturn))
-# define ALIGNED(x) __attribute__((aligned(x)))
-#endif
+#define NORETURN __attribute__((noreturn))
+#define ALIGNED(x) __attribute__((aligned(x)))
 
-#ifdef _WIN32
-# define IS_DIRSEP(c) (c == '/' || c == '\\')
-# define IS_ABSPATH(p) (IS_DIRSEP(p[0]) || (p[0] && p[1] == ':' && IS_DIRSEP(p[2])))
-# define PATHCMP stricmp
-# define PATHSEP ";"
-#else
-# define IS_DIRSEP(c) (c == '/')
-# define IS_ABSPATH(p) IS_DIRSEP(p[0])
-# define PATHCMP strcmp
-# define PATHSEP ":"
-#endif
+#define IS_DIRSEP(c) (c == '/')
+#define IS_ABSPATH(p) IS_DIRSEP(p[0])
+#define PATHCMP strcmp
+#define PATHSEP ":"
 
 /* -------------------------------------------- */
 
@@ -122,44 +80,14 @@ extern long double strtold (const char *__nptr, char **__endptr);
 /* assembler debug */
 /* #define ASM_DEBUG */
 
-/* target selection */
-/* #define TCC_TARGET_I386   *//* i386 code generator */
-/* #define TCC_TARGET_X86_64 *//* x86-64 code generator */
-/* #define TCC_TARGET_ARM    *//* ARMv4 code generator */
-/* #define TCC_TARGET_ARM64  *//* ARMv8 code generator */
-/* #define TCC_TARGET_C67    *//* TMS320C67xx code generator */
-
-/* default target is I386 */
-#if !defined(TCC_TARGET_I386) && !defined(TCC_TARGET_ARM) && \
-    !defined(TCC_TARGET_ARM64) && !defined(TCC_TARGET_C67) && \
-    !defined(TCC_TARGET_X86_64)
-# if defined __x86_64__ || defined _AMD64_
-#  define TCC_TARGET_X86_64
-# elif defined __arm__
-#  define TCC_TARGET_ARM
-#  define TCC_ARM_EABI
-#  define TCC_ARM_HARDFLOAT
-# elif defined __aarch64__
-#  define TCC_TARGET_ARM64
-# else
-#  define TCC_TARGET_I386
-# endif
-# ifdef _WIN32
-#  define TCC_TARGET_PE 1
-# endif
+/* tcc_27_layered is currently restricted to the i386 code generator. */
+#if !defined(TCC_TARGET_I386)
+# define TCC_TARGET_I386
 #endif
 
 /* only native compiler supports -run */
-#if defined _WIN32 == defined TCC_TARGET_PE
-# if (defined __i386__ || defined _X86_) && defined TCC_TARGET_I386
-#  define TCC_IS_NATIVE
-# elif (defined __x86_64__ || defined _AMD64_) && defined TCC_TARGET_X86_64
-#  define TCC_IS_NATIVE
-# elif defined __arm__ && defined TCC_TARGET_ARM
-#  define TCC_IS_NATIVE
-# elif defined __aarch64__ && defined TCC_TARGET_ARM64
-#  define TCC_IS_NATIVE
-# endif
+#if (defined __i386__ || defined _X86_) && defined TCC_TARGET_I386
+# define TCC_IS_NATIVE
 #endif
 
 #if defined TCC_IS_NATIVE && !defined CONFIG_TCCBOOT
