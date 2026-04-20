@@ -38,6 +38,11 @@ int main() { return 0; }
 EOF
 ./tcc_27_layered -nostdinc -c nostdinc_smoke.c -o nostdinc_smoke.o
 
+# cc0.c is kept in a deliberate C/JS intersection
+gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int -c ../tcc_27_layered/cc0.c -o cc0_gcc.o
+./tcc_27_layered -Dfunction=int -Dvar=int -c ../tcc_27_layered/cc0.c -o cc0_tcc.o
+js ../tests/cc0_smoke.js
+
 # build some test files
 
 # we have to symlink since tcc will include the file name in the object code

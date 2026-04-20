@@ -43,6 +43,17 @@ to the static bootstrap hash checks, it now verifies that:
   bootstrap executable.
 - `tcc_27_layered` can build and start a normal glibc-linked executable from
   the baseline `tcc_27` source fixture.
+- `cc0.c` remains in the C/JavaScript dialect intersection by compiling as C
+  with both GCC and the layered TCC using `-Dfunction=int -Dvar=int`, and by
+  loading under SpiderMonkey `js`.
+
+## cc0 Dialect Seed
+
+`tcc_27_layered/cc0.c` is the initial placeholder for the base dialect. It is
+not a compiler yet; it is a checked-in syntax contract. Function declarations
+use JavaScript syntax, and the C build maps `function` and `var` to `int`.
+Function arguments therefore use old-style C implicit `int` parameters, which
+keeps the same file parseable by both SpiderMonkey and a C compiler.
 
 ## Internal Map
 
