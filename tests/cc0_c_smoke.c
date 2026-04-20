@@ -116,6 +116,8 @@ int main()
         return 17;
     if (cc0_token_class(33) != 4)
         return 86;
+    if (cc0_token_class(45) != 4 || cc0_token_class(60) != 4 || cc0_token_class(62) != 4)
+        return 101;
     cc0_source_set8(32, 97, 98, 49, 32, 50, 51, -1);
     if (cc0_scan_next() != 1)
         return 18;
@@ -214,6 +216,18 @@ int main()
         return 89;
     if (cc1_get_last_value() != 0)
         return 90;
+    if (cc1_parse_expr_string(mks("7-2*3")) != 1)
+        return 102;
+    if (cc1_get_last_value() != 1)
+        return 103;
+    if (cc1_parse_expr_string(mks("7>=5")) != 1)
+        return 104;
+    if (cc1_get_last_value() != 1)
+        return 105;
+    if (cc1_parse_expr_string(mks("7<=5")) != 1)
+        return 106;
+    if (cc1_get_last_value() != 0)
+        return 107;
     if (cc1_parse_function_return_string(mks("function main(){return 7+8*2;}")) != 1)
         return 74;
     if (cc1_get_last_name() != 'm' || cc1_get_last_value() != 23)
@@ -254,6 +268,14 @@ int main()
         return 99;
     if (cc1_get_last_name() != 'c' || cc1_get_last_value() != 3)
         return 100;
+    if (cc1_parse_function2_string(mks("function dg(c){if(c<48)return 0;if(c<=57)return 1;return 0;}"), 52, 0) != 1)
+        return 108;
+    if (cc1_get_last_name() != 'd' || cc1_get_last_value() != 1)
+        return 109;
+    if (cc1_parse_function2_string(mks("function dg(c){if(c<48)return 0;if(c<=57)return 1;return 0;}"), 58, 0) != 1)
+        return 110;
+    if (cc1_get_last_name() != 'd' || cc1_get_last_value() != 0)
+        return 111;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)

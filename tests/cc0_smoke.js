@@ -90,6 +90,9 @@ if (cc0_token_class(43) !== 4)
 if (cc0_token_class(33) !== 4)
     throw new Error("cc0 bang punct token failed");
 
+if (cc0_token_class(45) !== 4 || cc0_token_class(60) !== 4 || cc0_token_class(62) !== 4)
+    throw new Error("cc0 comparison punct token failed");
+
 cc0_source_set8(32, 97, 98, 49, 32, 50, 51, -1);
 
 if (cc0_scan_next() !== 1)
@@ -239,6 +242,24 @@ if (cc1_parse_expr_string(mks("2+3!=5")) !== 1)
 if (cc1_get_last_value() !== 0)
     throw new Error("cc1 inequality expression value failed");
 
+if (cc1_parse_expr_string(mks("7-2*3")) !== 1)
+    throw new Error("cc1 subtraction expression parse failed");
+
+if (cc1_get_last_value() !== 1)
+    throw new Error("cc1 subtraction expression value failed");
+
+if (cc1_parse_expr_string(mks("7>=5")) !== 1)
+    throw new Error("cc1 greater-equal expression parse failed");
+
+if (cc1_get_last_value() !== 1)
+    throw new Error("cc1 greater-equal expression value failed");
+
+if (cc1_parse_expr_string(mks("7<=5")) !== 1)
+    throw new Error("cc1 less-equal expression parse failed");
+
+if (cc1_get_last_value() !== 0)
+    throw new Error("cc1 less-equal expression value failed");
+
 if (cc1_parse_function_return_string(mks("function main(){return 7+8*2;}")) !== 1)
     throw new Error("cc1 function return parse failed");
 
@@ -298,6 +319,18 @@ if (cc1_parse_function2_string(mks("function ch(a,b){if(a==0)return 7;if(b!=0)re
 
 if (cc1_get_last_name() !== mkc('c') || cc1_get_last_value() !== 3)
     throw new Error("cc1 function chained fallback state failed");
+
+if (cc1_parse_function2_string(mks("function dg(c){if(c<48)return 0;if(c<=57)return 1;return 0;}"), 52, 0) !== 1)
+    throw new Error("cc1 function less-equal guard parse failed");
+
+if (cc1_get_last_name() !== mkc('d') || cc1_get_last_value() !== 1)
+    throw new Error("cc1 function less-equal guard state failed");
+
+if (cc1_parse_function2_string(mks("function dg(c){if(c<48)return 0;if(c<=57)return 1;return 0;}"), 58, 0) !== 1)
+    throw new Error("cc1 function less-equal fallback parse failed");
+
+if (cc1_get_last_name() !== mkc('d') || cc1_get_last_value() !== 0)
+    throw new Error("cc1 function less-equal fallback state failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
