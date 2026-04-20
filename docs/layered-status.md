@@ -55,11 +55,14 @@ to the static bootstrap hash checks, it now verifies that:
 ## cc0 Dialect Seed
 
 `tcc_27_layered/cc0.c` is the initial base dialect. It is not a compiler yet,
-but it now contains token-classification primitives used by both the C and JS
-smoke tests. Function declarations use JavaScript syntax, and the C build maps
-`function` and `var` to `int`. Function arguments therefore use old-style C
-implicit `int` parameters, which keeps the same file parseable by both
-SpiderMonkey and a C compiler.
+but it now contains token-classification primitives and a minimal byte scanner
+used by both the C and JS smoke tests. The scanner intentionally sits before
+preprocessing: it operates over a fixed eight-byte source window, skips
+whitespace, and records the class/start/length of name, decimal number,
+punctuation, and EOF tokens. Function declarations use JavaScript syntax, and
+the C build maps `function` and `var` to `int`. Function arguments therefore
+use old-style C implicit `int` parameters, which keeps the same file parseable
+by both SpiderMonkey and a C compiler.
 
 `tcc_27_layered/cc1_stubs.c` is the next-layer placeholder. It stays in the same
 C/JS intersection and returns explicit stub values until real cc1 behavior is

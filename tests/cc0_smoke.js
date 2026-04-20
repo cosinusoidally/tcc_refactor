@@ -39,6 +39,23 @@ if (cc0_token_class(32) !== 3)
 if (cc0_token_class(43) !== 4)
     throw new Error("cc0 punct token failed");
 
+cc0_source_set8(32, 97, 98, 49, 32, 50, 51, -1);
+
+if (cc0_scan_next() !== 1)
+    throw new Error("cc0 scanner name class failed");
+
+if (cc0_get_tok_start() !== 1 || cc0_get_tok_len() !== 3)
+    throw new Error("cc0 scanner name span failed");
+
+if (cc0_scan_next() !== 2)
+    throw new Error("cc0 scanner number class failed");
+
+if (cc0_get_tok_start() !== 5 || cc0_get_tok_len() !== 2)
+    throw new Error("cc0 scanner number span failed");
+
+if (cc0_scan_next() !== 0)
+    throw new Error("cc0 scanner eof failed");
+
 load("../tcc_27_layered/cc1_stubs.c");
 
 if (cc1_compile_unit(0) !== 1)
