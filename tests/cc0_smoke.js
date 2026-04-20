@@ -68,6 +68,7 @@ if (cc0_get_tok_start() !== 8 || cc0_get_tok_value() !== 4)
     throw new Error("cc0 scanner 16-byte window value failed");
 
 load("../tcc_27_layered/cc1.c");
+load("../tcc_27_layered/cc2.c");
 
 if (cc1_compile_unit(0) !== 1)
     throw new Error("cc1 stub compile failed");
@@ -131,3 +132,12 @@ if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
 
 if (cc1_get_error() === 0)
     throw new Error("cc1 bad sum did not report error");
+
+if (cc2_ar_is_conflict_option(97) !== 1)
+    throw new Error("cc2 ar conflict option failed");
+
+if (cc2_ar_is_conflict_option(114) !== 0)
+    throw new Error("cc2 ar allowed option failed");
+
+if (cc2_ar_is_verbose_option(118) !== 1)
+    throw new Error("cc2 ar verbose option failed");

@@ -63,9 +63,6 @@ static const char help[] =
     "  -m32/64     defer to i386/x86_64 cross compiler\n"
     "Tools:\n"
     "  create library  : tcc -ar [rcsv] lib.a files\n"
-#ifdef TCC_TARGET_PE
-    "  create def file : tcc -impdef lib.dll [-v] [-o lib.def]\n"
-#endif
     ;
 
 static const char help2[] =
@@ -259,10 +256,6 @@ redo:
             printf(version);
         if (opt == OPT_AR)
             return tcc_tool_ar(s, argc, argv);
-#ifdef TCC_TARGET_PE
-        if (opt == OPT_IMPDEF)
-            return tcc_tool_impdef(s, argc, argv);
-#endif
         if (opt == OPT_V)
             return 0;
         if (opt == OPT_PRINT_DIRS) {

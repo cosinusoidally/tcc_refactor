@@ -73,6 +73,18 @@ syntax and below the preprocessor; its purpose is to make the cc0-to-cc1
 boundary executable and self-checking in both runtimes before larger grammar
 work is moved over.
 
+`tcc_27_layered/cc2.c` starts moving active legacy tool behavior into the
+layered files. The archive writer still lives in `tcctools.c`, but the option
+character checks used by `tcc -ar` are now implemented in cc2 and exercised by
+the C and JS smoke tests.
+
+## Current Legacy Shrink
+
+`tcctools.c` no longer owns the archive option character classifier, the PE
+import-definition tool, or the Win32 cross-exec/wildcard helpers. The layered
+target is i386 Linux/ELF, and the active archive path now calls into cc2 for
+the first migrated piece of tool behavior.
+
 ## Removed Run Surface
 
 The layered compiler no longer supports TCC's native `-run` mode or libtcc's

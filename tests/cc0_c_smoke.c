@@ -23,6 +23,8 @@ int cc1_parse_program16();
 int cc1_get_last_name();
 int cc1_get_last_value();
 int cc1_get_error();
+int cc2_ar_is_conflict_option();
+int cc2_ar_is_verbose_option();
 
 int main()
 {
@@ -114,5 +116,11 @@ int main()
         return 42;
     if (cc1_get_error() == 0)
         return 43;
+    if (cc2_ar_is_conflict_option(97) != 1)
+        return 44;
+    if (cc2_ar_is_conflict_option(114) != 0)
+        return 45;
+    if (cc2_ar_is_verbose_option(118) != 1)
+        return 46;
     return 0;
 }

@@ -1458,8 +1458,7 @@ enum {
     TCC_OPTION_MD,
     TCC_OPTION_MF,
     TCC_OPTION_x,
-    TCC_OPTION_ar,
-    TCC_OPTION_impdef
+    TCC_OPTION_ar
 };
 
 #define TCC_OPTION_HAS_ARG 0x0001
@@ -1516,9 +1515,6 @@ static const TCCOption tcc_options[] = {
     { "MF", TCC_OPTION_MF, TCC_OPTION_HAS_ARG },
     { "x", TCC_OPTION_x, TCC_OPTION_HAS_ARG },
     { "ar", TCC_OPTION_ar, 0},
-#ifdef TCC_TARGET_PE
-    { "impdef", TCC_OPTION_impdef, 0},
-#endif
     { NULL, 0, 0 },
 };
 
@@ -1856,9 +1852,6 @@ reparse:
             break;
         case TCC_OPTION_print_search_dirs:
             x = OPT_PRINT_DIRS;
-            goto extra_action;
-        case TCC_OPTION_impdef:
-            x = OPT_IMPDEF;
             goto extra_action;
         case TCC_OPTION_ar:
             x = OPT_AR;

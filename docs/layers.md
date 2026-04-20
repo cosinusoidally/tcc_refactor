@@ -26,8 +26,12 @@ lower-to-upper token stream and symbol-state boundary before preprocessing
 exists.
 
 `cc0_unified.c` is the C unified build for the cc0 scaffold. It maps
-`function` and `var` to `int`, includes `cc0.c`, and then includes
-`cc1.c`.
+`function` and `var` to `int`, includes `cc0.c`, `cc1.c`, and `cc2.c`.
+
+`cc2.c` is the first scaffold used by the active historical compiler path. It
+contains the archive option character classification used by `tcc -ar`, moved
+out of `tcctools.c` so that the archive tool can be ported into staged layers
+without losing the current bootstrap archive check.
 
 `tcc_unified.c` is the current full compiler layer. It defines `ONE_SOURCE` and
 includes `tcc.c`, which in turn includes `libtcc.c` and `tcctools.c`. This makes
@@ -44,7 +48,8 @@ the one-source build an explicit source file instead of a command-line accident.
 - `i386-asm.c`: i386 assembler parser and encoder.
 - `i386-link.c`: i386 relocation handling.
 - `tccelf.c`: ELF sections, symbols, archives, dynamic linking, and output.
-- `tcctools.c`: archive mode and compiler-driver helpers.
+- `tcctools.c`: archive mode and compiler-driver helpers. Archive option
+  character classification now lives in `cc2.c`.
 
 ## Removed From The Layered Target
 

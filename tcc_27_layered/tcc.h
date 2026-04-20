@@ -1083,7 +1083,6 @@ ST_FUNC char *normalize_slashes(char *path);
 #define OPT_V 3
 #define OPT_PRINT_DIRS 4
 #define OPT_AR 5
-#define OPT_IMPDEF 6
 #define OPT_M32 32
 #define OPT_M64 64
 
@@ -1512,9 +1511,6 @@ PUB_FUNC int tcc_get_dllexports(const char *filename, char **pp);
 /* ------------ tcctools.c ----------------- */
 #if 0 /* included in tcc.c */
 ST_FUNC int tcc_tool_ar(TCCState *s, int argc, char **argv);
-#ifdef TCC_TARGET_PE
-ST_FUNC int tcc_tool_impdef(TCCState *s, int argc, char **argv);
-#endif
 ST_FUNC void tcc_tool_cross(TCCState *s, char **argv, int option);
 ST_FUNC void gen_makedeps(TCCState *s, const char *target, const char *filename);
 #endif
