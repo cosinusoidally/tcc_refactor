@@ -229,6 +229,12 @@ if (cc1_parse_function_return_string(mks("function main(){var a=7;var b=a*2;retu
 if (cc1_get_last_name() !== mkc('m') || cc1_get_last_value() !== 17)
     throw new Error("cc1 function vars state failed");
 
+if (cc1_parse_function2_string(mks("function add(a,b){var c=a+b;return c*2;}"), 5, 6) !== 1)
+    throw new Error("cc1 function params parse failed");
+
+if (cc1_get_last_name() !== mkc('a') || cc1_get_last_value() !== 22)
+    throw new Error("cc1 function params state failed");
+
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
 

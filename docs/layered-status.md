@@ -102,10 +102,11 @@ points remain, but cc1 now also parses expressions, assignments, and simple
 programs from `mks` strings in both C and JavaScript. It also has the first
 cc0-shaped function parser for `function name() { var x = expr; return expr; }`
 style bodies, with local `var` assignments feeding the return expression
-through the same cc1 name/value table. This is intentionally below C syntax and
-below the preprocessor; its purpose is to make the cc0-to-cc1 boundary
-executable and self-checking in both runtimes before larger grammar work is
-moved over.
+through the same cc1 name/value table. It now accepts simple comma-separated
+parameters and can bind supplied argument values before evaluating the body.
+This is intentionally below C syntax and below the preprocessor; its purpose is
+to make the cc0-to-cc1 boundary executable and self-checking in both runtimes
+before larger grammar work is moved over.
 
 `tcc_27_layered/cc2.c` starts moving active legacy tool behavior into the
 layered files. The archive writer still lives in `tcctools.c`, but the option

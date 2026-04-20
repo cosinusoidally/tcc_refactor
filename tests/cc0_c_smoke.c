@@ -40,6 +40,7 @@ int cc1_parse_assignment_string();
 int cc1_parse_program16();
 int cc1_parse_program_string();
 int cc1_parse_function_return_string();
+int cc1_parse_function2_string();
 int cc1_get_last_name();
 int cc1_get_last_value();
 int cc1_get_error();
@@ -204,6 +205,10 @@ int main()
         return 76;
     if (cc1_get_last_name() != 'm' || cc1_get_last_value() != 17)
         return 77;
+    if (cc1_parse_function2_string(mks("function add(a,b){var c=a+b;return c*2;}"), 5, 6) != 1)
+        return 78;
+    if (cc1_get_last_name() != 'a' || cc1_get_last_value() != 22)
+        return 79;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)

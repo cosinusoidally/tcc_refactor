@@ -8,7 +8,8 @@
  *     expr    := product ("+" product)*
  *     product := primary ("*" primary)*
  *     primary := number | name | "(" expr ")"
- *     func    := "function" name "(" ")" "{" var_stmt* "return" expr ";" "}"
+ *     func    := "function" name "(" params? ")" "{" var_stmt* "return" expr ";" "}"
+ *     params  := name ("," name)*
  *     var_stmt := "var" name "=" expr ";"
  */
 
@@ -24,6 +25,10 @@ var cc1_value_0;
 var cc1_value_1;
 var cc1_value_2;
 var cc1_value_3;
+var cc1_arg_0;
+var cc1_arg_1;
+var cc1_arg_2;
+var cc1_arg_3;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -37,6 +42,10 @@ cc1_value_0 = 0;
 cc1_value_1 = 0;
 cc1_value_2 = 0;
 cc1_value_3 = 0;
+cc1_arg_0 = 0;
+cc1_arg_1 = 0;
+cc1_arg_2 = 0;
+cc1_arg_3 = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -118,6 +127,20 @@ function cc1_lookup_name(name)
     if (cc1_name_3 == name)
         return cc1_value_3;
     cc1_error = 6;
+    return 0;
+}
+
+function cc1_function_arg_value(index)
+{
+    if (index == 0)
+        return cc1_arg_0;
+    if (index == 1)
+        return cc1_arg_1;
+    if (index == 2)
+        return cc1_arg_2;
+    if (index == 3)
+        return cc1_arg_3;
+    cc1_error = 19;
     return 0;
 }
 
@@ -315,6 +338,7 @@ function cc1_parse_program_string(source)
 function cc1_parse_function_return_tokens()
 {
     var function_name;
+    var param_count;
     var value;
     if (!cc0_tok_is_word_function()) {
         cc1_error = 10;
@@ -333,6 +357,25 @@ function cc1_parse_function_return_tokens()
         return 0;
     }
     cc0_scan_next();
+    param_count = 0;
+    while (!cc1_at_punct(CC0_CH_RPAREN)) {
+        if (cc0_get_tok_class() != CC0_TOK_NAME) {
+            cc1_error = 20;
+            return 0;
+        }
+        cc1_bind_name_value(cc0_get_tok_first(), cc1_function_arg_value(param_count));
+        if (cc1_error)
+            return 0;
+        param_count = param_count + 1;
+        cc0_scan_next();
+        if (cc1_at_punct(CC0_CH_RPAREN))
+            break;
+        if (!cc1_at_punct(CC0_CH_COMMA)) {
+            cc1_error = 21;
+            return 0;
+        }
+        cc0_scan_next();
+    }
     if (!cc1_at_punct(CC0_CH_RPAREN)) {
         cc1_error = 13;
         return 0;
@@ -379,6 +422,28 @@ function cc1_parse_function_return_tokens()
 function cc1_parse_function_return_string(source)
 {
     cc1_reset();
+    cc1_arg_0 = 0;
+    cc1_arg_1 = 0;
+    cc1_arg_2 = 0;
+    cc1_arg_3 = 0;
+    cc0_source_set_string(source);
+    cc0_scan_next();
+    if (!cc1_parse_function_return_tokens())
+        return 0;
+    if (cc0_get_tok_class() != CC0_TOK_EOF) {
+        cc1_error = 2;
+        return 0;
+    }
+    return 1;
+}
+
+function cc1_parse_function2_string(source, arg0, arg1)
+{
+    cc1_reset();
+    cc1_arg_0 = arg0;
+    cc1_arg_1 = arg1;
+    cc1_arg_2 = 0;
+    cc1_arg_3 = 0;
     cc0_source_set_string(source);
     cc0_scan_next();
     if (!cc1_parse_function_return_tokens())
