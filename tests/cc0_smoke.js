@@ -59,7 +59,7 @@ if (cc0_get_tok_value() !== 23)
 if (cc0_scan_next() !== 0)
     throw new Error("cc0 scanner eof failed");
 
-load("../tcc_27_layered/cc1_stubs.c");
+load("../tcc_27_layered/cc1.c");
 
 if (cc1_compile_unit(0) !== 1)
     throw new Error("cc1 stub compile failed");

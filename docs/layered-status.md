@@ -64,7 +64,7 @@ the C build maps `function` and `var` to `int`. Function arguments therefore
 use old-style C implicit `int` parameters, which keeps the same file parseable
 by both SpiderMonkey and a C compiler.
 
-`tcc_27_layered/cc1_stubs.c` is the next-layer scaffold. It stays in the same
+`tcc_27_layered/cc1.c` is the next-layer scaffold. It stays in the same
 C/JS intersection and now contains a tiny parser over cc0 tokens for
 `number ("+" number)*`. This is intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and

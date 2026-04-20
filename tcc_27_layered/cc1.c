@@ -1,5 +1,5 @@
 /*
- * cc1 stubs for the staged bootstrap scaffold.
+ * cc1 scaffold for the staged bootstrap.
  *
  * Like cc0.c, this file stays in the JavaScript/C intersection. The functions
  * hold the first layer above cc0. cc1 currently parses only a tiny arithmetic
@@ -8,11 +8,11 @@
  *     sum := number ("+" number)*
  */
 
-var cc1_stub_version;
+var cc1_version;
 var cc1_last_value;
 var cc1_error;
 
-cc1_stub_version = 1;
+cc1_version = 1;
 cc1_last_value = 0;
 cc1_error = 0;
 

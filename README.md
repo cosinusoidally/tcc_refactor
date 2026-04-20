@@ -55,7 +55,7 @@ The build script:
 6. Uses the layered compiler's `-ar` mode to create `libtcc1.a`.
 7. Builds and starts a glibc-linked `tcc_27_layered` executable.
 8. Smoke-tests `-nostdinc`.
-9. Checks that `cc0.c`, `cc1_stubs.c`, and `cc0_unified.c` remain valid in the
+9. Checks that `cc0.c`, `cc1.c`, and `cc0_unified.c` remain valid in the
    staged C and JavaScript dialects.
 10. Builds selected baseline `tcc_27` files with the layered compiler.
 11. Builds and starts a glibc-linked baseline `tcc_27` executable.

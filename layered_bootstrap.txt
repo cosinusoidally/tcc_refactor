@@ -2,9 +2,9 @@ Thinking a bit about "layered" bootstrapping. Imagine if a C compiler was built
 in layers a bit like this:
 
 # make sure cc0.c can be compiled with gcc (and a range of other C compilers)
-gcc -c cc0.c ; gcc -c cc1_stubs.c ; gcc cc0.o cc1_stubs.o -o cc0_boot ;
+gcc -c cc0.c ; gcc -c cc1.c ; gcc cc0.o cc1.o -o cc0_boot ;
 # make sure cc0 is self hosted
-cc0_boot -c cc0.c ; cc0_boot -c cc1_stubs.c ; cc0_boot cc0.o cc1_stubs.o -o cc0 ;
+cc0_boot -c cc0.c ; cc0_boot -c cc1.c ; cc0_boot cc0.o cc1.o -o cc0 ;
 # walk up the ccX versions. New features can be used as they are introduced
 cc0 -c cc1.c ; cc0 -c cc2_stubs.c ; cc0 cc1.o cc2_stubs.o -o cc1 ;
 cc1 -c cc2.c ; cc1 -c cc3_stubs.c ; cc1 cc1.o cc2_stubs.o cc3_stubs.o -o cc2;

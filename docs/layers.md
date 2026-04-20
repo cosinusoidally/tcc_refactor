@@ -16,14 +16,14 @@ class, start offset, length, and decimal value where applicable for names,
 decimal numbers, punctuation, and EOF. This keeps the earliest phase below the
 preprocessor and suitable for the JS/C dialect intersection.
 
-`cc1_stubs.c` is the next-layer scaffold. It is also kept in the JavaScript/C
+`cc1.c` is the next-layer scaffold. It is also kept in the JavaScript/C
 intersection and now consumes the cc0 scanner for a tiny arithmetic grammar:
 `number ("+" number)*`. That is not a C parser yet, but it gives the layered
 tree a tested lower-to-upper token stream boundary before preprocessing exists.
 
 `cc0_unified.c` is the C unified build for the cc0 scaffold. It maps
 `function` and `var` to `int`, includes `cc0.c`, and then includes
-`cc1_stubs.c`.
+`cc1.c`.
 
 `tcc_unified.c` is the current full compiler layer. It defines `ONE_SOURCE` and
 includes `tcc.c`, which in turn includes `libtcc.c` and `tcctools.c`. This makes
