@@ -584,6 +584,7 @@ struct TCCState {
     int ms_extensions;	/* allow nested named struct w/o identifier behave like unnamed */
     int dollars_in_identifiers;	/* allows '$' char in identifiers */
     int ms_bitfields; /* if true, emulate MS algorithm for aligning bitfields */
+    int cc0_dialect; /* accept cc0's JS/C type spelling */
 
     /* warning switches */
     int warn_write_strings;

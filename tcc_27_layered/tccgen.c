@@ -3898,6 +3898,7 @@ static void parse_btype_qualify(CType *type, int qualifiers)
 static int parse_btype(CType *type, AttributeDef *ad)
 {
     int t, u, bt, st, type_found, typespec_found, g;
+    const char *cc0_name;
     Sym *s;
     CType type1;
 
@@ -4076,6 +4077,15 @@ static int parse_btype(CType *type, AttributeDef *ad)
         default:
             if (typespec_found)
                 goto the_end;
+            if (tcc_state->cc0_dialect
+                && tok >= TOK_IDENT
+                && tok < tok_ident) {
+                cc0_name = get_tok_str(tok, NULL);
+                if (!strcmp(cc0_name, "function") || !strcmp(cc0_name, "var")) {
+                    u = VT_INT;
+                    goto basic_type;
+                }
+            }
             s = sym_find(tok);
             if (!s || !(s->type.t & VT_TYPEDEF))
                 goto the_end;

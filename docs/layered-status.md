@@ -49,6 +49,7 @@ to the static bootstrap hash checks, it now verifies that:
   the baseline `tcc_27` source fixture.
 - `cc0.c` remains in the C/JavaScript dialect intersection by compiling as C
   with both GCC and the layered TCC using `-Dfunction=int -Dvar=int`, by
+  compiling directly with layered TCC using `-std=cc0`, by
   building `cc0_unified.c` plus the C smoke test with both GCC and layered TCC,
   and by loading the dialect files under SpiderMonkey `js`.
 
@@ -68,6 +69,11 @@ table, for decimal and octal digit checks, for ASCII uppercase conversion, and
 for whitespace checks that must exclude newlines. The cc0 layer is starting to
 replace front-end logic in the legacy compiler instead of only being a
 standalone smoke target.
+
+Layered TCC also accepts `-std=cc0`. In that mode the parser treats the
+identifier spellings `function` and `var` as integer type specifiers, so
+`cc0.c` can be compiled without preprocessor defines. Other `-std` values
+remain ignored for compatibility with the historical TCC command line.
 
 `tcc_27_layered/cc1.c` is the next-layer scaffold. It stays in the same
 C/JS intersection and now contains a tiny expression parser over cc0 tokens for

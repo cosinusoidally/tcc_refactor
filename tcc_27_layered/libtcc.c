@@ -1738,8 +1738,12 @@ reparse:
             s->static_link = 1;
             break;
         case TCC_OPTION_std:
-    	    /* silently ignore, a current purpose:
-    	       allow to use a tcc as a reference compiler for "make test" */
+            if (*optarg == '=')
+                optarg++;
+            if (!strcmp(optarg, "cc0"))
+                s->cc0_dialect = 1;
+            /* other -std values are still silently ignored, a current purpose:
+               allow to use a tcc as a reference compiler for "make test" */
             break;
         case TCC_OPTION_shared:
             x = TCC_OUTPUT_DLL;
