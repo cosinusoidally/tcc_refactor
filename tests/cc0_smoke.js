@@ -85,6 +85,27 @@ if (cc1_parse_sum8(40, 50, 43, 51, 41, 42, 52, -1) !== 1)
 if (cc1_get_last_value() !== 20)
     throw new Error("cc1 parenthesized value failed");
 
+if (cc1_bind_name_value(97, 4) !== 1)
+    throw new Error("cc1 name bind failed");
+
+if (cc1_parse_expr8(97, 42, 51, 43, 50, -1, -1, -1) !== 1)
+    throw new Error("cc1 name expression parse failed");
+
+if (cc1_get_last_value() !== 14)
+    throw new Error("cc1 name expression value failed");
+
+if (cc1_parse_assignment8(98, 61, 50, 43, 51, 42, 52, -1) !== 1)
+    throw new Error("cc1 assignment parse failed");
+
+if (cc1_get_last_name() !== 98 || cc1_get_last_value() !== 14)
+    throw new Error("cc1 assignment state failed");
+
+if (cc1_parse_expr8(98, 43, 49, -1, -1, -1, -1, -1) !== 1)
+    throw new Error("cc1 assigned name parse failed");
+
+if (cc1_get_last_value() !== 15)
+    throw new Error("cc1 assigned name value failed");
+
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
 

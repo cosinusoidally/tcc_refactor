@@ -7,16 +7,34 @@
  *
  *     expr    := product ("+" product)*
  *     product := primary ("*" primary)*
- *     primary := number | "(" expr ")"
+ *     primary := number | name | "(" expr ")"
  */
 
 var cc1_version;
 var cc1_last_value;
+var cc1_last_name;
 var cc1_error;
+var cc1_name_0;
+var cc1_name_1;
+var cc1_name_2;
+var cc1_name_3;
+var cc1_value_0;
+var cc1_value_1;
+var cc1_value_2;
+var cc1_value_3;
 
 cc1_version = 1;
 cc1_last_value = 0;
+cc1_last_name = 0;
 cc1_error = 0;
+cc1_name_0 = -1;
+cc1_name_1 = -1;
+cc1_name_2 = -1;
+cc1_name_3 = -1;
+cc1_value_0 = 0;
+cc1_value_1 = 0;
+cc1_value_2 = 0;
+cc1_value_3 = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -31,6 +49,7 @@ function cc1_has_real_parser()
 function cc1_reset()
 {
     cc1_last_value = 0;
+    cc1_last_name = 0;
     cc1_error = 0;
     return 0;
 }
@@ -42,6 +61,62 @@ function cc1_parse_number()
         return 0;
     }
     return cc0_get_tok_value();
+}
+
+function cc1_bind_name_value(name, value)
+{
+    if (cc1_name_0 == name) {
+        cc1_value_0 = value;
+        return 1;
+    }
+    if (cc1_name_1 == name) {
+        cc1_value_1 = value;
+        return 1;
+    }
+    if (cc1_name_2 == name) {
+        cc1_value_2 = value;
+        return 1;
+    }
+    if (cc1_name_3 == name) {
+        cc1_value_3 = value;
+        return 1;
+    }
+    if (cc1_name_0 < 0) {
+        cc1_name_0 = name;
+        cc1_value_0 = value;
+        return 1;
+    }
+    if (cc1_name_1 < 0) {
+        cc1_name_1 = name;
+        cc1_value_1 = value;
+        return 1;
+    }
+    if (cc1_name_2 < 0) {
+        cc1_name_2 = name;
+        cc1_value_2 = value;
+        return 1;
+    }
+    if (cc1_name_3 < 0) {
+        cc1_name_3 = name;
+        cc1_value_3 = value;
+        return 1;
+    }
+    cc1_error = 5;
+    return 0;
+}
+
+function cc1_lookup_name(name)
+{
+    if (cc1_name_0 == name)
+        return cc1_value_0;
+    if (cc1_name_1 == name)
+        return cc1_value_1;
+    if (cc1_name_2 == name)
+        return cc1_value_2;
+    if (cc1_name_3 == name)
+        return cc1_value_3;
+    cc1_error = 6;
+    return 0;
 }
 
 function cc1_at_punct(c)
@@ -58,6 +133,11 @@ function cc1_parse_primary()
     var value;
     if (cc0_get_tok_class() == CC0_TOK_NUMBER) {
         value = cc1_parse_number();
+        cc0_scan_next();
+        return value;
+    }
+    if (cc0_get_tok_class() == CC0_TOK_NAME) {
+        value = cc1_lookup_name(cc0_get_tok_first());
         cc0_scan_next();
         return value;
     }
@@ -107,7 +187,7 @@ function cc1_parse_sum_tokens()
     return 0;
 }
 
-function cc1_parse_sum8(c0, c1, c2, c3, c4, c5, c6, c7)
+function cc1_parse_expr8(c0, c1, c2, c3, c4, c5, c6, c7)
 {
     var value;
     cc1_reset();
@@ -124,9 +204,50 @@ function cc1_parse_sum8(c0, c1, c2, c3, c4, c5, c6, c7)
     return 1;
 }
 
+function cc1_parse_sum8(c0, c1, c2, c3, c4, c5, c6, c7)
+{
+    return cc1_parse_expr8(c0, c1, c2, c3, c4, c5, c6, c7);
+}
+
+function cc1_parse_assignment8(c0, c1, c2, c3, c4, c5, c6, c7)
+{
+    var value;
+    cc1_reset();
+    cc0_source_set8(c0, c1, c2, c3, c4, c5, c6, c7);
+    cc0_scan_next();
+    if (cc0_get_tok_class() != CC0_TOK_NAME) {
+        cc1_error = 7;
+        return 0;
+    }
+    cc1_last_name = cc0_get_tok_first();
+    cc0_scan_next();
+    if (!cc1_at_punct(61)) {
+        cc1_error = 8;
+        return 0;
+    }
+    cc0_scan_next();
+    value = cc1_parse_sum_tokens();
+    if (cc1_error)
+        return 0;
+    if (cc0_get_tok_class() != CC0_TOK_EOF) {
+        cc1_error = 2;
+        return 0;
+    }
+    cc1_last_value = value;
+    cc1_bind_name_value(cc1_last_name, value);
+    if (cc1_error)
+        return 0;
+    return 1;
+}
+
 function cc1_get_last_value()
 {
     return cc1_last_value;
+}
+
+function cc1_get_last_name()
+{
+    return cc1_last_name;
 }
 
 function cc1_get_error()

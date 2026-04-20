@@ -66,10 +66,11 @@ by both SpiderMonkey and a C compiler.
 
 `tcc_27_layered/cc1.c` is the next-layer scaffold. It stays in the same
 C/JS intersection and now contains a tiny expression parser over cc0 tokens for
-numbers, parentheses, `*`, and `+` with normal precedence. This is intentionally
-below C syntax and below the preprocessor; its purpose is to make the
-cc0-to-cc1 boundary executable and self-checking in both runtimes before larger
-grammar work is moved over.
+numbers, names, parentheses, `*`, and `+` with normal precedence. It also has a
+four-slot name/value table and a minimal `name = expr` assignment parser. This
+is intentionally below C syntax and below the preprocessor; its purpose is to
+make the cc0-to-cc1 boundary executable and self-checking in both runtimes
+before larger grammar work is moved over.
 
 ## Removed Run Surface
 

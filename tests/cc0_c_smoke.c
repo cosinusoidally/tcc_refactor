@@ -14,7 +14,11 @@ int cc0_get_tok_len();
 int cc0_get_tok_value();
 int cc1_compile_unit();
 int cc1_has_real_parser();
+int cc1_bind_name_value();
+int cc1_parse_expr8();
 int cc1_parse_sum8();
+int cc1_parse_assignment8();
+int cc1_get_last_name();
 int cc1_get_last_value();
 int cc1_get_error();
 
@@ -77,9 +81,23 @@ int main()
         return 27;
     if (cc1_get_last_value() != 20)
         return 28;
-    if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
+    if (cc1_bind_name_value(97, 4) != 1)
         return 29;
-    if (cc1_get_error() == 0)
+    if (cc1_parse_expr8(97, 42, 51, 43, 50, -1, -1, -1) != 1)
         return 30;
+    if (cc1_get_last_value() != 14)
+        return 31;
+    if (cc1_parse_assignment8(98, 61, 50, 43, 51, 42, 52, -1) != 1)
+        return 32;
+    if (cc1_get_last_name() != 98 || cc1_get_last_value() != 14)
+        return 33;
+    if (cc1_parse_expr8(98, 43, 49, -1, -1, -1, -1, -1) != 1)
+        return 34;
+    if (cc1_get_last_value() != 15)
+        return 35;
+    if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
+        return 36;
+    if (cc1_get_error() == 0)
+        return 37;
     return 0;
 }
