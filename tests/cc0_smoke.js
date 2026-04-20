@@ -141,3 +141,9 @@ if (cc2_ar_is_conflict_option(114) !== 0)
 
 if (cc2_ar_is_verbose_option(118) !== 1)
     throw new Error("cc2 ar verbose option failed");
+
+if (cc2_ar_be32(1) !== 16777216)
+    throw new Error("cc2 ar byte swap failed");
+
+if (cc2_ar_is_exported_symbol(16) !== 1 || cc2_ar_is_exported_symbol(19) !== 0)
+    throw new Error("cc2 ar exported symbol failed");

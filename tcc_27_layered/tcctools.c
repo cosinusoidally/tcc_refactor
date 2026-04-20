@@ -43,11 +43,6 @@ typedef struct {
     char ar_fmag[2];
 } ArHdr;
 
-static unsigned long le2belong(unsigned long ul) {
-    return ((ul & 0xFF0000)>>8)+((ul & 0xFF000000)>>24) +
-        ((ul & 0xFF)<<24)+((ul & 0xFF00)<<8);
-}
-
 static int ar_usage(int ret) {
     fprintf(stderr, "usage: tcc -ar [rcsv] lib file...\n");
     fprintf(stderr, "create library ([abdioptxN] not supported).\n");
@@ -192,11 +187,7 @@ ST_FUNC int tcc_tool_ar(TCCState *s1, int argc, char **argv)
             for (i = 1; i < nsym; i++)
             {
                 sym = (ElfW(Sym) *) (symtab + i * sizeof(ElfW(Sym)));
-                if (sym->st_shndx &&
-                    (sym->st_info == 0x10
-                    || sym->st_info == 0x11
-                    || sym->st_info == 0x12
-                    )) {
+                if (sym->st_shndx && cc2_ar_is_exported_symbol(sym->st_info)) {
                     //printf("symtab: %2Xh %4Xh %2Xh %s\n", sym->st_info, sym->st_size, sym->st_shndx, strtab + sym->st_name);
                     istrlen = strlen(strtab + sym->st_name)+1;
                     anames = tcc_realloc(anames, strpos+istrlen);
@@ -238,9 +229,9 @@ ST_FUNC int tcc_tool_ar(TCCState *s1, int argc, char **argv)
     sprintf(stmp, "%-10d", (int)(strpos + (funccnt+1) * sizeof(int)));
     memcpy(&arhdr.ar_size, stmp, 10);
     fwrite(&arhdr, sizeof(arhdr), 1, fh);
-    afpos[0] = le2belong(funccnt);
+    afpos[0] = cc2_ar_be32(funccnt);
     for (i=1; i<=funccnt; i++)
-        afpos[i] = le2belong(afpos[i] + hofs);
+        afpos[i] = cc2_ar_be32(afpos[i] + hofs);
     fwrite(afpos, (funccnt+1) * sizeof(int), 1, fh);
     fwrite(anames, strpos, 1, fh);
     if (fpos)

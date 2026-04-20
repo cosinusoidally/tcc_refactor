@@ -42,3 +42,22 @@ function cc2_ar_is_verbose_option(c)
         return 1;
     return 0;
 }
+
+function cc2_ar_be32(value)
+{
+    return ((value & 16711680) >> 8) +
+        ((value & -16777216) >> 24) +
+        ((value & 255) << 24) +
+        ((value & 65280) << 8);
+}
+
+function cc2_ar_is_exported_symbol(info)
+{
+    if (info == 16)
+        return 1;
+    if (info == 17)
+        return 1;
+    if (info == 18)
+        return 1;
+    return 0;
+}

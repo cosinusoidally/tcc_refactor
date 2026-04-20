@@ -75,7 +75,8 @@ work is moved over.
 
 `tcc_27_layered/cc2.c` starts moving active legacy tool behavior into the
 layered files. The archive writer still lives in `tcctools.c`, but the option
-character checks used by `tcc -ar` are now implemented in cc2 and exercised by
+character checks, 32-bit archive index byte swapping, and exported-symbol
+classification used by `tcc -ar` are now implemented in cc2 and exercised by
 the C and JS smoke tests.
 
 ## Current Legacy Shrink

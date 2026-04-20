@@ -25,6 +25,8 @@ int cc1_get_last_value();
 int cc1_get_error();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
+int cc2_ar_be32();
+int cc2_ar_is_exported_symbol();
 
 int main()
 {
@@ -122,5 +124,9 @@ int main()
         return 45;
     if (cc2_ar_is_verbose_option(118) != 1)
         return 46;
+    if (cc2_ar_be32(1) != 16777216)
+        return 47;
+    if (cc2_ar_is_exported_symbol(16) != 1 || cc2_ar_is_exported_symbol(19) != 0)
+        return 48;
     return 0;
 }
