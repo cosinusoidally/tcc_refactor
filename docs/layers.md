@@ -35,7 +35,9 @@ compiler-front-end behavior migrated into the layered files.
 
 `cc1.c` is the next-layer scaffold. It is also kept in the JavaScript/C
 intersection and now consumes the cc0 scanner for a tiny expression grammar:
-numbers, names, parentheses, `*`, and `+` with normal precedence. It also has a
+numbers, names, parentheses, `*`, `+`, `==`, and `!=` with normal precedence.
+The equality operators are parsed from adjacent one-byte punctuation tokens, so
+cc0 remains a byte scanner and cc1 owns the grammar decision. It also has a
 four-slot name/value table, a minimal `name = expr` assignment parser, and a
 semicolon-separated assignment program parser. The parser can still take fixed
 source windows for regression coverage, but the forward path uses `mks` strings
@@ -45,8 +47,9 @@ style bodies. It also accepts simple comma-separated parameters and can bind
 supplied argument values before evaluating the body. Parameters and local `var`
 statements use the same four-slot name table used by expressions, and the
 return expression reuses the expression parser. A narrow `if (expr) return
-expr;` form models cc0's common early-return control flow without adding full C
-statement parsing yet. That is not a C parser yet, but it gives the layered
+expr;` form models cc0's common early-return control flow, including equality
+and inequality tests, without adding full C statement parsing yet. That is not
+a C parser yet, but it gives the layered
 tree a tested lower-to-upper token stream and symbol-state boundary before
 preprocessing exists.
 

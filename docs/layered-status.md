@@ -95,7 +95,10 @@ remain ignored for compatibility with the historical TCC command line.
 
 `tcc_27_layered/cc1.c` is the next-layer scaffold. It stays in the same
 C/JS intersection and now contains a tiny expression parser over cc0 tokens for
-numbers, names, parentheses, `*`, and `+` with normal precedence. It also has a
+numbers, names, parentheses, `*`, `+`, `==`, and `!=` with normal precedence.
+The scanner still reports `=` and `!` as single-byte punctuation; cc1 recognizes
+the adjacent two-token equality operators so the byte scanner stays simple. It
+also has a
 four-slot name/value table, a minimal `name = expr` assignment parser, and a
 semicolon-separated assignment program parser. The old fixed-window entry
 points remain, but cc1 now also parses expressions, assignments, and simple
@@ -105,8 +108,9 @@ style bodies, with local `var` assignments feeding the return expression
 through the same cc1 name/value table. It now accepts simple comma-separated
 parameters and can bind supplied argument values before evaluating the body.
 The body parser also accepts a narrow `if (expr) return expr;` early-return
-form, matching a common cc0 control-flow shape without taking on full C
-statement parsing yet. This is intentionally below C syntax and below the
+form, including equality and inequality conditions, matching a common cc0
+control-flow shape without taking on full C statement parsing yet. This is
+intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
 self-checking in both runtimes before larger grammar work is moved over.
 

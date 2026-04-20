@@ -5,7 +5,8 @@
  * hold the first layer above cc0. cc1 currently parses only a tiny expression
  * grammar over the cc0 scanner:
  *
- *     expr    := product ("+" product)*
+ *     expr    := sum (("==" | "!=") sum)*
+ *     sum     := product ("+" product)*
  *     product := primary ("*" primary)*
  *     primary := number | name | "(" expr ")"
  *     func    := "function" name "(" params? ")" "{" var_stmt* if_ret? "return" expr ";" "}"
@@ -154,6 +155,18 @@ function cc1_at_punct(c)
     return 1;
 }
 
+function cc1_at_punct2(c0, c1)
+{
+    if (!cc1_at_punct(c0))
+        return 0;
+    cc0_scan_next();
+    if (!cc1_at_punct(c1)) {
+        cc1_error = 26;
+        return 0;
+    }
+    return 1;
+}
+
 function cc1_parse_primary()
 {
     var value;
@@ -169,7 +182,7 @@ function cc1_parse_primary()
     }
     if (cc1_at_punct(CC0_CH_LPAREN)) {
         cc0_scan_next();
-        value = cc1_parse_sum_tokens();
+        value = cc1_parse_expr_tokens();
         if (cc1_error)
             return 0;
         if (!cc1_at_punct(CC0_CH_RPAREN)) {
@@ -213,13 +226,44 @@ function cc1_parse_sum_tokens()
     return 0;
 }
 
+function cc1_parse_expr_tokens()
+{
+    var value;
+    var rhs;
+    value = cc1_parse_sum_tokens();
+    while (cc1_error == 0) {
+        if (cc1_at_punct(CC0_CH_EQUAL)) {
+            if (!cc1_at_punct2(CC0_CH_EQUAL, CC0_CH_EQUAL))
+                return 0;
+            cc0_scan_next();
+            rhs = cc1_parse_sum_tokens();
+            if (value == rhs)
+                value = 1;
+            else
+                value = 0;
+        } else {
+            if (!cc1_at_punct(CC0_CH_BANG))
+                return value;
+            if (!cc1_at_punct2(CC0_CH_BANG, CC0_CH_EQUAL))
+                return 0;
+            cc0_scan_next();
+            rhs = cc1_parse_sum_tokens();
+            if (value != rhs)
+                value = 1;
+            else
+                value = 0;
+        }
+    }
+    return 0;
+}
+
 function cc1_parse_expr8(c0, c1, c2, c3, c4, c5, c6, c7)
 {
     var value;
     cc1_reset();
     cc0_source_set8(c0, c1, c2, c3, c4, c5, c6, c7);
     cc0_scan_next();
-    value = cc1_parse_sum_tokens();
+    value = cc1_parse_expr_tokens();
     if (cc1_error)
         return 0;
     if (cc0_get_tok_class() != CC0_TOK_EOF) {
@@ -236,7 +280,7 @@ function cc1_parse_expr_string(source)
     cc1_reset();
     cc0_source_set_string(source);
     cc0_scan_next();
-    value = cc1_parse_sum_tokens();
+    value = cc1_parse_expr_tokens();
     if (cc1_error)
         return 0;
     if (cc0_get_tok_class() != CC0_TOK_EOF) {
@@ -266,7 +310,7 @@ function cc1_parse_assignment_tokens()
         return 0;
     }
     cc0_scan_next();
-    value = cc1_parse_sum_tokens();
+    value = cc1_parse_expr_tokens();
     if (cc1_error)
         return 0;
     cc1_last_value = value;
@@ -408,7 +452,7 @@ function cc1_parse_function_return_tokens()
             return 0;
         }
         cc0_scan_next();
-        value = cc1_parse_sum_tokens();
+        value = cc1_parse_expr_tokens();
         if (cc1_error)
             return 0;
         if (!cc1_at_punct(CC0_CH_RPAREN)) {
@@ -421,7 +465,7 @@ function cc1_parse_function_return_tokens()
             return 0;
         }
         cc0_scan_next();
-        selected_value = cc1_parse_sum_tokens();
+        selected_value = cc1_parse_expr_tokens();
         if (cc1_error)
             return 0;
         if (value)
@@ -437,7 +481,7 @@ function cc1_parse_function_return_tokens()
         return 0;
     }
     cc0_scan_next();
-    value = cc1_parse_sum_tokens();
+    value = cc1_parse_expr_tokens();
     if (cc1_error)
         return 0;
     if (!cc1_at_punct(CC0_CH_SEMI)) {

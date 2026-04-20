@@ -114,6 +114,8 @@ int main()
         return 16;
     if (cc0_token_class(43) != 4)
         return 17;
+    if (cc0_token_class(33) != 4)
+        return 86;
     cc0_source_set8(32, 97, 98, 49, 32, 50, 51, -1);
     if (cc0_scan_next() != 1)
         return 18;
@@ -204,6 +206,14 @@ int main()
         return 68;
     if (cc1_get_last_value() != 25)
         return 69;
+    if (cc1_parse_expr_string(mks("2+3==5")) != 1)
+        return 87;
+    if (cc1_get_last_value() != 1)
+        return 88;
+    if (cc1_parse_expr_string(mks("2+3!=5")) != 1)
+        return 89;
+    if (cc1_get_last_value() != 0)
+        return 90;
     if (cc1_parse_function_return_string(mks("function main(){return 7+8*2;}")) != 1)
         return 74;
     if (cc1_get_last_name() != 'm' || cc1_get_last_value() != 23)
@@ -224,6 +234,14 @@ int main()
         return 84;
     if (cc1_get_last_name() != 'p' || cc1_get_last_value() != 3)
         return 85;
+    if (cc1_parse_function2_string(mks("function ne(a,b){if(a!=b)return a;return b;}"), 4, 9) != 1)
+        return 91;
+    if (cc1_get_last_name() != 'n' || cc1_get_last_value() != 4)
+        return 92;
+    if (cc1_parse_function2_string(mks("function eq(a,b){if(a==b)return a+1;return b;}"), 4, 4) != 1)
+        return 93;
+    if (cc1_get_last_name() != 'e' || cc1_get_last_value() != 5)
+        return 94;
     if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
         return 46;
     if (cc1_get_error() == 0)
