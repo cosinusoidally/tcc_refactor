@@ -27,11 +27,9 @@
 static const char help[] =
     "Tiny C Compiler "TCC_VERSION" - Copyright (C) 2001-2006 Fabrice Bellard\n"
     "Usage: tcc [options...] [-o outfile] [-c] infile(s)...\n"
-    "       tcc [options...] -run infile [arguments...]\n"
     "General options:\n"
     "  -c          compile only - generate an object file\n"
     "  -o outfile  set output filename\n"
-    "  -run        run compiled source\n"
     "  -fflag      set or reset (with 'no-' prefix) 'flag' (see tcc -hh)\n"
     "  -Wwarning   set or reset (with 'no-' prefix) 'warning' (see tcc -hh)\n"
     "  -w          disable all warnings\n"
@@ -55,9 +53,6 @@ static const char help[] =
     "  -Wl,-opt[=val]  set linker option (see tcc -hh)\n"
     "Debugger options:\n"
     "  -g          generate runtime debug info\n"
-#ifdef CONFIG_TCC_BACKTRACE
-    "  -bt N       show N callers in stack traces\n"
-#endif
     "Misc. options:\n"
     "  -x[c|a|n]   specify type of the next infile\n"
     "  -nostdinc   do not use standard system include paths\n"
@@ -86,7 +81,6 @@ static const char help2[] =
     "  -static                       link to static libraries (not recommended)\n"
     "  -dumpversion                  print version\n"
     "  -print-search-dirs            print search paths\n"
-    "  -dt                           with -run/-E: auto-define 'test_...' macros\n"
     "Ignored options:\n"
     "  --param  -pedantic  -pipe  -s  -std  -traditional\n"
     "-W... warnings:\n"
@@ -243,7 +237,7 @@ static unsigned getclock_ms(void)
 int main(int argc0, char **argv0)
 {
     TCCState *s;
-    int ret, opt, n = 0, t = 0;
+    int ret, opt, n = 0;
     unsigned start_time = 0;
     const char *first_file;
     int argc; char **argv;
@@ -254,7 +248,7 @@ redo:
     s = tcc_new();
     opt = tcc_parse_args(s, &argc, &argv, 1);
 
-    if ((n | t) == 0) {
+    if (n == 0) {
         if (opt == OPT_HELP)
             return printf(help), 1;
         if (opt == OPT_HELP2)
@@ -274,7 +268,7 @@ redo:
         if (opt == OPT_PRINT_DIRS) {
             /* initialize search dirs */
             set_environment(s);
-            tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
+            tcc_set_output_type(s, TCC_OUTPUT_EXE);
             print_search_dirs(s);
             return 0;
         }
@@ -309,10 +303,6 @@ redo:
     tcc_set_output_type(s, s->output_type);
     s->ppfp = ppfp;
 
-    if ((s->output_type == TCC_OUTPUT_MEMORY
-      || s->output_type == TCC_OUTPUT_PREPROCESS) && (s->dflag & 16))
-        s->dflag |= t ? 32 : 0, s->run_test = ++t, n = s->nb_files;
-
     /* compile or add each files or library */
     for (first_file = NULL, ret = 0;;) {
         struct filespec *f = s->files[s->nb_files - n];
@@ -336,32 +326,22 @@ redo:
             break;
     }
 
-    if (s->run_test) {
-        t = 0;
-    } else if (s->output_type == TCC_OUTPUT_PREPROCESS) {
+    if (s->output_type == TCC_OUTPUT_PREPROCESS) {
         ;
     } else if (0 == ret) {
-        if (s->output_type == TCC_OUTPUT_MEMORY) {
-#ifdef TCC_IS_NATIVE
-            ret = tcc_run(s, argc, argv);
-#endif
-        } else {
-            if (!s->outfile)
-                s->outfile = default_outputfile(s, first_file);
-            if (tcc_output_file(s, s->outfile))
-                ret = 1;
-            else if (s->gen_deps)
-                gen_makedeps(s, s->outfile, s->deps_outfile);
-        }
+        if (!s->outfile)
+            s->outfile = default_outputfile(s, first_file);
+        if (tcc_output_file(s, s->outfile))
+            ret = 1;
+        else if (s->gen_deps)
+            gen_makedeps(s, s->outfile, s->deps_outfile);
     }
 
-    if (s->do_bench && (n | t | ret) == 0)
+    if (s->do_bench && (n | ret) == 0)
         tcc_print_stats(s, getclock_ms() - start_time);
     tcc_delete(s);
     if (ret == 0 && n)
         goto redo; /* compile more files with -c */
-    if (t)
-        goto redo; /* run more tests with -dt -run */
     if (ppfp && ppfp != stdout)
         fclose(ppfp);
     return ret;

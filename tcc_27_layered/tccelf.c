@@ -117,7 +117,7 @@ ST_FUNC void tccelf_delete(TCCState *s1)
     dynarray_reset(&s1->loaded_dlls, &s1->nb_loaded_dlls);
     tcc_free(s1->sym_attrs);
 
-    symtab_section = NULL; /* for tccrun.c:rt_printline() */
+    symtab_section = NULL;
 }
 
 /* save section data state */
@@ -770,7 +770,7 @@ ST_FUNC void relocate_syms(TCCState *s1, Section *symtab, int do_resolve)
         sh_num = sym->st_shndx;
         if (sh_num == SHN_UNDEF) {
             name = (char *) s1->symtab->link->data + sym->st_name;
-            /* Use ld.so to resolve symbol for us (for tcc -run) */
+            /* Use ld.so to resolve symbol for us. */
             if (do_resolve) {
 #if defined TCC_IS_NATIVE && !defined TCC_TARGET_PE
                 void *addr = dlsym(RTLD_DEFAULT, name);
@@ -1045,7 +1045,7 @@ ST_FUNC void build_got_entries(TCCState *s1)
 		       and for functions we were generated a dynamic symbol
 		       of function type.  */
 		    if (s1->dynsym) {
-			/* dynsym isn't set for -run :-/  */
+			/* dynsym is not always set at this point. */
 			dynindex = get_sym_attr(s1, sym_index, 0)->dyn_index;
 			esym = (ElfW(Sym) *)s1->dynsym->data + dynindex;
 			if (dynindex
@@ -1153,9 +1153,7 @@ ST_FUNC void tcc_add_runtime(TCCState *s1)
         }
 #endif
         tcc_add_support(s1, TCC_LIBTCC1);
-        /* add crt end if not memory output */
-        if (s1->output_type != TCC_OUTPUT_MEMORY)
-            tcc_add_crt(s1, "crtn.o");
+        tcc_add_crt(s1, "crtn.o");
     }
 }
 

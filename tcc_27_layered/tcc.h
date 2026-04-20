@@ -85,13 +85,9 @@ extern long double strtold (const char *__nptr, char **__endptr);
 # define TCC_TARGET_I386
 #endif
 
-/* only native compiler supports -run */
+/* Native in-memory -run support is intentionally removed from this layer. */
 #if (defined __i386__ || defined _X86_) && defined TCC_TARGET_I386
 # define TCC_IS_NATIVE
-#endif
-
-#if defined TCC_IS_NATIVE && !defined CONFIG_TCCBOOT
-# define CONFIG_TCC_BACKTRACE
 #endif
 
 /* ------------ path configuration ------------ */
@@ -602,8 +598,6 @@ struct TCCState {
 #ifdef TCC_TARGET_ARM
     enum float_abi float_abi; /* float ABI of the generated code*/
 #endif
-    int run_test; /* nth test to run with -dt -run */
-
     addr_t text_addr; /* address of text section */
     int has_text_addr;
 
@@ -719,12 +713,6 @@ struct TCCState {
     int uw_sym;
     unsigned uw_offs;
 # endif
-#endif
-
-#ifdef TCC_IS_NATIVE
-    const char *runtime_main;
-    void **runtime_mem;
-    int nb_runtime_mem;
 #endif
 
     /* used by main and tcc_parse_args only */
@@ -1520,27 +1508,6 @@ PUB_FUNC int tcc_get_dllexports(const char *filename, char **pp);
 # define ST_PE_STDCALL 0x40
 #endif
 #define ST_ASM_SET 0x04
-
-/* ------------ tccrun.c ----------------- */
-#ifdef TCC_IS_NATIVE
-#ifdef CONFIG_TCC_STATIC
-#define RTLD_LAZY       0x001
-#define RTLD_NOW        0x002
-#define RTLD_GLOBAL     0x100
-#define RTLD_DEFAULT    NULL
-/* dummy function for profiling */
-ST_FUNC void *dlopen(const char *filename, int flag);
-ST_FUNC void dlclose(void *p);
-ST_FUNC const char *dlerror(void);
-ST_FUNC void *dlsym(void *handle, const char *symbol);
-#endif
-#ifdef CONFIG_TCC_BACKTRACE
-ST_DATA int rt_num_callers;
-ST_DATA void *rt_prog_main;
-ST_FUNC void tcc_set_num_callers(int n);
-#endif
-ST_FUNC void tcc_run_free(TCCState *s1);
-#endif
 
 /* ------------ tcctools.c ----------------- */
 #if 0 /* included in tcc.c */

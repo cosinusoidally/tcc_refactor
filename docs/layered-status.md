@@ -65,6 +65,13 @@ SpiderMonkey and a C compiler.
 C/JS intersection and returns explicit stub values until real cc1 behavior is
 ported.
 
+## Removed Run Surface
+
+The layered compiler no longer supports TCC's native `-run` mode or libtcc's
+in-memory relocation API. The bootstrap checks build and execute normal ELF
+files instead, which keeps the layered path focused on reproducible compile and
+link behavior.
+
 ## Internal Map
 
 The current one-source build reaches the compiler through `tcc.c`, which

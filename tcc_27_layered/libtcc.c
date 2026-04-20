@@ -40,7 +40,6 @@ static int nb_states;
 #include "tccpp.c"
 #include "tccgen.c"
 #include "tccelf.c"
-#include "tccrun.c"
 #ifdef TCC_TARGET_I386
 #include "i386-gen.c"
 #include "i386-link.c"
@@ -921,11 +920,6 @@ LIBTCCAPI void tcc_delete(TCCState *s1)
     dynarray_reset(&s1->pragma_libs, &s1->nb_pragma_libs);
     dynarray_reset(&s1->argv, &s1->argc);
 
-#ifdef TCC_IS_NATIVE
-    /* free runtime memory */
-    tcc_run_free(s1);
-#endif
-
     tcc_free(s1);
     if (0 == --nb_states)
         tcc_memcheck();
@@ -1021,16 +1015,8 @@ ST_FUNC int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
             break;
 #ifndef TCC_TARGET_PE
         case AFF_BINTYPE_DYN:
-            if (s1->output_type == TCC_OUTPUT_MEMORY) {
-                ret = 0;
-#ifdef TCC_IS_NATIVE
-                if (NULL == dlopen(filename, RTLD_GLOBAL | RTLD_LAZY))
-                    ret = -1;
-#endif
-            } else {
-                ret = tcc_load_dll(s1, fd, filename,
-                                   (flags & AFF_REFERENCED_DLL) != 0);
-            }
+            ret = tcc_load_dll(s1, fd, filename,
+                               (flags & AFF_REFERENCED_DLL) != 0);
             break;
 #endif
         case AFF_BINTYPE_AR:
@@ -1466,7 +1452,6 @@ enum {
     TCC_OPTION_param,
     TCC_OPTION_pedantic,
     TCC_OPTION_pthread,
-    TCC_OPTION_run,
     TCC_OPTION_w,
     TCC_OPTION_pipe,
     TCC_OPTION_E,
@@ -1494,9 +1479,6 @@ static const TCCOption tcc_options[] = {
     { "B", TCC_OPTION_B, TCC_OPTION_HAS_ARG },
     { "l", TCC_OPTION_l, TCC_OPTION_HAS_ARG | TCC_OPTION_NOSEP },
     { "bench", TCC_OPTION_bench, 0 },
-#ifdef CONFIG_TCC_BACKTRACE
-    { "bt", TCC_OPTION_bt, TCC_OPTION_HAS_ARG },
-#endif
     { "g", TCC_OPTION_g, TCC_OPTION_HAS_ARG | TCC_OPTION_NOSEP },
     { "c", TCC_OPTION_c, 0 },
     { "dumpversion", TCC_OPTION_dumpversion, 0},
@@ -1509,7 +1491,6 @@ static const TCCOption tcc_options[] = {
     { "-param", TCC_OPTION_param, TCC_OPTION_HAS_ARG },
     { "pedantic", TCC_OPTION_pedantic, 0},
     { "pthread", TCC_OPTION_pthread, 0},
-    { "run", TCC_OPTION_run, TCC_OPTION_HAS_ARG | TCC_OPTION_NOSEP },
     { "rdynamic", TCC_OPTION_rdynamic, 0 },
     { "r", TCC_OPTION_r, 0 },
     { "s", TCC_OPTION_s, 0 },
@@ -1654,7 +1635,6 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv, int optind)
 {
     const TCCOption *popt;
     const char *optarg, *r;
-    const char *run = NULL;
     int last_o = -1;
     int x;
     CString linker_arg; /* collect -Wl options */
@@ -1678,13 +1658,8 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv, int optind)
         }
 reparse:
         if (r[0] != '-' || r[1] == '\0') {
-            if (r[0] != '@') /* allow "tcc file(s) -run @ args ..." */
+            if (r[0] != '@')
                 args_parser_add_file(s, r, s->filetype);
-            if (run) {
-                tcc_set_options(s, run);
-                arg_start = optind - 1;
-                break;
-            }
             continue;
         }
 
@@ -1741,11 +1716,6 @@ reparse:
         case TCC_OPTION_bench:
             s->do_bench = 1;
             break;
-#ifdef CONFIG_TCC_BACKTRACE
-        case TCC_OPTION_bt:
-            tcc_set_num_callers(atoi(optarg));
-            break;
-#endif
         case TCC_OPTION_g:
             s->do_debug = 1;
             break;
@@ -1806,13 +1776,6 @@ reparse:
         case TCC_OPTION_nostdlib:
             s->nostdlib = 1;
             break;
-        case TCC_OPTION_run:
-#ifndef TCC_IS_NATIVE
-            tcc_error("-run is not available in a cross compiler");
-#endif
-            run = optarg;
-            x = TCC_OUTPUT_MEMORY;
-            goto set_output_type;
         case TCC_OPTION_v:
             do ++s->verbose; while (*optarg++ == 'v');
             ++noaction;

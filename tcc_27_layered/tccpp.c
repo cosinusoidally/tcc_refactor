@@ -1407,21 +1407,6 @@ ST_FUNC void label_pop(Sym **ptop, Sym *slast, int keep)
         *ptop = slast;
 }
 
-/* fake the nth "#if defined test_..." for tcc -dt -run */
-static void maybe_run_test(TCCState *s)
-{
-    const char *p;
-    if (s->include_stack_ptr != s->include_stack)
-        return;
-    p = get_tok_str(tok, NULL);
-    if (0 != memcmp(p, "test_", 5))
-        return;
-    if (0 != --s->run_test)
-        return;
-    fprintf(s->ppfp, "\n[%s]\n" + !(s->dflag & 32), p), fflush(s->ppfp);
-    define_push(tok, MACRO_OBJ, NULL, NULL);
-}
-
 /* eval an expression for #if/#elif */
 static int expr_preprocess(void)
 {
@@ -1439,8 +1424,6 @@ static int expr_preprocess(void)
                 next_nomacro();
             if (tok < TOK_IDENT)
                 expect("identifier");
-            if (tcc_state->run_test)
-                maybe_run_test(tcc_state);
             c = define_find(tok) != 0;
             if (t == '(') {
                 next_nomacro();

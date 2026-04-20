@@ -35,9 +35,6 @@ the one-source build an explicit source file instead of a command-line accident.
 - `i386-asm.c`: i386 assembler parser and encoder.
 - `i386-link.c`: i386 relocation handling.
 - `tccelf.c`: ELF sections, symbols, archives, dynamic linking, and output.
-- `tccrun.c`: native execution and backtrace support. The layered bootstrap does
-  not depend on `-run`; this surface can be removed once the command-line and
-  memory-output paths have been untangled.
 - `tcctools.c`: archive mode and compiler-driver helpers.
 
 ## Removed From The Layered Target
