@@ -27,6 +27,7 @@ var cc0_scan_pos;
 var cc0_tok_class;
 var cc0_tok_start;
 var cc0_tok_len;
+var cc0_tok_value;
 
 cc0_dialect_version = 1;
 CC0_TOK_EOF = 0;
@@ -46,6 +47,7 @@ cc0_scan_pos = 0;
 cc0_tok_class = 0;
 cc0_tok_start = 0;
 cc0_tok_len = 0;
+cc0_tok_value = 0;
 
 function cc0_add(a, b)
 {
@@ -157,6 +159,7 @@ function cc0_source_set8(c0, c1, c2, c3, c4, c5, c6, c7)
     cc0_tok_class = CC0_TOK_EOF;
     cc0_tok_start = 0;
     cc0_tok_len = 0;
+    cc0_tok_value = 0;
     return 0;
 }
 
@@ -198,6 +201,7 @@ function cc0_scan_next()
     c = cc0_scan_skip_space();
     cc0_tok_start = cc0_scan_pos;
     cc0_tok_len = 0;
+    cc0_tok_value = 0;
     cc0_tok_class = cc0_token_class(c);
     if (cc0_tok_class == CC0_TOK_EOF)
         return cc0_tok_class;
@@ -211,6 +215,7 @@ function cc0_scan_next()
     }
     if (cc0_tok_class == CC0_TOK_NUMBER) {
         while (cc0_is_digit(c)) {
+            cc0_tok_value = cc0_tok_value * 10 + c - 48;
             cc0_scan_pos = cc0_scan_pos + 1;
             cc0_tok_len = cc0_tok_len + 1;
             c = cc0_source_at(cc0_scan_pos);
@@ -235,4 +240,14 @@ function cc0_get_tok_start()
 function cc0_get_tok_len()
 {
     return cc0_tok_len;
+}
+
+function cc0_get_tok_value()
+{
+    return cc0_tok_value;
+}
+
+function cc0_get_tok_first()
+{
+    return cc0_source_at(cc0_tok_start);
 }

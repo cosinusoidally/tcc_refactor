@@ -11,8 +11,12 @@ int cc0_scan_next();
 int cc0_get_tok_class();
 int cc0_get_tok_start();
 int cc0_get_tok_len();
+int cc0_get_tok_value();
 int cc1_compile_unit();
 int cc1_has_real_parser();
+int cc1_parse_sum8();
+int cc1_get_last_value();
+int cc1_get_error();
 
 int main()
 {
@@ -53,11 +57,21 @@ int main()
         return 17;
     if (cc0_get_tok_start() != 5 || cc0_get_tok_len() != 2)
         return 18;
-    if (cc0_scan_next() != 0)
+    if (cc0_get_tok_value() != 23)
         return 19;
-    if (cc1_compile_unit(0) != 1)
+    if (cc0_scan_next() != 0)
         return 20;
-    if (cc1_has_real_parser() != 0)
+    if (cc1_compile_unit(0) != 1)
         return 21;
+    if (cc1_has_real_parser() != 1)
+        return 22;
+    if (cc1_parse_sum8(49, 50, 43, 51, 32, -1, -1, -1) != 1)
+        return 23;
+    if (cc1_get_last_value() != 15)
+        return 24;
+    if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) != 0)
+        return 25;
+    if (cc1_get_error() == 0)
+        return 26;
     return 0;
 }

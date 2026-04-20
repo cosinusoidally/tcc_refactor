@@ -53,6 +53,9 @@ if (cc0_scan_next() !== 2)
 if (cc0_get_tok_start() !== 5 || cc0_get_tok_len() !== 2)
     throw new Error("cc0 scanner number span failed");
 
+if (cc0_get_tok_value() !== 23)
+    throw new Error("cc0 scanner number value failed");
+
 if (cc0_scan_next() !== 0)
     throw new Error("cc0 scanner eof failed");
 
@@ -61,5 +64,17 @@ load("../tcc_27_layered/cc1_stubs.c");
 if (cc1_compile_unit(0) !== 1)
     throw new Error("cc1 stub compile failed");
 
-if (cc1_has_real_parser() !== 0)
-    throw new Error("cc1 parser stub failed");
+if (cc1_has_real_parser() !== 1)
+    throw new Error("cc1 parser marker failed");
+
+if (cc1_parse_sum8(49, 50, 43, 51, 32, -1, -1, -1) !== 1)
+    throw new Error("cc1 sum parse failed");
+
+if (cc1_get_last_value() !== 15)
+    throw new Error("cc1 sum value failed");
+
+if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
+    throw new Error("cc1 bad sum accepted");
+
+if (cc1_get_error() === 0)
+    throw new Error("cc1 bad sum did not report error");

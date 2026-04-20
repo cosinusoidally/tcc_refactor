@@ -12,13 +12,14 @@ both JavaScript and C with `function` and `var` defined as `int`. It now owns
 the first tiny compiler-shaped behavior: byte-oriented character/token
 classification helpers plus a minimal scanner state machine. The scanner uses a
 fixed eight-byte source window for now, skips whitespace, and reports token
-class, start offset, and length for names, decimal numbers, punctuation, and
-EOF. This keeps the earliest phase below the preprocessor and suitable for the
-JS/C dialect intersection.
+class, start offset, length, and decimal value where applicable for names,
+decimal numbers, punctuation, and EOF. This keeps the earliest phase below the
+preprocessor and suitable for the JS/C dialect intersection.
 
-`cc1_stubs.c` is the next-layer placeholder. It is also kept in the JavaScript/C
-intersection and currently fails closed: `cc1_compile_unit` reports failure and
-`cc1_has_real_parser` reports that the real parser has not been ported.
+`cc1_stubs.c` is the next-layer scaffold. It is also kept in the JavaScript/C
+intersection and now consumes the cc0 scanner for a tiny arithmetic grammar:
+`number ("+" number)*`. That is not a C parser yet, but it gives the layered
+tree a tested lower-to-upper token stream boundary before preprocessing exists.
 
 `cc0_unified.c` is the C unified build for the cc0 scaffold. It maps
 `function` and `var` to `int`, includes `cc0.c`, and then includes
