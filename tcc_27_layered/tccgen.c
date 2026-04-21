@@ -3898,7 +3898,6 @@ static void parse_btype_qualify(CType *type, int qualifiers)
 static int parse_btype(CType *type, AttributeDef *ad)
 {
     int t, u, bt, st, type_found, typespec_found, g;
-    const char *cc0_name;
     Sym *s;
     CType type1;
 
@@ -4077,18 +4076,9 @@ static int parse_btype(CType *type, AttributeDef *ad)
         default:
             if (typespec_found)
                 goto the_end;
-            if (tcc_state->cc0_dialect
-                && tok >= TOK_IDENT
-                && tok < tok_ident) {
-                cc0_name = get_tok_str(tok, NULL);
-                if (cc0_is_dialect_type_chars(cc0_name[0], cc0_name[1],
-                                              cc0_name[2], cc0_name[3],
-                                              cc0_name[4], cc0_name[5],
-                                              cc0_name[6], cc0_name[7],
-                                              cc0_name[8])) {
-                    u = VT_INT;
-                    goto basic_type;
-                }
+            if (cc3_tccgen_is_cc0_type_token(tok)) {
+                u = VT_INT;
+                goto basic_type;
             }
             s = sym_find(tok);
             if (!s || !(s->type.t & VT_TYPEDEF))
@@ -5558,10 +5548,7 @@ static void expr_eq(void)
     int t;
     
     expr_cond();
-    if (tok == '=' ||
-        (tok >= TOK_A_MOD && tok <= TOK_A_DIV) ||
-        tok == TOK_A_XOR || tok == TOK_A_OR ||
-        tok == TOK_A_SHL || tok == TOK_A_SAR) {
+    if (cc3_tccgen_is_assignment_token(tok)) {
         test_lvalue();
         t = tok;
         next();
@@ -5570,7 +5557,7 @@ static void expr_eq(void)
         } else {
             vdup();
             expr_eq();
-            gen_op(t & 0x7f);
+            gen_op(cc3_tccgen_assignment_base_token(t));
         }
         vstore();
     }

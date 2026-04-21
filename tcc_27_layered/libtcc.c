@@ -38,6 +38,7 @@ static int nb_states;
 
 #if ONE_SOURCE
 #include "tccpp.c"
+#include "cc3.c"
 #include "tccgen.c"
 #include "tccelf.c"
 #ifdef TCC_TARGET_I386

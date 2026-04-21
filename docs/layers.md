@@ -151,13 +151,20 @@ classification, 32-bit archive index byte swapping, and exported-symbol
 classification. These moved out of `tcctools.c` so that the archive tool can be
 ported into staged layers without losing the current bootstrap archive check.
 
+`cc3.c` is the first parser-layer split from the historical `tccgen.c` path.
+It is included after `tcc.h` and before `tccgen.c`, so it may use the real TCC
+token ids and compiler state while parser behavior is migrated. It currently
+owns the cc0 dialect type-token decision used by `parse_btype`, plus assignment
+operator classification and the compound-assignment base-token mapping used by
+`expr_eq`.
+
 `tcc_unified.c` is the current full compiler layer. It maps the lower-layer
 `function` and `var` spelling to C, includes the active cc0/cc2 helpers and the
 C runtime support needed by cc0 heap strings, defines `ONE_SOURCE`, and includes
-`tcc.c`, which in turn includes `libtcc.c` and `tcctools.c`. Direct `tcc.c`
-one-source builds include the same lower helpers when `tcc_unified.c` has not
-already done so. This makes the one-source build an explicit source file
-instead of a command-line accident.
+`tcc.c`, which in turn includes `libtcc.c` and `tcctools.c`. `libtcc.c` includes
+`cc3.c` before `tccgen.c` on this path. Direct `tcc.c` one-source builds include
+the same lower helpers when `tcc_unified.c` has not already done so. This makes
+the one-source build an explicit source file instead of a command-line accident.
 
 `tcc_unified_cc0.c` is the corresponding self-hosted dialect entry. It includes
 the lower layers without macro-mapping `function` and `var`; layered TCC builds
@@ -173,6 +180,7 @@ to rebuild this same object and compare it byte-for-byte.
   library/include path setup.
 - `tccpp.c`: preprocessor and tokenizer.
 - `tccgen.c`: C parser and target-independent code generation orchestration.
+- `cc3.c`: parser token helpers split from `tccgen.c`.
 - `i386-gen.c`: i386 machine code emission.
 - `i386-asm.c`: i386 assembler parser and encoder.
 - `i386-link.c`: i386 relocation handling.

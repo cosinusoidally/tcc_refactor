@@ -216,6 +216,13 @@ character checks, 32-bit archive index byte swapping, and exported-symbol
 classification used by `tcc -ar` are now implemented in cc2 and exercised by
 the C and JS smoke tests.
 
+`tcc_27_layered/cc3.c` starts moving active parser behavior out of
+`tccgen.c`. It is a real TCC-layer file rather than a standalone smoke
+compiler: the one-source build includes it after `tcc.h` and before
+`tccgen.c`. The current split moves the cc0 dialect type-token check used by
+`parse_btype`, the assignment-token predicate used by `expr_eq`, and the
+compound-assignment base-token mapping used before `gen_op`.
+
 ## Current Legacy Shrink
 
 `tccpp.c` no longer owns the low ASCII tokenizer-table classifier directly; it
@@ -234,6 +241,9 @@ classification helpers instead. `tcctools.c` no longer owns the archive option
 character classifier, the PE import-definition tool, or the Win32
 cross-exec/wildcard helpers. The layered target is i386 Linux/ELF, and the active
 archive path now calls into cc2 for the first migrated piece of tool behavior.
+`tccgen.c` has also started shrinking: cc0 dialect type-token recognition and
+assignment-operator recognition now live in `cc3.c`, and the parser calls
+through that layer instead of open-coding those token decisions locally.
 
 ## Removed Run Surface
 
@@ -252,7 +262,8 @@ entry point, it includes the same lower helpers itself.
 `tcc_unified_cc0.c` is the self-hosted dialect entry for the same full compiler.
 It is built by layered TCC with `-std=cc0` and includes `cc0.c`, `cc2.c`, and
 the C cc0 runtime support without defining `function` or `var` as macros first.
-The GCC seed still uses `tcc_unified.c` because host compilers do not
+`libtcc.c` then includes `cc3.c` before `tccgen.c` on both full-compiler entry
+points. The GCC seed still uses `tcc_unified.c` because host compilers do not
 understand the cc0 dialect.
 
 `libtcc.c` owns high-level compilation and linking orchestration: creating a
