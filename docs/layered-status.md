@@ -192,6 +192,12 @@ recorded function body is being parsed, then applied after the return path is
 known, which lets source-state helpers such as `cc0_source_set8`,
 `cc0_source_set_string`, and `cc0_source_seek` run without changing the source
 stream out from under the evaluator.
+cc1 now keeps a small mirrored cc0 runtime scanner state for those side
+effects. The parser still uses the real cc0 scanner to read source, while
+recorded cc0 runtime getters such as `cc0_get_tok_class`,
+`cc0_get_tok_start`, `cc0_get_tok_len`, and `cc0_get_tok_value` read the
+mirror. This avoids treating cc1's current parser token as the cc0 program's
+runtime token.
 This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and

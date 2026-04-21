@@ -1066,9 +1066,9 @@ if (cc1_eval_function_table9(15, CC0_CH_0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
 if (cc1_eval_function_table9(23, CC0_CH_A, CC0_CH_z, -1, -1, -1, -1, -1, -1, 0) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 0 ||
-    cc0_source_at(0) !== CC0_CH_A ||
-    cc0_source_at(1) !== CC0_CH_z ||
-    cc0_source_at(2) !== -1)
+    cc1_runtime_source_at(0) !== CC0_CH_A ||
+    cc1_runtime_source_at(1) !== CC0_CH_z ||
+    cc1_runtime_source_at(2) !== -1)
     throw new Error("cc1 cc0.c eval cc0_source_set8 record failed");
 
 if (cc1_parse_cc0_source_string(mks(cc0_source_text)) !== 1)
@@ -1078,9 +1078,9 @@ cc0_test_string = mks("Az");
 if (cc1_eval_function_table9(25, cc0_test_string, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 0 ||
-    cc0_source_at(0) !== CC0_CH_A ||
-    cc0_source_at(1) !== CC0_CH_z ||
-    cc0_source_at(2) !== -1)
+    cc1_runtime_source_at(0) !== CC0_CH_A ||
+    cc1_runtime_source_at(1) !== CC0_CH_z ||
+    cc1_runtime_source_at(2) !== -1)
     throw new Error("cc1 cc0.c eval cc0_source_set_string record failed");
 
 if (cc1_parse_cc0_source_string(mks(cc0_source_text)) !== 1)
@@ -1089,8 +1089,28 @@ if (cc1_parse_cc0_source_string(mks(cc0_source_text)) !== 1)
 if (cc1_eval_function_table9(26, 3, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 1 ||
-    cc0_get_tok_start() !== 3)
+    cc1_get_runtime_tok_start() !== 3)
     throw new Error("cc1 cc0.c eval cc0_source_seek record failed");
+
+if (cc1_eval_function_table9(30, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== CC0_TOK_EOF)
+    throw new Error("cc1 cc0.c eval cc0_get_tok_class record failed");
+
+if (cc1_eval_function_table9(31, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 3)
+    throw new Error("cc1 cc0.c eval cc0_get_tok_start record failed");
+
+if (cc1_eval_function_table9(32, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 0)
+    throw new Error("cc1 cc0.c eval cc0_get_tok_len record failed");
+
+if (cc1_eval_function_table9(33, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 0)
+    throw new Error("cc1 cc0.c eval cc0_get_tok_value record failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

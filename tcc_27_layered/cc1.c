@@ -131,6 +131,29 @@ var cc1_defer_global_assignments;
 var cc1_pending_global_ptr;
 var cc1_pending_global_count;
 var cc1_pending_global_capacity;
+var cc1_rt_src_0;
+var cc1_rt_src_1;
+var cc1_rt_src_2;
+var cc1_rt_src_3;
+var cc1_rt_src_4;
+var cc1_rt_src_5;
+var cc1_rt_src_6;
+var cc1_rt_src_7;
+var cc1_rt_src_8;
+var cc1_rt_src_9;
+var cc1_rt_src_10;
+var cc1_rt_src_11;
+var cc1_rt_src_12;
+var cc1_rt_src_13;
+var cc1_rt_src_14;
+var cc1_rt_src_15;
+var cc1_rt_source_kind;
+var cc1_rt_source_ptr;
+var cc1_rt_scan_pos;
+var cc1_rt_tok_class;
+var cc1_rt_tok_start;
+var cc1_rt_tok_len;
+var cc1_rt_tok_value;
 var cc1_symbol_table_capacity;
 var cc1_function_table_capacity;
 var cc1_statement_table_capacity;
@@ -143,6 +166,29 @@ cc1_defer_global_assignments = 0;
 cc1_pending_global_ptr = 0;
 cc1_pending_global_count = 0;
 cc1_pending_global_capacity = 32;
+cc1_rt_src_0 = -1;
+cc1_rt_src_1 = -1;
+cc1_rt_src_2 = -1;
+cc1_rt_src_3 = -1;
+cc1_rt_src_4 = -1;
+cc1_rt_src_5 = -1;
+cc1_rt_src_6 = -1;
+cc1_rt_src_7 = -1;
+cc1_rt_src_8 = -1;
+cc1_rt_src_9 = -1;
+cc1_rt_src_10 = -1;
+cc1_rt_src_11 = -1;
+cc1_rt_src_12 = -1;
+cc1_rt_src_13 = -1;
+cc1_rt_src_14 = -1;
+cc1_rt_src_15 = -1;
+cc1_rt_source_kind = 0;
+cc1_rt_source_ptr = 0;
+cc1_rt_scan_pos = 0;
+cc1_rt_tok_class = 0;
+cc1_rt_tok_start = 0;
+cc1_rt_tok_len = 0;
+cc1_rt_tok_value = 0;
 cc1_symbol_table_capacity = 256;
 cc1_function_table_capacity = 64;
 cc1_statement_table_capacity = 512;
@@ -874,6 +920,52 @@ function cc1_lookup_current_name()
         return CC0_SOURCE_CELLS;
     if (cc1_tok_matches_text(mks("CC0_SOURCE_STRING")))
         return CC0_SOURCE_STRING;
+    if (cc1_tok_matches_text(mks("cc0_source_kind")))
+        return cc1_rt_source_kind;
+    if (cc1_tok_matches_text(mks("cc0_source_ptr")))
+        return cc1_rt_source_ptr;
+    if (cc1_tok_matches_text(mks("cc0_src_0")))
+        return cc1_rt_src_0;
+    if (cc1_tok_matches_text(mks("cc0_src_1")))
+        return cc1_rt_src_1;
+    if (cc1_tok_matches_text(mks("cc0_src_2")))
+        return cc1_rt_src_2;
+    if (cc1_tok_matches_text(mks("cc0_src_3")))
+        return cc1_rt_src_3;
+    if (cc1_tok_matches_text(mks("cc0_src_4")))
+        return cc1_rt_src_4;
+    if (cc1_tok_matches_text(mks("cc0_src_5")))
+        return cc1_rt_src_5;
+    if (cc1_tok_matches_text(mks("cc0_src_6")))
+        return cc1_rt_src_6;
+    if (cc1_tok_matches_text(mks("cc0_src_7")))
+        return cc1_rt_src_7;
+    if (cc1_tok_matches_text(mks("cc0_src_8")))
+        return cc1_rt_src_8;
+    if (cc1_tok_matches_text(mks("cc0_src_9")))
+        return cc1_rt_src_9;
+    if (cc1_tok_matches_text(mks("cc0_src_10")))
+        return cc1_rt_src_10;
+    if (cc1_tok_matches_text(mks("cc0_src_11")))
+        return cc1_rt_src_11;
+    if (cc1_tok_matches_text(mks("cc0_src_12")))
+        return cc1_rt_src_12;
+    if (cc1_tok_matches_text(mks("cc0_src_13")))
+        return cc1_rt_src_13;
+    if (cc1_tok_matches_text(mks("cc0_src_14")))
+        return cc1_rt_src_14;
+    if (cc1_tok_matches_text(mks("cc0_src_15")))
+        return cc1_rt_src_15;
+    if (cc1_tok_matches_text(mks("cc0_scan_pos")))
+        return cc1_rt_scan_pos;
+    if (cc1_tok_matches_text(mks("cc0_tok_class")))
+        return cc1_rt_tok_class;
+    if (cc1_tok_matches_text(mks("cc0_tok_start")))
+        return cc1_rt_tok_start;
+    if (cc1_tok_matches_text(mks("cc0_tok_len")))
+        return cc1_rt_tok_len;
+    if (cc1_tok_matches_text(mks("cc0_tok_value")))
+        return cc1_rt_tok_value;
     if (cc1_tok_is_cc0_ch_digit(CC0_CH_0))
         return CC0_CH_0;
     if (cc1_tok_is_cc0_ch_digit(CC0_CH_7))
@@ -937,51 +1029,51 @@ function cc1_current_global_assignment_id()
 function cc1_apply_global_assignment(id, value)
 {
     if (id == 1)
-        cc0_source_kind = value;
+        cc1_rt_source_kind = value;
     if (id == 2)
-        cc0_source_ptr = value;
+        cc1_rt_source_ptr = value;
     if (id == 3)
-        cc0_src_0 = value;
+        cc1_rt_src_0 = value;
     if (id == 4)
-        cc0_src_1 = value;
+        cc1_rt_src_1 = value;
     if (id == 5)
-        cc0_src_2 = value;
+        cc1_rt_src_2 = value;
     if (id == 6)
-        cc0_src_3 = value;
+        cc1_rt_src_3 = value;
     if (id == 7)
-        cc0_src_4 = value;
+        cc1_rt_src_4 = value;
     if (id == 8)
-        cc0_src_5 = value;
+        cc1_rt_src_5 = value;
     if (id == 9)
-        cc0_src_6 = value;
+        cc1_rt_src_6 = value;
     if (id == 10)
-        cc0_src_7 = value;
+        cc1_rt_src_7 = value;
     if (id == 11)
-        cc0_src_8 = value;
+        cc1_rt_src_8 = value;
     if (id == 12)
-        cc0_src_9 = value;
+        cc1_rt_src_9 = value;
     if (id == 13)
-        cc0_src_10 = value;
+        cc1_rt_src_10 = value;
     if (id == 14)
-        cc0_src_11 = value;
+        cc1_rt_src_11 = value;
     if (id == 15)
-        cc0_src_12 = value;
+        cc1_rt_src_12 = value;
     if (id == 16)
-        cc0_src_13 = value;
+        cc1_rt_src_13 = value;
     if (id == 17)
-        cc0_src_14 = value;
+        cc1_rt_src_14 = value;
     if (id == 18)
-        cc0_src_15 = value;
+        cc1_rt_src_15 = value;
     if (id == 19)
-        cc0_scan_pos = value;
+        cc1_rt_scan_pos = value;
     if (id == 20)
-        cc0_tok_class = value;
+        cc1_rt_tok_class = value;
     if (id == 21)
-        cc0_tok_start = value;
+        cc1_rt_tok_start = value;
     if (id == 22)
-        cc0_tok_len = value;
+        cc1_rt_tok_len = value;
     if (id == 23)
-        cc0_tok_value = value;
+        cc1_rt_tok_value = value;
     return 1;
 }
 
@@ -1017,6 +1109,60 @@ function cc1_apply_pending_global_assignments()
     }
     cc1_pending_global_count = 0;
     return 1;
+}
+
+function cc1_runtime_source_at(pos)
+{
+    var c;
+    if (cc1_rt_source_kind == CC0_SOURCE_STRING) {
+        c = cc0_heap_get(cc1_rt_source_ptr, pos);
+        if (c == CC0_CH_NUL)
+            return -1;
+        return c;
+    }
+    if (pos == 0)
+        return cc1_rt_src_0;
+    if (pos == 1)
+        return cc1_rt_src_1;
+    if (pos == 2)
+        return cc1_rt_src_2;
+    if (pos == 3)
+        return cc1_rt_src_3;
+    if (pos == 4)
+        return cc1_rt_src_4;
+    if (pos == 5)
+        return cc1_rt_src_5;
+    if (pos == 6)
+        return cc1_rt_src_6;
+    if (pos == 7)
+        return cc1_rt_src_7;
+    if (pos == 8)
+        return cc1_rt_src_8;
+    if (pos == 9)
+        return cc1_rt_src_9;
+    if (pos == 10)
+        return cc1_rt_src_10;
+    if (pos == 11)
+        return cc1_rt_src_11;
+    if (pos == 12)
+        return cc1_rt_src_12;
+    if (pos == 13)
+        return cc1_rt_src_13;
+    if (pos == 14)
+        return cc1_rt_src_14;
+    if (pos == 15)
+        return cc1_rt_src_15;
+    return -1;
+}
+
+function cc1_get_runtime_tok_value()
+{
+    return cc1_rt_tok_value;
+}
+
+function cc1_get_runtime_tok_start()
+{
+    return cc1_rt_tok_start;
 }
 
 function cc1_tok_is_word_cc0_is_digit()

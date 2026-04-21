@@ -118,6 +118,10 @@ scanner-state globals. During recorded-function evaluation those global writes
 are deferred until the body has been parsed, so helpers that change
 `cc0_source_kind`, `cc0_scan_pos`, or token state do not corrupt the source
 stream that cc1 is still reading.
+Those side effects land in a cc1-owned mirror of the cc0 runtime scanner state.
+The parser continues to use the real cc0 scanner for source text, while
+recorded runtime getters read the mirror, keeping parser token state separate
+from cc0 program token state.
 The public `cc1_compile_unit(source_id)` hook now treats `source_id` as a cc0
 heap string pointer and runs this whole-source parser, replacing the previous
 success-only stub with a real lower-layer entry point.

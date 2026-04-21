@@ -53,6 +53,7 @@ int cc1_parse_function_return_string();
 int cc1_parse_function2_string();
 int cc1_get_last_name();
 int cc1_get_last_value();
+int cc1_get_runtime_tok_value();
 int cc1_get_error();
 int cc1_get_function_count();
 int cc1_get_top_decl_count();
@@ -655,8 +656,14 @@ int main()
     if (cc1_eval_function_table9(0, 77, 0, 0, 0, 0, 0, 0, 0, 0) != 1 ||
         cc1_get_last_name() != 's' ||
         cc1_get_last_value() != 0 ||
-        cc0_get_tok_value() != 77)
+        cc1_get_runtime_tok_value() != 77)
         return 235;
+    if (cc1_parse_cc0_source_string(mks("function get(){return cc0_tok_value;}")) != 1)
+        return 236;
+    if (cc1_eval_function_table9(0, 0, 0, 0, 0, 0, 0, 0, 0, 0) != 1 ||
+        cc1_get_last_name() != 'g' ||
+        cc1_get_last_value() != 77)
+        return 237;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)
