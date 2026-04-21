@@ -51,7 +51,10 @@ cc0-shaped function parser for `function name() { var x = expr; return expr; }`
 style bodies. It also accepts simple comma-separated parameters and can bind
 supplied argument values before evaluating the body. Parameters and local `var`
 statements use the same four-slot name table used by expressions, and the
-return expression reuses the expression parser. A narrow sequence of
+return expression reuses the expression parser. The binding keys are bounded
+full-name hashes, matching the source symbol tables while keeping the public
+`last_name` probe as a first-byte diagnostic, so simple same-prefix parameters
+can be evaluated without a preprocessor or string interning layer. A narrow sequence of
 `if (expr) return expr;` guards models cc0's common early-return control flow,
 including equality and range tests. It also accepts the nested
 `if (expr) if (expr) return expr;` shape used by cc0's byte range classifiers,
@@ -99,7 +102,8 @@ and evaluate simple return and initializer slices through the existing
 expression parser, turning the first recorded body slices into executable
 lowering inputs. It can also seek from a bounded function-table record and run
 simple cc0-shaped functions through the existing cc1 function evaluator; this
-is now pinned against both a synthetic function and the real `cc0_add` record.
+is now pinned against a synthetic function and the real `cc0_add`,
+`cc0_select`, and `cc0_not` records, including the four-slot argument path.
 Function signature parsing records total and maximum parameter counts for the
 real cc0 source.
 That is not a C parser yet, but it gives the layered

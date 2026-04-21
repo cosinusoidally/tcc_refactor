@@ -113,6 +113,10 @@ cc0-shaped function parser for `function name() { var x = expr; return expr; }`
 style bodies, with local `var` assignments feeding the return expression
 through the same cc1 name/value table. It now accepts simple comma-separated
 parameters and can bind supplied argument values before evaluating the body.
+Those runtime bindings now use the same bounded full-name hashes as the source
+tables, while `cc1_last_name` still reports the first byte for simple smoke
+diagnostics; this lets early function evaluation distinguish names such as
+`when_true` and `when_false` without adding string objects to the evaluator.
 The body parser also accepts a narrow sequence of `if (expr) return expr;`
 early-return guards, including equality and range-test conditions, matching a
 common cc0 control-flow shape. It also accepts one nested guard,
@@ -168,8 +172,9 @@ simple return and initializer slices through the real expression parser, so
 recorded body data is beginning to feed executable lowering instead of only
 metrics. It can also seek from a bounded function-table record and evaluate
 simple cc0-shaped functions through the existing cc1 function evaluator; the
-smoke tests use this path for both a synthetic function and the real `cc0_add`
-record in `cc0.c`.
+smoke tests use this path for a synthetic function and the real `cc0_add`,
+`cc0_select`, and `cc0_not` records in `cc0.c`, including the four-slot
+argument path.
 This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and

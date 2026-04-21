@@ -692,6 +692,19 @@ if (cc1_eval_function_table2(0, 0, 0) !== 1 ||
     cc1_get_last_value() !== 0)
     throw new Error("cc1 cc0 source shell eval function false failed");
 
+if (cc1_parse_cc0_source_string(mks("function pick(cond,when_true,when_false){if(cond)return when_true;return when_false;}")) !== 1)
+    throw new Error("cc1 cc0 source shell colliding parameter parse failed");
+
+if (cc1_eval_function_table4(0, 1, 7, 9, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_p ||
+    cc1_get_last_value() !== 7)
+    throw new Error("cc1 cc0 source shell colliding parameter true failed");
+
+if (cc1_eval_function_table4(0, 0, 7, 9, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_p ||
+    cc1_get_last_value() !== 9)
+    throw new Error("cc1 cc0 source shell colliding parameter false failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -939,6 +952,26 @@ if (cc1_eval_function_table2(0, 7, 8) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 15)
     throw new Error("cc1 cc0.c eval cc0_add record failed");
+
+if (cc1_eval_function_table4(1, 1, 7, 9, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 7)
+    throw new Error("cc1 cc0.c eval cc0_select true record failed");
+
+if (cc1_eval_function_table4(1, 0, 7, 9, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 9)
+    throw new Error("cc1 cc0.c eval cc0_select false record failed");
+
+if (cc1_eval_function_table4(2, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 1)
+    throw new Error("cc1 cc0.c eval cc0_not zero record failed");
+
+if (cc1_eval_function_table4(2, 4, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 0)
+    throw new Error("cc1 cc0.c eval cc0_not nonzero record failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

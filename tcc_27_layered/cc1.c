@@ -220,6 +220,19 @@ function cc1_has_real_parser()
     return 1;
 }
 
+function cc1_reset_name_table()
+{
+    cc1_name_0 = -1;
+    cc1_name_1 = -1;
+    cc1_name_2 = -1;
+    cc1_name_3 = -1;
+    cc1_value_0 = 0;
+    cc1_value_1 = 0;
+    cc1_value_2 = 0;
+    cc1_value_3 = 0;
+    return 1;
+}
+
 function cc1_reset()
 {
     cc1_last_value = 0;
@@ -636,7 +649,7 @@ function cc1_lookup_current_name()
         return CC0_CH_7;
     if (cc1_tok_is_cc0_ch_digit(CC0_CH_9))
         return CC0_CH_9;
-    return cc1_lookup_name(cc0_get_tok_first());
+    return cc1_lookup_name(cc1_hash_current_name_with(0));
 }
 
 function cc1_tok_is_word_cc0_is_digit()
@@ -1025,11 +1038,13 @@ function cc1_parse_sum8(c0, c1, c2, c3, c4, c5, c6, c7)
 
 function cc1_parse_assignment_tokens()
 {
+    var name_key;
     var value;
     if (cc0_get_tok_class() != CC0_TOK_NAME) {
         cc1_error = 7;
         return 0;
     }
+    name_key = cc1_hash_current_name_with(0);
     cc1_last_name = cc0_get_tok_first();
     cc0_scan_next();
     if (!cc1_at_punct(CC0_CH_EQUAL)) {
@@ -1041,7 +1056,7 @@ function cc1_parse_assignment_tokens()
     if (cc1_error)
         return 0;
     cc1_last_value = value;
-    cc1_bind_name_value(cc1_last_name, value);
+    cc1_bind_name_value(name_key, value);
     if (cc1_error)
         return 0;
     return 1;
@@ -1688,6 +1703,19 @@ function cc1_eval_expr_table_value(index)
 
 function cc1_eval_function_table2(index, arg0, arg1)
 {
+    if (index < 0) {
+        cc1_error = 68;
+        return 0;
+    }
+    if (index >= cc1_function_table_count) {
+        cc1_error = 69;
+        return 0;
+    }
+    return cc1_eval_function_table4(index, arg0, arg1, 0, 0);
+}
+
+function cc1_eval_function_table4(index, arg0, arg1, arg2, arg3)
+{
     var source_start;
     if (index < 0) {
         cc1_error = 68;
@@ -1700,9 +1728,10 @@ function cc1_eval_function_table2(index, arg0, arg1)
     source_start = cc1_get_function_table_cell(index, 3);
     cc1_arg_0 = arg0;
     cc1_arg_1 = arg1;
-    cc1_arg_2 = 0;
-    cc1_arg_3 = 0;
+    cc1_arg_2 = arg2;
+    cc1_arg_3 = arg3;
     cc1_error = 0;
+    cc1_reset_name_table();
     cc0_source_seek(source_start);
     cc0_scan_next();
     if (!cc1_parse_function_return_tokens())
@@ -1742,7 +1771,7 @@ function cc1_parse_function_return_tokens()
             cc1_error = 20;
             return 0;
         }
-        cc1_bind_name_value(cc0_get_tok_first(), cc1_function_arg_value(param_count));
+        cc1_bind_name_value(cc1_hash_current_name_with(0), cc1_function_arg_value(param_count));
         if (cc1_error)
             return 0;
         param_count = param_count + 1;
@@ -1862,6 +1891,7 @@ function cc1_parse_function_return_string(source)
     cc1_arg_1 = 0;
     cc1_arg_2 = 0;
     cc1_arg_3 = 0;
+    cc1_reset_name_table();
     cc0_source_set_string(source);
     cc0_scan_next();
     if (!cc1_parse_function_return_tokens())
@@ -1880,6 +1910,7 @@ function cc1_parse_function2_string(source, arg0, arg1)
     cc1_arg_1 = arg1;
     cc1_arg_2 = 0;
     cc1_arg_3 = 0;
+    cc1_reset_name_table();
     cc0_source_set_string(source);
     cc0_scan_next();
     if (!cc1_parse_function_return_tokens())
