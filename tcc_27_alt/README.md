@@ -30,14 +30,13 @@ kept under `build/`.
 
 ## No-Preprocessor Source
 
-```sh
-./scripts/gen-nopp.sh
-```
-
-This writes `build/nopp/tcc_nopp.c`. That file is generated from the current
-i386/Linux configuration and is checked to contain no preprocessor directive
-lines. The self-host path compiles this file with `-nostdinc` and without
+The compiler source used for builds is `tcc_nopp.c`. It contains no
+preprocessor directive lines and is compiled with `-nostdinc` and without
 configuration `-D` flags.
+
+`./scripts/gen-nopp.sh` can regenerate `build/nopp/tcc_nopp.c` from the old
+split source while the transition is still in progress, but the normal build
+and self-host path do not depend on generating it.
 
 ## Test
 
@@ -68,13 +67,12 @@ runtime archive and compile another copy from the same no-preprocessor source,
 and two consecutive self-built compilers match byte-for-byte:
 
 ```text
-host cc -m32 -> build/root/tcc
-build/root/tcc -> build/nopp/tcc_nopp.c
-build/root/tcc build/nopp/tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage1
+host cc -m32 tcc_nopp.c -nostdinc -> build/root/tcc
+build/root/tcc tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage1
 stage1 -> build/selfhost/stage1root/libtcc1.a
-stage1 build/nopp/tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage2
+stage1 tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage2
 stage2 -> build/selfhost/stage2root/libtcc1.a
-stage2 build/nopp/tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage3
+stage2 tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage3
 cmp stage2 stage3
 ```
 

@@ -7,7 +7,7 @@ cd "$ROOT"
 OUT=build/selfhost
 RUN_I386=${RUN_I386:-./scripts/run-i386.sh}
 BOOTROOT=build/root
-NOPP=build/nopp/tcc_nopp.c
+NOPP=tcc_nopp.c
 mkdir -p "$OUT"
 
 if ! ./scripts/has-i386-glibc.sh; then
@@ -33,10 +33,6 @@ build_runtime()
     "$RUN_I386" "$compiler" -B"$bdir" -Iinclude -I. -c lib/alloca86.S -o "$bdir/alloca86.o"
     "$RUN_I386" "$compiler" -ar rcs "$bdir/libtcc1.a" "$bdir/libtcc1.o" "$bdir/alloca86.o"
 }
-
-if [ ! -f "$NOPP" ]; then
-    ./scripts/gen-nopp.sh
-fi
 
 echo "building stage1 with $BOOTROOT/tcc"
 build_tcc "$BOOTROOT/tcc" "$OUT/tcc.stage1" "$BOOTROOT"
