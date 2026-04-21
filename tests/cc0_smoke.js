@@ -721,6 +721,19 @@ if (cc1_eval_function_table9(0, 3, 4, 5, 6, 0, 0, 0, 0, 0) !== 1 ||
     cc1_get_last_value() !== 6)
     throw new Error("cc1 cc0 source shell five parameter false failed");
 
+if (cc1_parse_cc0_source_string(mks("function low(a){if(a)return 1;return 0;}function wrap(a){if(low(a))return 7;return 3;}")) !== 1)
+    throw new Error("cc1 cc0 source shell nested call parse failed");
+
+if (cc1_eval_function_table9(1, 1, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_w ||
+    cc1_get_last_value() !== 7)
+    throw new Error("cc1 cc0 source shell nested call true failed");
+
+if (cc1_eval_function_table9(1, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_w ||
+    cc1_get_last_value() !== 3)
+    throw new Error("cc1 cc0 source shell nested call false failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -1031,6 +1044,16 @@ if (cc1_eval_function_table9(3, CC0_CH_z, CC0_CH_u, CC0_CH_n, CC0_CH_c, CC0_CH_t
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 0)
     throw new Error("cc1 cc0.c eval cc0_is_word_function_chars false failed");
+
+if (cc1_eval_function_table9(15, CC0_CH_A, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 1)
+    throw new Error("cc1 cc0.c eval cc0_is_alpha upper failed");
+
+if (cc1_eval_function_table9(15, CC0_CH_0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 0)
+    throw new Error("cc1 cc0.c eval cc0_is_alpha digit failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

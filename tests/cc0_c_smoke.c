@@ -636,6 +636,16 @@ int main()
         cc1_get_last_name() != 'f' ||
         cc1_get_last_value() != 6)
         return 230;
+    if (cc1_parse_cc0_source_string(mks("function low(a){if(a)return 1;return 0;}function wrap(a){if(low(a))return 7;return 3;}")) != 1)
+        return 231;
+    if (cc1_eval_function_table9(1, 1, 0, 0, 0, 0, 0, 0, 0, 0) != 1 ||
+        cc1_get_last_name() != 'w' ||
+        cc1_get_last_value() != 7)
+        return 232;
+    if (cc1_eval_function_table9(1, 0, 0, 0, 0, 0, 0, 0, 0, 0) != 1 ||
+        cc1_get_last_name() != 'w' ||
+        cc1_get_last_value() != 3)
+        return 233;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)

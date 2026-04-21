@@ -181,7 +181,11 @@ smoke tests use this path for synthetic functions and the real `cc0_add`,
 `cc0_select`, `cc0_not`, and `cc0_is_word_function_chars` records in `cc0.c`.
 The function evaluator now has explicit argument and name slots for the
 observed nine-parameter cc0 word recognizers, and can resolve single-character
-`CC0_CH_*` constants plus `CC0_CH_NUL` while evaluating guards.
+`CC0_CH_*` constants plus `CC0_CH_NUL` while evaluating guards. Expression
+evaluation can also dispatch a call to another recorded function-table entry
+and then restore the caller's scanner and binding state; this is pinned by a
+synthetic nested-call test and by evaluating the real `cc0_is_alpha` record
+through its calls to `cc0_is_upper` and `cc0_is_lower`.
 This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and

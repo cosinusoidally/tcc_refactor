@@ -980,6 +980,187 @@ function cc1_parse_call_cc0_heap_get()
     return cc0_heap_get(ptr, offset);
 }
 
+function cc1_find_function_table(hash, len)
+{
+    var i;
+    var index;
+    i = 0;
+    while (i < cc1_function_table_count) {
+        index = i * 6;
+        if (cc0_cell_get(cc1_function_table_ptr, index + 0) == hash)
+            if (cc0_cell_get(cc1_function_table_ptr, index + 1) == len)
+                return i;
+        i = i + 1;
+    }
+    cc1_error = 71;
+    return -1;
+}
+
+function cc1_parse_call_function_table(hash, len)
+{
+    var arg_count;
+    var arg0;
+    var arg1;
+    var arg2;
+    var arg3;
+    var arg4;
+    var arg5;
+    var arg6;
+    var arg7;
+    var arg8;
+    var index;
+    var resume_pos;
+    var save_arg0;
+    var save_arg1;
+    var save_arg2;
+    var save_arg3;
+    var save_arg4;
+    var save_arg5;
+    var save_arg6;
+    var save_arg7;
+    var save_arg8;
+    var save_name0;
+    var save_name1;
+    var save_name2;
+    var save_name3;
+    var save_name4;
+    var save_name5;
+    var save_name6;
+    var save_name7;
+    var save_name8;
+    var save_value0;
+    var save_value1;
+    var save_value2;
+    var save_value3;
+    var save_value4;
+    var save_value5;
+    var save_value6;
+    var save_value7;
+    var save_value8;
+    var value;
+
+    index = cc1_find_function_table(hash, len);
+    if (cc1_error)
+        return 0;
+    cc0_scan_next();
+    arg_count = 0;
+    arg0 = 0;
+    arg1 = 0;
+    arg2 = 0;
+    arg3 = 0;
+    arg4 = 0;
+    arg5 = 0;
+    arg6 = 0;
+    arg7 = 0;
+    arg8 = 0;
+    while (!cc1_at_punct(CC0_CH_RPAREN)) {
+        value = cc1_parse_expr_tokens();
+        if (cc1_error)
+            return 0;
+        if (arg_count == 0)
+            arg0 = value;
+        if (arg_count == 1)
+            arg1 = value;
+        if (arg_count == 2)
+            arg2 = value;
+        if (arg_count == 3)
+            arg3 = value;
+        if (arg_count == 4)
+            arg4 = value;
+        if (arg_count == 5)
+            arg5 = value;
+        if (arg_count == 6)
+            arg6 = value;
+        if (arg_count == 7)
+            arg7 = value;
+        if (arg_count == 8)
+            arg8 = value;
+        if (arg_count > 8) {
+            cc1_error = 72;
+            return 0;
+        }
+        arg_count = arg_count + 1;
+        if (cc1_at_punct(CC0_CH_RPAREN))
+            break;
+        if (!cc1_at_punct(CC0_CH_COMMA)) {
+            cc1_error = 73;
+            return 0;
+        }
+        cc0_scan_next();
+    }
+    if (!cc1_at_punct(CC0_CH_RPAREN)) {
+        cc1_error = 74;
+        return 0;
+    }
+    cc0_scan_next();
+    resume_pos = cc0_get_tok_start();
+
+    save_arg0 = cc1_arg_0;
+    save_arg1 = cc1_arg_1;
+    save_arg2 = cc1_arg_2;
+    save_arg3 = cc1_arg_3;
+    save_arg4 = cc1_arg_4;
+    save_arg5 = cc1_arg_5;
+    save_arg6 = cc1_arg_6;
+    save_arg7 = cc1_arg_7;
+    save_arg8 = cc1_arg_8;
+    save_name0 = cc1_name_0;
+    save_name1 = cc1_name_1;
+    save_name2 = cc1_name_2;
+    save_name3 = cc1_name_3;
+    save_name4 = cc1_name_4;
+    save_name5 = cc1_name_5;
+    save_name6 = cc1_name_6;
+    save_name7 = cc1_name_7;
+    save_name8 = cc1_name_8;
+    save_value0 = cc1_value_0;
+    save_value1 = cc1_value_1;
+    save_value2 = cc1_value_2;
+    save_value3 = cc1_value_3;
+    save_value4 = cc1_value_4;
+    save_value5 = cc1_value_5;
+    save_value6 = cc1_value_6;
+    save_value7 = cc1_value_7;
+    save_value8 = cc1_value_8;
+
+    if (!cc1_eval_function_table9(index, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)) {
+        cc0_source_seek(resume_pos);
+        cc0_scan_next();
+        return 0;
+    }
+    value = cc1_last_value;
+    cc1_arg_0 = save_arg0;
+    cc1_arg_1 = save_arg1;
+    cc1_arg_2 = save_arg2;
+    cc1_arg_3 = save_arg3;
+    cc1_arg_4 = save_arg4;
+    cc1_arg_5 = save_arg5;
+    cc1_arg_6 = save_arg6;
+    cc1_arg_7 = save_arg7;
+    cc1_arg_8 = save_arg8;
+    cc1_name_0 = save_name0;
+    cc1_name_1 = save_name1;
+    cc1_name_2 = save_name2;
+    cc1_name_3 = save_name3;
+    cc1_name_4 = save_name4;
+    cc1_name_5 = save_name5;
+    cc1_name_6 = save_name6;
+    cc1_name_7 = save_name7;
+    cc1_name_8 = save_name8;
+    cc1_value_0 = save_value0;
+    cc1_value_1 = save_value1;
+    cc1_value_2 = save_value2;
+    cc1_value_3 = save_value3;
+    cc1_value_4 = save_value4;
+    cc1_value_5 = save_value5;
+    cc1_value_6 = save_value6;
+    cc1_value_7 = save_value7;
+    cc1_value_8 = save_value8;
+    cc0_source_seek(resume_pos);
+    cc0_scan_next();
+    return value;
+}
+
 function cc1_function_arg_value(index)
 {
     if (index == 0)
@@ -1027,6 +1208,8 @@ function cc1_at_punct2(c0, c1)
 
 function cc1_parse_primary()
 {
+    var name_hash;
+    var name_len;
     var value;
     if (cc1_at_punct(CC0_CH_BANG)) {
         cc0_scan_next();
@@ -1051,6 +1234,12 @@ function cc1_parse_primary()
             return cc1_parse_call_cc0_is_digit();
         if (cc1_tok_is_word_cc0_heap_get())
             return cc1_parse_call_cc0_heap_get();
+        if (cc1_next_nonspace_from(cc0_get_tok_start() + cc0_get_tok_len()) == CC0_CH_LPAREN) {
+            name_hash = cc1_hash_current_name_with(0);
+            name_len = cc0_get_tok_len();
+            cc0_scan_next();
+            return cc1_parse_call_function_table(name_hash, name_len);
+        }
         value = cc1_lookup_current_name();
         cc0_scan_next();
         return value;
