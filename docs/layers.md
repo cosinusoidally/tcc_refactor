@@ -160,8 +160,9 @@ operator classification and the compound-assignment base-token mapping used by
 predicates also live here, giving the layer a growing inventory of the parser's
 token grammar. It now owns the real TCC expression parser slice from
 multiplicative expressions through logical OR, conditional expressions,
-assignment expressions, and comma expressions. `tccgen.c` now resumes at
-constant-expression parsing and declaration/statement handling.
+assignment expressions, comma expressions, and the integer constant-expression
+entry points. `tccgen.c` now resumes at label detection and
+declaration/statement handling.
 
 `tcc_unified.c` is the current full compiler layer. It maps the lower-layer
 `function` and `var` spelling to C, includes the active cc0/cc2 helpers and the

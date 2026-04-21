@@ -492,3 +492,37 @@ ST_FUNC void gexpr(void)
         next();
     }
 }
+
+/* parse a constant expression and return value in vtop.  */
+static void expr_const1(void)
+{
+    const_wanted++;
+    nocode_wanted++;
+    expr_cond();
+    nocode_wanted--;
+    const_wanted--;
+}
+
+/* parse an integer constant and return its value. */
+static inline int64_t expr_const64(void)
+{
+    int64_t c;
+    expr_const1();
+    if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) != VT_CONST)
+        expect("constant expression");
+    c = vtop->c.i;
+    vpop();
+    return c;
+}
+
+/* parse an integer constant and return its value.
+   Complain if it doesn't fit 32bit (signed or unsigned).  */
+ST_FUNC int expr_const(void)
+{
+    int c;
+    int64_t wc = expr_const64();
+    c = wc;
+    if (c != wc && (unsigned)c != wc)
+        tcc_error("constant exceeds 32 bit");
+    return c;
+}
