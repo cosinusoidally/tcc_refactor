@@ -433,52 +433,6 @@ typedef struct
   Elf64_Word l_flags;
 } Elf64_Lib;
 typedef Elf32_Addr Elf32_Conflict;
-enum __stab_debug_code
-{
-N_GSYM=0x20,
-N_FNAME=0x22,
-N_FUN=0x24,
-N_STSYM=0x26,
-N_LCSYM=0x28,
-N_MAIN=0x2a,
-N_PC=0x30,
-N_NSYMS=0x32,
-N_NOMAP=0x34,
-N_OBJ=0x38,
-N_OPT=0x3c,
-N_RSYM=0x40,
-N_M2C=0x42,
-N_SLINE=0x44,
-N_DSLINE=0x46,
-N_BSLINE=0x48,
-N_BROWS=0x48,
-N_DEFD=0x4a,
-N_EHDECL=0x50,
-N_MOD2=0x50,
-N_CATCH=0x54,
-N_SSYM=0x60,
-N_SO=0x64,
-N_LSYM=0x80,
-N_BINCL=0x82,
-N_SOL=0x84,
-N_PSYM=0xa0,
-N_EINCL=0xa2,
-N_ENTRY=0xa4,
-N_LBRAC=0xc0,
-N_EXCL=0xc2,
-N_SCOPE=0xc4,
-N_RBRAC=0xe0,
-N_BCOMM=0xe2,
-N_ECOMM=0xe4,
-N_ECOML=0xe8,
-N_NBTEXT=0xF0,
-N_NBDATA=0xF2,
-N_NBBSS=0xF4,
-N_NBSTS=0xF6,
-N_NBLCS=0xF8,
-N_LENG=0xfe,
-LAST_UNUSED_STAB_CODE
-};
 enum {
     TREG_EAX = 0,
     TREG_ECX,
@@ -674,7 +628,6 @@ struct TCCState {
     int warn_none;
     int warn_implicit_function_declaration;
     int warn_gcc_compat;
-    int do_debug;
     int run_test;
     Elf32_Addr text_addr;
     int has_text_addr;
@@ -1461,9 +1414,8 @@ static int global_expr;
 static CType func_vt;
 static int func_var;
 static int func_vc;
-static int last_line_num, last_ind, func_ind;
+static int func_ind;
 static const char *funcname;
-static int g_debug;
 static void tcc_debug_start(TCCState *s1);
 static void tcc_debug_end(TCCState *s1);
 static void tcc_debug_funcstart(TCCState *s1, Sym *sym);
@@ -1508,22 +1460,13 @@ static void expr_prod(void);
 static void expr_sum(void);
 static void gexpr(void);
 static int expr_const(void);
-typedef struct {
-    unsigned int n_strx;
-    unsigned char n_type;
-    unsigned char n_other;
-    unsigned short n_desc;
-    unsigned int n_value;
-} Stab_Sym;
 static Section *text_section, *data_section, *bss_section;
 static Section *common_section;
 static Section *cur_text_section;
 static Section *last_text_section;
 static Section *symtab_section;
-static Section *stab_section, *stabstr_section;
 static void tccelf_new(TCCState *s);
 static void tccelf_delete(TCCState *s);
-static void tccelf_stab_new(TCCState *s);
 static void tccelf_begin_file(TCCState *s1);
 static void tccelf_end_file(TCCState *s1);
 static Section *new_section(TCCState *s1, const char *name, int sh_type, int sh_flags);
@@ -1543,10 +1486,6 @@ static int set_elf_sym(Section *s, Elf32_Addr value, unsigned long size, int inf
 static int find_elf_sym(Section *s, const char *name);
 static void put_elf_reloc(Section *symtab, Section *s, unsigned long offset, int type, int symbol);
 static void put_elf_reloca(Section *symtab, Section *s, unsigned long offset, int type, int symbol, Elf32_Addr addend);
-static void put_stabs(const char *str, int type, int other, int desc, unsigned long value);
-static void put_stabs_r(const char *str, int type, int other, int desc, unsigned long value, Section *sec, int sym_index);
-static void put_stabn(int type, int other, int desc, int value);
-static void put_stabd(int type, int other, int desc);
 static void resolve_common_syms(TCCState *s1);
 static void relocate_syms(TCCState *s1, Section *symtab, int do_resolve);
 static void relocate_section(TCCState *s1, Section *s);
@@ -3594,8 +3533,6 @@ static void preprocess(int is_bof)
             dynarray_add(&s1->target_deps, &s1->nb_target_deps,
                     tcc_strdup(buf1));
             ++s1->include_stack_ptr;
-            if (s1->do_debug)
-                put_stabs(file->filename, N_BINCL, 0, 0, 0);
             tok_flags |= 0x0002 | 0x0001;
             ch = file->buf_ptr[0];
             goto the_end;
@@ -3694,8 +3631,6 @@ include_done:
         if (file->fd > 0)
             total_lines += file->line_num - n;
         file->line_num = n;
-        if (s1->do_debug)
-    	    put_stabs(file->filename, N_BINCL, 0, 0, 0);
         break;
     case TOK_ERROR:
     case TOK_WARNING:
@@ -4238,9 +4173,6 @@ static inline void next_nomacro1(void)
                     search_cached_include(s1, file->filename, 1)
                         ->ifndef_macro = file->ifndef_macro_saved;
                     tok_flags &= ~0x0004;
-                }
-                if (tcc_state->do_debug) {
-                    put_stabd(N_EINCL, 0, 0);
                 }
                 tcc_close();
                 s1->include_stack_ptr--;
@@ -5323,7 +5255,6 @@ static Sym *global_label_stack;
 static Sym *local_label_stack;
 static int local_scope;
 static int in_sizeof;
-static int section_sym;
 static int vlas_in_scope;
 static int vla_sp_root_loc;
 static int vla_sp_loc;
@@ -5334,9 +5265,8 @@ static int global_expr;
 static CType func_vt;
 static int func_var;
 static int func_vc;
-static int last_line_num, last_ind, func_ind;
+static int func_ind;
 static const char *funcname;
-static int g_debug;
 static CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
 static struct switch_t {
     struct case_t {
@@ -5394,66 +5324,34 @@ static void check_vstack(void)
 }
 static void tcc_debug_start(TCCState *s1)
 {
-    if (s1->do_debug) {
-        char buf[512];
-        section_sym = put_elf_sym(symtab_section, 0, 0,
-                                  (((0) << 4) + ((3) & 0xf)), 0,
-                                  text_section->sh_num, ((void*)0));
-        getcwd(buf, sizeof(buf));
-        pstrcat(buf, sizeof(buf), "/");
-        put_stabs_r(buf, N_SO, 0, 0,
-                    text_section->data_offset, text_section, section_sym);
-        put_stabs_r(file->filename, N_SO, 0, 0,
-                    text_section->data_offset, text_section, section_sym);
-        last_ind = 0;
-        last_line_num = 0;
-    }
+    (void)s1;
     put_elf_sym(symtab_section, 0, 0,
                 (((0) << 4) + ((4) & 0xf)), 0,
                 0xfff1, file->filename);
 }
 static void tcc_debug_end(TCCState *s1)
 {
-    if (!s1->do_debug)
-        return;
-    put_stabs_r(((void*)0), N_SO, 0, 0,
-        text_section->data_offset, text_section, section_sym);
+    (void)s1;
 }
 static void tcc_debug_line(TCCState *s1)
 {
-    if (!s1->do_debug)
-        return;
-    if ((last_line_num != file->line_num || last_ind != ind)) {
-        put_stabn(N_SLINE, 0, file->line_num, ind - func_ind);
-        last_ind = ind;
-        last_line_num = file->line_num;
-    }
+    (void)s1;
 }
 static void tcc_debug_funcstart(TCCState *s1, Sym *sym)
 {
-    char buf[512];
-    if (!s1->do_debug)
-        return;
-    snprintf(buf, sizeof(buf), "%s:%c1",
-             funcname, sym->type.t & 0x00002000 ? 'f' : 'F');
-    put_stabs_r(buf, N_FUN, 0, file->line_num, 0,
-                cur_text_section, sym->c);
-    put_stabn(N_SLINE, 0, file->line_num, 0);
-    last_ind = 0;
-    last_line_num = 0;
+    (void)s1;
+    (void)sym;
 }
 static void tcc_debug_funcend(TCCState *s1, int size)
 {
-    if (!s1->do_debug)
-        return;
-    put_stabn(N_FUN, 0, 0, size);
+    (void)s1;
+    (void)size;
 }
 static int tccgen_compile(TCCState *s1)
 {
     cur_text_section = ((void*)0);
     funcname = "";
     anon_sym = 0x10000000;
-    section_sym = 0;
     const_wanted = 0;
     nocode_wanted = 0x80000000;
     int_type.t = 3;
@@ -9680,8 +9578,6 @@ static void block(int *bsym, int *csym, int is_expr)
 {
     int a, b, c, d, cond;
     Sym *s;
-    if (tcc_state->do_debug)
-        tcc_debug_line(tcc_state);
     if (is_expr) {
         vpushi(0);
         vtop->type.t = 0;
@@ -10809,7 +10705,6 @@ static Section *common_section;
 static Section *cur_text_section;
 static Section *last_text_section;
 static Section *symtab_section;
-static Section *stab_section, *stabstr_section;
 static int new_undef_sym = 0;
 static void tccelf_new(TCCState *s)
 {
@@ -10827,15 +10722,6 @@ static void tccelf_new(TCCState *s)
                                       ".dynstrtab",
                                       ".dynhashtab", 0x80000000);
     get_sym_attr(s, 0, 1);
-}
-static void tccelf_stab_new(TCCState *s)
-{
-    stab_section = new_section(s, ".stab", 1, 0);
-    stab_section->sh_entsize = sizeof(Stab_Sym);
-    stabstr_section = new_section(s, ".stabstr", 3, 0);
-    put_elf_str(stabstr_section, "");
-    stab_section->link = stabstr_section;
-    put_stabs("", 0, 0, 0, 0);
 }
 static void free_section(Section *s)
 {
@@ -11246,37 +11132,6 @@ static void squeeze_multi_relocs(Section *s, size_t oldrelocoffset)
 	*dest = *r;
     }
     sr->data_offset = (unsigned char*)dest - sr->data + sizeof(*r);
-}
-static void put_stabs(const char *str, int type, int other, int desc,
-                      unsigned long value)
-{
-    Stab_Sym *sym;
-    sym = section_ptr_add(stab_section, sizeof(Stab_Sym));
-    if (str) {
-        sym->n_strx = put_elf_str(stabstr_section, str);
-    } else {
-        sym->n_strx = 0;
-    }
-    sym->n_type = type;
-    sym->n_other = other;
-    sym->n_desc = desc;
-    sym->n_value = value;
-}
-static void put_stabs_r(const char *str, int type, int other, int desc,
-                        unsigned long value, Section *sec, int sym_index)
-{
-    put_stabs(str, type, other, desc, value);
-    put_elf_reloc(symtab_section, stab_section,
-                  stab_section->data_offset - sizeof(unsigned int),
-                  1, sym_index);
-}
-static void put_stabn(int type, int other, int desc, int value)
-{
-    put_stabs(((void*)0), type, other, desc, value);
-}
-static void put_stabd(int type, int other, int desc)
-{
-    put_stabs(((void*)0), type, other, desc, 0);
 }
 static struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc)
 {
@@ -11834,8 +11689,7 @@ static int alloc_sec_names(TCCState *s1, int file_type, Section *strsec)
             prepare_dynamic_rel(s1, s)) {
                 if (s1->sections[s->sh_info]->sh_flags & (1 << 2))
                     textrel = 1;
-        } else if (s1->do_debug ||
-            file_type == 4 ||
+        } else if (file_type == 4 ||
             (s->sh_flags & (1 << 1)) ||
 	    i == (s1->nb_sections - 1)) {
             s->sh_size = s->data_offset;
@@ -12028,8 +11882,6 @@ static void fill_dynamic(TCCState *s1, struct dyn_inf *dyninf)
     put_dt(dynamic, 17, dyninf->rel_addr);
     put_dt(dynamic, 18, dyninf->rel_size);
     put_dt(dynamic, 19, sizeof(Elf32_Rel));
-    if (s1->do_debug)
-        put_dt(dynamic, 21, 0);
     put_dt(dynamic, 0, 0);
 }
 static int final_sections_reloc(TCCState *s1)
@@ -12365,9 +12217,6 @@ static int tcc_load_object_file(TCCState *s1,
     Elf32_Sym *sym, *symtab;
     Elf32_Rel *rel;
     Section *s;
-    int stab_index;
-    int stabstr_index;
-    stab_index = stabstr_index = 0;
     lseek(fd, file_offset, 0);
     if (tcc_object_type(fd, &ehdr) != 1)
         goto fail1;
@@ -12449,14 +12298,6 @@ static int tcc_load_object_file(TCCState *s1,
             goto fail;
         }
         offset = s->data_offset;
-        if (0 == strcmp(sh_name, ".stab")) {
-            stab_index = i;
-            goto no_align;
-        }
-        if (0 == strcmp(sh_name, ".stabstr")) {
-            stabstr_index = i;
-            goto no_align;
-        }
         size = sh->sh_addralign - 1;
         offset = (offset + size) & ~size;
         if (sh->sh_addralign > s->sh_addralign)
@@ -12475,16 +12316,6 @@ static int tcc_load_object_file(TCCState *s1,
             s->data_offset += size;
         }
     next: ;
-    }
-    if (stab_index && stabstr_index) {
-        Stab_Sym *a, *b;
-        unsigned o;
-        s = sm_table[stab_index].s;
-        a = (Stab_Sym *)(s->data + sm_table[stab_index].offset);
-        b = (Stab_Sym *)(s->data + s->data_offset);
-        o = sm_table[stabstr_index].offset;
-        while (a < b)
-            a->n_strx += o, a++;
     }
     for(i = 1; i < ehdr.e_shnum; i++) {
         s = sm_table[i].s;
@@ -14028,9 +13859,6 @@ static void tcc_cleanup(void)
     if (!s->nostdinc) {
         tcc_add_sysinclude_path(s, "{B}/include" ":" "" "/usr/local/include" "/" "i386-linux-gnu" ":" "" "/usr/local/include" ":" "" "/usr/include" "/" "i386-linux-gnu" ":" "" "/usr/include");
     }
-    if (s->do_debug) {
-        tccelf_stab_new(s);
-    }
     tcc_add_library_path(s, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
     tcc_split_path(s, &s->crt_paths, &s->nb_crt_paths, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
     if ((output_type == 2 || output_type == 3) &&
@@ -14368,7 +14196,6 @@ enum {
     TCC_OPTION_bench,
     TCC_OPTION_bt,
     TCC_OPTION_b,
-    TCC_OPTION_g,
     TCC_OPTION_c,
     TCC_OPTION_dumpversion,
     TCC_OPTION_d,
@@ -14420,7 +14247,6 @@ static const TCCOption tcc_options[] = {
     { "B", TCC_OPTION_B, 0x0001 },
     { "l", TCC_OPTION_l, 0x0001 | 0x0002 },
     { "bench", TCC_OPTION_bench, 0 },
-    { "g", TCC_OPTION_g, 0x0001 | 0x0002 },
     { "c", TCC_OPTION_c, 0 },
     { "dumpversion", TCC_OPTION_dumpversion, 0},
     { "d", TCC_OPTION_d, 0x0001 | 0x0002 },
@@ -14633,9 +14459,6 @@ reparse:
         case TCC_OPTION_bench:
             s->do_bench = 1;
             break;
-        case TCC_OPTION_g:
-            s->do_debug = 1;
-            break;
         case TCC_OPTION_c:
             x = 4;
         set_output_type:
@@ -14650,8 +14473,6 @@ reparse:
                 s->dflag = 7;
             else if (*optarg == 't')
                 s->dflag = 16;
-            else if (isnum(*optarg))
-                g_debug = atoi(optarg);
             else
                 goto unsupported_option;
             break;
@@ -14887,8 +14708,6 @@ static const char help[] =
     "  -rdynamic   export all global symbols to dynamic linker\n"
     "  -soname     set name for shared library to be used at runtime\n"
     "  -Wl,-opt[=val]  set linker option (see tcc -hh)\n"
-    "Debugger options:\n"
-    "  -g          generate runtime debug info\n"
     "Misc. options:\n"
     "  -x[c|a|n]   specify type of the next infile\n"
     "  -nostdinc   do not use standard system include paths\n"
