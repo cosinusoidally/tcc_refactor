@@ -225,8 +225,9 @@ compound-assignment base-token mapping used before `gen_op`. It also owns the
 shift, comparison, and equality token predicates used by the expression
 precedence parser. The first full parser slice has moved too:
 multiplicative, additive, shift, comparison, equality, bitwise AND, bitwise
-XOR, bitwise OR, logical AND, logical OR, conditional, assignment, comma, and
-integer constant-expression parsing now live in `cc3.c`.
+XOR, bitwise OR, logical AND, logical OR, conditional, assignment, comma,
+integer constant-expression parsing, and parser label lookahead now live in
+`cc3.c`.
 
 ## Current Legacy Shrink
 
@@ -249,10 +250,11 @@ archive path now calls into cc2 for the first migrated piece of tool behavior.
 `tccgen.c` has also started shrinking: cc0 dialect type-token recognition and
 assignment-operator recognition now live in `cc3.c`, along with the expression
 parser's shift, comparison, and equality token predicates. The multiplicative
-through constant-expression parser functions have also moved out of `tccgen.c`,
-so the legacy file now resumes at label detection and declaration/statement
-handling. The parser calls through that layer instead of open-coding those
-token decisions locally.
+through constant-expression parser functions and label lookahead have also
+moved out of `tccgen.c`, so the legacy file now resumes at function-return and
+switch/statement code generation helpers before declaration/statement handling.
+The parser calls through that layer instead of open-coding those token decisions
+locally.
 
 ## Removed Run Surface
 

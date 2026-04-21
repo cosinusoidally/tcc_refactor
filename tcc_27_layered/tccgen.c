@@ -5167,26 +5167,6 @@ ST_FUNC void unary(void)
     }
 }
 
-/* return the label token if current token is a label, otherwise
-   return zero */
-static int is_label(void)
-{
-    int last_tok;
-
-    /* fast test first */
-    if (tok < TOK_UIDENT)
-        return 0;
-    /* no need to save tokc because tok is an identifier */
-    last_tok = tok;
-    next();
-    if (tok == ':') {
-        return last_tok;
-    } else {
-        unget_tok(last_tok);
-        return 0;
-    }
-}
-
 #ifndef TCC_TARGET_ARM64
 static void gfunc_return(CType *func_type)
 {
