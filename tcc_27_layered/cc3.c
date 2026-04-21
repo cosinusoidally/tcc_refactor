@@ -5,6 +5,10 @@
  * deliberately small while the real TCC parser is migrated into layers.
  */
 
+static void gen_cast_s(int t);
+static int gvtst(int inv, int t);
+static void vseti(int r, int v);
+
 static int cc3_tccgen_is_cc0_type_token(int token)
 {
     const char *name;
@@ -168,5 +172,87 @@ static void expr_or(void)
         next();
         expr_xor();
         gen_op('|');
+    }
+}
+
+static void expr_land(void)
+{
+    expr_or();
+    if (tok == TOK_LAND) {
+	int t = 0;
+	for(;;) {
+	    if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST) {
+                gen_cast_s(VT_BOOL);
+		if (vtop->c.i) {
+		    vpop();
+		} else {
+		    nocode_wanted++;
+		    while (tok == TOK_LAND) {
+			next();
+			expr_or();
+			vpop();
+		    }
+		    nocode_wanted--;
+		    if (t)
+		      gsym(t);
+		    gen_cast_s(VT_INT);
+		    break;
+		}
+	    } else {
+		if (!t)
+		  save_regs(1);
+		t = gvtst(1, t);
+	    }
+	    if (tok != TOK_LAND) {
+		if (t)
+		  vseti(VT_JMPI, t);
+		else
+		  vpushi(1);
+		break;
+	    }
+	    next();
+	    expr_or();
+	}
+    }
+}
+
+static void expr_lor(void)
+{
+    expr_land();
+    if (tok == TOK_LOR) {
+	int t = 0;
+	for(;;) {
+	    if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST) {
+                gen_cast_s(VT_BOOL);
+		if (!vtop->c.i) {
+		    vpop();
+		} else {
+		    nocode_wanted++;
+		    while (tok == TOK_LOR) {
+			next();
+			expr_land();
+			vpop();
+		    }
+		    nocode_wanted--;
+		    if (t)
+		      gsym(t);
+		    gen_cast_s(VT_INT);
+		    break;
+		}
+	    } else {
+		if (!t)
+		  save_regs(1);
+		t = gvtst(0, t);
+	    }
+	    if (tok != TOK_LOR) {
+		if (t)
+		  vseti(VT_JMP, t);
+		else
+		  vpushi(0);
+		break;
+	    }
+	    next();
+	    expr_land();
+	}
     }
 }

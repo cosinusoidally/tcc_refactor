@@ -159,9 +159,9 @@ operator classification and the compound-assignment base-token mapping used by
 `expr_eq`. The expression parser's shift, comparison, and equality token
 predicates also live here, giving the layer a growing inventory of the parser's
 token grammar. It now owns the real TCC expression parser slice from
-multiplicative expressions through bitwise OR; `tccgen.c` continues from
-logical AND/OR, conditional expressions, and assignment parsing while that upper
-expression code is migrated.
+multiplicative expressions through logical OR; `tccgen.c` continues from
+conditional expressions and assignment parsing while that upper expression code
+is migrated.
 
 `tcc_unified.c` is the current full compiler layer. It maps the lower-layer
 `function` and `var` spelling to C, includes the active cc0/cc2 helpers and the
