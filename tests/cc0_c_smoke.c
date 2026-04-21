@@ -83,6 +83,10 @@ int cc1_get_global_name_char_count();
 int cc1_get_max_global_name_len();
 int cc1_get_global_name_hash();
 int cc1_get_max_function_source_span();
+int cc1_get_function_slot_hash();
+int cc1_get_function_slot_len();
+int cc1_get_global_slot_hash();
+int cc1_get_global_slot_len();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -459,6 +463,22 @@ int main()
         return 185;
     if (cc1_get_max_function_source_span() != 46)
         return 186;
+    if (cc1_get_function_slot_hash(0) != 102)
+        return 187;
+    if (cc1_get_function_slot_len(0) != 1)
+        return 188;
+    if (cc1_get_function_slot_hash(1) != 119)
+        return 189;
+    if (cc1_get_function_slot_len(1) != 1)
+        return 190;
+    if (cc1_get_global_slot_hash(0) != 97)
+        return 191;
+    if (cc1_get_global_slot_len(0) != 1)
+        return 192;
+    if (cc1_get_global_slot_hash(1) != 97)
+        return 193;
+    if (cc1_get_global_slot_len(1) != 1)
+        return 194;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)

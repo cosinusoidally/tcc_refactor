@@ -550,6 +550,18 @@ if (cc1_get_global_name_hash() !== 3298)
 if (cc1_get_max_function_source_span() !== 46)
     throw new Error("cc1 cc0 source shell max function source span failed");
 
+if (cc1_get_function_slot_hash(0) !== 102 || cc1_get_function_slot_len(0) !== 1)
+    throw new Error("cc1 cc0 source shell function slot 0 failed");
+
+if (cc1_get_function_slot_hash(1) !== 119 || cc1_get_function_slot_len(1) !== 1)
+    throw new Error("cc1 cc0 source shell function slot 1 failed");
+
+if (cc1_get_global_slot_hash(0) !== 97 || cc1_get_global_slot_len(0) !== 1)
+    throw new Error("cc1 cc0 source shell global slot 0 failed");
+
+if (cc1_get_global_slot_hash(1) !== 97 || cc1_get_global_slot_len(1) !== 1)
+    throw new Error("cc1 cc0 source shell global slot 1 failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -663,6 +675,30 @@ if (cc1_get_global_name_hash() !== 22993)
 
 if (cc1_get_max_function_source_span() !== 1888)
     throw new Error("cc1 cc0.c max function source span failed");
+
+if (cc1_get_function_slot_hash(0) !== 16844 || cc1_get_function_slot_len(0) !== 7)
+    throw new Error("cc1 cc0.c function slot 0 failed");
+
+if (cc1_get_function_slot_hash(1) !== 11233 || cc1_get_function_slot_len(1) !== 10)
+    throw new Error("cc1 cc0.c function slot 1 failed");
+
+if (cc1_get_function_slot_hash(2) !== 31380 || cc1_get_function_slot_len(2) !== 7)
+    throw new Error("cc1 cc0.c function slot 2 failed");
+
+if (cc1_get_function_slot_hash(3) !== 12434 || cc1_get_function_slot_len(3) !== 26)
+    throw new Error("cc1 cc0.c function slot 3 failed");
+
+if (cc1_get_global_slot_hash(0) !== 14563 || cc1_get_global_slot_len(0) !== 19)
+    throw new Error("cc1 cc0.c global slot 0 failed");
+
+if (cc1_get_global_slot_hash(1) !== 19311 || cc1_get_global_slot_len(1) !== 11)
+    throw new Error("cc1 cc0.c global slot 1 failed");
+
+if (cc1_get_global_slot_hash(2) !== 28778 || cc1_get_global_slot_len(2) !== 12)
+    throw new Error("cc1 cc0.c global slot 2 failed");
+
+if (cc1_get_global_slot_hash(3) !== 5685 || cc1_get_global_slot_len(3) !== 14)
+    throw new Error("cc1 cc0.c global slot 3 failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

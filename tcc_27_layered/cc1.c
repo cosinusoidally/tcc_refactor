@@ -68,6 +68,22 @@ var cc1_max_global_name_len;
 var cc1_global_name_hash;
 var cc1_current_function_source_start;
 var cc1_max_function_source_span;
+var cc1_function_slot0_hash;
+var cc1_function_slot0_len;
+var cc1_function_slot1_hash;
+var cc1_function_slot1_len;
+var cc1_function_slot2_hash;
+var cc1_function_slot2_len;
+var cc1_function_slot3_hash;
+var cc1_function_slot3_len;
+var cc1_global_slot0_hash;
+var cc1_global_slot0_len;
+var cc1_global_slot1_hash;
+var cc1_global_slot1_len;
+var cc1_global_slot2_hash;
+var cc1_global_slot2_len;
+var cc1_global_slot3_hash;
+var cc1_global_slot3_len;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -121,6 +137,22 @@ cc1_max_global_name_len = 0;
 cc1_global_name_hash = 0;
 cc1_current_function_source_start = 0;
 cc1_max_function_source_span = 0;
+cc1_function_slot0_hash = 0;
+cc1_function_slot0_len = 0;
+cc1_function_slot1_hash = 0;
+cc1_function_slot1_len = 0;
+cc1_function_slot2_hash = 0;
+cc1_function_slot2_len = 0;
+cc1_function_slot3_hash = 0;
+cc1_function_slot3_len = 0;
+cc1_global_slot0_hash = 0;
+cc1_global_slot0_len = 0;
+cc1_global_slot1_hash = 0;
+cc1_global_slot1_len = 0;
+cc1_global_slot2_hash = 0;
+cc1_global_slot2_len = 0;
+cc1_global_slot3_hash = 0;
+cc1_global_slot3_len = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -173,6 +205,22 @@ function cc1_reset()
     cc1_global_name_hash = 0;
     cc1_current_function_source_start = 0;
     cc1_max_function_source_span = 0;
+    cc1_function_slot0_hash = 0;
+    cc1_function_slot0_len = 0;
+    cc1_function_slot1_hash = 0;
+    cc1_function_slot1_len = 0;
+    cc1_function_slot2_hash = 0;
+    cc1_function_slot2_len = 0;
+    cc1_function_slot3_hash = 0;
+    cc1_function_slot3_len = 0;
+    cc1_global_slot0_hash = 0;
+    cc1_global_slot0_len = 0;
+    cc1_global_slot1_hash = 0;
+    cc1_global_slot1_len = 0;
+    cc1_global_slot2_hash = 0;
+    cc1_global_slot2_len = 0;
+    cc1_global_slot3_hash = 0;
+    cc1_global_slot3_len = 0;
     return 0;
 }
 
@@ -256,6 +304,24 @@ function cc1_hash_current_name_with(seed)
 
 function cc1_note_function_name_token()
 {
+    var name_hash;
+    name_hash = cc1_hash_current_name_with(0);
+    if (cc1_function_count == 0) {
+        cc1_function_slot0_hash = name_hash;
+        cc1_function_slot0_len = cc0_get_tok_len();
+    }
+    if (cc1_function_count == 1) {
+        cc1_function_slot1_hash = name_hash;
+        cc1_function_slot1_len = cc0_get_tok_len();
+    }
+    if (cc1_function_count == 2) {
+        cc1_function_slot2_hash = name_hash;
+        cc1_function_slot2_len = cc0_get_tok_len();
+    }
+    if (cc1_function_count == 3) {
+        cc1_function_slot3_hash = name_hash;
+        cc1_function_slot3_len = cc0_get_tok_len();
+    }
     cc1_function_name_char_count = cc1_function_name_char_count + cc0_get_tok_len();
     if (cc0_get_tok_len() > cc1_max_function_name_len)
         cc1_max_function_name_len = cc0_get_tok_len();
@@ -265,6 +331,24 @@ function cc1_note_function_name_token()
 
 function cc1_note_global_name_token()
 {
+    var name_hash;
+    name_hash = cc1_hash_current_name_with(0);
+    if (cc1_top_decl_count == 0) {
+        cc1_global_slot0_hash = name_hash;
+        cc1_global_slot0_len = cc0_get_tok_len();
+    }
+    if (cc1_top_decl_count == 1) {
+        cc1_global_slot1_hash = name_hash;
+        cc1_global_slot1_len = cc0_get_tok_len();
+    }
+    if (cc1_top_decl_count == 2) {
+        cc1_global_slot2_hash = name_hash;
+        cc1_global_slot2_len = cc0_get_tok_len();
+    }
+    if (cc1_top_decl_count == 3) {
+        cc1_global_slot3_hash = name_hash;
+        cc1_global_slot3_len = cc0_get_tok_len();
+    }
     cc1_global_name_char_count = cc1_global_name_char_count + cc0_get_tok_len();
     if (cc0_get_tok_len() > cc1_max_global_name_len)
         cc1_max_global_name_len = cc0_get_tok_len();
@@ -1611,4 +1695,56 @@ function cc1_get_global_name_hash()
 function cc1_get_max_function_source_span()
 {
     return cc1_max_function_source_span;
+}
+
+function cc1_get_function_slot_hash(index)
+{
+    if (index == 0)
+        return cc1_function_slot0_hash;
+    if (index == 1)
+        return cc1_function_slot1_hash;
+    if (index == 2)
+        return cc1_function_slot2_hash;
+    if (index == 3)
+        return cc1_function_slot3_hash;
+    return -1;
+}
+
+function cc1_get_function_slot_len(index)
+{
+    if (index == 0)
+        return cc1_function_slot0_len;
+    if (index == 1)
+        return cc1_function_slot1_len;
+    if (index == 2)
+        return cc1_function_slot2_len;
+    if (index == 3)
+        return cc1_function_slot3_len;
+    return -1;
+}
+
+function cc1_get_global_slot_hash(index)
+{
+    if (index == 0)
+        return cc1_global_slot0_hash;
+    if (index == 1)
+        return cc1_global_slot1_hash;
+    if (index == 2)
+        return cc1_global_slot2_hash;
+    if (index == 3)
+        return cc1_global_slot3_hash;
+    return -1;
+}
+
+function cc1_get_global_slot_len(index)
+{
+    if (index == 0)
+        return cc1_global_slot0_len;
+    if (index == 1)
+        return cc1_global_slot1_len;
+    if (index == 2)
+        return cc1_global_slot2_len;
+    if (index == 3)
+        return cc1_global_slot3_len;
+    return -1;
 }

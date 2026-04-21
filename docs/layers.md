@@ -77,8 +77,10 @@ initialized local declarations. Assignment tails are checked for simple name
 targets, and expression scans record the observed `+`, `-`, `*`, comparison,
 and unary-not operator families. Function/global names are also tracked with
 aggregate lengths and stable bounded hashes, and the pass records the maximum
-function source span. Function signature parsing records total and maximum
-parameter counts for the real cc0 source.
+function source span. cc1 also keeps fixed probes for the first four function
+and global symbols by source order, recording each symbol's bounded hash and
+length. Function signature parsing records total and maximum parameter counts
+for the real cc0 source.
 That is not a C parser yet, but it gives the layered
 tree a tested lower-to-upper token stream and symbol-state boundary before
 preprocessing exists.
