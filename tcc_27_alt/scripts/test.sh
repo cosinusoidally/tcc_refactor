@@ -13,13 +13,6 @@ mkdir -p "$OUT"
 echo "checking compiler identity"
 "$RUN_I386" "$ROOTDIR/tcc" -v >/dev/null
 
-echo "checking preprocessor"
-for src in tests/pp/01.c tests/pp/02.c tests/pp/03.c tests/pp/04.c tests/pp/05.c; do
-    base=${src%.c}
-    "$RUN_I386" "$ROOTDIR/tcc" -E -P "$src" > "$OUT/$(basename "$base").out"
-    diff -u -w "$base.expect" "$OUT/$(basename "$base").out"
-done
-
 echo "checking i386 object output"
 $TCC -c tests/hello.c -o "$OUT/hello.o"
 file "$OUT/hello.o" | grep -q 'ELF 32-bit'

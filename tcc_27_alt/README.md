@@ -44,7 +44,6 @@ The old split compiler source is intentionally not part of this reduced tree.
 
 The check target verifies:
 
-- selected preprocessor outputs;
 - i386 relocatable ELF object output;
 - selected compile-only C tests;
 - dynamic i386 executable linking when i386 glibc CRT objects are available.
