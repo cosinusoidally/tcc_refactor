@@ -223,7 +223,9 @@ compiler: the one-source build includes it after `tcc.h` and before
 `parse_btype`, the assignment-token predicate used by `expr_eq`, and the
 compound-assignment base-token mapping used before `gen_op`. It also owns the
 shift, comparison, and equality token predicates used by the expression
-precedence parser.
+precedence parser. The first full parser slice has moved too:
+multiplicative, additive, shift, comparison, equality, bitwise AND, bitwise
+XOR, and bitwise OR expression parsing now live in `cc3.c`.
 
 ## Current Legacy Shrink
 
@@ -245,8 +247,11 @@ cross-exec/wildcard helpers. The layered target is i386 Linux/ELF, and the activ
 archive path now calls into cc2 for the first migrated piece of tool behavior.
 `tccgen.c` has also started shrinking: cc0 dialect type-token recognition and
 assignment-operator recognition now live in `cc3.c`, along with the expression
-parser's shift, comparison, and equality token predicates. The parser calls
-through that layer instead of open-coding those token decisions locally.
+parser's shift, comparison, and equality token predicates. The multiplicative
+through bitwise-OR expression parser functions have also moved out of
+`tccgen.c`, so the legacy file now resumes at logical AND/OR parsing. The
+parser calls through that layer instead of open-coding those token decisions
+locally.
 
 ## Removed Run Surface
 

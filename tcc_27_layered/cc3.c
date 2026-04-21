@@ -75,3 +75,98 @@ static int cc3_tccgen_assignment_base_token(int token)
         return token;
     return token & 0x7f;
 }
+
+ST_FUNC void expr_prod(void)
+{
+    int t;
+
+    unary();
+    while (tok == '*' || tok == '/' || tok == '%') {
+        t = tok;
+        next();
+        unary();
+        gen_op(t);
+    }
+}
+
+ST_FUNC void expr_sum(void)
+{
+    int t;
+
+    expr_prod();
+    while (tok == '+' || tok == '-') {
+        t = tok;
+        next();
+        expr_prod();
+        gen_op(t);
+    }
+}
+
+static void expr_shift(void)
+{
+    int t;
+
+    expr_sum();
+    while (cc3_tccgen_is_shift_token(tok)) {
+        t = tok;
+        next();
+        expr_sum();
+        gen_op(t);
+    }
+}
+
+static void expr_cmp(void)
+{
+    int t;
+
+    expr_shift();
+    while (cc3_tccgen_is_compare_token(tok)) {
+        t = tok;
+        next();
+        expr_shift();
+        gen_op(t);
+    }
+}
+
+static void expr_cmpeq(void)
+{
+    int t;
+
+    expr_cmp();
+    while (cc3_tccgen_is_equality_token(tok)) {
+        t = tok;
+        next();
+        expr_cmp();
+        gen_op(t);
+    }
+}
+
+static void expr_and(void)
+{
+    expr_cmpeq();
+    while (tok == '&') {
+        next();
+        expr_cmpeq();
+        gen_op('&');
+    }
+}
+
+static void expr_xor(void)
+{
+    expr_and();
+    while (tok == '^') {
+        next();
+        expr_and();
+        gen_op('^');
+    }
+}
+
+static void expr_or(void)
+{
+    expr_xor();
+    while (tok == '|') {
+        next();
+        expr_xor();
+        gen_op('|');
+    }
+}
