@@ -583,12 +583,14 @@ int main()
     if (cc1_get_expr_table_cell(0, 0) != 1 ||
         cc1_get_expr_table_cell(0, 1) != 47 ||
         cc1_get_expr_table_cell(0, 2) != 1 ||
-        cc1_get_expr_table_cell(0, 3) != 0)
+        cc1_get_expr_table_cell(0, 3) != 0 ||
+        cc1_get_expr_table_cell(0, 4) != 0)
         return 217;
     if (cc1_get_expr_table_cell(3, 0) != 0 ||
         cc1_get_expr_table_cell(3, 1) != 89 ||
         cc1_get_expr_table_cell(3, 2) != 5 ||
-        cc1_get_expr_table_cell(3, 3) != 1)
+        cc1_get_expr_table_cell(3, 3) != 1 ||
+        cc1_get_expr_table_cell(3, 4) != 5)
         return 218;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;

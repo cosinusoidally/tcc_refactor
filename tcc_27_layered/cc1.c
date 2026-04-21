@@ -445,11 +445,11 @@ function cc1_expr_table_reset()
     cc1_expr_table_limit = 16;
     cc1_expr_table_count = 0;
     cc1_expr_table_overflow = 0;
-    cc1_expr_table_ptr = cc0_cell_alloc(cc1_expr_table_limit * 4);
+    cc1_expr_table_ptr = cc0_cell_alloc(cc1_expr_table_limit * 5);
     return 1;
 }
 
-function cc1_expr_table_add(kind, source_start, source_span, function_ordinal)
+function cc1_expr_table_add(kind, source_start, source_span, function_ordinal, flags)
 {
     var index;
 
@@ -457,11 +457,12 @@ function cc1_expr_table_add(kind, source_start, source_span, function_ordinal)
         cc1_expr_table_overflow = 1;
         return 1;
     }
-    index = cc1_expr_table_count * 4;
+    index = cc1_expr_table_count * 5;
     cc0_cell_set(cc1_expr_table_ptr, index + 0, kind);
     cc0_cell_set(cc1_expr_table_ptr, index + 1, source_start);
     cc0_cell_set(cc1_expr_table_ptr, index + 2, source_span);
     cc0_cell_set(cc1_expr_table_ptr, index + 3, function_ordinal);
+    cc0_cell_set(cc1_expr_table_ptr, index + 4, flags);
     cc1_expr_table_count = cc1_expr_table_count + 1;
     return 1;
 }
@@ -1306,16 +1307,18 @@ function cc1_parse_balanced_parens_tokens()
 function cc1_parse_statement_tail_tokens(mode)
 {
     var expr_start;
+    var expr_flags;
     var has_assignment;
     var has_call;
     var previous_was_name;
     expr_start = cc0_get_tok_start();
+    expr_flags = 0;
     has_assignment = 0;
     has_call = 0;
     previous_was_name = 0;
     while (cc0_get_tok_class() != CC0_TOK_EOF) {
         if (cc1_at_punct(CC0_CH_SEMI)) {
-            cc1_expr_table_add(mode, expr_start, cc0_get_tok_start() - expr_start, cc1_current_function_ordinal);
+            cc1_expr_table_add(mode, expr_start, cc0_get_tok_start() - expr_start, cc1_current_function_ordinal, expr_flags);
             if (mode == 1) {
                 if (has_call)
                     cc1_body_return_call_count = cc1_body_return_call_count + 1;
@@ -1336,6 +1339,7 @@ function cc1_parse_statement_tail_tokens(mode)
         if (cc1_at_punct(CC0_CH_LPAREN)) {
             if (previous_was_name) {
                 has_call = 1;
+                expr_flags = expr_flags | 2;
                 cc1_body_call_count = cc1_body_call_count + 1;
                 if (!cc1_scan_paren_expr_tokens(1, 1))
                     return 0;
@@ -1348,10 +1352,26 @@ function cc1_parse_statement_tail_tokens(mode)
         }
         if (cc1_current_equal_is_assignment()) {
             has_assignment = 1;
+            expr_flags = expr_flags | 1;
             cc1_body_assignment_count = cc1_body_assignment_count + 1;
             if (previous_was_name)
                 cc1_body_name_assignment_count = cc1_body_name_assignment_count + 1;
         }
+        if (cc1_at_punct(CC0_CH_PLUS))
+            expr_flags = expr_flags | 4;
+        if (cc1_at_punct(CC0_CH_MINUS))
+            expr_flags = expr_flags | 8;
+        if (cc1_at_punct(CC0_CH_STAR))
+            expr_flags = expr_flags | 16;
+        if (cc1_at_punct(CC0_CH_LT))
+            expr_flags = expr_flags | 32;
+        if (cc1_at_punct(CC0_CH_GT))
+            expr_flags = expr_flags | 32;
+        if (cc1_at_punct(CC0_CH_EQUAL))
+            if (!cc1_current_equal_is_assignment())
+                expr_flags = expr_flags | 32;
+        if (cc1_at_punct(CC0_CH_BANG))
+            expr_flags = expr_flags | 64;
         cc1_note_body_operator_token();
         if (cc1_at_punct(CC0_CH_RPAREN)) {
             cc1_error = 53;
@@ -2172,7 +2192,7 @@ function cc1_get_expr_table_cell(index, field)
         return -1;
     if (field < 0)
         return -1;
-    if (field > 3)
+    if (field > 4)
         return -1;
-    return cc0_cell_get(cc1_expr_table_ptr, index * 4 + field);
+    return cc0_cell_get(cc1_expr_table_ptr, index * 5 + field);
 }

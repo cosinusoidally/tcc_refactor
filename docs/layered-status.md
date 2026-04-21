@@ -160,8 +160,9 @@ their own heap-backed tables with name hash/length, declaration ordinal, and
 owning function ordinal, so the shell parse now exposes the first scoped-name
 inventory cc0 lowering will need. Semicolon-terminated body tails also produce
 expression-slice records with tail kind, source start, source span, and owning
-function ordinal, giving the next expression lowering step bounded source
-ranges to consume.
+function ordinal. Each expression slice carries a compact operator flag word for
+assignment, call, arithmetic, comparison, and unary-not shapes, giving the next
+expression lowering step bounded source ranges and a routing key to consume.
 This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and

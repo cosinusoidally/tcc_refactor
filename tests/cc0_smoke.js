@@ -658,13 +658,15 @@ if (cc1_get_expr_table_count() !== 5 || cc1_get_expr_table_overflow() !== 0)
 if (cc1_get_expr_table_cell(0, 0) !== 1 ||
     cc1_get_expr_table_cell(0, 1) !== 47 ||
     cc1_get_expr_table_cell(0, 2) !== 1 ||
-    cc1_get_expr_table_cell(0, 3) !== 0)
+    cc1_get_expr_table_cell(0, 3) !== 0 ||
+    cc1_get_expr_table_cell(0, 4) !== 0)
     throw new Error("cc1 cc0 source shell expr record 0 failed");
 
 if (cc1_get_expr_table_cell(3, 0) !== 0 ||
     cc1_get_expr_table_cell(3, 1) !== 89 ||
     cc1_get_expr_table_cell(3, 2) !== 5 ||
-    cc1_get_expr_table_cell(3, 3) !== 1)
+    cc1_get_expr_table_cell(3, 3) !== 1 ||
+    cc1_get_expr_table_cell(3, 4) !== 5)
     throw new Error("cc1 cc0 source shell expr record 3 failed");
 
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
@@ -899,13 +901,15 @@ if (cc1_get_expr_table_count() !== 16 || cc1_get_expr_table_overflow() !== 1)
 if (cc1_get_expr_table_cell(0, 0) !== 1 ||
     cc1_get_expr_table_cell(0, 1) !== 3263 ||
     cc1_get_expr_table_cell(0, 2) !== 5 ||
-    cc1_get_expr_table_cell(0, 3) !== 0)
+    cc1_get_expr_table_cell(0, 3) !== 0 ||
+    cc1_get_expr_table_cell(0, 4) !== 4)
     throw new Error("cc1 cc0.c expr record 0 failed");
 
 if (cc1_get_expr_table_cell(15, 0) !== 1 ||
     cc1_get_expr_table_cell(15, 1) !== 4025 ||
     cc1_get_expr_table_cell(15, 2) !== 1 ||
-    cc1_get_expr_table_cell(15, 3) !== 4)
+    cc1_get_expr_table_cell(15, 3) !== 4 ||
+    cc1_get_expr_table_cell(15, 4) !== 0)
     throw new Error("cc1 cc0.c expr record 15 failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
