@@ -87,7 +87,7 @@ printing a skip reason.
 
 - `tcc_nopp.c`: the no-preprocessor compiler source, including driver,
   parser, ELF output/linking, i386 code generator, and assembler.
-- `lib/libtcc1.c`, `lib/alloca86.S`: minimal runtime routines and alloca
+- `lib/libtcc1_nopp.c`, `lib/alloca86.S`: minimal runtime routines and alloca
   support for linked output.
 - `include/`: builtin headers supplied by TCC.
 - `tests/`: retained smoke tests for this reduced i386/Linux compiler.

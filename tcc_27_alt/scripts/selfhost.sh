@@ -29,7 +29,7 @@ build_runtime()
     compiler=$1
     bdir=$2
     mkdir -p "$bdir"
-    "$RUN_I386" "$compiler" -B"$bdir" -Iinclude -I. -c lib/libtcc1.c -o "$bdir/libtcc1.o"
+    "$RUN_I386" "$compiler" -B"$bdir" -nostdinc -c lib/libtcc1_nopp.c -o "$bdir/libtcc1.o"
     "$RUN_I386" "$compiler" -B"$bdir" -Iinclude -I. -c lib/alloca86.S -o "$bdir/alloca86.o"
     "$RUN_I386" "$compiler" -ar rcs "$bdir/libtcc1.a" "$bdir/libtcc1.o" "$bdir/alloca86.o"
 }

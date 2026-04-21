@@ -20,7 +20,7 @@ $CC $CFLAGS -nostdinc -o "$ROOTDIR/tcc" tcc_nopp.c $LDFLAGS $LDLIBS
 chmod +x "$ROOTDIR/tcc"
 
 echo "building $ROOTDIR/libtcc1.a with $ROOTDIR/tcc"
-"$RUN_I386" "$ROOTDIR/tcc" -B"$ROOTDIR" -Iinclude -I. -c lib/libtcc1.c -o "$ROOTDIR/libtcc1.o"
+"$RUN_I386" "$ROOTDIR/tcc" -B"$ROOTDIR" -nostdinc -c lib/libtcc1_nopp.c -o "$ROOTDIR/libtcc1.o"
 "$RUN_I386" "$ROOTDIR/tcc" -B"$ROOTDIR" -Iinclude -I. -c lib/alloca86.S -o "$ROOTDIR/alloca86.o"
 "$RUN_I386" "$ROOTDIR/tcc" -ar rcs "$ROOTDIR/libtcc1.a" "$ROOTDIR/libtcc1.o" "$ROOTDIR/alloca86.o"
 
