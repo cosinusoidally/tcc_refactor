@@ -88,6 +88,9 @@ hash/length, parameter count, source start, source span, and ordinal cells.
 The function body walk now stores bounded statement records with kind, depth,
 source start, and owning function ordinal cells, preserving source order for the
 body skeleton that later lowering will consume.
+Parameter declarations and local `var` declarations are also stored in bounded
+heap-backed tables with name hash/length, declaration ordinal, and owning
+function ordinal cells.
 Function signature parsing records total and maximum parameter counts for the
 real cc0 source.
 That is not a C parser yet, but it gives the layered

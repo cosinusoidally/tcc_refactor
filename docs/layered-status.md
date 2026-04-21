@@ -155,7 +155,10 @@ function table, recording each function's name hash/length, parameter count,
 source start, source span, and ordinal. Function body scans now additionally
 emit bounded statement records with statement kind, nesting depth, source start,
 and owning function ordinal, giving later lowering passes a replayable body
-skeleton.
+skeleton. Signature parameters and local `var` declarations are recorded in
+their own heap-backed tables with name hash/length, declaration ordinal, and
+owning function ordinal, so the shell parse now exposes the first scoped-name
+inventory cc0 lowering will need.
 This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and

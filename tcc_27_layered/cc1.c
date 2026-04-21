@@ -100,6 +100,14 @@ var cc1_statement_table_limit;
 var cc1_statement_table_count;
 var cc1_statement_table_overflow;
 var cc1_current_function_ordinal;
+var cc1_param_table_ptr;
+var cc1_param_table_limit;
+var cc1_param_table_count;
+var cc1_param_table_overflow;
+var cc1_local_table_ptr;
+var cc1_local_table_limit;
+var cc1_local_table_count;
+var cc1_local_table_overflow;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -185,6 +193,14 @@ cc1_statement_table_limit = 0;
 cc1_statement_table_count = 0;
 cc1_statement_table_overflow = 0;
 cc1_current_function_ordinal = 0;
+cc1_param_table_ptr = 0;
+cc1_param_table_limit = 0;
+cc1_param_table_count = 0;
+cc1_param_table_overflow = 0;
+cc1_local_table_ptr = 0;
+cc1_local_table_limit = 0;
+cc1_local_table_count = 0;
+cc1_local_table_overflow = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -269,6 +285,14 @@ function cc1_reset()
     cc1_statement_table_count = 0;
     cc1_statement_table_overflow = 0;
     cc1_current_function_ordinal = 0;
+    cc1_param_table_ptr = 0;
+    cc1_param_table_limit = 0;
+    cc1_param_table_count = 0;
+    cc1_param_table_overflow = 0;
+    cc1_local_table_ptr = 0;
+    cc1_local_table_limit = 0;
+    cc1_local_table_count = 0;
+    cc1_local_table_overflow = 0;
     return 0;
 }
 
@@ -349,6 +373,58 @@ function cc1_statement_table_add(kind, depth, source_start, function_ordinal)
     cc0_cell_set(cc1_statement_table_ptr, index + 2, source_start);
     cc0_cell_set(cc1_statement_table_ptr, index + 3, function_ordinal);
     cc1_statement_table_count = cc1_statement_table_count + 1;
+    return 1;
+}
+
+function cc1_param_table_reset()
+{
+    cc1_param_table_limit = 16;
+    cc1_param_table_count = 0;
+    cc1_param_table_overflow = 0;
+    cc1_param_table_ptr = cc0_cell_alloc(cc1_param_table_limit * 4);
+    return 1;
+}
+
+function cc1_param_table_add(hash, len, ordinal, function_ordinal)
+{
+    var index;
+
+    if (cc1_param_table_count >= cc1_param_table_limit) {
+        cc1_param_table_overflow = 1;
+        return 1;
+    }
+    index = cc1_param_table_count * 4;
+    cc0_cell_set(cc1_param_table_ptr, index + 0, hash);
+    cc0_cell_set(cc1_param_table_ptr, index + 1, len);
+    cc0_cell_set(cc1_param_table_ptr, index + 2, ordinal);
+    cc0_cell_set(cc1_param_table_ptr, index + 3, function_ordinal);
+    cc1_param_table_count = cc1_param_table_count + 1;
+    return 1;
+}
+
+function cc1_local_table_reset()
+{
+    cc1_local_table_limit = 16;
+    cc1_local_table_count = 0;
+    cc1_local_table_overflow = 0;
+    cc1_local_table_ptr = cc0_cell_alloc(cc1_local_table_limit * 4);
+    return 1;
+}
+
+function cc1_local_table_add(hash, len, ordinal, function_ordinal)
+{
+    var index;
+
+    if (cc1_local_table_count >= cc1_local_table_limit) {
+        cc1_local_table_overflow = 1;
+        return 1;
+    }
+    index = cc1_local_table_count * 4;
+    cc0_cell_set(cc1_local_table_ptr, index + 0, hash);
+    cc0_cell_set(cc1_local_table_ptr, index + 1, len);
+    cc0_cell_set(cc1_local_table_ptr, index + 2, ordinal);
+    cc0_cell_set(cc1_local_table_ptr, index + 3, function_ordinal);
+    cc1_local_table_count = cc1_local_table_count + 1;
     return 1;
 }
 
@@ -1331,6 +1407,11 @@ function cc1_parse_function_signature_tokens()
             cc1_error = 47;
             return 0;
         }
+        cc1_param_table_add(
+            cc1_hash_current_name_with(0),
+            cc0_get_tok_len(),
+            param_count,
+            cc1_current_function_ordinal);
         param_count = param_count + 1;
         cc1_param_count = cc1_param_count + 1;
         cc0_scan_next();
@@ -1358,6 +1439,11 @@ function cc1_parse_var_statement_tokens()
         cc1_error = 57;
         return 0;
     }
+    cc1_local_table_add(
+        cc1_hash_current_name_with(0),
+        cc0_get_tok_len(),
+        cc1_current_function_local_count - 1,
+        cc1_current_function_ordinal);
     cc0_scan_next();
     return cc1_parse_statement_tail_tokens(2);
 }
@@ -1485,6 +1571,8 @@ function cc1_parse_cc0_source_string(source)
     cc1_symbol_table_reset();
     cc1_function_table_reset();
     cc1_statement_table_reset();
+    cc1_param_table_reset();
+    cc1_local_table_reset();
     cc0_source_set_string(source);
     cc0_scan_next();
     if (!cc1_parse_cc0_source_tokens())
@@ -1976,4 +2064,50 @@ function cc1_get_statement_table_cell(index, field)
     if (field > 3)
         return -1;
     return cc0_cell_get(cc1_statement_table_ptr, index * 4 + field);
+}
+
+function cc1_get_param_table_count()
+{
+    return cc1_param_table_count;
+}
+
+function cc1_get_param_table_overflow()
+{
+    return cc1_param_table_overflow;
+}
+
+function cc1_get_param_table_cell(index, field)
+{
+    if (index < 0)
+        return -1;
+    if (index >= cc1_param_table_count)
+        return -1;
+    if (field < 0)
+        return -1;
+    if (field > 3)
+        return -1;
+    return cc0_cell_get(cc1_param_table_ptr, index * 4 + field);
+}
+
+function cc1_get_local_table_count()
+{
+    return cc1_local_table_count;
+}
+
+function cc1_get_local_table_overflow()
+{
+    return cc1_local_table_overflow;
+}
+
+function cc1_get_local_table_cell(index, field)
+{
+    if (index < 0)
+        return -1;
+    if (index >= cc1_local_table_count)
+        return -1;
+    if (field < 0)
+        return -1;
+    if (field > 3)
+        return -1;
+    return cc0_cell_get(cc1_local_table_ptr, index * 4 + field);
 }
