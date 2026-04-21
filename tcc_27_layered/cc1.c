@@ -254,7 +254,11 @@ cc1_expr_table_overflow = 0;
 
 function cc1_compile_unit(source_id)
 {
-    return 1;
+    if (source_id == 0) {
+        cc1_error = 70;
+        return 0;
+    }
+    return cc1_parse_cc0_source_string(source_id);
 }
 
 function cc1_has_real_parser()

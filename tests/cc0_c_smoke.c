@@ -253,8 +253,10 @@ int main()
         return 131;
     if (cc0_scan_next() != 4 || cc0_scan_next() != 0)
         return 132;
-    if (cc1_compile_unit(0) != 1)
+    if (cc1_compile_unit(mks("function f(){return 1;}")) != 1)
         return 27;
+    if (cc1_get_function_count() != 1 || cc1_get_return_count() != 1)
+        return 133;
     if (cc1_has_real_parser() != 1)
         return 28;
     if (cc1_parse_sum8(49, 50, 43, 51, 32, -1, -1, -1) != 1)

@@ -167,7 +167,9 @@ expression-slice records with tail kind, source start, source span, and owning
 function ordinal. Each expression slice carries a compact operator flag word for
 assignment, call, arithmetic, comparison, and unary-not shapes, giving the next
 expression lowering step bounded source ranges and a routing key to consume.
-cc1 can now seek the cc0 scanner back to an expression-slice start and evaluate
+`cc1_compile_unit(source_id)` is no longer a success stub: in the current
+bootstrap harness `source_id` is a cc0 heap string pointer, and the entry point
+drives the same whole-source cc0 parser used by the source-walk tests. cc1 can now seek the cc0 scanner back to an expression-slice start and evaluate
 simple return and initializer slices through the real expression parser, so
 recorded body data is beginning to feed executable lowering instead of only
 metrics. The bounded cc1 tables now have named capacities large enough to hold

@@ -193,8 +193,11 @@ if (cc0_scan_next() !== CC0_TOK_PUNCT || cc0_scan_next() !== CC0_TOK_EOF)
 load("../tcc_27_layered/cc1.c");
 load("../tcc_27_layered/cc2.c");
 
-if (cc1_compile_unit(0) !== 1)
-    throw new Error("cc1 stub compile failed");
+if (cc1_compile_unit(mks("function f(){return 1;}")) !== 1)
+    throw new Error("cc1 compile unit parse failed");
+
+if (cc1_get_function_count() !== 1 || cc1_get_return_count() !== 1)
+    throw new Error("cc1 compile unit state failed");
 
 if (cc1_has_real_parser() !== 1)
     throw new Error("cc1 parser marker failed");

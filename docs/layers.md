@@ -110,6 +110,9 @@ is now pinned against synthetic functions and the real `cc0_add`, `cc0_select`,
 argument and name slots for the observed nine-parameter cc0 word recognizers,
 and resolves single-character `CC0_CH_*` constants plus `CC0_CH_NUL` while
 evaluating guards.
+The public `cc1_compile_unit(source_id)` hook now treats `source_id` as a cc0
+heap string pointer and runs this whole-source parser, replacing the previous
+success-only stub with a real lower-layer entry point.
 Function signature parsing records total and maximum parameter counts for the
 real cc0 source.
 That is not a C parser yet, but it gives the layered
