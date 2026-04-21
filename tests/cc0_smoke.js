@@ -511,6 +511,24 @@ if (cc1_get_body_return_call_count() !== 0)
 if (cc1_get_body_local_init_count() !== 1)
     throw new Error("cc1 cc0 source shell local init count failed");
 
+if (cc1_get_body_name_assignment_count() !== 1)
+    throw new Error("cc1 cc0 source shell name assignment count failed");
+
+if (cc1_get_body_plus_op_count() !== 1)
+    throw new Error("cc1 cc0 source shell plus op count failed");
+
+if (cc1_get_body_minus_op_count() !== 0)
+    throw new Error("cc1 cc0 source shell minus op count failed");
+
+if (cc1_get_body_star_op_count() !== 0)
+    throw new Error("cc1 cc0 source shell star op count failed");
+
+if (cc1_get_body_compare_op_count() !== 0)
+    throw new Error("cc1 cc0 source shell compare op count failed");
+
+if (cc1_get_body_not_op_count() !== 0)
+    throw new Error("cc1 cc0 source shell not op count failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -585,6 +603,24 @@ if (cc1_get_body_return_call_count() !== 8)
 
 if (cc1_get_body_local_init_count() !== 0)
     throw new Error("cc1 cc0.c local init count failed");
+
+if (cc1_get_body_name_assignment_count() !== 94)
+    throw new Error("cc1 cc0.c name assignment count failed");
+
+if (cc1_get_body_plus_op_count() !== 44)
+    throw new Error("cc1 cc0.c plus op count failed");
+
+if (cc1_get_body_minus_op_count() !== 12)
+    throw new Error("cc1 cc0.c minus op count failed");
+
+if (cc1_get_body_star_op_count() !== 1)
+    throw new Error("cc1 cc0.c star op count failed");
+
+if (cc1_get_body_compare_op_count() !== 102)
+    throw new Error("cc1 cc0.c compare op count failed");
+
+if (cc1_get_body_not_op_count() !== 0)
+    throw new Error("cc1 cc0.c not op count failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

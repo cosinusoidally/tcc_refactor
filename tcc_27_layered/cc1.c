@@ -54,6 +54,12 @@ var cc1_body_expr_statement_count;
 var cc1_body_call_statement_count;
 var cc1_body_return_call_count;
 var cc1_body_local_init_count;
+var cc1_body_name_assignment_count;
+var cc1_body_plus_op_count;
+var cc1_body_minus_op_count;
+var cc1_body_star_op_count;
+var cc1_body_compare_op_count;
+var cc1_body_not_op_count;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -93,6 +99,12 @@ cc1_body_expr_statement_count = 0;
 cc1_body_call_statement_count = 0;
 cc1_body_return_call_count = 0;
 cc1_body_local_init_count = 0;
+cc1_body_name_assignment_count = 0;
+cc1_body_plus_op_count = 0;
+cc1_body_minus_op_count = 0;
+cc1_body_star_op_count = 0;
+cc1_body_compare_op_count = 0;
+cc1_body_not_op_count = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -131,6 +143,12 @@ function cc1_reset()
     cc1_body_call_statement_count = 0;
     cc1_body_return_call_count = 0;
     cc1_body_local_init_count = 0;
+    cc1_body_name_assignment_count = 0;
+    cc1_body_plus_op_count = 0;
+    cc1_body_minus_op_count = 0;
+    cc1_body_star_op_count = 0;
+    cc1_body_compare_op_count = 0;
+    cc1_body_not_op_count = 0;
     return 0;
 }
 
@@ -784,6 +802,46 @@ function cc1_current_equal_is_assignment()
     return 1;
 }
 
+function cc1_note_body_operator_token()
+{
+    var next;
+    if (cc1_at_punct(CC0_CH_PLUS)) {
+        cc1_body_plus_op_count = cc1_body_plus_op_count + 1;
+        return 1;
+    }
+    if (cc1_at_punct(CC0_CH_MINUS)) {
+        cc1_body_minus_op_count = cc1_body_minus_op_count + 1;
+        return 1;
+    }
+    if (cc1_at_punct(CC0_CH_STAR)) {
+        cc1_body_star_op_count = cc1_body_star_op_count + 1;
+        return 1;
+    }
+    if (cc1_at_punct(CC0_CH_LT)) {
+        cc1_body_compare_op_count = cc1_body_compare_op_count + 1;
+        return 1;
+    }
+    if (cc1_at_punct(CC0_CH_GT)) {
+        cc1_body_compare_op_count = cc1_body_compare_op_count + 1;
+        return 1;
+    }
+    if (cc1_at_punct(CC0_CH_EQUAL)) {
+        next = cc1_next_nonspace_from(cc0_get_tok_start() + 1);
+        if (next == CC0_CH_EQUAL)
+            cc1_body_compare_op_count = cc1_body_compare_op_count + 1;
+        return 1;
+    }
+    if (cc1_at_punct(CC0_CH_BANG)) {
+        next = cc1_next_nonspace_from(cc0_get_tok_start() + 1);
+        if (next == CC0_CH_EQUAL)
+            cc1_body_compare_op_count = cc1_body_compare_op_count + 1;
+        else
+            cc1_body_not_op_count = cc1_body_not_op_count + 1;
+        return 1;
+    }
+    return 0;
+}
+
 function cc1_scan_paren_expr_tokens(is_call, expr_depth)
 {
     var arg_count;
@@ -830,8 +888,12 @@ function cc1_scan_paren_expr_tokens(is_call, expr_depth)
             saw_arg = 1;
             continue;
         }
-        if (cc1_current_equal_is_assignment())
+        if (cc1_current_equal_is_assignment()) {
             cc1_body_assignment_count = cc1_body_assignment_count + 1;
+            if (previous_was_name)
+                cc1_body_name_assignment_count = cc1_body_name_assignment_count + 1;
+        }
+        cc1_note_body_operator_token();
         if (cc1_at_punct(CC0_CH_LBRACE)) {
             cc1_error = 58;
             return 0;
@@ -899,7 +961,10 @@ function cc1_parse_statement_tail_tokens(mode)
         if (cc1_current_equal_is_assignment()) {
             has_assignment = 1;
             cc1_body_assignment_count = cc1_body_assignment_count + 1;
+            if (previous_was_name)
+                cc1_body_name_assignment_count = cc1_body_name_assignment_count + 1;
         }
+        cc1_note_body_operator_token();
         if (cc1_at_punct(CC0_CH_RPAREN)) {
             cc1_error = 53;
             return 0;
@@ -1418,4 +1483,34 @@ function cc1_get_body_return_call_count()
 function cc1_get_body_local_init_count()
 {
     return cc1_body_local_init_count;
+}
+
+function cc1_get_body_name_assignment_count()
+{
+    return cc1_body_name_assignment_count;
+}
+
+function cc1_get_body_plus_op_count()
+{
+    return cc1_body_plus_op_count;
+}
+
+function cc1_get_body_minus_op_count()
+{
+    return cc1_body_minus_op_count;
+}
+
+function cc1_get_body_star_op_count()
+{
+    return cc1_body_star_op_count;
+}
+
+function cc1_get_body_compare_op_count()
+{
+    return cc1_body_compare_op_count;
+}
+
+function cc1_get_body_not_op_count()
+{
+    return cc1_body_not_op_count;
 }

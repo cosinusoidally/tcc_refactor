@@ -70,6 +70,12 @@ int cc1_get_body_expr_statement_count();
 int cc1_get_body_call_statement_count();
 int cc1_get_body_return_call_count();
 int cc1_get_body_local_init_count();
+int cc1_get_body_name_assignment_count();
+int cc1_get_body_plus_op_count();
+int cc1_get_body_minus_op_count();
+int cc1_get_body_star_op_count();
+int cc1_get_body_compare_op_count();
+int cc1_get_body_not_op_count();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -420,6 +426,18 @@ int main()
         return 172;
     if (cc1_get_body_local_init_count() != 1)
         return 173;
+    if (cc1_get_body_name_assignment_count() != 1)
+        return 174;
+    if (cc1_get_body_plus_op_count() != 1)
+        return 175;
+    if (cc1_get_body_minus_op_count() != 0)
+        return 176;
+    if (cc1_get_body_star_op_count() != 0)
+        return 177;
+    if (cc1_get_body_compare_op_count() != 0)
+        return 178;
+    if (cc1_get_body_not_op_count() != 0)
+        return 179;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)

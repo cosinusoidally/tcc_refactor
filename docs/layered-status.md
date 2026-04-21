@@ -138,7 +138,9 @@ any single function body. Function signature parsing also records total and
 maximum parameter counts for the real cc0 source. Semicolon-terminated tails are
 now also classified into plain expression statements, call-bearing expression
 statements, return statements whose expression contains a call, and `var`
-declarations with initializers. This is
+declarations with initializers. Assignment tails are further checked for simple
+name targets, and expression scans record the observed `+`, `-`, `*`,
+comparison, and unary-not operator families used by cc0 bodies. This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
 self-checking in both runtimes before larger grammar work is moved over.
