@@ -628,7 +628,6 @@ struct TCCState {
     int warn_none;
     int warn_implicit_function_declaration;
     int warn_gcc_compat;
-    int run_test;
     Elf32_Addr text_addr;
     int has_text_addr;
     unsigned section_align;
@@ -652,16 +651,6 @@ struct TCCState {
     int error_set_jmp_enabled;
     jmp_buf error_jmp_buf;
     int nb_errors;
-    FILE *ppfp;
-    enum {
-	LINE_MACRO_OUTPUT_FORMAT_GCC,
-	LINE_MACRO_OUTPUT_FORMAT_NONE,
-	LINE_MACRO_OUTPUT_FORMAT_STD,
-    LINE_MACRO_OUTPUT_FORMAT_P10 = 11
-    } Pflag;
-    char dflag;
-    char **target_deps;
-    int nb_target_deps;
     BufferedFile *include_stack[32];
     BufferedFile **include_stack_ptr;
     int ifdef_stack[64];
@@ -693,8 +682,6 @@ struct TCCState {
     char *outfile;
     int option_r;
     int do_bench;
-    int gen_deps;
-    char *deps_outfile;
     int option_pthread;
     int argc;
     char **argv;
@@ -1379,7 +1366,6 @@ static void preprocess_start(TCCState *s1, int is_asm);
 static void preprocess_end(TCCState *s1);
 static void tccpp_new(TCCState *s);
 static void tccpp_delete(TCCState *s);
-static int tcc_preprocess(TCCState *s1);
 static void skip(int c);
 static  void expect(const char *msg);
 static inline int is_space(int ch) {
@@ -1590,11 +1576,9 @@ static CString cstr_buf;
 static CString macro_equal_buf;
 static TokenString tokstr_buf;
 static unsigned char isidnum_table[256 - (-1)];
-static int pp_debug_tok, pp_debug_symv;
 static int pp_once;
 static int pp_expr;
 static int pp_counter;
-static void tok_print(const char *msg, const int *str);
 static struct TinyAlloc *toksym_alloc;
 static struct TinyAlloc *tokstr_alloc;
 static struct TinyAlloc *cstr_alloc;
@@ -3174,19 +3158,6 @@ static void label_pop(Sym **ptop, Sym *slast, int keep)
     if (!keep)
         *ptop = slast;
 }
-static void maybe_run_test(TCCState *s)
-{
-    const char *p;
-    if (s->include_stack_ptr != s->include_stack)
-        return;
-    p = get_tok_str(tok, ((void*)0));
-    if (0 != memcmp(p, "test_", 5))
-        return;
-    if (0 != --s->run_test)
-        return;
-    fprintf(s->ppfp, "\n[%s]\n" + !(s->dflag & 32), p), fflush(s->ppfp);
-    define_push(tok, 0, ((void*)0), ((void*)0));
-}
 static int expr_preprocess(void)
 {
     int c, t;
@@ -3202,8 +3173,6 @@ static int expr_preprocess(void)
                 next_nomacro();
             if (tok < 256)
                 expect("identifier");
-            if (tcc_state->run_test)
-                maybe_run_test(tcc_state);
             c = define_find(tok) != 0;
             if (t == '(') {
                 next_nomacro();
@@ -3359,14 +3328,8 @@ static void pragma_parse(TCCState *s1)
             table_ident[v - 256]->sym_define = s->d ? s : ((void*)0);
         else
             tcc_warning("unbalanced #pragma pop_macro");
-        pp_debug_tok = t, pp_debug_symv = v;
     } else if (tok == TOK_once) {
         search_cached_include(s1, file->filename, 1)->once = pp_once;
-    } else if (s1->output_type == 5) {
-        unget_tok(' ');
-        unget_tok(TOK_PRAGMA);
-        unget_tok('#');
-        unget_tok(10);
     } else if (tok == TOK_pack) {
         next();
         skip('(');
@@ -3443,15 +3406,11 @@ static void preprocess(int is_bof)
  redo:
     switch(tok) {
     case TOK_DEFINE:
-        pp_debug_tok = tok;
         next_nomacro();
-        pp_debug_symv = tok;
         parse_define();
         break;
     case TOK_UNDEF:
-        pp_debug_tok = tok;
         next_nomacro();
-        pp_debug_symv = tok;
         s = define_find(tok);
         if (s)
             define_undef(s);
@@ -3530,8 +3489,6 @@ static void preprocess(int is_bof)
             if (tcc_open(s1, buf1) < 0)
                 continue;
             file->include_next_index = i + 1;
-            dynarray_add(&s1->target_deps, &s1->nb_target_deps,
-                    tcc_strdup(buf1));
             ++s1->include_stack_ptr;
             tok_flags |= 0x0002 | 0x0001;
             ch = file->buf_ptr[0];
@@ -4996,7 +4953,6 @@ static void preprocess_start(TCCState *s1, int is_asm)
     file->ifdef_stack_ptr = s1->ifdef_stack_ptr;
     pp_expr = 0;
     pp_counter = 0;
-    pp_debug_tok = pp_debug_symv = 0;
     pp_once++;
     pvtop = vtop = (__vstack + 1) - 1;
     s1->pack_stack[0] = 0;
@@ -5036,7 +4992,6 @@ static void tccpp_new(TCCState *s)
     int i, c;
     const char *p, *r;
     s->include_stack_ptr = s->include_stack;
-    s->ppfp = stdout;
     for(i = (-1); i<128; i++)
         set_idnum(i,
             is_space(i) ? 1
@@ -5085,164 +5040,6 @@ static void tccpp_delete(TCCState *s)
     tokstr_alloc = ((void*)0);
     tal_delete(cstr_alloc);
     cstr_alloc = ((void*)0);
-}
-static void tok_print(const char *msg, const int *str)
-{
-    FILE *fp;
-    int t, s = 0;
-    CValue cval;
-    fp = tcc_state->ppfp;
-    fprintf(fp, "%s", msg);
-    while (str) {
-	TOK_GET(&t, &str, &cval);
-	if (!t)
-	    break;
-	fprintf(fp, " %s" + s, get_tok_str(t, &cval)), s = 1;
-    }
-    fprintf(fp, "\n");
-}
-static void pp_line(TCCState *s1, BufferedFile *f, int level)
-{
-    int d = f->line_num - f->line_ref;
-    if (s1->dflag & 4)
-	return;
-    if (s1->Pflag == LINE_MACRO_OUTPUT_FORMAT_NONE) {
-        ;
-    } else if (level == 0 && f->line_ref && d < 8) {
-	while (d > 0)
-	    fputs("\n", s1->ppfp), --d;
-    } else if (s1->Pflag == LINE_MACRO_OUTPUT_FORMAT_STD) {
-	fprintf(s1->ppfp, "#line %d \"%s\"\n", f->line_num, f->filename);
-    } else {
-	fprintf(s1->ppfp, "# %d \"%s\"%s\n", f->line_num, f->filename,
-	    level > 0 ? " 1" : level < 0 ? " 2" : "");
-    }
-    f->line_ref = f->line_num;
-}
-static void define_print(TCCState *s1, int v)
-{
-    FILE *fp;
-    Sym *s;
-    s = define_find(v);
-    if (((void*)0) == s || ((void*)0) == s->d)
-        return;
-    fp = s1->ppfp;
-    fprintf(fp, "#define %s", get_tok_str(v, ((void*)0)));
-    if (s->type.t == 1) {
-        Sym *a = s->next;
-        fprintf(fp,"(");
-        if (a)
-            for (;;) {
-                fprintf(fp,"%s", get_tok_str(a->v & ~0x20000000, ((void*)0)));
-                if (!(a = a->next))
-                    break;
-                fprintf(fp,",");
-            }
-        fprintf(fp,")");
-    }
-    tok_print("", s->d);
-}
-static void pp_debug_defines(TCCState *s1)
-{
-    int v, t;
-    const char *vs;
-    FILE *fp;
-    t = pp_debug_tok;
-    if (t == 0)
-        return;
-    file->line_num--;
-    pp_line(s1, file, 0);
-    file->line_ref = ++file->line_num;
-    fp = s1->ppfp;
-    v = pp_debug_symv;
-    vs = get_tok_str(v, ((void*)0));
-    if (t == TOK_DEFINE) {
-        define_print(s1, v);
-    } else if (t == TOK_UNDEF) {
-        fprintf(fp, "#undef %s\n", vs);
-    } else if (t == TOK_push_macro) {
-        fprintf(fp, "#pragma push_macro(\"%s\")\n", vs);
-    } else if (t == TOK_pop_macro) {
-        fprintf(fp, "#pragma pop_macro(\"%s\")\n", vs);
-    }
-    pp_debug_tok = 0;
-}
-static void pp_debug_builtins(TCCState *s1)
-{
-    int v;
-    for (v = 256; v < tok_ident; ++v)
-        define_print(s1, v);
-}
-static int pp_need_space(int a, int b)
-{
-    return 'E' == a ? '+' == b || '-' == b
-        : '+' == a ? 0xa4 == b || '+' == b
-        : '-' == a ? 0xa2 == b || '-' == b
-        : a >= 256 ? b >= 256
-	: a == 0xbe ? b >= 256
-        : 0;
-}
-static int pp_check_he0xE(int t, const char *p)
-{
-    if (t == 0xbe && toup(strchr(p, 0)[-1]) == 'E')
-        return 'E';
-    return t;
-}
-static int tcc_preprocess(TCCState *s1)
-{
-    BufferedFile **iptr;
-    int token_seen, spcs, level;
-    const char *p;
-    char white[400];
-    parse_flags = 0x0001
-                | (parse_flags & 0x0008)
-                | 0x0004
-                | 0x0010
-                | 0x0020
-                ;
-    if (s1->Pflag == LINE_MACRO_OUTPUT_FORMAT_P10)
-        parse_flags |= 0x0002, s1->Pflag = 1;
-    if (s1->dflag & 1) {
-        pp_debug_builtins(s1);
-        s1->dflag &= ~1;
-    }
-    token_seen = 10, spcs = 0;
-    pp_line(s1, file, 0);
-    for (;;) {
-        iptr = s1->include_stack_ptr;
-        next();
-        if (tok == (-1))
-            break;
-        level = s1->include_stack_ptr - iptr;
-        if (level) {
-            if (level > 0)
-                pp_line(s1, *iptr, 0);
-            pp_line(s1, file, level);
-        }
-        if (s1->dflag & 7) {
-            pp_debug_defines(s1);
-            if (s1->dflag & 4)
-                continue;
-        }
-        if (is_space(tok)) {
-            if (spcs < sizeof white - 1)
-                white[spcs++] = tok;
-            continue;
-        } else if (tok == 10) {
-            spcs = 0;
-            if (token_seen == 10)
-                continue;
-            ++file->line_ref;
-        } else if (token_seen == 10) {
-            pp_line(s1, file, 0);
-        } else if (spcs == 0 && pp_need_space(token_seen, tok)) {
-            white[spcs++] = ' ';
-        }
-        white[spcs] = 0, fputs(white, s1->ppfp), spcs = 0;
-        fputs(p = get_tok_str(tok, &tokc), s1->ppfp);
-        token_seen = pp_check_he0xE(tok, p);
-    }
-    return 0;
 }
 static int rsym, anon_sym, ind, loc;
 static Sym *sym_free_first;
@@ -13607,8 +13404,6 @@ static void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
         strcat_printf(buf, sizeof(buf), "error: ");
     strcat_vprintf(buf, sizeof(buf), fmt, ap);
     if (!s1->error_func) {
-        if (s1->output_type == 5 && s1->ppfp == stdout)
-            printf("\n"), fflush(stdout);
         fflush(stdout);
         fprintf(stderr, "%s\n", buf);
         fflush(stderr);
@@ -13712,9 +13507,7 @@ static int tcc_compile(TCCState *s1)
         s1->nb_errors = 0;
         s1->error_set_jmp_enabled = 1;
         preprocess_start(s1, is_asm);
-        if (s1->output_type == 5) {
-            tcc_preprocess(s1);
-        } else if (is_asm) {
+        if (is_asm) {
             tcc_assemble(s1, filetype == 3);
         } else {
             tccgen_compile(s1);
@@ -13840,9 +13633,7 @@ static void tcc_cleanup(void)
     tcc_free(s1->init_symbol);
     tcc_free(s1->fini_symbol);
     tcc_free(s1->outfile);
-    tcc_free(s1->deps_outfile);
     dynarray_reset(&s1->files, &s1->nb_files);
-    dynarray_reset(&s1->target_deps, &s1->nb_target_deps);
     dynarray_reset(&s1->pragma_libs, &s1->nb_pragma_libs);
     dynarray_reset(&s1->argv, &s1->argc);
     tcc_free(s1);
@@ -13888,8 +13679,6 @@ static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
             tcc_error_noabort("file '%s' not found", filename);
         return ret;
     }
-    dynarray_add(&s1->target_deps, &s1->nb_target_deps,
-            tcc_strdup(filename));
     if (flags & 0x40) {
         Elf32_Ehdr ehdr;
         int fd, obj_type;
@@ -14198,7 +13987,6 @@ enum {
     TCC_OPTION_b,
     TCC_OPTION_c,
     TCC_OPTION_dumpversion,
-    TCC_OPTION_d,
     TCC_OPTION_static,
     TCC_OPTION_std,
     TCC_OPTION_shared,
@@ -14227,9 +14015,6 @@ enum {
     TCC_OPTION_run,
     TCC_OPTION_w,
     TCC_OPTION_pipe,
-    TCC_OPTION_E,
-    TCC_OPTION_MD,
-    TCC_OPTION_MF,
     TCC_OPTION_x,
     TCC_OPTION_impdef
 };
@@ -14249,7 +14034,6 @@ static const TCCOption tcc_options[] = {
     { "bench", TCC_OPTION_bench, 0 },
     { "c", TCC_OPTION_c, 0 },
     { "dumpversion", TCC_OPTION_dumpversion, 0},
-    { "d", TCC_OPTION_d, 0x0001 | 0x0002 },
     { "static", TCC_OPTION_static, 0 },
     { "std", TCC_OPTION_std, 0x0001 | 0x0002 },
     { "shared", TCC_OPTION_shared, 0 },
@@ -14276,9 +14060,6 @@ static const TCCOption tcc_options[] = {
     { "print-search-dirs", TCC_OPTION_print_search_dirs, 0 },
     { "w", TCC_OPTION_w, 0 },
     { "pipe", TCC_OPTION_pipe, 0},
-    { "E", TCC_OPTION_E, 0},
-    { "MD", TCC_OPTION_MD, 0},
-    { "MF", TCC_OPTION_MF, 0x0001 },
     { "x", TCC_OPTION_x, 0x0001 },
     { ((void*)0), 0, 0 },
 };
@@ -14466,16 +14247,6 @@ reparse:
                 tcc_warning("-%s: overriding compiler action already specified", popt->name);
             s->output_type = x;
             break;
-        case TCC_OPTION_d:
-            if (*optarg == 'D')
-                s->dflag = 3;
-            else if (*optarg == 'M')
-                s->dflag = 7;
-            else if (*optarg == 't')
-                s->dflag = 16;
-            else
-                goto unsupported_option;
-            break;
         case TCC_OPTION_static:
             s->static_link = 1;
             break;
@@ -14553,17 +14324,8 @@ reparse:
 	case TCC_OPTION_Wp:
 	    r = optarg;
 	    goto reparse;
-        case TCC_OPTION_E:
-            x = 5;
-            goto set_output_type;
         case TCC_OPTION_P:
-            s->Pflag = atoi(optarg) + 1;
-            break;
-        case TCC_OPTION_MD:
-            s->gen_deps = 1;
-            break;
-        case TCC_OPTION_MF:
-            s->deps_outfile = tcc_strdup(optarg);
+            goto unsupported_option;
             break;
         case TCC_OPTION_dumpversion:
             printf ("%s\n", "0.9.27");
@@ -14658,27 +14420,6 @@ static void tcc_tool_cross(TCCState *s, char **argv, int target)
         execvp(argv[0] = program, argv);
     tcc_error("could not run '%s'", program);
 }
-static void gen_makedeps(TCCState *s, const char *target, const char *filename)
-{
-    FILE *depout;
-    char buf[1024];
-    int i;
-    if (!filename) {
-        snprintf(buf, sizeof buf, "%.*s.d",
-            (int)(tcc_fileextension(target) - target), target);
-        filename = buf;
-    }
-    if (s->verbose)
-        printf("<- %s\n", filename);
-    depout = fopen(filename, "w");
-    if (!depout)
-        tcc_error("could not open '%s'", filename);
-    fprintf(depout, "%s: \\\n", target);
-    for (i=0; i<s->nb_target_deps; ++i)
-        fprintf(depout, " %s \\\n", s->target_deps[i]);
-    fprintf(depout, "\n");
-    fclose(depout);
-}
 static const char help[] =
     "Tiny C Compiler ""0.9.27"" - Copyright (C) 2001-2006 Fabrice Bellard\n"
     "Usage: tcc [options...] [-o outfile] [-c] infile(s)...\n"
@@ -14699,7 +14440,6 @@ static const char help[] =
     "  -Idir       add include path 'dir'\n"
     "  -Dsym[=val] define 'sym' with value 'val'\n"
     "  -Usym       undefine 'sym'\n"
-    "  -E          preprocess only\n"
     "Linker options:\n"
     "  -Ldir       add library path 'dir'\n"
     "  -llib       link with dynamic or static library 'lib'\n"
@@ -14713,8 +14453,6 @@ static const char help[] =
     "  -nostdinc   do not use standard system include paths\n"
     "  -nostdlib   do not link with standard crt and libraries\n"
     "  -Bdir       set tcc's private include/library dir\n"
-    "  -MD         generate dependency file for make\n"
-    "  -MF file    specify dependency file name\n"
     "  -m32/64     defer to i386/x86_64 cross compiler\n"
     "Tools:\n"
     "  create library  : tcc -ar [rcsv] lib.a files\n"
@@ -14722,8 +14460,7 @@ static const char help[] =
 static const char help2[] =
     "Tiny C Compiler ""0.9.27"" - More Options\n"
     "Special options:\n"
-    "  -P -P1                        with -E: no/alternative #line output\n"
-    "  -dD -dM                       with -E: output #define directives\n"
+    "  -P -P1                        unsupported\n"
     "  -pthread                      same as -D_REENTRANT and -lpthread\n"
     "  -On                           same as -D__OPTIMIZE__ for n > 0\n"
     "  -Wp,-opt                      same as -opt\n"
@@ -14761,8 +14498,6 @@ static const char help2[] =
     "  -Bsymbolic                    set DT_SYMBOLIC elf tag\n"
     "  -oformat=[elf32/64-* binary]  set executable output format\n"
     "  -init= -fini= -as-needed -O   (ignored)\n"
-    "Predefined macros:\n"
-    "  tcc -E -dM - < /dev/null\n"
     "See also the manual for more details.\n"
     ;
 static const char version[] =
@@ -14827,16 +14562,15 @@ static unsigned getclock_ms(void)
 int main(int argc0, char **argv0)
 {
     TCCState *s;
-    int ret, opt, n = 0, t = 0;
+    int ret, opt, n = 0;
     unsigned start_time = 0;
     const char *first_file;
     int argc; char **argv;
-    FILE *ppfp = stdout;
 redo:
     argc = argc0, argv = argv0;
     s = tcc_new();
     opt = tcc_parse_args(s, &argc, &argv, 1);
-    if ((n | t) == 0) {
+    if (n == 0) {
         if (opt == 1)
             return printf(help), 1;
         if (opt == 2)
@@ -14856,13 +14590,7 @@ redo:
         n = s->nb_files;
         if (n == 0)
             tcc_error("no input files\n");
-        if (s->output_type == 5) {
-            if (s->outfile) {
-                ppfp = fopen(s->outfile, "w");
-                if (!ppfp)
-                    tcc_error("could not write '%s'", s->outfile);
-            }
-        } else if (s->output_type == 4 && !s->option_r) {
+        if (s->output_type == 4 && !s->option_r) {
             if (s->nb_libraries)
                 tcc_error("cannot specify libraries with -c");
             if (n > 1 && s->outfile)
@@ -14878,10 +14606,6 @@ redo:
     if (s->output_type == 0)
         s->output_type = 2;
     tcc_set_output_type(s, s->output_type);
-    s->ppfp = ppfp;
-    if ((s->output_type == 1
-      || s->output_type == 5) && (s->dflag & 16))
-        s->dflag |= t ? 32 : 0, s->run_test = ++t, n = s->nb_files;
     for (first_file = ((void*)0), ret = 0;;) {
         struct filespec *f = s->files[s->nb_files - n];
         s->filetype = f->type;
@@ -14901,29 +14625,19 @@ redo:
             || (s->output_type == 4 && !s->option_r))
             break;
     }
-    if (s->run_test) {
-        t = 0;
-    } else if (s->output_type == 5) {
-        ;
-    } else if (0 == ret) {
+    if (0 == ret) {
         if (s->output_type == 1) {
         } else {
             if (!s->outfile)
                 s->outfile = default_outputfile(s, first_file);
             if (tcc_output_file(s, s->outfile))
                 ret = 1;
-            else if (s->gen_deps)
-                gen_makedeps(s, s->outfile, s->deps_outfile);
         }
     }
-    if (s->do_bench && (n | t | ret) == 0)
+    if (s->do_bench && (n | ret) == 0)
         tcc_print_stats(s, getclock_ms() - start_time);
     tcc_delete(s);
     if (ret == 0 && n)
         goto redo;
-    if (t)
-        goto redo;
-    if (ppfp && ppfp != stdout)
-        fclose(ppfp);
     return ret;
 }
