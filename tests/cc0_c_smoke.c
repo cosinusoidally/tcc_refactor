@@ -26,6 +26,7 @@ int cc0_token_class();
 int cc0_source_set8();
 int cc0_source_set16();
 int cc0_source_set_string();
+int cc0_source_seek();
 int cc0_scan_next();
 int cc0_get_tok_class();
 int cc0_get_tok_start();
@@ -108,6 +109,7 @@ int cc1_get_local_table_cell();
 int cc1_get_expr_table_count();
 int cc1_get_expr_table_overflow();
 int cc1_get_expr_table_cell();
+int cc1_eval_expr_table_value();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -135,6 +137,9 @@ int main()
         return 57;
     if (!cc0_heap_is_string(mks("var"), 'v', 'a', 'r', 0))
         return 58;
+    cc0_source_set_string(mks("abc 123"));
+    if (cc0_source_seek(4) != 1 || cc0_scan_next() != 2 || cc0_get_tok_value() != 123)
+        return 219;
     cc0_test_cells = cc0_cell_alloc(3);
     if (cc0_cell_set(cc0_test_cells, 0, 12345) != 12345 ||
         cc0_cell_set(cc0_test_cells, 1, 6789) != 6789 ||
@@ -592,6 +597,12 @@ int main()
         cc1_get_expr_table_cell(3, 3) != 1 ||
         cc1_get_expr_table_cell(3, 4) != 5)
         return 218;
+    if (cc1_eval_expr_table_value(0) != 1 || cc1_get_last_value() != 1)
+        return 220;
+    if (cc1_eval_expr_table_value(1) != 1 || cc1_get_last_value() != 0)
+        return 221;
+    if (cc1_eval_expr_table_value(2) != 1 || cc1_get_last_value() != 0)
+        return 222;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)

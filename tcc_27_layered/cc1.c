@@ -1646,6 +1646,46 @@ function cc1_parse_cc0_source_string(source)
     return 1;
 }
 
+function cc1_eval_expr_table_value(index)
+{
+    var flags;
+    var kind;
+    var start;
+    if (index < 0) {
+        cc1_error = 65;
+        return 0;
+    }
+    if (index >= cc1_expr_table_count) {
+        cc1_error = 66;
+        return 0;
+    }
+    kind = cc1_get_expr_table_cell(index, 0);
+    start = cc1_get_expr_table_cell(index, 1);
+    flags = cc1_get_expr_table_cell(index, 4);
+    cc0_source_seek(start);
+    cc0_scan_next();
+    if (kind == 2) {
+        if (!cc1_at_punct(CC0_CH_EQUAL)) {
+            cc1_error = 67;
+            return 0;
+        }
+        cc0_scan_next();
+        cc1_last_value = cc1_parse_expr_tokens();
+        if (cc1_error)
+            return 0;
+        return 1;
+    }
+    if (flags & 1) {
+        if (!cc1_parse_assignment_tokens())
+            return 0;
+        return 1;
+    }
+    cc1_last_value = cc1_parse_expr_tokens();
+    if (cc1_error)
+        return 0;
+    return 1;
+}
+
 function cc1_parse_function_return_tokens()
 {
     var candidate_active;

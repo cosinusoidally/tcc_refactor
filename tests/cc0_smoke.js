@@ -28,6 +28,10 @@ if (cc0_heap_get(cc0_test_string, 0) !== CC0_CH_A ||
 if (!cc0_heap_is_string(mks("var"), CC0_CH_v, CC0_CH_a, CC0_CH_r, CC0_CH_NUL))
     throw new Error("cc0 heap string check failed");
 
+cc0_source_set_string(mks("abc 123"));
+if (cc0_source_seek(4) !== 1 || cc0_scan_next() !== CC0_TOK_NUMBER || cc0_get_tok_value() !== 123)
+    throw new Error("cc0 source seek failed");
+
 cc0_test_cells = cc0_cell_alloc(3);
 if (cc0_cell_set(cc0_test_cells, 0, 12345) !== 12345 ||
     cc0_cell_set(cc0_test_cells, 1, 6789) !== 6789 ||
@@ -669,6 +673,15 @@ if (cc1_get_expr_table_cell(3, 0) !== 0 ||
     cc1_get_expr_table_cell(3, 4) !== 5)
     throw new Error("cc1 cc0 source shell expr record 3 failed");
 
+if (cc1_eval_expr_table_value(0) !== 1 || cc1_get_last_value() !== 1)
+    throw new Error("cc1 cc0 source shell eval expr record 0 failed");
+
+if (cc1_eval_expr_table_value(1) !== 1 || cc1_get_last_value() !== 0)
+    throw new Error("cc1 cc0 source shell eval expr record 1 failed");
+
+if (cc1_eval_expr_table_value(2) !== 1 || cc1_get_last_value() !== 0)
+    throw new Error("cc1 cc0 source shell eval local init expr failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -684,13 +697,13 @@ if (cc1_get_error() === 0)
 if (cc1_parse_cc0_source_string(mks(read("../tcc_27_layered/cc0.c"))) !== 1)
     throw new Error("cc1 cc0.c parse failed: " + cc1_get_error());
 
-if (cc1_get_function_count() !== 41)
+if (cc1_get_function_count() !== 42)
     throw new Error("cc1 cc0.c function count failed");
 
 if (cc1_get_top_decl_count() !== 174)
     throw new Error("cc1 cc0.c top count failed");
 
-if (cc1_get_return_count() !== 148)
+if (cc1_get_return_count() !== 149)
     throw new Error("cc1 cc0.c return count failed");
 
 if (cc1_get_if_count() !== 115)
@@ -702,13 +715,13 @@ if (cc1_get_while_count() !== 7)
 if (cc1_get_local_decl_count() !== 4)
     throw new Error("cc1 cc0.c local count failed");
 
-if (cc1_get_body_semi_count() !== 247)
+if (cc1_get_body_semi_count() !== 253)
     throw new Error("cc1 cc0.c semicolon count failed");
 
 if (cc1_get_max_body_depth() !== 5)
     throw new Error("cc1 cc0.c body depth failed");
 
-if (cc1_get_param_count() !== 90)
+if (cc1_get_param_count() !== 91)
     throw new Error("cc1 cc0.c param count failed");
 
 if (cc1_get_max_param_count() !== 16)
@@ -720,7 +733,7 @@ if (cc1_get_body_call_count() !== 89)
 if (cc1_get_max_body_call_arg_count() !== 9)
     throw new Error("cc1 cc0.c max body call arg count failed");
 
-if (cc1_get_body_assignment_count() !== 94)
+if (cc1_get_body_assignment_count() !== 99)
     throw new Error("cc1 cc0.c assignment count failed");
 
 if (cc1_get_max_body_expr_depth() !== 2)
@@ -732,7 +745,7 @@ if (cc1_get_max_function_statement_count() !== 54)
 if (cc1_get_max_function_local_count() !== 2)
     throw new Error("cc1 cc0.c max function local count failed");
 
-if (cc1_get_body_expr_statement_count() !== 95)
+if (cc1_get_body_expr_statement_count() !== 100)
     throw new Error("cc1 cc0.c expr statement count failed");
 
 if (cc1_get_body_call_statement_count() !== 16)
@@ -744,7 +757,7 @@ if (cc1_get_body_return_call_count() !== 8)
 if (cc1_get_body_local_init_count() !== 0)
     throw new Error("cc1 cc0.c local init count failed");
 
-if (cc1_get_body_name_assignment_count() !== 94)
+if (cc1_get_body_name_assignment_count() !== 99)
     throw new Error("cc1 cc0.c name assignment count failed");
 
 if (cc1_get_body_plus_op_count() !== 44)
@@ -762,13 +775,13 @@ if (cc1_get_body_compare_op_count() !== 102)
 if (cc1_get_body_not_op_count() !== 0)
     throw new Error("cc1 cc0.c not op count failed");
 
-if (cc1_get_function_name_char_count() !== 705)
+if (cc1_get_function_name_char_count() !== 720)
     throw new Error("cc1 cc0.c function name char count failed");
 
 if (cc1_get_max_function_name_len() !== 26)
     throw new Error("cc1 cc0.c max function name length failed");
 
-if (cc1_get_function_name_hash() !== 12867)
+if (cc1_get_function_name_hash() !== 27230)
     throw new Error("cc1 cc0.c function name hash failed");
 
 if (cc1_get_global_name_char_count() !== 1836)
@@ -886,13 +899,13 @@ if (cc1_get_local_table_count() !== 4 || cc1_get_local_table_overflow() !== 0)
 if (cc1_get_local_table_cell(0, 0) !== 99 ||
     cc1_get_local_table_cell(0, 1) !== 1 ||
     cc1_get_local_table_cell(0, 2) !== 0 ||
-    cc1_get_local_table_cell(0, 3) !== 26)
+    cc1_get_local_table_cell(0, 3) !== 27)
     throw new Error("cc1 cc0.c local record 0 failed");
 
 if (cc1_get_local_table_cell(3, 0) !== 99 ||
     cc1_get_local_table_cell(3, 1) !== 1 ||
     cc1_get_local_table_cell(3, 2) !== 0 ||
-    cc1_get_local_table_cell(3, 3) !== 28)
+    cc1_get_local_table_cell(3, 3) !== 29)
     throw new Error("cc1 cc0.c local record 3 failed");
 
 if (cc1_get_expr_table_count() !== 16 || cc1_get_expr_table_overflow() !== 1)

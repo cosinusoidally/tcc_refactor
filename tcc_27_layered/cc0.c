@@ -509,6 +509,16 @@ function cc0_source_set_string(ptr)
     return 0;
 }
 
+function cc0_source_seek(pos)
+{
+    cc0_scan_pos = pos;
+    cc0_tok_class = CC0_TOK_EOF;
+    cc0_tok_start = pos;
+    cc0_tok_len = 0;
+    cc0_tok_value = 0;
+    return 1;
+}
+
 function cc0_source_at(pos)
 {
     var c;

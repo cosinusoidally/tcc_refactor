@@ -94,7 +94,10 @@ function ordinal cells.
 Semicolon-terminated body tails are stored as bounded expression-slice records
 with tail kind, source start, source span, owning function ordinal, and a
 compact operator flag word for assignment, call, arithmetic, comparison, and
-unary-not shapes.
+unary-not shapes. cc1 can seek the cc0 scanner to a recorded expression slice
+and evaluate simple return and initializer slices through the existing
+expression parser, turning the first recorded body slices into executable
+lowering inputs.
 Function signature parsing records total and maximum parameter counts for the
 real cc0 source.
 That is not a C parser yet, but it gives the layered

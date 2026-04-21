@@ -163,6 +163,10 @@ expression-slice records with tail kind, source start, source span, and owning
 function ordinal. Each expression slice carries a compact operator flag word for
 assignment, call, arithmetic, comparison, and unary-not shapes, giving the next
 expression lowering step bounded source ranges and a routing key to consume.
+cc1 can now seek the cc0 scanner back to an expression-slice start and evaluate
+simple return and initializer slices through the real expression parser, so
+recorded body data is beginning to feed executable lowering instead of only
+metrics.
 This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
