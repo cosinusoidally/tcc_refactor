@@ -22,11 +22,11 @@ Assembler input and inline assembler are not supported in this reduced tree.
 This builds:
 
 - `build/root/tcc`: a 32-bit i386 Linux executable that emits i386 Linux ELF.
-- `build/root/libtcc1.a`: the minimal i386 runtime archive used when linking
+- `build/root/libtcc1.o`: the minimal i386 runtime object used when linking
   programs.
 
 The bootstrap compiler is built with the host C compiler using `-m32`, and the
-runtime archive is built with `build/root/tcc` itself. All generated files are
+runtime object is built with `build/root/tcc` itself. All generated files are
 kept under `build/`.
 
 ## No-Preprocessor Source
@@ -66,9 +66,9 @@ builds stage 3, and stage 2 and stage 3 must match byte-for-byte:
 ```text
 host cc -m32 tcc_nopp.c -nostdinc -> build/root/tcc
 stage1 = build/root/tcc
-stage1 -> build/selfhost/stage2root/libtcc1.a
+stage1 -> build/selfhost/stage2root/libtcc1.o
 stage1 tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage2
-stage2 -> build/selfhost/stage3root/libtcc1.a
+stage2 -> build/selfhost/stage3root/libtcc1.o
 stage2 tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage3
 cmp stage2 stage3
 ```

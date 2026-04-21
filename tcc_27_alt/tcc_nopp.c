@@ -657,7 +657,6 @@ struct TCCState {
     int static_link;
     int rdynamic;
     int symbolic;
-    int alacarte_link;
     char *tcc_lib_path;
     char *soname;
     char *rpath;
@@ -749,7 +748,6 @@ struct TCCState {
 };
 struct filespec {
     char type;
-    char alacarte;
     char name[1];
 };
 enum tcc_token {
@@ -1554,14 +1552,12 @@ static void relocate_syms(TCCState *s1, Section *symtab, int do_resolve);
 static void relocate_section(TCCState *s1, Section *s);
 static int tcc_object_type(int fd, Elf32_Ehdr *h);
 static int tcc_load_object_file(TCCState *s1, int fd, unsigned long file_offset);
-static int tcc_load_archive(TCCState *s1, int fd);
 static void tcc_add_runtime(TCCState *s1);
 static void build_got_entries(TCCState *s1);
 static struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc);
 static void squeeze_multi_relocs(Section *sec, size_t oldrelocoffset);
 static Elf32_Addr get_elf_sym_addr(TCCState *s, const char *name, int err);
 static int tcc_load_dll(TCCState *s1, int fd, const char *filename, int level);
-static int tcc_load_ldscript(TCCState *s1);
 static uint8_t *parse_comment(uint8_t *p);
 static void minp(void);
 static inline void inp(void);
@@ -11591,7 +11587,7 @@ static void tcc_add_runtime(TCCState *s1)
     tcc_add_pragma_libs(s1);
     if (!s1->nostdlib) {
         tcc_add_library_err(s1, "c");
-        tcc_add_support(s1, "libtcc1.a");
+        tcc_add_support(s1, "libtcc1.o");
         if (s1->output_type != 1)
             tcc_add_crt(s1, "crtn.o");
     }
@@ -12353,9 +12349,6 @@ static int tcc_object_type(int fd, Elf32_Ehdr *h)
             return 1;
         if (h->e_type == 3)
             return 2;
-    } else if (size >= 8) {
-        if (0 == memcmp(h, "!<arch>\012", 8))
-            return 3;
     }
     return 0;
 }
@@ -12574,109 +12567,6 @@ static int tcc_load_object_file(TCCState *s1,
     tcc_free(shdr);
     return ret;
 }
-typedef struct ArchiveHeader {
-    char ar_name[16];
-    char ar_date[12];
-    char ar_uid[6];
-    char ar_gid[6];
-    char ar_mode[8];
-    char ar_size[10];
-    char ar_fmag[2];
-} ArchiveHeader;
-static int get_be32(const uint8_t *b)
-{
-    return b[3] | (b[2] << 8) | (b[1] << 16) | (b[0] << 24);
-}
-static long get_be64(const uint8_t *b)
-{
-  long long ret = get_be32(b);
-  ret = (ret << 32) | (unsigned)get_be32(b+4);
-  return (long)ret;
-}
-static int tcc_load_alacarte(TCCState *s1, int fd, int size, int entrysize)
-{
-    long i, bound, nsyms, sym_index, off, ret;
-    uint8_t *data;
-    const char *ar_names, *p;
-    const uint8_t *ar_index;
-    Elf32_Sym *sym;
-    data = tcc_malloc(size);
-    if (read(fd, data, size) != size)
-        goto fail;
-    nsyms = entrysize == 4 ? get_be32(data) : get_be64(data);
-    ar_index = data + entrysize;
-    ar_names = (char *) ar_index + nsyms * entrysize;
-    do {
-        bound = 0;
-        for(p = ar_names, i = 0; i < nsyms; i++, p += strlen(p)+1) {
-            sym_index = find_elf_sym(symtab_section, p);
-            if(sym_index) {
-                sym = &((Elf32_Sym *)symtab_section->data)[sym_index];
-                if(sym->st_shndx == 0) {
-                    off = (entrysize == 4
-			   ? get_be32(ar_index + i * 4)
-			   : get_be64(ar_index + i * 8))
-			  + sizeof(ArchiveHeader);
-                    ++bound;
-                    if(tcc_load_object_file(s1, fd, off) < 0) {
-                    fail:
-                        ret = -1;
-                        goto the_end;
-                    }
-                }
-            }
-        }
-    } while(bound);
-    ret = 0;
- the_end:
-    tcc_free(data);
-    return ret;
-}
-static int tcc_load_archive(TCCState *s1, int fd)
-{
-    ArchiveHeader hdr;
-    char ar_size[11];
-    char ar_name[17];
-    char magic[8];
-    int size, len, i;
-    unsigned long file_offset;
-    read(fd, magic, sizeof(magic));
-    for(;;) {
-        len = read(fd, &hdr, sizeof(hdr));
-        if (len == 0)
-            break;
-        if (len != sizeof(hdr)) {
-            tcc_error_noabort("invalid archive");
-            return -1;
-        }
-        memcpy(ar_size, hdr.ar_size, sizeof(hdr.ar_size));
-        ar_size[sizeof(hdr.ar_size)] = '\0';
-        size = strtol(ar_size, ((void*)0), 0);
-        memcpy(ar_name, hdr.ar_name, sizeof(hdr.ar_name));
-        for(i = sizeof(hdr.ar_name) - 1; i >= 0; i--) {
-            if (ar_name[i] != ' ')
-                break;
-        }
-        ar_name[i + 1] = '\0';
-        file_offset = lseek(fd, 0, 1);
-        size = (size + 1) & ~1;
-        if (!strcmp(ar_name, "/")) {
-            if(s1->alacarte_link)
-                return tcc_load_alacarte(s1, fd, size, 4);
-	} else if (!strcmp(ar_name, "/SYM64/")) {
-            if(s1->alacarte_link)
-                return tcc_load_alacarte(s1, fd, size, 8);
-        } else {
-            Elf32_Ehdr ehdr;
-            if (tcc_object_type(fd, &ehdr) == 1) {
-                if (tcc_load_object_file(s1, fd, file_offset) < 0)
-                    return -1;
-            }
-        }
-        lseek(fd, file_offset + size, 0);
-    }
-    return 0;
-}
 static int tcc_load_dll(TCCState *s1, int fd, const char *filename, int level)
 {
     Elf32_Ehdr ehdr;
@@ -12767,242 +12657,6 @@ static int tcc_load_dll(TCCState *s1, int fd, const char *filename, int level)
     tcc_free(dynamic);
     tcc_free(shdr);
     return ret;
-}
-static int ld_next(TCCState *s1, char *name, int name_size)
-{
-    int c;
-    char *q;
- redo:
-    switch(ch) {
-    case ' ':
-    case '\t':
-    case '\f':
-    case '\v':
-    case '\r':
-    case '\n':
-        inp();
-        goto redo;
-    case '/':
-        minp();
-        if (ch == '*') {
-            file->buf_ptr = parse_comment(file->buf_ptr);
-            ch = file->buf_ptr[0];
-            goto redo;
-        } else {
-            q = name;
-            *q++ = '/';
-            goto parse_name;
-        }
-        break;
-    case '\\':
-        ch = handle_eob();
-        if (ch != '\\')
-            goto redo;
-    case 'a':
-       case 'b':
-       case 'c':
-       case 'd':
-       case 'e':
-       case 'f':
-       case 'g':
-       case 'h':
-       case 'i':
-       case 'j':
-       case 'k':
-       case 'l':
-       case 'm':
-       case 'n':
-       case 'o':
-       case 'p':
-       case 'q':
-       case 'r':
-       case 's':
-       case 't':
-       case 'u':
-       case 'v':
-       case 'w':
-       case 'x':
-       case 'y':
-       case 'z':
-    case 'A':
-       case 'B':
-       case 'C':
-       case 'D':
-       case 'E':
-       case 'F':
-       case 'G':
-       case 'H':
-       case 'I':
-       case 'J':
-       case 'K':
-       case 'L':
-       case 'M':
-       case 'N':
-       case 'O':
-       case 'P':
-       case 'Q':
-       case 'R':
-       case 'S':
-       case 'T':
-       case 'U':
-       case 'V':
-       case 'W':
-       case 'X':
-       case 'Y':
-       case 'Z':
-    case '_':
-    case '.':
-    case '$':
-    case '~':
-        q = name;
-    parse_name:
-        for(;;) {
-            if (!((ch >= 'a' && ch <= 'z') ||
-                  (ch >= 'A' && ch <= 'Z') ||
-                  (ch >= '0' && ch <= '9') ||
-                  strchr("/.-_+=$:\\,~", ch)))
-                break;
-            if ((q - name) < name_size - 1) {
-                *q++ = ch;
-            }
-            minp();
-        }
-        *q = '\0';
-        c = 256;
-        break;
-    case (-1):
-        c = (-1);
-        break;
-    default:
-        c = ch;
-        inp();
-        break;
-    }
-    return c;
-}
-static int ld_add_file(TCCState *s1, const char filename[])
-{
-    if (filename[0] == '/') {
-        if (""[0] == '\0'
-            && tcc_add_file_internal(s1, filename, 0x40) == 0)
-            return 0;
-        filename = tcc_basename(filename);
-    }
-    return tcc_add_dll(s1, filename, 0);
-}
-static inline int new_undef_syms(void)
-{
-    int ret = 0;
-    ret = new_undef_sym;
-    new_undef_sym = 0;
-    return ret;
-}
-static int ld_add_file_list(TCCState *s1, const char *cmd, int as_needed)
-{
-    char filename[1024], libname[1024];
-    int t, group, nblibs = 0, ret = 0;
-    char **libs = ((void*)0);
-    group = !strcmp(cmd, "GROUP");
-    if (!as_needed)
-        new_undef_syms();
-    t = ld_next(s1, filename, sizeof(filename));
-    if (t != '(')
-        expect("(");
-    t = ld_next(s1, filename, sizeof(filename));
-    for(;;) {
-        libname[0] = '\0';
-        if (t == (-1)) {
-            tcc_error_noabort("unexpected end of file");
-            ret = -1;
-            goto lib_parse_error;
-        } else if (t == ')') {
-            break;
-        } else if (t == '-') {
-            t = ld_next(s1, filename, sizeof(filename));
-            if ((t != 256) || (filename[0] != 'l')) {
-                tcc_error_noabort("library name expected");
-                ret = -1;
-                goto lib_parse_error;
-            }
-            pstrcpy(libname, sizeof libname, &filename[1]);
-            if (s1->static_link) {
-                snprintf(filename, sizeof filename, "lib%s.a", libname);
-            } else {
-                snprintf(filename, sizeof filename, "lib%s.so", libname);
-            }
-        } else if (t != 256) {
-            tcc_error_noabort("filename expected");
-            ret = -1;
-            goto lib_parse_error;
-        }
-        if (!strcmp(filename, "AS_NEEDED")) {
-            ret = ld_add_file_list(s1, cmd, 1);
-            if (ret)
-                goto lib_parse_error;
-        } else {
-            if (!as_needed) {
-                ret = ld_add_file(s1, filename);
-                if (ret)
-                    goto lib_parse_error;
-                if (group) {
-                    dynarray_add(&libs, &nblibs, tcc_strdup(filename));
-                    if (libname[0] != '\0')
-                        dynarray_add(&libs, &nblibs, tcc_strdup(libname));
-                }
-            }
-        }
-        t = ld_next(s1, filename, sizeof(filename));
-        if (t == ',') {
-            t = ld_next(s1, filename, sizeof(filename));
-        }
-    }
-    if (group && !as_needed) {
-        while (new_undef_syms()) {
-            int i;
-            for (i = 0; i < nblibs; i ++)
-                ld_add_file(s1, libs[i]);
-        }
-    }
-lib_parse_error:
-    dynarray_reset(&libs, &nblibs);
-    return ret;
-}
-static int tcc_load_ldscript(TCCState *s1)
-{
-    char cmd[64];
-    char filename[1024];
-    int t, ret;
-    ch = handle_eob();
-    for(;;) {
-        t = ld_next(s1, cmd, sizeof(cmd));
-        if (t == (-1))
-            return 0;
-        else if (t != 256)
-            return -1;
-        if (!strcmp(cmd, "INPUT") ||
-            !strcmp(cmd, "GROUP")) {
-            ret = ld_add_file_list(s1, cmd, 0);
-            if (ret)
-                return ret;
-        } else if (!strcmp(cmd, "OUTPUT_FORMAT") ||
-                   !strcmp(cmd, "TARGET")) {
-            t = ld_next(s1, cmd, sizeof(cmd));
-            if (t != '(')
-                expect("(");
-            for(;;) {
-                t = ld_next(s1, filename, sizeof(filename));
-                if (t == (-1)) {
-                    tcc_error_noabort("unexpected end of file");
-                    return -1;
-                } else if (t == ')') {
-                    break;
-                }
-            }
-        } else {
-            return -1;
-        }
-    }
-    return 0;
 }
 static const int reg_classes[5] = {
       0x0001 | 0x0004,
@@ -14298,7 +13952,6 @@ static void tcc_cleanup(void)
         return ((void*)0);
     tcc_state = s;
     ++nb_states;
-    s->alacarte_link = 1;
     s->nocommon = 1;
     s->warn_implicit_function_declaration = 1;
     s->ms_extensions = 1;
@@ -14427,13 +14080,9 @@ static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
                                    (flags & 0x20) != 0);
             }
             break;
-        case 3:
-            ret = tcc_load_archive(s1, fd);
-            break;
         default:
-            ret = tcc_load_ldscript(s1);
-            if (ret < 0)
-                tcc_error_noabort("unrecognized file type");
+            tcc_error_noabort("unrecognized file type");
+            ret = -1;
             break;
         }
     } else {
@@ -14494,10 +14143,19 @@ static int tcc_add_crt(TCCState *s, const char *filename)
         tcc_error_noabort("file '%s' not found", filename);
     return 0;
 }
- int tcc_add_library(TCCState *s, const char *libraryname)
+int tcc_add_library(TCCState *s, const char *libraryname)
 {
-    const char *libs[] = { "%s/lib%s.so", "%s/lib%s.a", ((void*)0) };
-    const char **pp = s->static_link ? libs + 1 : libs;
+    const char *libs[] = { "%s/lib%s.so", ((void*)0) };
+    const char **pp = libs;
+    if (!strcmp(libraryname, "c"))
+        return tcc_add_library_internal(s, "%s/lib%s.so.6",
+            libraryname, 0, s->library_paths, s->nb_library_paths);
+    if (!strcmp(libraryname, "m"))
+        return tcc_add_library_internal(s, "%s/lib%s.so.6",
+            libraryname, 0, s->library_paths, s->nb_library_paths);
+    if (!strcmp(libraryname, "dl"))
+        return tcc_add_library_internal(s, "%s/lib%s.so.2",
+            libraryname, 0, s->library_paths, s->nb_library_paths);
     while (*pp) {
         if (0 == tcc_add_library_internal(s, *pp,
             libraryname, 0, s->library_paths, s->nb_library_paths))
@@ -14679,8 +14337,6 @@ static int tcc_set_linker(TCCState *s, const char *option)
             s->section_align = strtoul(p, &end, 16);
         } else if (link_option(option, "soname=", &p)) {
             copy_linker_arg(&s->soname, p, 0);
-        } else if (ret = link_option(option, "?whole-archive", &p), ret) {
-            s->alacarte_link = ret < 0;
         } else if (p) {
             return 0;
         } else {
@@ -14748,7 +14404,6 @@ enum {
     TCC_OPTION_MD,
     TCC_OPTION_MF,
     TCC_OPTION_x,
-    TCC_OPTION_ar,
     TCC_OPTION_impdef
 };
 static const TCCOption tcc_options[] = {
@@ -14799,7 +14454,6 @@ static const TCCOption tcc_options[] = {
     { "MD", TCC_OPTION_MD, 0},
     { "MF", TCC_OPTION_MF, 0x0001 },
     { "x", TCC_OPTION_x, 0x0001 },
-    { "ar", TCC_OPTION_ar, 0},
     { ((void*)0), 0, 0 },
 };
 static const FlagDef options_W[] = {
@@ -14838,7 +14492,6 @@ static void args_parser_add_file(TCCState *s, const char* filename, int filetype
 {
     struct filespec *f = tcc_malloc(sizeof *f + strlen(filename));
     f->type = filetype;
-    f->alacarte = s->alacarte_link;
     strcpy(f->name, filename);
     dynarray_add(&s->files, &s->nb_files, f);
 }
@@ -15114,8 +14767,6 @@ reparse:
         case TCC_OPTION_impdef:
             x = 6;
             goto extra_action;
-        case TCC_OPTION_ar:
-            x = 5;
         extra_action:
             arg_start = optind - 1;
             if (arg_start != noaction)
@@ -15172,223 +14823,6 @@ unsupported_option:
            (double)total_time/1000,
            (unsigned)total_lines*1000/total_time,
            (double)total_bytes/1000/total_time);
-}
-typedef struct {
-    char ar_name[16];
-    char ar_date[12];
-    char ar_uid[6];
-    char ar_gid[6];
-    char ar_mode[8];
-    char ar_size[10];
-    char ar_fmag[2];
-} ArHdr;
-static unsigned long le2belong(unsigned long ul) {
-    return ((ul & 0xFF0000)>>8)+((ul & 0xFF000000)>>24) +
-        ((ul & 0xFF)<<24)+((ul & 0xFF00)<<8);
-}
-static int contains_any(const char *s, const char *list) {
-  const char *l;
-  for (; *s; s++) {
-      for (l = list; *l; l++) {
-          if (*s == *l)
-              return 1;
-      }
-  }
-  return 0;
-}
-static int ar_usage(int ret) {
-    fprintf(stderr, "usage: tcc -ar [rcsv] lib file...\n");
-    fprintf(stderr, "create library ([abdioptxN] not supported).\n");
-    return ret;
-}
-static int tcc_tool_ar(TCCState *s1, int argc, char **argv)
-{
-    static ArHdr arhdr = {
-        "/               ",
-        "            ",
-        "0     ",
-        "0     ",
-        "0       ",
-        "          ",
-        "`\n"
-        };
-    static ArHdr arhdro = {
-        "                ",
-        "            ",
-        "0     ",
-        "0     ",
-        "0       ",
-        "          ",
-        "`\n"
-        };
-    FILE *fi, *fh = ((void*)0), *fo = ((void*)0);
-    Elf32_Ehdr *ehdr;
-    Elf32_Shdr *shdr;
-    Elf32_Sym *sym;
-    int i, fsize, i_lib, i_obj;
-    char *buf, *shstr, *symtab = ((void*)0), *strtab = ((void*)0);
-    int symtabsize = 0;
-    char *anames = ((void*)0);
-    int *afpos = ((void*)0);
-    int istrlen, strpos = 0, fpos = 0, funccnt = 0, funcmax, hofs;
-    char tfile[260], stmp[20];
-    char *file, *name;
-    int ret = 2;
-    const char *ops_conflict = "habdioptxN";
-    int verbose = 0;
-    i_lib = 0; i_obj = 0;
-    for (i = 1; i < argc; i++) {
-        const char *a = argv[i];
-        if (*a == '-' && strstr(a, "."))
-            ret = 1;
-        if ((*a == '-') || (i == 1 && !strstr(a, "."))) {
-            if (contains_any(a, ops_conflict))
-                ret = 1;
-            if (strstr(a, "v"))
-                verbose = 1;
-        } else {
-            if (!i_lib)
-                i_lib = i;
-            else if (!i_obj)
-                i_obj = i;
-        }
-    }
-    if (!i_obj)
-        ret = 1;
-    if (ret == 1)
-        return ar_usage(ret);
-    if ((fh = fopen(argv[i_lib], "wb")) == ((void*)0))
-    {
-        fprintf(stderr, "tcc: ar: can't open file %s \n", argv[i_lib]);
-        goto the_end;
-    }
-    sprintf(tfile, "%s.tmp", argv[i_lib]);
-    if ((fo = fopen(tfile, "wb+")) == ((void*)0))
-    {
-        fprintf(stderr, "tcc: ar: can't create temporary file %s\n", tfile);
-        goto the_end;
-    }
-    funcmax = 250;
-    afpos = tcc_realloc(((void*)0), funcmax * sizeof *afpos);
-    memcpy(&arhdro.ar_mode, "100666", 6);
-    while (i_obj < argc)
-    {
-        if (*argv[i_obj] == '-') {
-            i_obj++;
-            continue;
-        }
-        if ((fi = fopen(argv[i_obj], "rb")) == ((void*)0)) {
-            fprintf(stderr, "tcc: ar: can't open file %s \n", argv[i_obj]);
-            goto the_end;
-        }
-        if (verbose)
-            printf("a - %s\n", argv[i_obj]);
-        fseek(fi, 0, 2);
-        fsize = ftell(fi);
-        fseek(fi, 0, 0);
-        buf = tcc_malloc(fsize + 1);
-        fread(buf, fsize, 1, fi);
-        fclose(fi);
-        ehdr = (Elf32_Ehdr *)buf;
-        if (ehdr->e_ident[4] != 1)
-        {
-            fprintf(stderr, "tcc: ar: Unsupported Elf Class: %s\n", argv[i_obj]);
-            goto the_end;
-        }
-        shdr = (Elf32_Shdr *) (buf + ehdr->e_shoff + ehdr->e_shstrndx * ehdr->e_shentsize);
-        shstr = (char *)(buf + shdr->sh_offset);
-        for (i = 0; i < ehdr->e_shnum; i++)
-        {
-            shdr = (Elf32_Shdr *) (buf + ehdr->e_shoff + i * ehdr->e_shentsize);
-            if (!shdr->sh_offset)
-                continue;
-            if (shdr->sh_type == 2)
-            {
-                symtab = (char *)(buf + shdr->sh_offset);
-                symtabsize = shdr->sh_size;
-            }
-            if (shdr->sh_type == 3)
-            {
-                if (!strcmp(shstr + shdr->sh_name, ".strtab"))
-                {
-                    strtab = (char *)(buf + shdr->sh_offset);
-                }
-            }
-        }
-        if (symtab && symtabsize)
-        {
-            int nsym = symtabsize / sizeof(Elf32_Sym);
-            for (i = 1; i < nsym; i++)
-            {
-                sym = (Elf32_Sym *) (symtab + i * sizeof(Elf32_Sym));
-                if (sym->st_shndx &&
-                    (sym->st_info == 0x10
-                    || sym->st_info == 0x11
-                    || sym->st_info == 0x12
-                    )) {
-                    istrlen = strlen(strtab + sym->st_name)+1;
-                    anames = tcc_realloc(anames, strpos+istrlen);
-                    strcpy(anames + strpos, strtab + sym->st_name);
-                    strpos += istrlen;
-                    if (++funccnt >= funcmax) {
-                        funcmax += 250;
-                        afpos = tcc_realloc(afpos, funcmax * sizeof *afpos);
-                    }
-                    afpos[funccnt] = fpos;
-                }
-            }
-        }
-        file = argv[i_obj];
-        for (name = strchr(file, 0);
-             name > file && name[-1] != '/' && name[-1] != '\\';
-             --name);
-        istrlen = strlen(name);
-        if (istrlen >= sizeof(arhdro.ar_name))
-            istrlen = sizeof(arhdro.ar_name) - 1;
-        memset(arhdro.ar_name, ' ', sizeof(arhdro.ar_name));
-        memcpy(arhdro.ar_name, name, istrlen);
-        arhdro.ar_name[istrlen] = '/';
-        sprintf(stmp, "%-10d", fsize);
-        memcpy(&arhdro.ar_size, stmp, 10);
-        fwrite(&arhdro, sizeof(arhdro), 1, fo);
-        fwrite(buf, fsize, 1, fo);
-        tcc_free(buf);
-        i_obj++;
-        fpos += (fsize + sizeof(arhdro));
-    }
-    hofs = 8 + sizeof(arhdr) + strpos + (funccnt+1) * sizeof(int);
-    fpos = 0;
-    if ((hofs & 1))
-        hofs++, fpos = 1;
-    fwrite("!<arch>\n", 8, 1, fh);
-    sprintf(stmp, "%-10d", (int)(strpos + (funccnt+1) * sizeof(int)));
-    memcpy(&arhdr.ar_size, stmp, 10);
-    fwrite(&arhdr, sizeof(arhdr), 1, fh);
-    afpos[0] = le2belong(funccnt);
-    for (i=1; i<=funccnt; i++)
-        afpos[i] = le2belong(afpos[i] + hofs);
-    fwrite(afpos, (funccnt+1) * sizeof(int), 1, fh);
-    fwrite(anames, strpos, 1, fh);
-    if (fpos)
-        fwrite("", 1, 1, fh);
-    fseek(fo, 0, 2);
-    fsize = ftell(fo);
-    fseek(fo, 0, 0);
-    buf = tcc_malloc(fsize + 1);
-    fread(buf, fsize, 1, fo);
-    fwrite(buf, fsize, 1, fh);
-    tcc_free(buf);
-    ret = 0;
-the_end:
-    if (anames)
-        tcc_free(anames);
-    if (afpos)
-        tcc_free(afpos);
-    if (fh)
-        fclose(fh);
-    if (fo)
-        fclose(fo), remove(tfile);
-    return ret;
 }
 static void tcc_tool_cross(TCCState *s, char **argv, int target)
 {
@@ -15499,7 +14933,6 @@ static const char help2[] =
     "  ms-bitfields                  use MSVC bitfield layout\n"
     "-Wl,... linker options:\n"
     "  -nostdlib                     do not link with standard crt/libs\n"
-    "  -[no-]whole-archive           load lib(s) fully/only as needed\n"
     "  -export-all-symbols           same as -rdynamic\n"
     "  -image-base= -Ttext=          set base address of executable\n"
     "  -section-alignment=           set section alignment in executable\n"
@@ -15531,7 +14964,7 @@ static void print_search_dirs(TCCState *s)
     printf("install: %s\n", s->tcc_lib_path);
     print_dirs("include", s->sysinclude_paths, s->nb_sysinclude_paths);
     print_dirs("libraries", s->library_paths, s->nb_library_paths);
-    printf("libtcc1:\n  %s/""libtcc1.a""\n", s->tcc_lib_path);
+    printf("libtcc1:\n  %s/""libtcc1.o""\n", s->tcc_lib_path);
     print_dirs("crt", s->crt_paths, s->nb_crt_paths);
     printf("elfinterp:\n  %s\n",  "/lib/ld-linux.so.2");
 }
@@ -15593,8 +15026,6 @@ redo:
             tcc_tool_cross(s, argv, opt);
         if (s->verbose)
             printf(version);
-        if (opt == 5)
-            return tcc_tool_ar(s, argc, argv);
         if (opt == 3)
             return 0;
         if (opt == 4) {
@@ -15635,7 +15066,6 @@ redo:
     for (first_file = ((void*)0), ret = 0;;) {
         struct filespec *f = s->files[s->nb_files - n];
         s->filetype = f->type;
-        s->alacarte_link = f->alacarte;
         if (f->type == 4) {
             if (tcc_add_library_err(s, f->name) < 0)
                 ret = 1;
@@ -15648,7 +15078,6 @@ redo:
                 ret = 1;
         }
         s->filetype = 0;
-        s->alacarte_link = 1;
         if (--n == 0 || ret
             || (s->output_type == 4 && !s->option_r))
             break;

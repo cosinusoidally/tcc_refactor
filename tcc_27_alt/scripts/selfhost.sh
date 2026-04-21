@@ -35,7 +35,6 @@ build_runtime()
     bdir=$2
     mkdir -p "$bdir"
     "$RUN_I386" "$compiler" -B"$bdir" -nostdinc -c lib/libtcc1_nopp.c -o "$bdir/libtcc1.o"
-    "$RUN_I386" "$compiler" -ar rcs "$bdir/libtcc1.a" "$bdir/libtcc1.o"
 }
 
 echo "checking stage1: $STAGE1"
