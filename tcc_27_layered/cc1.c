@@ -95,6 +95,11 @@ var cc1_function_table_overflow;
 var cc1_current_function_name_hash;
 var cc1_current_function_name_len;
 var cc1_current_function_param_count;
+var cc1_statement_table_ptr;
+var cc1_statement_table_limit;
+var cc1_statement_table_count;
+var cc1_statement_table_overflow;
+var cc1_current_function_ordinal;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -175,6 +180,11 @@ cc1_function_table_overflow = 0;
 cc1_current_function_name_hash = 0;
 cc1_current_function_name_len = 0;
 cc1_current_function_param_count = 0;
+cc1_statement_table_ptr = 0;
+cc1_statement_table_limit = 0;
+cc1_statement_table_count = 0;
+cc1_statement_table_overflow = 0;
+cc1_current_function_ordinal = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -254,6 +264,11 @@ function cc1_reset()
     cc1_current_function_name_hash = 0;
     cc1_current_function_name_len = 0;
     cc1_current_function_param_count = 0;
+    cc1_statement_table_ptr = 0;
+    cc1_statement_table_limit = 0;
+    cc1_statement_table_count = 0;
+    cc1_statement_table_overflow = 0;
+    cc1_current_function_ordinal = 0;
     return 0;
 }
 
@@ -308,6 +323,32 @@ function cc1_function_table_add(hash, len, param_count, source_start, source_spa
     cc0_cell_set(cc1_function_table_ptr, index + 4, source_span);
     cc0_cell_set(cc1_function_table_ptr, index + 5, ordinal);
     cc1_function_table_count = cc1_function_table_count + 1;
+    return 1;
+}
+
+function cc1_statement_table_reset()
+{
+    cc1_statement_table_limit = 16;
+    cc1_statement_table_count = 0;
+    cc1_statement_table_overflow = 0;
+    cc1_statement_table_ptr = cc0_cell_alloc(cc1_statement_table_limit * 4);
+    return 1;
+}
+
+function cc1_statement_table_add(kind, depth, source_start, function_ordinal)
+{
+    var index;
+
+    if (cc1_statement_table_count >= cc1_statement_table_limit) {
+        cc1_statement_table_overflow = 1;
+        return 1;
+    }
+    index = cc1_statement_table_count * 4;
+    cc0_cell_set(cc1_statement_table_ptr, index + 0, kind);
+    cc0_cell_set(cc1_statement_table_ptr, index + 1, depth);
+    cc0_cell_set(cc1_statement_table_ptr, index + 2, source_start);
+    cc0_cell_set(cc1_statement_table_ptr, index + 3, function_ordinal);
+    cc1_statement_table_count = cc1_statement_table_count + 1;
     return 1;
 }
 
@@ -1277,6 +1318,7 @@ function cc1_parse_function_signature_tokens()
     cc1_last_name = cc0_get_tok_first();
     cc1_note_function_name_token();
     cc1_function_count = cc1_function_count + 1;
+    cc1_current_function_ordinal = cc1_function_count - 1;
     cc0_scan_next();
     if (!cc1_at_punct(CC0_CH_LPAREN)) {
         cc1_error = 46;
@@ -1367,7 +1409,23 @@ function cc1_parse_block_tokens(body_depth)
 
 function cc1_parse_body_statement_tokens(body_depth)
 {
+    var statement_kind;
+    var statement_start;
+
     cc1_current_function_statement_count = cc1_current_function_statement_count + 1;
+    statement_start = cc0_get_tok_start();
+    statement_kind = 5;
+    if (cc0_tok_is_word_return())
+        statement_kind = 1;
+    if (cc0_tok_is_word_if())
+        statement_kind = 2;
+    if (cc0_tok_is_word_while())
+        statement_kind = 3;
+    if (cc0_tok_is_word_var())
+        statement_kind = 4;
+    if (cc1_at_punct(CC0_CH_LBRACE))
+        statement_kind = 6;
+    cc1_statement_table_add(statement_kind, body_depth, statement_start, cc1_current_function_ordinal);
     if (cc0_tok_is_word_return())
         return cc1_parse_return_statement_tokens();
     if (cc0_tok_is_word_if())
@@ -1426,6 +1484,7 @@ function cc1_parse_cc0_source_string(source)
     cc1_reset();
     cc1_symbol_table_reset();
     cc1_function_table_reset();
+    cc1_statement_table_reset();
     cc0_source_set_string(source);
     cc0_scan_next();
     if (!cc1_parse_cc0_source_tokens())
@@ -1894,4 +1953,27 @@ function cc1_get_function_table_cell(index, field)
     if (field > 5)
         return -1;
     return cc0_cell_get(cc1_function_table_ptr, index * 6 + field);
+}
+
+function cc1_get_statement_table_count()
+{
+    return cc1_statement_table_count;
+}
+
+function cc1_get_statement_table_overflow()
+{
+    return cc1_statement_table_overflow;
+}
+
+function cc1_get_statement_table_cell(index, field)
+{
+    if (index < 0)
+        return -1;
+    if (index >= cc1_statement_table_count)
+        return -1;
+    if (field < 0)
+        return -1;
+    if (field > 3)
+        return -1;
+    return cc0_cell_get(cc1_statement_table_ptr, index * 4 + field);
 }

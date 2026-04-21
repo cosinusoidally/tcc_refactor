@@ -152,7 +152,10 @@ symbols into a cc0 heap-backed table with kind, hash, length, and ordinal
 fields; overflow is recorded explicitly once the bootstrap-sized table fills.
 Function signatures and body spans are also copied into a bounded heap-backed
 function table, recording each function's name hash/length, parameter count,
-source start, source span, and ordinal.
+source start, source span, and ordinal. Function body scans now additionally
+emit bounded statement records with statement kind, nesting depth, source start,
+and owning function ordinal, giving later lowering passes a replayable body
+skeleton.
 This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and

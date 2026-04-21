@@ -610,6 +610,24 @@ if (cc1_get_function_table_cell(1, 0) !== 119 ||
     cc1_get_function_table_cell(1, 5) !== 1)
     throw new Error("cc1 cc0 source shell function record 1 failed");
 
+if (cc1_get_statement_table_count() !== 7)
+    throw new Error("cc1 cc0 source shell statement table count failed");
+
+if (cc1_get_statement_table_overflow() !== 0)
+    throw new Error("cc1 cc0 source shell statement table overflow failed");
+
+if (cc1_get_statement_table_cell(0, 0) !== 2 ||
+    cc1_get_statement_table_cell(0, 1) !== 1 ||
+    cc1_get_statement_table_cell(0, 2) !== 35 ||
+    cc1_get_statement_table_cell(0, 3) !== 0)
+    throw new Error("cc1 cc0 source shell statement record 0 failed");
+
+if (cc1_get_statement_table_cell(6, 0) !== 1 ||
+    cc1_get_statement_table_cell(6, 1) !== 1 ||
+    cc1_get_statement_table_cell(6, 2) !== 95 ||
+    cc1_get_statement_table_cell(6, 3) !== 1)
+    throw new Error("cc1 cc0 source shell statement record 6 failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -787,6 +805,24 @@ if (cc1_get_function_table_cell(7, 0) !== 30345 ||
     cc1_get_function_table_cell(7, 4) !== 189 ||
     cc1_get_function_table_cell(7, 5) !== 7)
     throw new Error("cc1 cc0.c function record 7 failed");
+
+if (cc1_get_statement_table_count() !== 16)
+    throw new Error("cc1 cc0.c statement table count failed");
+
+if (cc1_get_statement_table_overflow() !== 1)
+    throw new Error("cc1 cc0.c statement table overflow failed");
+
+if (cc1_get_statement_table_cell(0, 0) !== 1 ||
+    cc1_get_statement_table_cell(0, 1) !== 1 ||
+    cc1_get_statement_table_cell(0, 2) !== 3256 ||
+    cc1_get_statement_table_cell(0, 3) !== 0)
+    throw new Error("cc1 cc0.c statement record 0 failed");
+
+if (cc1_get_statement_table_cell(15, 0) !== 2 ||
+    cc1_get_statement_table_cell(15, 1) !== 1 ||
+    cc1_get_statement_table_cell(15, 2) !== 3712 ||
+    cc1_get_statement_table_cell(15, 3) !== 3)
+    throw new Error("cc1 cc0.c statement record 15 failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
