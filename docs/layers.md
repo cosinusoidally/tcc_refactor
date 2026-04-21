@@ -113,6 +113,11 @@ evaluating guards. It can also dispatch expression calls to other recorded
 function-table entries while preserving the caller's scanner and name-binding
 state, which lets helpers such as `cc0_is_alpha` execute through their lower
 cc0 predicate calls.
+Unary minus and non-`var` assignment statements are also executable for the cc0
+scanner-state globals. During recorded-function evaluation those global writes
+are deferred until the body has been parsed, so helpers that change
+`cc0_source_kind`, `cc0_scan_pos`, or token state do not corrupt the source
+stream that cc1 is still reading.
 The public `cc1_compile_unit(source_id)` hook now treats `source_id` as a cc0
 heap string pointer and runs this whole-source parser, replacing the previous
 success-only stub with a real lower-layer entry point.

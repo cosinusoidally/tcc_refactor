@@ -127,6 +127,10 @@ var cc1_expr_table_ptr;
 var cc1_expr_table_limit;
 var cc1_expr_table_count;
 var cc1_expr_table_overflow;
+var cc1_defer_global_assignments;
+var cc1_pending_global_ptr;
+var cc1_pending_global_count;
+var cc1_pending_global_capacity;
 var cc1_symbol_table_capacity;
 var cc1_function_table_capacity;
 var cc1_statement_table_capacity;
@@ -135,6 +139,10 @@ var cc1_local_table_capacity;
 var cc1_expr_table_capacity;
 
 cc1_version = 1;
+cc1_defer_global_assignments = 0;
+cc1_pending_global_ptr = 0;
+cc1_pending_global_count = 0;
+cc1_pending_global_capacity = 32;
 cc1_symbol_table_capacity = 256;
 cc1_function_table_capacity = 64;
 cc1_statement_table_capacity = 512;
@@ -804,12 +812,68 @@ function cc1_tok_is_cc0_ch_name3(c0, c1, c2)
     return 1;
 }
 
+function cc1_tok_matches_text(ptr)
+{
+    var c;
+    var i;
+    i = 0;
+    while (i < cc0_get_tok_len()) {
+        c = cc0_heap_get(ptr, i);
+        if (c == 0)
+            return 0;
+        if (cc0_source_at(cc0_get_tok_start() + i) != c)
+            return 0;
+        i = i + 1;
+    }
+    if (cc0_heap_get(ptr, i) != 0)
+        return 0;
+    return 1;
+}
+
 function cc1_lookup_current_name()
 {
     if (cc1_tok_is_cc0_ch_single())
         return cc0_source_at(cc0_get_tok_start() + 7);
     if (cc1_tok_is_cc0_ch_name3(mkc('N'), mkc('U'), mkc('L')))
         return CC0_CH_NUL;
+    if (cc1_tok_matches_text(mks("CC0_LOWER_TO_UPPER_DELTA")))
+        return CC0_LOWER_TO_UPPER_DELTA;
+    if (cc1_tok_matches_text(mks("CC0_CH_UNDERSCORE")))
+        return CC0_CH_UNDERSCORE;
+    if (cc1_tok_matches_text(mks("CC0_CH_SPACE")))
+        return CC0_CH_SPACE;
+    if (cc1_tok_matches_text(mks("CC0_CH_TAB")))
+        return CC0_CH_TAB;
+    if (cc1_tok_matches_text(mks("CC0_CH_LF")))
+        return CC0_CH_LF;
+    if (cc1_tok_matches_text(mks("CC0_CH_VT")))
+        return CC0_CH_VT;
+    if (cc1_tok_matches_text(mks("CC0_CH_FF")))
+        return CC0_CH_FF;
+    if (cc1_tok_matches_text(mks("CC0_CH_CR")))
+        return CC0_CH_CR;
+    if (cc1_tok_matches_text(mks("CC0_CH_SQUOTE")))
+        return CC0_CH_SQUOTE;
+    if (cc1_tok_matches_text(mks("CC0_CH_DQUOTE")))
+        return CC0_CH_DQUOTE;
+    if (cc1_tok_matches_text(mks("CC0_TOK_EOF")))
+        return CC0_TOK_EOF;
+    if (cc1_tok_matches_text(mks("CC0_TOK_NAME")))
+        return CC0_TOK_NAME;
+    if (cc1_tok_matches_text(mks("CC0_TOK_NUMBER")))
+        return CC0_TOK_NUMBER;
+    if (cc1_tok_matches_text(mks("CC0_TOK_SPACE")))
+        return CC0_TOK_SPACE;
+    if (cc1_tok_matches_text(mks("CC0_TOK_PUNCT")))
+        return CC0_TOK_PUNCT;
+    if (cc1_tok_matches_text(mks("CC0_TOK_CHAR")))
+        return CC0_TOK_CHAR;
+    if (cc1_tok_matches_text(mks("CC0_TOK_STRING")))
+        return CC0_TOK_STRING;
+    if (cc1_tok_matches_text(mks("CC0_SOURCE_CELLS")))
+        return CC0_SOURCE_CELLS;
+    if (cc1_tok_matches_text(mks("CC0_SOURCE_STRING")))
+        return CC0_SOURCE_STRING;
     if (cc1_tok_is_cc0_ch_digit(CC0_CH_0))
         return CC0_CH_0;
     if (cc1_tok_is_cc0_ch_digit(CC0_CH_7))
@@ -817,6 +881,142 @@ function cc1_lookup_current_name()
     if (cc1_tok_is_cc0_ch_digit(CC0_CH_9))
         return CC0_CH_9;
     return cc1_lookup_name(cc1_hash_current_name_with(0));
+}
+
+function cc1_current_global_assignment_id()
+{
+    if (cc1_tok_matches_text(mks("cc0_source_kind")))
+        return 1;
+    if (cc1_tok_matches_text(mks("cc0_source_ptr")))
+        return 2;
+    if (cc1_tok_matches_text(mks("cc0_src_0")))
+        return 3;
+    if (cc1_tok_matches_text(mks("cc0_src_1")))
+        return 4;
+    if (cc1_tok_matches_text(mks("cc0_src_2")))
+        return 5;
+    if (cc1_tok_matches_text(mks("cc0_src_3")))
+        return 6;
+    if (cc1_tok_matches_text(mks("cc0_src_4")))
+        return 7;
+    if (cc1_tok_matches_text(mks("cc0_src_5")))
+        return 8;
+    if (cc1_tok_matches_text(mks("cc0_src_6")))
+        return 9;
+    if (cc1_tok_matches_text(mks("cc0_src_7")))
+        return 10;
+    if (cc1_tok_matches_text(mks("cc0_src_8")))
+        return 11;
+    if (cc1_tok_matches_text(mks("cc0_src_9")))
+        return 12;
+    if (cc1_tok_matches_text(mks("cc0_src_10")))
+        return 13;
+    if (cc1_tok_matches_text(mks("cc0_src_11")))
+        return 14;
+    if (cc1_tok_matches_text(mks("cc0_src_12")))
+        return 15;
+    if (cc1_tok_matches_text(mks("cc0_src_13")))
+        return 16;
+    if (cc1_tok_matches_text(mks("cc0_src_14")))
+        return 17;
+    if (cc1_tok_matches_text(mks("cc0_src_15")))
+        return 18;
+    if (cc1_tok_matches_text(mks("cc0_scan_pos")))
+        return 19;
+    if (cc1_tok_matches_text(mks("cc0_tok_class")))
+        return 20;
+    if (cc1_tok_matches_text(mks("cc0_tok_start")))
+        return 21;
+    if (cc1_tok_matches_text(mks("cc0_tok_len")))
+        return 22;
+    if (cc1_tok_matches_text(mks("cc0_tok_value")))
+        return 23;
+    return 0;
+}
+
+function cc1_apply_global_assignment(id, value)
+{
+    if (id == 1)
+        cc0_source_kind = value;
+    if (id == 2)
+        cc0_source_ptr = value;
+    if (id == 3)
+        cc0_src_0 = value;
+    if (id == 4)
+        cc0_src_1 = value;
+    if (id == 5)
+        cc0_src_2 = value;
+    if (id == 6)
+        cc0_src_3 = value;
+    if (id == 7)
+        cc0_src_4 = value;
+    if (id == 8)
+        cc0_src_5 = value;
+    if (id == 9)
+        cc0_src_6 = value;
+    if (id == 10)
+        cc0_src_7 = value;
+    if (id == 11)
+        cc0_src_8 = value;
+    if (id == 12)
+        cc0_src_9 = value;
+    if (id == 13)
+        cc0_src_10 = value;
+    if (id == 14)
+        cc0_src_11 = value;
+    if (id == 15)
+        cc0_src_12 = value;
+    if (id == 16)
+        cc0_src_13 = value;
+    if (id == 17)
+        cc0_src_14 = value;
+    if (id == 18)
+        cc0_src_15 = value;
+    if (id == 19)
+        cc0_scan_pos = value;
+    if (id == 20)
+        cc0_tok_class = value;
+    if (id == 21)
+        cc0_tok_start = value;
+    if (id == 22)
+        cc0_tok_len = value;
+    if (id == 23)
+        cc0_tok_value = value;
+    return 1;
+}
+
+function cc1_store_global_assignment(id, value)
+{
+    var index;
+    if (cc1_defer_global_assignments) {
+        if (cc1_pending_global_ptr == 0)
+            cc1_pending_global_ptr = cc0_cell_alloc(cc1_pending_global_capacity * 2);
+        if (cc1_pending_global_count >= cc1_pending_global_capacity) {
+            cc1_error = 75;
+            return 0;
+        }
+        index = cc1_pending_global_count * 2;
+        cc0_cell_set(cc1_pending_global_ptr, index + 0, id);
+        cc0_cell_set(cc1_pending_global_ptr, index + 1, value);
+        cc1_pending_global_count = cc1_pending_global_count + 1;
+        return 1;
+    }
+    return cc1_apply_global_assignment(id, value);
+}
+
+function cc1_apply_pending_global_assignments()
+{
+    var i;
+    var index;
+    i = 0;
+    while (i < cc1_pending_global_count) {
+        index = i * 2;
+        cc1_apply_global_assignment(cc0_cell_get(cc1_pending_global_ptr, index + 0),
+                                    cc0_cell_get(cc1_pending_global_ptr, index + 1));
+        i = i + 1;
+    }
+    cc1_pending_global_count = 0;
+    return 1;
 }
 
 function cc1_tok_is_word_cc0_is_digit()
@@ -1220,6 +1420,13 @@ function cc1_parse_primary()
             return 0;
         return 1;
     }
+    if (cc1_at_punct(CC0_CH_MINUS)) {
+        cc0_scan_next();
+        value = cc1_parse_primary();
+        if (cc1_error)
+            return 0;
+        return 0 - value;
+    }
     if (cc0_get_tok_class() == CC0_TOK_NUMBER) {
         value = cc1_parse_number();
         cc0_scan_next();
@@ -1404,12 +1611,14 @@ function cc1_parse_sum8(c0, c1, c2, c3, c4, c5, c6, c7)
 
 function cc1_parse_assignment_tokens()
 {
+    var global_id;
     var name_key;
     var value;
     if (cc0_get_tok_class() != CC0_TOK_NAME) {
         cc1_error = 7;
         return 0;
     }
+    global_id = cc1_current_global_assignment_id();
     name_key = cc1_hash_current_name_with(0);
     cc1_last_name = cc0_get_tok_first();
     cc0_scan_next();
@@ -1422,6 +1631,11 @@ function cc1_parse_assignment_tokens()
     if (cc1_error)
         return 0;
     cc1_last_value = value;
+    if (global_id) {
+        if (!cc1_store_global_assignment(global_id, value))
+            return 0;
+        return 1;
+    }
     cc1_bind_name_value(name_key, value);
     if (cc1_error)
         return 0;
@@ -2087,6 +2301,8 @@ function cc1_eval_function_table4(index, arg0, arg1, arg2, arg3)
 
 function cc1_eval_function_table9(index, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
 {
+    var save_defer_global_assignments;
+    var save_pending_global_count;
     var source_start;
     if (index < 0) {
         cc1_error = 68;
@@ -2108,10 +2324,21 @@ function cc1_eval_function_table9(index, arg0, arg1, arg2, arg3, arg4, arg5, arg
     cc1_arg_8 = arg8;
     cc1_error = 0;
     cc1_reset_name_table();
+    save_defer_global_assignments = cc1_defer_global_assignments;
+    save_pending_global_count = cc1_pending_global_count;
+    if (!save_defer_global_assignments)
+        cc1_pending_global_count = 0;
+    cc1_defer_global_assignments = 1;
     cc0_source_seek(source_start);
     cc0_scan_next();
-    if (!cc1_parse_function_return_tokens())
+    if (!cc1_parse_function_return_tokens()) {
+        cc1_defer_global_assignments = save_defer_global_assignments;
+        cc1_pending_global_count = save_pending_global_count;
         return 0;
+    }
+    cc1_defer_global_assignments = save_defer_global_assignments;
+    if (!save_defer_global_assignments)
+        cc1_apply_pending_global_assignments();
     return 1;
 }
 
@@ -2174,6 +2401,17 @@ function cc1_parse_function_return_tokens()
     selected_value_set = 0;
     while (cc0_tok_is_word_var()) {
         cc0_scan_next();
+        if (!cc1_parse_assignment_tokens())
+            return 0;
+        if (!cc1_at_punct(CC0_CH_SEMI)) {
+            cc1_error = 18;
+            return 0;
+        }
+        cc0_scan_next();
+    }
+    while (cc0_get_tok_class() == CC0_TOK_NAME) {
+        if (cc1_next_nonspace_from(cc0_get_tok_start() + cc0_get_tok_len()) != CC0_CH_EQUAL)
+            break;
         if (!cc1_parse_assignment_tokens())
             return 0;
         if (!cc1_at_punct(CC0_CH_SEMI)) {

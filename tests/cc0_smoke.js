@@ -307,6 +307,12 @@ if (cc1_parse_function_return_string(mks("function main(){return 7+8*2;}")) !== 
 if (cc1_get_last_name() !== mkc('m') || cc1_get_last_value() !== 23)
     throw new Error("cc1 function return state failed");
 
+if (cc1_parse_function_return_string(mks("function neg(){return -1;}")) !== 1)
+    throw new Error("cc1 unary minus return parse failed");
+
+if (cc1_get_last_name() !== mkc('n') || cc1_get_last_value() !== -1)
+    throw new Error("cc1 unary minus return state failed");
+
 if (cc1_parse_function_return_string(mks("function main(){var a=7;var b=a*2;return b+3;}")) !== 1)
     throw new Error("cc1 function vars parse failed");
 
@@ -746,7 +752,9 @@ if (cc1_parse_cc0_source_string(mks("function bad(x){if((x)return 1;}")) !== 0)
 if (cc1_get_error() === 0)
     throw new Error("cc1 unbalanced if condition did not report error");
 
-if (cc1_parse_cc0_source_string(mks(read("../tcc_27_layered/cc0.c"))) !== 1)
+var cc0_source_text = read("../tcc_27_layered/cc0.c");
+
+if (cc1_parse_cc0_source_string(mks(cc0_source_text)) !== 1)
     throw new Error("cc1 cc0.c parse failed: " + cc1_get_error());
 
 if (cc1_get_function_count() !== 42)
@@ -1054,6 +1062,35 @@ if (cc1_eval_function_table9(15, CC0_CH_0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 0)
     throw new Error("cc1 cc0.c eval cc0_is_alpha digit failed");
+
+if (cc1_eval_function_table9(23, CC0_CH_A, CC0_CH_z, -1, -1, -1, -1, -1, -1, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 0 ||
+    cc0_source_at(0) !== CC0_CH_A ||
+    cc0_source_at(1) !== CC0_CH_z ||
+    cc0_source_at(2) !== -1)
+    throw new Error("cc1 cc0.c eval cc0_source_set8 record failed");
+
+if (cc1_parse_cc0_source_string(mks(cc0_source_text)) !== 1)
+    throw new Error("cc1 cc0.c reparse after source_set8 failed");
+
+cc0_test_string = mks("Az");
+if (cc1_eval_function_table9(25, cc0_test_string, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 0 ||
+    cc0_source_at(0) !== CC0_CH_A ||
+    cc0_source_at(1) !== CC0_CH_z ||
+    cc0_source_at(2) !== -1)
+    throw new Error("cc1 cc0.c eval cc0_source_set_string record failed");
+
+if (cc1_parse_cc0_source_string(mks(cc0_source_text)) !== 1)
+    throw new Error("cc1 cc0.c reparse after source_set_string failed");
+
+if (cc1_eval_function_table9(26, 3, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 1 ||
+    cc0_get_tok_start() !== 3)
+    throw new Error("cc1 cc0.c eval cc0_source_seek record failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

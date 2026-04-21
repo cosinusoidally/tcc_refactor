@@ -186,6 +186,12 @@ evaluation can also dispatch a call to another recorded function-table entry
 and then restore the caller's scanner and binding state; this is pinned by a
 synthetic nested-call test and by evaluating the real `cc0_is_alpha` record
 through its calls to `cc0_is_upper` and `cc0_is_lower`.
+The same evaluator now handles unary minus and non-`var` assignment statements
+for the cc0 scanner-state globals. Those global writes are deferred while a
+recorded function body is being parsed, then applied after the return path is
+known, which lets source-state helpers such as `cc0_source_set8`,
+`cc0_source_set_string`, and `cc0_source_seek` run without changing the source
+stream out from under the evaluator.
 This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and

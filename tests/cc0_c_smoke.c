@@ -329,6 +329,10 @@ int main()
         return 74;
     if (cc1_get_last_name() != 'm' || cc1_get_last_value() != 23)
         return 75;
+    if (cc1_parse_function_return_string(mks("function neg(){return -1;}")) != 1)
+        return 134;
+    if (cc1_get_last_name() != 'n' || cc1_get_last_value() != -1)
+        return 135;
     if (cc1_parse_function_return_string(mks("function main(){var a=7;var b=a*2;return b+3;}")) != 1)
         return 76;
     if (cc1_get_last_name() != 'm' || cc1_get_last_value() != 17)
@@ -646,6 +650,13 @@ int main()
         cc1_get_last_name() != 'w' ||
         cc1_get_last_value() != 3)
         return 233;
+    if (cc1_parse_cc0_source_string(mks("function set(a){cc0_tok_value=a;return 0;}")) != 1)
+        return 234;
+    if (cc1_eval_function_table9(0, 77, 0, 0, 0, 0, 0, 0, 0, 0) != 1 ||
+        cc1_get_last_name() != 's' ||
+        cc1_get_last_value() != 0 ||
+        cc0_get_tok_value() != 77)
+        return 235;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)
