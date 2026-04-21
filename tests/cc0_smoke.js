@@ -72,6 +72,20 @@ if (!cc0_is_name_start(95) || !cc0_is_name_start(65))
 if (cc0_to_upper(97) !== 65 || cc0_to_upper(65) !== 65 || cc0_to_upper(48) !== 48)
     throw new Error("cc0_to_upper failed");
 
+if (cc0_hex_digit_value(mkc('0')) !== 0 ||
+    cc0_hex_digit_value(mkc('9')) !== 9 ||
+    cc0_hex_digit_value(mkc('a')) !== 10 ||
+    cc0_hex_digit_value(mkc('F')) !== 15 ||
+    cc0_hex_digit_value(mkc('g')) !== -1)
+    throw new Error("cc0 hex digit failed");
+
+if (cc0_c_escape_value(mkc('n'), 0) !== CC0_CH_LF ||
+    cc0_c_escape_value(mkc('t'), 0) !== CC0_CH_TAB ||
+    cc0_c_escape_value(mkc('\\'), 0) !== CC0_CH_BACKSLASH ||
+    cc0_c_escape_value(mkc('e'), 0) !== -1 ||
+    cc0_c_escape_value(mkc('e'), 1) !== CC0_ESCAPE_ESC)
+    throw new Error("cc0 C escape failed");
+
 if (!cc0_is_name_continue(57) || cc0_is_name_continue(45))
     throw new Error("cc0_is_name_continue failed");
 
@@ -783,16 +797,16 @@ var cc0_source_text = read("../tcc_27_layered/cc0.c");
 if (cc1_parse_cc0_source_string(mks(cc0_source_text)) !== 1)
     throw new Error("cc1 cc0.c parse failed: " + cc1_get_error());
 
-if (cc1_get_function_count() !== 49)
+if (cc1_get_function_count() !== 51)
     throw new Error("cc1 cc0.c function count failed");
 
-if (cc1_get_top_decl_count() !== 234)
+if (cc1_get_top_decl_count() !== 252)
     throw new Error("cc1 cc0.c top count failed");
 
-if (cc1_get_return_count() !== 220)
+if (cc1_get_return_count() !== 237)
     throw new Error("cc1 cc0.c return count failed");
 
-if (cc1_get_if_count() !== 206)
+if (cc1_get_if_count() !== 224)
     throw new Error("cc1 cc0.c if count failed");
 
 if (cc1_get_while_count() !== 7)
@@ -801,19 +815,19 @@ if (cc1_get_while_count() !== 7)
 if (cc1_get_local_decl_count() !== 4)
     throw new Error("cc1 cc0.c local count failed");
 
-if (cc1_get_body_semi_count() !== 324)
+if (cc1_get_body_semi_count() !== 341)
     throw new Error("cc1 cc0.c semicolon count failed");
 
 if (cc1_get_max_body_depth() !== 5)
     throw new Error("cc1 cc0.c body depth failed");
 
-if (cc1_get_param_count() !== 101)
+if (cc1_get_param_count() !== 104)
     throw new Error("cc1 cc0.c param count failed");
 
 if (cc1_get_max_param_count() !== 16)
     throw new Error("cc1 cc0.c max param count failed");
 
-if (cc1_get_body_call_count() !== 90)
+if (cc1_get_body_call_count() !== 91)
     throw new Error("cc1 cc0.c body call count failed");
 
 if (cc1_get_max_body_call_arg_count() !== 9)
@@ -846,37 +860,37 @@ if (cc1_get_body_local_init_count() !== 0)
 if (cc1_get_body_name_assignment_count() !== 99)
     throw new Error("cc1 cc0.c name assignment count failed");
 
-if (cc1_get_body_plus_op_count() !== 44)
+if (cc1_get_body_plus_op_count() !== 46)
     throw new Error("cc1 cc0.c plus op count failed");
 
-if (cc1_get_body_minus_op_count() !== 17)
+if (cc1_get_body_minus_op_count() !== 22)
     throw new Error("cc1 cc0.c minus op count failed");
 
 if (cc1_get_body_star_op_count() !== 1)
     throw new Error("cc1 cc0.c star op count failed");
 
-if (cc1_get_body_compare_op_count() !== 193)
+if (cc1_get_body_compare_op_count() !== 209)
     throw new Error("cc1 cc0.c compare op count failed");
 
 if (cc1_get_body_not_op_count() !== 0)
     throw new Error("cc1 cc0.c not op count failed");
 
-if (cc1_get_function_name_char_count() !== 866)
+if (cc1_get_function_name_char_count() !== 903)
     throw new Error("cc1 cc0.c function name char count failed");
 
 if (cc1_get_max_function_name_len() !== 26)
     throw new Error("cc1 cc0.c max function name length failed");
 
-if (cc1_get_function_name_hash() !== 12204)
+if (cc1_get_function_name_hash() !== 17734)
     throw new Error("cc1 cc0.c function name hash failed");
 
-if (cc1_get_global_name_char_count() !== 2748)
+if (cc1_get_global_name_char_count() !== 2956)
     throw new Error("cc1 cc0.c global name char count failed");
 
 if (cc1_get_max_global_name_len() !== 24)
     throw new Error("cc1 cc0.c max global name length failed");
 
-if (cc1_get_global_name_hash() !== 32624)
+if (cc1_get_global_name_hash() !== 26510)
     throw new Error("cc1 cc0.c global name hash failed");
 
 if (cc1_get_max_function_source_span() !== 2055)
@@ -906,7 +920,7 @@ if (cc1_get_global_slot_hash(2) !== 28778 || cc1_get_global_slot_len(2) !== 12)
 if (cc1_get_global_slot_hash(3) !== 5685 || cc1_get_global_slot_len(3) !== 14)
     throw new Error("cc1 cc0.c global slot 3 failed");
 
-if (cc1_get_symbol_table_count() !== 283)
+if (cc1_get_symbol_table_count() !== 303)
     throw new Error("cc1 cc0.c symbol table count failed");
 
 if (cc1_get_symbol_table_overflow() !== 0)
@@ -924,13 +938,13 @@ if (cc1_get_symbol_table_cell(3, 0) !== 2 ||
     cc1_get_symbol_table_cell(3, 3) !== 3)
     throw new Error("cc1 cc0.c symbol 3 failed");
 
-if (cc1_get_symbol_table_cell(282, 0) !== 1 ||
-    cc1_get_symbol_table_cell(282, 1) !== 8892 ||
-    cc1_get_symbol_table_cell(282, 2) !== 21 ||
-    cc1_get_symbol_table_cell(282, 3) !== 48)
-    throw new Error("cc1 cc0.c symbol 282 failed");
+if (cc1_get_symbol_table_cell(302, 0) !== 1 ||
+    cc1_get_symbol_table_cell(302, 1) !== 8892 ||
+    cc1_get_symbol_table_cell(302, 2) !== 21 ||
+    cc1_get_symbol_table_cell(302, 3) !== 50)
+    throw new Error("cc1 cc0.c symbol 302 failed");
 
-if (cc1_get_function_table_count() !== 49)
+if (cc1_get_function_table_count() !== 51)
     throw new Error("cc1 cc0.c function table count failed");
 
 if (cc1_get_function_table_overflow() !== 0)
@@ -939,7 +953,7 @@ if (cc1_get_function_table_overflow() !== 0)
 if (cc1_get_function_table_cell(0, 0) !== 16844 ||
     cc1_get_function_table_cell(0, 1) !== 7 ||
     cc1_get_function_table_cell(0, 2) !== 2 ||
-    cc1_get_function_table_cell(0, 3) !== 4550 ||
+    cc1_get_function_table_cell(0, 3) !== 4874 ||
     cc1_get_function_table_cell(0, 4) !== 46 ||
     cc1_get_function_table_cell(0, 5) !== 0)
     throw new Error("cc1 cc0.c function record 0 failed");
@@ -947,20 +961,20 @@ if (cc1_get_function_table_cell(0, 0) !== 16844 ||
 if (cc1_get_function_table_cell(7, 0) !== 30345 ||
     cc1_get_function_table_cell(7, 1) !== 20 ||
     cc1_get_function_table_cell(7, 2) !== 3 ||
-    cc1_get_function_table_cell(7, 3) !== 6118 ||
+    cc1_get_function_table_cell(7, 3) !== 6442 ||
     cc1_get_function_table_cell(7, 4) !== 189 ||
     cc1_get_function_table_cell(7, 5) !== 7)
     throw new Error("cc1 cc0.c function record 7 failed");
 
-if (cc1_get_function_table_cell(48, 0) !== 8892 ||
-    cc1_get_function_table_cell(48, 1) !== 21 ||
-    cc1_get_function_table_cell(48, 2) !== 0 ||
-    cc1_get_function_table_cell(48, 3) !== 22415 ||
-    cc1_get_function_table_cell(48, 4) !== 413 ||
-    cc1_get_function_table_cell(48, 5) !== 48)
-    throw new Error("cc1 cc0.c function record 48 failed");
+if (cc1_get_function_table_cell(50, 0) !== 8892 ||
+    cc1_get_function_table_cell(50, 1) !== 21 ||
+    cc1_get_function_table_cell(50, 2) !== 0 ||
+    cc1_get_function_table_cell(50, 3) !== 23706 ||
+    cc1_get_function_table_cell(50, 4) !== 413 ||
+    cc1_get_function_table_cell(50, 5) !== 50)
+    throw new Error("cc1 cc0.c function record 50 failed");
 
-if (cc1_get_statement_table_count() !== 551)
+if (cc1_get_statement_table_count() !== 586)
     throw new Error("cc1 cc0.c statement table count failed");
 
 if (cc1_get_statement_table_overflow() !== 0)
@@ -968,23 +982,23 @@ if (cc1_get_statement_table_overflow() !== 0)
 
 if (cc1_get_statement_table_cell(0, 0) !== 1 ||
     cc1_get_statement_table_cell(0, 1) !== 1 ||
-    cc1_get_statement_table_cell(0, 2) !== 4579 ||
+    cc1_get_statement_table_cell(0, 2) !== 4903 ||
     cc1_get_statement_table_cell(0, 3) !== 0)
     throw new Error("cc1 cc0.c statement record 0 failed");
 
 if (cc1_get_statement_table_cell(15, 0) !== 2 ||
     cc1_get_statement_table_cell(15, 1) !== 1 ||
-    cc1_get_statement_table_cell(15, 2) !== 5035 ||
+    cc1_get_statement_table_cell(15, 2) !== 5359 ||
     cc1_get_statement_table_cell(15, 3) !== 3)
     throw new Error("cc1 cc0.c statement record 15 failed");
 
-if (cc1_get_statement_table_cell(550, 0) !== 1 ||
-    cc1_get_statement_table_cell(550, 1) !== 1 ||
-    cc1_get_statement_table_cell(550, 2) !== 22567 ||
-    cc1_get_statement_table_cell(550, 3) !== 48)
-    throw new Error("cc1 cc0.c statement record 550 failed");
+if (cc1_get_statement_table_cell(585, 0) !== 1 ||
+    cc1_get_statement_table_cell(585, 1) !== 1 ||
+    cc1_get_statement_table_cell(585, 2) !== 23858 ||
+    cc1_get_statement_table_cell(585, 3) !== 50)
+    throw new Error("cc1 cc0.c statement record 585 failed");
 
-if (cc1_get_param_table_count() !== 101 || cc1_get_param_table_overflow() !== 0)
+if (cc1_get_param_table_count() !== 104 || cc1_get_param_table_overflow() !== 0)
     throw new Error("cc1 cc0.c param table bounds failed");
 
 if (cc1_get_param_table_cell(0, 0) !== 97 ||
@@ -999,11 +1013,11 @@ if (cc1_get_param_table_cell(15, 0) !== 3315 ||
     cc1_get_param_table_cell(15, 3) !== 4)
     throw new Error("cc1 cc0.c param record 15 failed");
 
-if (cc1_get_param_table_cell(100, 0) !== 27499 ||
-    cc1_get_param_table_cell(100, 1) !== 3 ||
-    cc1_get_param_table_cell(100, 2) !== 0 ||
-    cc1_get_param_table_cell(100, 3) !== 34)
-    throw new Error("cc1 cc0.c param record 100 failed");
+if (cc1_get_param_table_cell(103, 0) !== 27499 ||
+    cc1_get_param_table_cell(103, 1) !== 3 ||
+    cc1_get_param_table_cell(103, 2) !== 0 ||
+    cc1_get_param_table_cell(103, 3) !== 36)
+    throw new Error("cc1 cc0.c param record 103 failed");
 
 if (cc1_get_local_table_count() !== 4 || cc1_get_local_table_overflow() !== 0)
     throw new Error("cc1 cc0.c local table bounds failed");
@@ -1011,38 +1025,38 @@ if (cc1_get_local_table_count() !== 4 || cc1_get_local_table_overflow() !== 0)
 if (cc1_get_local_table_cell(0, 0) !== 99 ||
     cc1_get_local_table_cell(0, 1) !== 1 ||
     cc1_get_local_table_cell(0, 2) !== 0 ||
-    cc1_get_local_table_cell(0, 3) !== 34)
+    cc1_get_local_table_cell(0, 3) !== 36)
     throw new Error("cc1 cc0.c local record 0 failed");
 
 if (cc1_get_local_table_cell(3, 0) !== 99 ||
     cc1_get_local_table_cell(3, 1) !== 1 ||
     cc1_get_local_table_cell(3, 2) !== 0 ||
-    cc1_get_local_table_cell(3, 3) !== 36)
+    cc1_get_local_table_cell(3, 3) !== 38)
     throw new Error("cc1 cc0.c local record 3 failed");
 
-if (cc1_get_expr_table_count() !== 324 || cc1_get_expr_table_overflow() !== 0)
+if (cc1_get_expr_table_count() !== 341 || cc1_get_expr_table_overflow() !== 0)
     throw new Error("cc1 cc0.c expr table bounds failed");
 
 if (cc1_get_expr_table_cell(0, 0) !== 1 ||
-    cc1_get_expr_table_cell(0, 1) !== 4586 ||
+    cc1_get_expr_table_cell(0, 1) !== 4910 ||
     cc1_get_expr_table_cell(0, 2) !== 5 ||
     cc1_get_expr_table_cell(0, 3) !== 0 ||
     cc1_get_expr_table_cell(0, 4) !== 4)
     throw new Error("cc1 cc0.c expr record 0 failed");
 
 if (cc1_get_expr_table_cell(15, 0) !== 1 ||
-    cc1_get_expr_table_cell(15, 1) !== 5348 ||
+    cc1_get_expr_table_cell(15, 1) !== 5672 ||
     cc1_get_expr_table_cell(15, 2) !== 1 ||
     cc1_get_expr_table_cell(15, 3) !== 4 ||
     cc1_get_expr_table_cell(15, 4) !== 0)
     throw new Error("cc1 cc0.c expr record 15 failed");
 
-if (cc1_get_expr_table_cell(323, 0) !== 1 ||
-    cc1_get_expr_table_cell(323, 1) !== 22574 ||
-    cc1_get_expr_table_cell(323, 2) !== 250 ||
-    cc1_get_expr_table_cell(323, 3) !== 48 ||
-    cc1_get_expr_table_cell(323, 4) !== 2)
-    throw new Error("cc1 cc0.c expr record 323 failed");
+if (cc1_get_expr_table_cell(340, 0) !== 1 ||
+    cc1_get_expr_table_cell(340, 1) !== 23865 ||
+    cc1_get_expr_table_cell(340, 2) !== 250 ||
+    cc1_get_expr_table_cell(340, 3) !== 50 ||
+    cc1_get_expr_table_cell(340, 4) !== 2)
+    throw new Error("cc1 cc0.c expr record 340 failed");
 
 if (cc1_eval_function_table2(0, 7, 8) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
@@ -1089,7 +1103,7 @@ if (cc1_eval_function_table9(15, CC0_CH_0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
     cc1_get_last_value() !== 0)
     throw new Error("cc1 cc0.c eval cc0_is_alpha digit failed");
 
-if (cc1_eval_function_table9(30, CC0_CH_A, CC0_CH_z, -1, -1, -1, -1, -1, -1, 0) !== 1 ||
+if (cc1_eval_function_table9(32, CC0_CH_A, CC0_CH_z, -1, -1, -1, -1, -1, -1, 0) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 0 ||
     cc1_runtime_source_at(0) !== CC0_CH_A ||
@@ -1101,7 +1115,7 @@ if (cc1_parse_cc0_source_string(mks(cc0_source_text)) !== 1)
     throw new Error("cc1 cc0.c reparse after source_set8 failed");
 
 cc0_test_string = mks("Az");
-if (cc1_eval_function_table9(32, cc0_test_string, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+if (cc1_eval_function_table9(34, cc0_test_string, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 0 ||
     cc1_runtime_source_at(0) !== CC0_CH_A ||
@@ -1112,28 +1126,28 @@ if (cc1_eval_function_table9(32, cc0_test_string, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 
 if (cc1_parse_cc0_source_string(mks(cc0_source_text)) !== 1)
     throw new Error("cc1 cc0.c reparse after source_set_string failed");
 
-if (cc1_eval_function_table9(33, 3, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+if (cc1_eval_function_table9(35, 3, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 1 ||
     cc1_get_runtime_tok_start() !== 3)
     throw new Error("cc1 cc0.c eval cc0_source_seek record failed");
 
-if (cc1_eval_function_table9(37, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+if (cc1_eval_function_table9(39, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== CC0_TOK_EOF)
     throw new Error("cc1 cc0.c eval cc0_get_tok_class record failed");
 
-if (cc1_eval_function_table9(38, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+if (cc1_eval_function_table9(40, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 3)
     throw new Error("cc1 cc0.c eval cc0_get_tok_start record failed");
 
-if (cc1_eval_function_table9(39, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+if (cc1_eval_function_table9(41, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 0)
     throw new Error("cc1 cc0.c eval cc0_get_tok_len record failed");
 
-if (cc1_eval_function_table9(40, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
+if (cc1_eval_function_table9(42, 0, 0, 0, 0, 0, 0, 0, 0, 0) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 0)
     throw new Error("cc1 cc0.c eval cc0_get_tok_value record failed");

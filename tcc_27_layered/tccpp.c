@@ -1965,7 +1965,7 @@ include_done:
 /* evaluate escape codes in a string. */
 static void parse_escape_string(CString *outstr, const uint8_t *buf, int is_long)
 {
-    int c, n;
+    int c, h, n;
     const uint8_t *p;
 
     p = buf;
@@ -2002,49 +2002,32 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf, int is_long
                 n = 0;
                 for(;;) {
                     c = *p;
-                    if (c >= 'a' && c <= 'f')
-                        c = c - 'a' + 10;
-                    else if (c >= 'A' && c <= 'F')
-                        c = c - 'A' + 10;
-                    else if (cc0_is_digit(c))
-                        c = c - '0';
-                    else
+                    h = cc0_hex_digit_value(c);
+                    if (h < 0)
                         break;
-                    n = n * 16 + c;
+                    n = n * 16 + h;
                     p++;
                 }
                 c = n;
                 goto add_char_nonext;
             case 'a':
-                c = '\a';
-                break;
             case 'b':
-                c = '\b';
-                break;
             case 'f':
-                c = '\f';
-                break;
             case 'n':
-                c = '\n';
-                break;
             case 'r':
-                c = '\r';
-                break;
             case 't':
-                c = '\t';
-                break;
             case 'v':
-                c = '\v';
-                break;
             case 'e':
-                if (!gnu_ext)
+                h = cc0_c_escape_value(c, gnu_ext);
+                if (h < 0)
                     goto invalid_escape;
-                c = 27;
+                c = h;
                 break;
             case '\'':
             case '\"':
             case '\\': 
             case '?':
+                c = cc0_c_escape_value(c, gnu_ext);
                 break;
             default:
             invalid_escape:

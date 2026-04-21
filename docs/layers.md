@@ -36,8 +36,8 @@ keeps the earliest phase below the preprocessor and suitable for the JS/C
 dialect intersection while still moving real front-end behavior into cc0.
 The active `tccpp.c` tokenizer table now also gets its low ASCII
 space/name/number flags from cc0, and the compiler's digit, octal digit,
-uppercase conversion, and horizontal-whitespace checks are starting to call the
-cc0 helpers directly.
+hex digit, uppercase conversion, simple C escape-name, and
+horizontal-whitespace checks are starting to call the cc0 helpers directly.
 Layered TCC can also compile this dialect directly with `-std=cc0`, where the
 parser asks cc0 to recognize `function` and `var` as integer type specifiers
 instead of requiring preprocessor definitions. This is the first

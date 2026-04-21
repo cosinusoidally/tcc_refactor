@@ -93,11 +93,12 @@ support layer also exposes a small integer-cell
 heap, backed by `malloc` in C and by the existing virtual heap in JS, so later
 layers can build tables without leaving the shared dialect. The active TCC preprocessor now calls cc0 for the low
 ASCII character flags used to seed its tokenizer table, for decimal and octal
-digit checks, for ASCII uppercase conversion, and for whitespace checks that
-must exclude newlines. It also calls cc0 to recognize the `function` and `var`
-type words used by the cc0 dialect parser mode. The cc0 layer is starting to
-replace front-end logic in the legacy compiler instead of only being a
-standalone smoke target.
+digit checks, for hexadecimal digit values, for ASCII uppercase conversion, for
+simple C escape-name values in string and character literals, and for
+whitespace checks that must exclude newlines. It also calls cc0 to recognize
+the `function` and `var` type words used by the cc0 dialect parser mode. The
+cc0 layer is starting to replace front-end logic in the legacy compiler instead
+of only being a standalone smoke target.
 
 Layered TCC also accepts `-std=cc0`. In that mode the parser treats the
 identifier spellings `function` and `var` as integer type specifiers, so
@@ -219,7 +220,10 @@ the C and JS smoke tests.
 
 `tccpp.c` no longer owns the low ASCII tokenizer-table classifier directly; it
 gets those space/name/number flags from cc0. Its decimal digit checks and
-preprocessor whitespace checks are also moving onto cc0 helpers. The
+preprocessor whitespace checks are also moving onto cc0 helpers. String and
+character literal escape parsing now asks cc0 for hexadecimal digit values and
+for the simple named escape values such as `\n`, `\t`, `\\`, and GNU `\e`.
+The
 multi-character preprocessing-token map for operators such as `<=`, `!=`,
 `&&`, `->`, `##`, `<<=`, `>>=`, and `...` is also in cc0 now, and `tccpp.c`
 uses that map both when spelling tokens and when lexing those operator cases.

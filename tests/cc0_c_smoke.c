@@ -19,6 +19,8 @@ int cc0_is_oct_digit();
 int cc0_is_name_start();
 int cc0_is_name_continue();
 int cc0_is_space();
+int cc0_hex_digit_value();
+int cc0_c_escape_value();
 int cc0_tccpp_char_flags();
 int cc0_tccpp_is_space();
 int cc0_tccpp_pair_token();
@@ -181,6 +183,18 @@ int main()
         return 7;
     if (cc0_to_upper(97) != 65 || cc0_to_upper(65) != 65 || cc0_to_upper(48) != 48)
         return 8;
+    if (cc0_hex_digit_value('0') != 0 ||
+        cc0_hex_digit_value('9') != 9 ||
+        cc0_hex_digit_value('a') != 10 ||
+        cc0_hex_digit_value('F') != 15 ||
+        cc0_hex_digit_value('g') != -1)
+        return 190;
+    if (cc0_c_escape_value('n', 0) != 10 ||
+        cc0_c_escape_value('t', 0) != 9 ||
+        cc0_c_escape_value('\\', 0) != '\\' ||
+        cc0_c_escape_value('e', 0) != -1 ||
+        cc0_c_escape_value('e', 1) != 27)
+        return 191;
     if (!cc0_is_name_continue(57) || cc0_is_name_continue(45))
         return 9;
     if (!cc0_is_space(32) || !cc0_is_space(10) || !cc0_is_space(12) || cc0_is_space(65))

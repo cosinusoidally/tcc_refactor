@@ -52,12 +52,17 @@ var CC0_CH_CARET;
 var CC0_CH_BAR;
 var CC0_CH_A;
 var CC0_CH_C;
+var CC0_CH_F;
 var CC0_CH_H;
+var CC0_CH_U;
 var CC0_CH_Z;
+var CC0_CH_BACKSLASH;
 var CC0_CH_UNDERSCORE;
+var CC0_CH_QUESTION;
 var CC0_CH_LBRACE;
 var CC0_CH_RBRACE;
 var CC0_CH_a;
+var CC0_CH_b;
 var CC0_CH_c;
 var CC0_CH_d;
 var CC0_CH_e;
@@ -77,8 +82,12 @@ var CC0_CH_t;
 var CC0_CH_u;
 var CC0_CH_v;
 var CC0_CH_w;
+var CC0_CH_x;
 var CC0_CH_z;
 var CC0_LOWER_TO_UPPER_DELTA;
+var CC0_ESCAPE_BEL;
+var CC0_ESCAPE_BS;
+var CC0_ESCAPE_ESC;
 var CC0_TCC_TOK_SHL;
 var CC0_TCC_TOK_SAR;
 var CC0_TCC_TOK_EQ;
@@ -170,12 +179,17 @@ CC0_CH_CARET = 94;
 CC0_CH_BAR = 124;
 CC0_CH_A = 65;
 CC0_CH_C = 67;
+CC0_CH_F = 70;
 CC0_CH_H = 72;
+CC0_CH_U = 85;
 CC0_CH_Z = 90;
+CC0_CH_BACKSLASH = 92;
 CC0_CH_UNDERSCORE = 95;
+CC0_CH_QUESTION = 63;
 CC0_CH_LBRACE = 123;
 CC0_CH_RBRACE = 125;
 CC0_CH_a = 97;
+CC0_CH_b = 98;
 CC0_CH_c = 99;
 CC0_CH_d = 100;
 CC0_CH_e = 101;
@@ -195,8 +209,12 @@ CC0_CH_t = 116;
 CC0_CH_u = 117;
 CC0_CH_v = 118;
 CC0_CH_w = 119;
+CC0_CH_x = 120;
 CC0_CH_z = 122;
 CC0_LOWER_TO_UPPER_DELTA = 32;
+CC0_ESCAPE_BEL = 7;
+CC0_ESCAPE_BS = 8;
+CC0_ESCAPE_ESC = 27;
 CC0_TCC_TOK_SHL = 1;
 CC0_TCC_TOK_SAR = 2;
 CC0_TCC_TOK_EQ = 148;
@@ -428,6 +446,49 @@ function cc0_to_upper(c)
     if (cc0_is_lower(c))
         return c - CC0_LOWER_TO_UPPER_DELTA;
     return c;
+}
+
+function cc0_hex_digit_value(c)
+{
+    if (cc0_is_digit(c))
+        return c - CC0_CH_0;
+    if (c >= CC0_CH_a)
+        if (c <= CC0_CH_f)
+            return c - CC0_CH_a + 10;
+    if (c >= CC0_CH_A)
+        if (c <= CC0_CH_F)
+            return c - CC0_CH_A + 10;
+    return -1;
+}
+
+function cc0_c_escape_value(c, allow_gnu)
+{
+    if (c == CC0_CH_a)
+        return CC0_ESCAPE_BEL;
+    if (c == CC0_CH_b)
+        return CC0_ESCAPE_BS;
+    if (c == CC0_CH_f)
+        return CC0_CH_FF;
+    if (c == CC0_CH_n)
+        return CC0_CH_LF;
+    if (c == CC0_CH_r)
+        return CC0_CH_CR;
+    if (c == CC0_CH_t)
+        return CC0_CH_TAB;
+    if (c == CC0_CH_v)
+        return CC0_CH_VT;
+    if (c == CC0_CH_e)
+        if (allow_gnu)
+            return CC0_ESCAPE_ESC;
+    if (c == CC0_CH_SQUOTE)
+        return c;
+    if (c == CC0_CH_DQUOTE)
+        return c;
+    if (c == CC0_CH_BACKSLASH)
+        return c;
+    if (c == CC0_CH_QUESTION)
+        return c;
+    return -1;
 }
 
 function cc0_is_name_start(c)
