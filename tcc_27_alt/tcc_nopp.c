@@ -2725,8 +2725,6 @@ typedef struct TCCState TCCState;
  int tcc_add_library(TCCState *s, const char *libraryname);
  int tcc_add_symbol(TCCState *s, const char *name, const void *val);
  int tcc_output_file(TCCState *s, const char *filename);
- int tcc_run(TCCState *s, int argc, char **argv);
- int tcc_relocate(TCCState *s1, void *ptr);
  void *tcc_get_symbol(TCCState *s, const char *name);
 typedef __uint8_t uint8_t;
 typedef __uint16_t uint16_t;
@@ -4227,7 +4225,6 @@ static void relocate_section(TCCState *s1, Section *s);
 static int tcc_object_type(int fd, Elf32_Ehdr *h);
 static int tcc_load_object_file(TCCState *s1, int fd, unsigned long file_offset);
 static int tcc_load_archive(TCCState *s1, int fd);
-static void tcc_add_bcheck(TCCState *s1);
 static void tcc_add_runtime(TCCState *s1);
 static void build_got_entries(TCCState *s1);
 static struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc);
@@ -14280,12 +14277,8 @@ static int tcc_add_support(TCCState *s1, const char *filename)
     snprintf(buf, sizeof(buf), "%s/%s", s1->tcc_lib_path, filename);
     return tcc_add_file(s1, buf);
 }
-static void tcc_add_bcheck(TCCState *s1)
-{
-}
 static void tcc_add_runtime(TCCState *s1)
 {
-    tcc_add_bcheck(s1);
     tcc_add_pragma_libs(s1);
     if (!s1->nostdlib) {
         tcc_add_library_err(s1, "c");
