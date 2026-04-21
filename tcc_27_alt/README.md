@@ -58,17 +58,16 @@ package to enable it.
 ./selfhost.sh
 ```
 
-Self-hosting means `build/root/tcc` can generate the no-preprocessor source,
-compile it into a new i386 `tcc`, that new compiler can rebuild the i386
-runtime archive and compile another copy from the same no-preprocessor source,
-and two consecutive self-built compilers match byte-for-byte:
+The self-host test performs a standard 3-stage bootstrap. Stage 1 is the
+compiler built by `./build.sh` using `cc -m32`. Stage 1 builds stage 2, stage 2
+builds stage 3, and stage 2 and stage 3 must match byte-for-byte:
 
 ```text
 host cc -m32 tcc_nopp.c -nostdinc -> build/root/tcc
-build/root/tcc tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage1
-stage1 -> build/selfhost/stage1root/libtcc1.a
+stage1 = build/root/tcc
+stage1 -> build/selfhost/stage2root/libtcc1.a
 stage1 tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage2
-stage2 -> build/selfhost/stage2root/libtcc1.a
+stage2 -> build/selfhost/stage3root/libtcc1.a
 stage2 tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage3
 cmp stage2 stage3
 ```

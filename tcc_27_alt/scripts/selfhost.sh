@@ -6,7 +6,12 @@ cd "$ROOT"
 
 OUT=build/selfhost
 RUN_I386=${RUN_I386:-./scripts/run-i386.sh}
-BOOTROOT=build/root
+STAGE1ROOT=build/root
+STAGE1=$STAGE1ROOT/tcc
+STAGE2ROOT=$OUT/stage2root
+STAGE3ROOT=$OUT/stage3root
+STAGE2=$OUT/tcc.stage2
+STAGE3=$OUT/tcc.stage3
 NOPP=tcc_nopp.c
 mkdir -p "$OUT"
 
@@ -34,33 +39,31 @@ build_runtime()
     "$RUN_I386" "$compiler" -ar rcs "$bdir/libtcc1.a" "$bdir/libtcc1.o" "$bdir/alloca86.o"
 }
 
-echo "building stage1 with $BOOTROOT/tcc"
-build_tcc "$BOOTROOT/tcc" "$OUT/tcc.stage1" "$BOOTROOT"
-chmod +x "$OUT/tcc.stage1"
-
-if ! "$RUN_I386" "$OUT/tcc.stage1" -v >/dev/null 2>&1; then
-    echo "selfhost skipped: built stage1, but this host cannot execute i386 binaries"
+echo "checking stage1: $STAGE1"
+if ! "$RUN_I386" "$STAGE1" -v >/dev/null 2>&1; then
+    echo "selfhost skipped: stage1 exists, but this host cannot execute i386 binaries"
     exit 0
 fi
 
-echo "building runtime with stage1"
-build_runtime "$OUT/tcc.stage1" "$OUT/stage1root"
+echo "building stage2 runtime with stage1"
+build_runtime "$STAGE1" "$STAGE2ROOT"
 
 echo "building stage2 with stage1"
-build_tcc "$OUT/tcc.stage1" "$OUT/tcc.stage2" "$OUT/stage1root"
-chmod +x "$OUT/tcc.stage2"
+build_tcc "$STAGE1" "$STAGE2" "$STAGE2ROOT"
+chmod +x "$STAGE2"
 
-echo "building runtime with stage2"
-build_runtime "$OUT/tcc.stage2" "$OUT/stage2root"
+echo "building stage3 runtime with stage2"
+build_runtime "$STAGE2" "$STAGE3ROOT"
 
 echo "building stage3 with stage2"
-build_tcc "$OUT/tcc.stage2" "$OUT/tcc.stage3" "$OUT/stage2root"
-chmod +x "$OUT/tcc.stage3"
+build_tcc "$STAGE2" "$STAGE3" "$STAGE3ROOT"
+chmod +x "$STAGE3"
 
-cmp "$OUT/tcc.stage2" "$OUT/tcc.stage3"
+echo "comparing stage2 and stage3"
+cmp "$STAGE2" "$STAGE3"
 
-echo "checking stage2 dynamic output"
-"$RUN_I386" "$OUT/tcc.stage2" -B"$OUT/stage2root" -Iinclude -I. tests/hello.c -o "$OUT/hello"
+echo "checking stage3 dynamic output"
+"$RUN_I386" "$STAGE3" -B"$STAGE3ROOT" -Iinclude -I. tests/hello.c -o "$OUT/hello"
 file "$OUT/hello" | grep -q 'ELF 32-bit'
 chmod +x "$OUT/hello"
 "$RUN_I386" "$OUT/hello" > "$OUT/hello.stdout"
