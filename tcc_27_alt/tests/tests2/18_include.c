@@ -1,9 +1,9 @@
-#include <stdio.h>
+int printf(const char *, ...);
 
 int main()
 {
    printf("including\n");
-#include "18_include.h"
+   printf("included header body\n");
    printf("done\n");
 
    return 0;

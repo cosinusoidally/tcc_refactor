@@ -1,4 +1,4 @@
-#include <stdio.h>
+int printf(const char *, ...);
 
 int add(int a, int b)
 {

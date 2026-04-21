@@ -564,7 +564,6 @@ typedef struct BufferedFile {
     int ifndef_macro;
     int ifndef_macro_saved;
     int *ifdef_stack_ptr;
-    int include_next_index;
     char filename[1024];
     char *true_filename;
     unsigned char unget[4];
@@ -586,12 +585,6 @@ typedef struct InlineFunc {
     Sym *sym;
     char filename[1];
 } InlineFunc;
-typedef struct CachedInclude {
-    int ifndef_macro;
-    int once;
-    int hash_next;
-    char filename[1];
-} CachedInclude;
 typedef struct ExprValue {
     uint64_t v;
     Sym *sym;
@@ -605,7 +598,6 @@ struct sym_attr {
 };
 struct TCCState {
     int verbose;
-    int nostdinc;
     int nostdlib;
     int nocommon;
     int static_link;
@@ -636,16 +628,10 @@ struct TCCState {
     int seg_size;
     DLLReference **loaded_dlls;
     int nb_loaded_dlls;
-    char **include_paths;
-    int nb_include_paths;
-    char **sysinclude_paths;
-    int nb_sysinclude_paths;
     char **library_paths;
     int nb_library_paths;
     char **crt_paths;
     int nb_crt_paths;
-    char **cmd_include_files;
-    int nb_cmd_include_files;
     void *error_opaque;
     void (*error_func)(void *opaque, const char *msg);
     int error_set_jmp_enabled;
@@ -655,9 +641,6 @@ struct TCCState {
     BufferedFile **include_stack_ptr;
     int ifdef_stack[64];
     int *ifdef_stack_ptr;
-    int cached_includes_hash[32];
-    CachedInclude **cached_includes;
-    int nb_cached_includes;
     int pack_stack[8];
     int *pack_stack_ptr;
     char **pragma_libs;
@@ -3268,38 +3251,6 @@ bad_twosharp:
         tcc_error("'##' cannot appear at either end of macro");
     define_push(v, t, tok_str_dup(&tokstr_buf), first);
 }
-static CachedInclude *search_cached_include(TCCState *s1, const char *filename, int add)
-{
-    const unsigned char *s;
-    unsigned int h;
-    CachedInclude *e;
-    int i;
-    h = 1;
-    s = (unsigned char *) filename;
-    while (*s) {
-        h = ((h) + ((h) << 5) + ((h) >> 27) + (*s));
-        s++;
-    }
-    h &= (32 - 1);
-    i = s1->cached_includes_hash[h];
-    for(;;) {
-        if (i == 0)
-            break;
-        e = s1->cached_includes[i - 1];
-        if (0 == strcmp(e->filename, filename))
-            return e;
-        i = e->hash_next;
-    }
-    if (!add)
-        return ((void*)0);
-    e = tcc_malloc(sizeof(CachedInclude) + strlen(filename));
-    strcpy(e->filename, filename);
-    e->ifndef_macro = e->once = 0;
-    dynarray_add(&s1->cached_includes, &s1->nb_cached_includes, e);
-    e->hash_next = s1->cached_includes_hash[h];
-    s1->cached_includes_hash[h] = s1->nb_cached_includes;
-    return e;
-}
 static void pragma_parse(TCCState *s1)
 {
     next_nomacro();
@@ -3329,7 +3280,7 @@ static void pragma_parse(TCCState *s1)
         else
             tcc_warning("unbalanced #pragma pop_macro");
     } else if (tok == TOK_once) {
-        search_cached_include(s1, file->filename, 1)->once = pp_once;
+        ;
     } else if (tok == TOK_pack) {
         next();
         skip('(');
@@ -3417,85 +3368,7 @@ static void preprocess(int is_bof)
         break;
     case TOK_INCLUDE:
     case TOK_INCLUDE_NEXT:
-        ch = file->buf_ptr[0];
-        skip_spaces();
-        if (ch == '<') {
-            c = '>';
-            goto read_name;
-        } else if (ch == '\"') {
-            c = ch;
-        read_name:
-            inp();
-            q = buf;
-            while (ch != c && ch != '\n' && ch != (-1)) {
-                if ((q - buf) < sizeof(buf) - 1)
-                    *q++ = ch;
-                if (ch == '\\') {
-                    if (handle_stray_noerror() == 0)
-                        --q;
-                } else
-                    inp();
-            }
-            *q = '\0';
-            minp();
-        } else {
-	    int len;
-	    parse_flags = (0x0001
-			   | 0x0004
-			   | (parse_flags & 0x0008));
-            next();
-            buf[0] = '\0';
-	    while (tok != 10) {
-		pstrcat(buf, sizeof(buf), get_tok_str(tok, &tokc));
-		next();
-	    }
-	    len = strlen(buf);
-	    if ((len < 2 || ((buf[0] != '"' || buf[len-1] != '"') &&
-			     (buf[0] != '<' || buf[len-1] != '>'))))
-	        tcc_error("'#include' expects \"FILENAME\" or <FILENAME>");
-	    c = buf[len-1];
-	    memmove(buf, buf + 1, len - 2);
-	    buf[len - 2] = '\0';
-        }
-        if (s1->include_stack_ptr >= s1->include_stack + 32)
-            tcc_error("#include recursion too deep");
-        *s1->include_stack_ptr = file;
-        i = tok == TOK_INCLUDE_NEXT ? file->include_next_index : 0;
-        n = 2 + s1->nb_include_paths + s1->nb_sysinclude_paths;
-        for (; i < n; ++i) {
-            char buf1[sizeof file->filename];
-            CachedInclude *e;
-            const char *path;
-            if (i == 0) {
-                if (!(buf[0] == '/'))
-                    continue;
-                buf1[0] = 0;
-            } else if (i == 1) {
-                if (c != '\"')
-                    continue;
-                path = file->true_filename;
-                pstrncpy(buf1, path, tcc_basename(path) - path);
-            } else {
-                int j = i - 2, k = j - s1->nb_include_paths;
-                path = k < 0 ? s1->include_paths[j] : s1->sysinclude_paths[k];
-                pstrcpy(buf1, sizeof(buf1), path);
-                pstrcat(buf1, sizeof(buf1), "/");
-            }
-            pstrcat(buf1, sizeof(buf1), buf);
-            e = search_cached_include(s1, buf1, 0);
-            if (e && (define_find(e->ifndef_macro) || e->once == pp_once)) {
-                goto include_done;
-            }
-            if (tcc_open(s1, buf1) < 0)
-                continue;
-            file->include_next_index = i + 1;
-            ++s1->include_stack_ptr;
-            tok_flags |= 0x0002 | 0x0001;
-            ch = file->buf_ptr[0];
-            goto the_end;
-        }
-        tcc_error("include file '%s' not found", buf);
-include_done:
+        tcc_error("#include is not supported in tcc_27_alt");
         break;
     case TOK_IFNDEF:
         c = 1;
@@ -4122,21 +3995,8 @@ static inline void next_nomacro1(void)
                 tok = (-1);
             } else if (s1->ifdef_stack_ptr != file->ifdef_stack_ptr) {
                 tcc_error("missing #endif");
-            } else if (s1->include_stack_ptr == s1->include_stack) {
-                tok = (-1);
             } else {
-                tok_flags &= ~0x0008;
-                if (tok_flags & 0x0004) {
-                    search_cached_include(s1, file->filename, 1)
-                        ->ifndef_macro = file->ifndef_macro_saved;
-                    tok_flags &= ~0x0004;
-                }
-                tcc_close();
-                s1->include_stack_ptr--;
-                p = file->buf_ptr;
-                if (p == file->buffer)
-                    tok_flags = 0x0002|0x0001;
-                goto redo_no_start;
+                tok = (-1);
             }
         }
         break;
@@ -4947,7 +4807,6 @@ static inline void unget_tok(int last_tok)
 static void preprocess_start(TCCState *s1, int is_asm)
 {
     CString cstr;
-    int i;
     s1->include_stack_ptr = s1->include_stack;
     s1->ifdef_stack_ptr = s1->ifdef_stack;
     file->ifdef_stack_ptr = s1->ifdef_stack_ptr;
@@ -4964,17 +4823,6 @@ static void preprocess_start(TCCState *s1, int is_asm)
     cstr_cat(&cstr, file->filename, -1);
     cstr_cat(&cstr, "\"", 0);
     tcc_define_symbol(s1, "__BASE_FILE__", cstr.data);
-    cstr_reset(&cstr);
-    for (i = 0; i < s1->nb_cmd_include_files; i++) {
-        cstr_cat(&cstr, "#include \"", -1);
-        cstr_cat(&cstr, s1->cmd_include_files[i], -1);
-        cstr_cat(&cstr, "\"\n", -1);
-    }
-    if (cstr.size) {
-        *s1->include_stack_ptr++ = file;
-	tcc_open_bf(s1, "<command line>", cstr.size);
-	memcpy(file->buffer, cstr.data, cstr.size);
-    }
     cstr_free(&cstr);
     if (is_asm)
         tcc_define_symbol(s1, "__ASSEMBLER__", ((void*)0));
@@ -13623,10 +13471,6 @@ static void tcc_cleanup(void)
     tccelf_delete(s1);
     dynarray_reset(&s1->library_paths, &s1->nb_library_paths);
     dynarray_reset(&s1->crt_paths, &s1->nb_crt_paths);
-    dynarray_reset(&s1->cached_includes, &s1->nb_cached_includes);
-    dynarray_reset(&s1->include_paths, &s1->nb_include_paths);
-    dynarray_reset(&s1->sysinclude_paths, &s1->nb_sysinclude_paths);
-    dynarray_reset(&s1->cmd_include_files, &s1->nb_cmd_include_files);
     tcc_free(s1->tcc_lib_path);
     tcc_free(s1->soname);
     tcc_free(s1->rpath);
@@ -13647,9 +13491,6 @@ static void tcc_cleanup(void)
         s->output_format = 0;
     if (s->char_is_unsigned)
         tcc_define_symbol(s, "__CHAR_UNSIGNED__", ((void*)0));
-    if (!s->nostdinc) {
-        tcc_add_sysinclude_path(s, "{B}/include" ":" "" "/usr/local/include" "/" "i386-linux-gnu" ":" "" "/usr/local/include" ":" "" "/usr/include" "/" "i386-linux-gnu" ":" "" "/usr/include");
-    }
     tcc_add_library_path(s, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
     tcc_split_path(s, &s->crt_paths, &s->nb_crt_paths, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
     if ((output_type == 2 || output_type == 3) &&
@@ -13660,14 +13501,16 @@ static void tcc_cleanup(void)
     }
     return 0;
 }
- int tcc_add_include_path(TCCState *s, const char *pathname)
+int tcc_add_include_path(TCCState *s, const char *pathname)
 {
-    tcc_split_path(s, &s->include_paths, &s->nb_include_paths, pathname);
+    (void)s;
+    (void)pathname;
     return 0;
 }
- int tcc_add_sysinclude_path(TCCState *s, const char *pathname)
+int tcc_add_sysinclude_path(TCCState *s, const char *pathname)
 {
-    tcc_split_path(s, &s->sysinclude_paths, &s->nb_sysinclude_paths, pathname);
+    (void)s;
+    (void)pathname;
     return 0;
 }
 static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
@@ -14002,9 +13845,7 @@ enum {
     TCC_OPTION_mfloat_abi,
     TCC_OPTION_m,
     TCC_OPTION_f,
-    TCC_OPTION_isystem,
     TCC_OPTION_iwithprefix,
-    TCC_OPTION_include,
     TCC_OPTION_nostdinc,
     TCC_OPTION_nostdlib,
     TCC_OPTION_print_search_dirs,
@@ -14053,14 +13894,12 @@ static const TCCOption tcc_options[] = {
     { "O", TCC_OPTION_O, 0x0001 | 0x0002 },
     { "m", TCC_OPTION_m, 0x0001 | 0x0002 },
     { "f", TCC_OPTION_f, 0x0001 | 0x0002 },
-    { "isystem", TCC_OPTION_isystem, 0x0001 },
-    { "include", TCC_OPTION_include, 0x0001 },
-    { "nostdinc", TCC_OPTION_nostdinc, 0 },
     { "nostdlib", TCC_OPTION_nostdlib, 0 },
     { "print-search-dirs", TCC_OPTION_print_search_dirs, 0 },
     { "w", TCC_OPTION_w, 0 },
     { "pipe", TCC_OPTION_pipe, 0},
     { "x", TCC_OPTION_x, 0x0001 },
+    { "nostdinc", TCC_OPTION_nostdinc, 0 },
     { ((void*)0), 0, 0 },
 };
 static const FlagDef options_W[] = {
@@ -14215,7 +14054,6 @@ reparse:
         case TCC_OPTION_HELP2:
             return 2;
         case TCC_OPTION_I:
-            tcc_add_include_path(s, optarg);
             break;
         case TCC_OPTION_D:
             parse_option_D(s, optarg);
@@ -14269,18 +14107,10 @@ reparse:
             s->option_r = 1;
             x = 4;
             goto set_output_type;
-        case TCC_OPTION_isystem:
-            tcc_add_sysinclude_path(s, optarg);
-            break;
-	case TCC_OPTION_include:
-	    dynarray_add(&s->cmd_include_files,
-			 &s->nb_cmd_include_files, tcc_strdup(optarg));
-	    break;
-        case TCC_OPTION_nostdinc:
-            s->nostdinc = 1;
-            break;
         case TCC_OPTION_nostdlib:
             s->nostdlib = 1;
+            break;
+        case TCC_OPTION_nostdinc:
             break;
         case TCC_OPTION_run:
             tcc_error("-run is not available in a cross compiler");
@@ -14450,7 +14280,6 @@ static const char help[] =
     "  -Wl,-opt[=val]  set linker option (see tcc -hh)\n"
     "Misc. options:\n"
     "  -x[c|a|n]   specify type of the next infile\n"
-    "  -nostdinc   do not use standard system include paths\n"
     "  -nostdlib   do not link with standard crt and libraries\n"
     "  -Bdir       set tcc's private include/library dir\n"
     "  -m32/64     defer to i386/x86_64 cross compiler\n"
@@ -14516,7 +14345,6 @@ static void print_dirs(const char *msg, char **paths, int nb_paths)
 static void print_search_dirs(TCCState *s)
 {
     printf("install: %s\n", s->tcc_lib_path);
-    print_dirs("include", s->sysinclude_paths, s->nb_sysinclude_paths);
     print_dirs("libraries", s->library_paths, s->nb_library_paths);
     printf("libtcc1:\n  %s/""libtcc1.o""\n", s->tcc_lib_path);
     print_dirs("crt", s->crt_paths, s->nb_crt_paths);
@@ -14525,14 +14353,6 @@ static void print_search_dirs(TCCState *s)
 static void set_environment(TCCState *s)
 {
     char * path;
-    path = getenv("C_INCLUDE_PATH");
-    if(path != ((void*)0)) {
-        tcc_add_sysinclude_path(s, path);
-    }
-    path = getenv("CPATH");
-    if(path != ((void*)0)) {
-        tcc_add_include_path(s, path);
-    }
     path = getenv("LIBRARY_PATH");
     if(path != ((void*)0)) {
         tcc_add_library_path(s, path);
