@@ -11,6 +11,7 @@ ARM/AArch64/C67/x86_64 generators, examples, generated manuals, configure
 machinery, and broad upstream test suites that are not relevant to this slice.
 Bounds checking/backtrace support and the in-memory `-run` engine are disabled;
 tests execute generated i386 ELF files through `scripts/run-i386.sh` instead.
+Assembler input and inline assembler are not supported in this reduced tree.
 
 ## Build
 
@@ -85,8 +86,7 @@ printing a skip reason.
 ## Source Map
 
 - `tcc_nopp.c`: the no-preprocessor compiler source, including driver,
-  parser, ELF output/linking, i386 code generator, and assembler.
-- `lib/libtcc1_nopp.c`, `lib/alloca86.S`: minimal runtime routines and alloca
-  support for linked output.
+  parser, ELF output/linking, and i386 code generator.
+- `lib/libtcc1_nopp.c`: minimal pure-C runtime routines for linked output.
 - `include/`: builtin headers supplied by TCC.
 - `tests/`: retained smoke tests for this reduced i386/Linux compiler.
