@@ -84,8 +84,11 @@ The support implementations live in `cc0_support.c` and `cc0_support.js`; the
 shared dialect source keeps character codes behind named `CC0_CH_*` constants
 so the low-level byte logic remains auditable; cc1 also consumes those names for
 its punctuation grammar. cc0 also keeps named TCC token constants for the
-historical two-character preprocessing token spellings, and `tccpp.c` now uses
-cc0 to print those tokens instead of carrying a private encoded table. The
+historical multi-character preprocessing token spellings, including both
+two-byte operators and the three-byte `<<=`, `>>=`, and `...` tokens. `tccpp.c`
+now uses cc0 to print those tokens and to classify the matching tokenizer
+operator cases instead of carrying a private encoded table and switch-local
+operator map. The
 support layer also exposes a small integer-cell
 heap, backed by `malloc` in C and by the existing virtual heap in JS, so later
 layers can build tables without leaving the shared dialect. The active TCC preprocessor now calls cc0 for the low
@@ -216,7 +219,11 @@ the C and JS smoke tests.
 
 `tccpp.c` no longer owns the low ASCII tokenizer-table classifier directly; it
 gets those space/name/number flags from cc0. Its decimal digit checks and
-preprocessor whitespace checks are also moving onto cc0 helpers. The old
+preprocessor whitespace checks are also moving onto cc0 helpers. The
+multi-character preprocessing-token map for operators such as `<=`, `!=`,
+`&&`, `->`, `##`, `<<=`, `>>=`, and `...` is also in cc0 now, and `tccpp.c`
+uses that map both when spelling tokens and when lexing those operator cases.
+The old
 `isid`, `isnum`, `isoct`, `toup`, and newline-excluding `is_space` helper copies
 have been removed from `tcc.h`; the remaining layered compiler uses call cc0
 classification helpers instead. `tcctools.c` no longer owns the archive option

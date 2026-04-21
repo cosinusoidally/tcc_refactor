@@ -91,6 +91,7 @@ var CC0_TCC_TOK_DEC;
 var CC0_TCC_TOK_INC;
 var CC0_TCC_TOK_TWODOTS;
 var CC0_TCC_TOK_ARROW;
+var CC0_TCC_TOK_DOTS;
 var CC0_TCC_TOK_TWOSHARPS;
 var CC0_TCC_TOK_A_MOD;
 var CC0_TCC_TOK_A_AND;
@@ -100,6 +101,8 @@ var CC0_TCC_TOK_A_SUB;
 var CC0_TCC_TOK_A_DIV;
 var CC0_TCC_TOK_A_XOR;
 var CC0_TCC_TOK_A_OR;
+var CC0_TCC_TOK_A_SHL;
+var CC0_TCC_TOK_A_SAR;
 var cc0_src_0;
 var cc0_src_1;
 var cc0_src_2;
@@ -206,6 +209,7 @@ CC0_TCC_TOK_DEC = 162;
 CC0_TCC_TOK_INC = 164;
 CC0_TCC_TOK_TWODOTS = 168;
 CC0_TCC_TOK_ARROW = 199;
+CC0_TCC_TOK_DOTS = 200;
 CC0_TCC_TOK_TWOSHARPS = 202;
 CC0_TCC_TOK_A_MOD = 165;
 CC0_TCC_TOK_A_AND = 166;
@@ -215,6 +219,8 @@ CC0_TCC_TOK_A_SUB = 173;
 CC0_TCC_TOK_A_DIV = 175;
 CC0_TCC_TOK_A_XOR = 222;
 CC0_TCC_TOK_A_OR = 252;
+CC0_TCC_TOK_A_SHL = 129;
+CC0_TCC_TOK_A_SAR = 130;
 cc0_src_0 = -1;
 cc0_src_1 = -1;
 cc0_src_2 = -1;
@@ -563,6 +569,23 @@ function cc0_tccpp_pair_token(c0, c1)
     return 0;
 }
 
+function cc0_tccpp_three_token(c0, c1, c2)
+{
+    if (c0 == CC0_CH_LT)
+        if (c1 == CC0_CH_LT)
+            if (c2 == CC0_CH_EQUAL)
+                return CC0_TCC_TOK_A_SHL;
+    if (c0 == CC0_CH_GT)
+        if (c1 == CC0_CH_GT)
+            if (c2 == CC0_CH_EQUAL)
+                return CC0_TCC_TOK_A_SAR;
+    if (c0 == CC0_CH_DOT)
+        if (c1 == CC0_CH_DOT)
+            if (c2 == CC0_CH_DOT)
+                return CC0_TCC_TOK_DOTS;
+    return 0;
+}
+
 function cc0_tccpp_pair_first(tok)
 {
     if (tok == CC0_TCC_TOK_LE)
@@ -607,6 +630,39 @@ function cc0_tccpp_pair_first(tok)
         return CC0_CH_DOT;
     if (tok == CC0_TCC_TOK_TWOSHARPS)
         return CC0_CH_HASH;
+    return -1;
+}
+
+function cc0_tccpp_three_first(tok)
+{
+    if (tok == CC0_TCC_TOK_A_SHL)
+        return CC0_CH_LT;
+    if (tok == CC0_TCC_TOK_A_SAR)
+        return CC0_CH_GT;
+    if (tok == CC0_TCC_TOK_DOTS)
+        return CC0_CH_DOT;
+    return -1;
+}
+
+function cc0_tccpp_three_second(tok)
+{
+    if (tok == CC0_TCC_TOK_A_SHL)
+        return CC0_CH_LT;
+    if (tok == CC0_TCC_TOK_A_SAR)
+        return CC0_CH_GT;
+    if (tok == CC0_TCC_TOK_DOTS)
+        return CC0_CH_DOT;
+    return -1;
+}
+
+function cc0_tccpp_three_third(tok)
+{
+    if (tok == CC0_TCC_TOK_A_SHL)
+        return CC0_CH_EQUAL;
+    if (tok == CC0_TCC_TOK_A_SAR)
+        return CC0_CH_EQUAL;
+    if (tok == CC0_TCC_TOK_DOTS)
+        return CC0_CH_DOT;
     return -1;
 }
 

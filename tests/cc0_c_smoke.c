@@ -24,6 +24,10 @@ int cc0_tccpp_is_space();
 int cc0_tccpp_pair_token();
 int cc0_tccpp_pair_first();
 int cc0_tccpp_pair_second();
+int cc0_tccpp_three_token();
+int cc0_tccpp_three_first();
+int cc0_tccpp_three_second();
+int cc0_tccpp_three_third();
 int cc0_to_upper();
 int cc0_token_class();
 int cc0_source_set8();
@@ -195,6 +199,18 @@ int main()
         cc0_tccpp_pair_first(0xa1) != '|' ||
         cc0_tccpp_pair_second(0xa1) != '|')
         return 187;
+    if (cc0_tccpp_three_token('<', '<', '=') != 0x81 ||
+        cc0_tccpp_three_token('>', '>', '=') != 0x82 ||
+        cc0_tccpp_three_token('.', '.', '.') != 0xc8 ||
+        cc0_tccpp_three_token('<', '<', '+') != 0)
+        return 188;
+    if (cc0_tccpp_three_first(0x81) != '<' ||
+        cc0_tccpp_three_second(0x81) != '<' ||
+        cc0_tccpp_three_third(0x81) != '=' ||
+        cc0_tccpp_three_first(0xc8) != '.' ||
+        cc0_tccpp_three_second(0xc8) != '.' ||
+        cc0_tccpp_three_third(0xc8) != '.')
+        return 189;
     if (cc0_token_class(-1) != 0)
         return 13;
     if (cc0_token_class(65) != 1)

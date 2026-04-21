@@ -28,10 +28,12 @@ literal tokens are copied back into the heap model used by `mks`, giving later
 layers a concrete pointer value. It also exposes token-word recognizers for
 `function`, `var`, `return`, `if`, `mkc`, and `mks`, keeping keyword and wrapper
 checks in the same byte-oriented layer as source access. cc0 now also owns the
-historical TCC two-character preprocessing token map for spellings such as
-`<=`, `!=`, `&&`, `->`, and `##`; the active `tccpp.c` path asks cc0 for those
-spellings instead of carrying its own token table. This keeps the earliest
-phase below the preprocessor and suitable for the JS/C dialect intersection.
+historical TCC multi-character preprocessing token map for spellings such as
+`<=`, `!=`, `&&`, `->`, `##`, `<<=`, `>>=`, and `...`; the active `tccpp.c`
+path asks cc0 for those spellings and for the corresponding tokenizer decisions
+instead of carrying a private token table and switch-local operator map. This
+keeps the earliest phase below the preprocessor and suitable for the JS/C
+dialect intersection while still moving real front-end behavior into cc0.
 The active `tccpp.c` tokenizer table now also gets its low ASCII
 space/name/number flags from cc0, and the compiler's digit, octal digit,
 uppercase conversion, and horizontal-whitespace checks are starting to call the
