@@ -34,9 +34,7 @@ The compiler source used for builds is `tcc_nopp.c`. It contains no
 preprocessor directive lines and is compiled with `-nostdinc` and without
 configuration `-D` flags.
 
-`./scripts/gen-nopp.sh` can regenerate `build/nopp/tcc_nopp.c` from the old
-split source while the transition is still in progress, but the normal build
-and self-host path do not depend on generating it.
+The old split compiler source is intentionally not part of this reduced tree.
 
 ## Test
 
@@ -88,11 +86,8 @@ printing a skip reason.
 
 ## Source Map
 
-- `tcc.c`, `libtcc.c`, `tccpp.c`, `tccgen.c`: driver, library API,
-  preprocessor, parser, and code-generation frontend.
-- `tccelf.c`: ELF object, executable, shared library, archive, and dynamic
-  linker support.
-- `i386-gen.c`, `i386-link.c`, `i386-asm.c`: i386 backend and assembler.
+- `tcc_nopp.c`: the no-preprocessor compiler source, including driver,
+  parser, ELF output/linking, i386 code generator, and assembler.
 - `lib/libtcc1.c`, `lib/alloca86.S`: minimal runtime routines and alloca
   support for linked output.
 - `include/`: builtin headers supplied by TCC.
