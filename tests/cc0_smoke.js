@@ -2,6 +2,7 @@ load("../tcc_27_layered/cc0.c");
 load("../tcc_27_layered/cc0_support.js");
 
 var cc0_test_string;
+var cc0_test_cells;
 
 if (cc0_add(2, 3) !== 5)
     throw new Error("cc0_add failed");
@@ -26,6 +27,13 @@ if (cc0_heap_get(cc0_test_string, 0) !== CC0_CH_A ||
 
 if (!cc0_heap_is_string(mks("var"), CC0_CH_v, CC0_CH_a, CC0_CH_r, CC0_CH_NUL))
     throw new Error("cc0 heap string check failed");
+
+cc0_test_cells = cc0_cell_alloc(3);
+if (cc0_cell_set(cc0_test_cells, 0, 12345) !== 12345 ||
+    cc0_cell_set(cc0_test_cells, 1, 6789) !== 6789 ||
+    cc0_cell_get(cc0_test_cells, 0) !== 12345 ||
+    cc0_cell_get(cc0_test_cells, 1) !== 6789)
+    throw new Error("cc0 cell heap failed");
 
 if (!cc0_is_word_function_chars(mkc('f'), mkc('u'), mkc('n'), mkc('c'), mkc('t'), mkc('i'), mkc('o'), mkc('n'), 0) ||
     cc0_is_word_function_chars(mkc('f'), mkc('u'), mkc('n'), mkc('c'), mkc('t'), mkc('i'), mkc('o'), 0, 0))
@@ -562,6 +570,24 @@ if (cc1_get_global_slot_hash(0) !== 97 || cc1_get_global_slot_len(0) !== 1)
 if (cc1_get_global_slot_hash(1) !== 97 || cc1_get_global_slot_len(1) !== 1)
     throw new Error("cc1 cc0 source shell global slot 1 failed");
 
+if (cc1_get_symbol_table_count() !== 4)
+    throw new Error("cc1 cc0 source shell symbol table count failed");
+
+if (cc1_get_symbol_table_overflow() !== 0)
+    throw new Error("cc1 cc0 source shell symbol table overflow failed");
+
+if (cc1_get_symbol_table_cell(0, 0) !== 2 ||
+    cc1_get_symbol_table_cell(0, 1) !== 97 ||
+    cc1_get_symbol_table_cell(0, 2) !== 1 ||
+    cc1_get_symbol_table_cell(0, 3) !== 0)
+    throw new Error("cc1 cc0 source shell symbol 0 failed");
+
+if (cc1_get_symbol_table_cell(3, 0) !== 1 ||
+    cc1_get_symbol_table_cell(3, 1) !== 119 ||
+    cc1_get_symbol_table_cell(3, 2) !== 1 ||
+    cc1_get_symbol_table_cell(3, 3) !== 1)
+    throw new Error("cc1 cc0 source shell symbol 3 failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -699,6 +725,24 @@ if (cc1_get_global_slot_hash(2) !== 28778 || cc1_get_global_slot_len(2) !== 12)
 
 if (cc1_get_global_slot_hash(3) !== 5685 || cc1_get_global_slot_len(3) !== 14)
     throw new Error("cc1 cc0.c global slot 3 failed");
+
+if (cc1_get_symbol_table_count() !== 8)
+    throw new Error("cc1 cc0.c symbol table count failed");
+
+if (cc1_get_symbol_table_overflow() !== 1)
+    throw new Error("cc1 cc0.c symbol table overflow failed");
+
+if (cc1_get_symbol_table_cell(0, 0) !== 2 ||
+    cc1_get_symbol_table_cell(0, 1) !== 14563 ||
+    cc1_get_symbol_table_cell(0, 2) !== 19 ||
+    cc1_get_symbol_table_cell(0, 3) !== 0)
+    throw new Error("cc1 cc0.c symbol 0 failed");
+
+if (cc1_get_symbol_table_cell(3, 0) !== 2 ||
+    cc1_get_symbol_table_cell(3, 1) !== 5685 ||
+    cc1_get_symbol_table_cell(3, 2) !== 14 ||
+    cc1_get_symbol_table_cell(3, 3) !== 3)
+    throw new Error("cc1 cc0.c symbol 3 failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

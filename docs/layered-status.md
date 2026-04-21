@@ -83,7 +83,9 @@ to the C heap or the JS virtual heap, and `mkc('A')` returns the character code.
 The support implementations live in `cc0_support.c` and `cc0_support.js`; the
 shared dialect source keeps character codes behind named `CC0_CH_*` constants
 so the low-level byte logic remains auditable; cc1 also consumes those names for
-its punctuation grammar. The active TCC preprocessor now calls cc0 for the low
+its punctuation grammar. The support layer also exposes a small integer-cell
+heap, backed by `malloc` in C and by the existing virtual heap in JS, so later
+layers can build tables without leaving the shared dialect. The active TCC preprocessor now calls cc0 for the low
 ASCII character flags used to seed its tokenizer table, for decimal and octal
 digit checks, for ASCII uppercase conversion, and for whitespace checks that
 must exclude newlines. It also calls cc0 to recognize the `function` and `var`
@@ -145,7 +147,10 @@ also records aggregate function/global name lengths and stable bounded hashes,
 plus the maximum function source span. cc1 now also keeps fixed probes for the
 first four function and global symbols by source order, recording each symbol's
 bounded hash and length, so the next step toward a real symbol table has tested
-ordered source identity data. This is
+ordered source identity data. In parallel, it writes the first bounded source
+symbols into a cc0 heap-backed table with kind, hash, length, and ordinal
+fields; overflow is recorded explicitly once the bootstrap-sized table fills.
+This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
 self-checking in both runtimes before larger grammar work is moved over.

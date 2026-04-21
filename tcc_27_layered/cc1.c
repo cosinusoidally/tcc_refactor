@@ -84,6 +84,10 @@ var cc1_global_slot2_hash;
 var cc1_global_slot2_len;
 var cc1_global_slot3_hash;
 var cc1_global_slot3_len;
+var cc1_symbol_table_ptr;
+var cc1_symbol_table_limit;
+var cc1_symbol_table_count;
+var cc1_symbol_table_overflow;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -153,6 +157,10 @@ cc1_global_slot2_hash = 0;
 cc1_global_slot2_len = 0;
 cc1_global_slot3_hash = 0;
 cc1_global_slot3_len = 0;
+cc1_symbol_table_ptr = 0;
+cc1_symbol_table_limit = 0;
+cc1_symbol_table_count = 0;
+cc1_symbol_table_overflow = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -221,7 +229,37 @@ function cc1_reset()
     cc1_global_slot2_len = 0;
     cc1_global_slot3_hash = 0;
     cc1_global_slot3_len = 0;
+    cc1_symbol_table_ptr = 0;
+    cc1_symbol_table_limit = 0;
+    cc1_symbol_table_count = 0;
+    cc1_symbol_table_overflow = 0;
     return 0;
+}
+
+function cc1_symbol_table_reset()
+{
+    cc1_symbol_table_limit = 8;
+    cc1_symbol_table_count = 0;
+    cc1_symbol_table_overflow = 0;
+    cc1_symbol_table_ptr = cc0_cell_alloc(cc1_symbol_table_limit * 4);
+    return 1;
+}
+
+function cc1_symbol_table_add(kind, hash, len, ordinal)
+{
+    var index;
+
+    if (cc1_symbol_table_count >= cc1_symbol_table_limit) {
+        cc1_symbol_table_overflow = 1;
+        return 1;
+    }
+    index = cc1_symbol_table_count * 4;
+    cc0_cell_set(cc1_symbol_table_ptr, index + 0, kind);
+    cc0_cell_set(cc1_symbol_table_ptr, index + 1, hash);
+    cc0_cell_set(cc1_symbol_table_ptr, index + 2, len);
+    cc0_cell_set(cc1_symbol_table_ptr, index + 3, ordinal);
+    cc1_symbol_table_count = cc1_symbol_table_count + 1;
+    return 1;
 }
 
 function cc1_parse_number()
@@ -322,6 +360,7 @@ function cc1_note_function_name_token()
         cc1_function_slot3_hash = name_hash;
         cc1_function_slot3_len = cc0_get_tok_len();
     }
+    cc1_symbol_table_add(1, name_hash, cc0_get_tok_len(), cc1_function_count);
     cc1_function_name_char_count = cc1_function_name_char_count + cc0_get_tok_len();
     if (cc0_get_tok_len() > cc1_max_function_name_len)
         cc1_max_function_name_len = cc0_get_tok_len();
@@ -349,6 +388,7 @@ function cc1_note_global_name_token()
         cc1_global_slot3_hash = name_hash;
         cc1_global_slot3_len = cc0_get_tok_len();
     }
+    cc1_symbol_table_add(2, name_hash, cc0_get_tok_len(), cc1_top_decl_count);
     cc1_global_name_char_count = cc1_global_name_char_count + cc0_get_tok_len();
     if (cc0_get_tok_len() > cc1_max_global_name_len)
         cc1_max_global_name_len = cc0_get_tok_len();
@@ -1325,6 +1365,7 @@ function cc1_parse_cc0_source_tokens()
 function cc1_parse_cc0_source_string(source)
 {
     cc1_reset();
+    cc1_symbol_table_reset();
     cc0_source_set_string(source);
     cc0_scan_next();
     if (!cc1_parse_cc0_source_tokens())
@@ -1747,4 +1788,27 @@ function cc1_get_global_slot_len(index)
     if (index == 3)
         return cc1_global_slot3_len;
     return -1;
+}
+
+function cc1_get_symbol_table_count()
+{
+    return cc1_symbol_table_count;
+}
+
+function cc1_get_symbol_table_overflow()
+{
+    return cc1_symbol_table_overflow;
+}
+
+function cc1_get_symbol_table_cell(index, field)
+{
+    if (index < 0)
+        return -1;
+    if (index >= cc1_symbol_table_count)
+        return -1;
+    if (field < 0)
+        return -1;
+    if (field > 3)
+        return -1;
+    return cc0_cell_get(cc1_symbol_table_ptr, index * 4 + field);
 }

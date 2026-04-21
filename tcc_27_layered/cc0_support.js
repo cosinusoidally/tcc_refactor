@@ -64,3 +64,23 @@ function cc0_heap_is_string(ptr, c0, c1, c2, c3)
         return 0;
     return 1;
 }
+
+function cc0_cell_alloc(count)
+{
+    var base;
+
+    base = cc0_heap_next;
+    cc0_heap_next = cc0_heap_next + count;
+    return base;
+}
+
+function cc0_cell_get(ptr, index)
+{
+    return cc0_heap[ptr + index];
+}
+
+function cc0_cell_set(ptr, index, value)
+{
+    cc0_heap[ptr + index] = value;
+    return value;
+}

@@ -11,6 +11,9 @@ int mkc();
 int cc0_heap_get();
 int cc0_heap_slice();
 int cc0_heap_is_string();
+int cc0_cell_alloc();
+int cc0_cell_get();
+int cc0_cell_set();
 int cc0_is_digit();
 int cc0_is_oct_digit();
 int cc0_is_name_start();
@@ -87,6 +90,9 @@ int cc1_get_function_slot_hash();
 int cc1_get_function_slot_len();
 int cc1_get_global_slot_hash();
 int cc1_get_global_slot_len();
+int cc1_get_symbol_table_count();
+int cc1_get_symbol_table_overflow();
+int cc1_get_symbol_table_cell();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -95,6 +101,7 @@ int cc2_ar_is_exported_symbol();
 int main()
 {
     int cc0_test_string;
+    int cc0_test_cells;
 
     if (cc0_add(2, 3) != 5)
         return 1;
@@ -113,6 +120,12 @@ int main()
         return 57;
     if (!cc0_heap_is_string(mks("var"), 'v', 'a', 'r', 0))
         return 58;
+    cc0_test_cells = cc0_cell_alloc(3);
+    if (cc0_cell_set(cc0_test_cells, 0, 12345) != 12345 ||
+        cc0_cell_set(cc0_test_cells, 1, 6789) != 6789 ||
+        cc0_cell_get(cc0_test_cells, 0) != 12345 ||
+        cc0_cell_get(cc0_test_cells, 1) != 6789)
+        return 199;
     if (!cc0_is_word_function_chars('f', 'u', 'n', 'c', 't', 'i', 'o', 'n', 0) ||
         cc0_is_word_function_chars('f', 'u', 'n', 'c', 't', 'i', 'o', 0, 0))
         return 53;
@@ -479,6 +492,20 @@ int main()
         return 193;
     if (cc1_get_global_slot_len(1) != 1)
         return 194;
+    if (cc1_get_symbol_table_count() != 4)
+        return 195;
+    if (cc1_get_symbol_table_overflow() != 0)
+        return 196;
+    if (cc1_get_symbol_table_cell(0, 0) != 2 ||
+        cc1_get_symbol_table_cell(0, 1) != 97 ||
+        cc1_get_symbol_table_cell(0, 2) != 1 ||
+        cc1_get_symbol_table_cell(0, 3) != 0)
+        return 197;
+    if (cc1_get_symbol_table_cell(3, 0) != 1 ||
+        cc1_get_symbol_table_cell(3, 1) != 119 ||
+        cc1_get_symbol_table_cell(3, 2) != 1 ||
+        cc1_get_symbol_table_cell(3, 3) != 1)
+        return 198;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)

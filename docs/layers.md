@@ -19,7 +19,9 @@ uses named `CC0_CH_*` constants for byte values, including punctuation consumed
 by upper layers. The scanner still accepts fixed eight-byte and sixteen-byte
 source windows for regression coverage, and it can also scan strings allocated
 through `mks("...")`. In C those strings live on the C heap; in JavaScript they
-live in the cc0 virtual heap. The scanner skips whitespace and reports token
+live in the cc0 virtual heap. The same support files now provide a tiny
+integer-cell heap for early layer tables, implemented with `malloc` in C and
+with the virtual heap array in JavaScript. The scanner skips whitespace and reports token
 class, start offset, length, and value where applicable for names, decimal
 numbers, character literals, string literals, punctuation, and EOF. String
 literal tokens are copied back into the heap model used by `mks`, giving later
@@ -79,8 +81,10 @@ and unary-not operator families. Function/global names are also tracked with
 aggregate lengths and stable bounded hashes, and the pass records the maximum
 function source span. cc1 also keeps fixed probes for the first four function
 and global symbols by source order, recording each symbol's bounded hash and
-length. Function signature parsing records total and maximum parameter counts
-for the real cc0 source.
+length. The same source walk now stores the first bounded symbols in a cc0
+heap-backed table with kind, hash, length, and ordinal cells, and records when
+the table overflows. Function signature parsing records total and maximum
+parameter counts for the real cc0 source.
 That is not a C parser yet, but it gives the layered
 tree a tested lower-to-upper token stream and symbol-state boundary before
 preprocessing exists.

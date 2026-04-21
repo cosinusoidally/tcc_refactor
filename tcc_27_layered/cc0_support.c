@@ -82,3 +82,31 @@ int cc0_heap_is_string(ptr, c0, c1, c2, c3)
         return 0;
     return 1;
 }
+
+int cc0_cell_alloc(count)
+    int count;
+{
+    return (int)malloc(count * 4);
+}
+
+int cc0_cell_get(ptr, index)
+    int ptr;
+    int index;
+{
+    int *p;
+
+    p = (int *)ptr;
+    return p[index];
+}
+
+int cc0_cell_set(ptr, index, value)
+    int ptr;
+    int index;
+    int value;
+{
+    int *p;
+
+    p = (int *)ptr;
+    p[index] = value;
+    return value;
+}
