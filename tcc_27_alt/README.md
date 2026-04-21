@@ -1,9 +1,10 @@
 # tcc_27_alt
 
 `tcc_27_alt` is a cut-down TinyCC 0.9.27 tree for one target only:
-i386 Linux ELF. It keeps the C compiler, preprocessor, ELF linker, i386 code
-generator, i386 assembler, minimal builtin headers, and the small i386 runtime
-archive needed by generated binaries.
+i386 Linux ELF. The self-hosting compiler input is a flattened C source that
+does not contain `#include`, `#define`, or conditional preprocessing
+directives. The tree still keeps the historical preprocessor source for now so
+the flattened source can be regenerated while the code is reduced further.
 
 Removed from this tree: non-i386 backends, PE/COFF output, Windows support,
 ARM/AArch64/C67/x86_64 generators, examples, generated manuals, configure
@@ -24,6 +25,17 @@ This builds:
 The bootstrap compiler is built with the host C compiler, but the runtime
 archive is built with `build/root/tcc` itself. All generated files are kept
 under `build/`.
+
+## No-Preprocessor Source
+
+```sh
+./scripts/gen-nopp.sh
+```
+
+This writes `build/nopp/tcc_nopp.c`. That file is generated from the current
+i386/Linux configuration and is checked to contain no preprocessor directive
+lines. The self-host path compiles this file with `-nostdinc` and without
+configuration `-D` flags.
 
 ## Test
 
@@ -48,17 +60,19 @@ package to enable it.
 ./selfhost.sh
 ```
 
-Self-hosting means `build/root/tcc` can compile `tcc.c` into a new i386 `tcc`, that new
-compiler can rebuild the i386 runtime archive and compile another copy, and two
-consecutive self-built compilers match byte-for-byte:
+Self-hosting means `build/root/tcc` can generate the no-preprocessor source,
+compile it into a new i386 `tcc`, that new compiler can rebuild the i386
+runtime archive and compile another copy from the same no-preprocessor source,
+and two consecutive self-built compilers match byte-for-byte:
 
 ```text
 host cc -> build/root/tcc
-build/root/tcc -> build/selfhost/tcc.stage1
+build/root/tcc -> build/nopp/tcc_nopp.c
+build/root/tcc build/nopp/tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage1
 stage1 -> build/selfhost/stage1root/libtcc1.a
-stage1 -> build/selfhost/tcc.stage2
+stage1 build/nopp/tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage2
 stage2 -> build/selfhost/stage2root/libtcc1.a
-stage2 -> build/selfhost/tcc.stage3
+stage2 build/nopp/tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage3
 cmp stage2 stage3
 ```
 

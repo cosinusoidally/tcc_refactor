@@ -43,6 +43,7 @@ if ./scripts/has-i386-glibc.sh; then
     echo "checking dynamic i386 executable link"
     $TCC tests/hello.c -o "$OUT/hello"
     file "$OUT/hello" | grep -q 'ELF 32-bit'
+    chmod +x "$OUT/hello"
     if "$RUN_I386" "$OUT/hello" > "$OUT/hello.stdout" 2>/dev/null; then
         grep -q 'hello i386 42' "$OUT/hello.stdout"
     else

@@ -6,14 +6,4 @@ if [ "$#" -eq 0 ]; then
     exit 2
 fi
 
-if [ -x "$1" ]; then
-    exec "$@"
-fi
-
-for loader in /lib/ld-linux.so.2 /lib32/ld-linux.so.2 /lib/i386-linux-gnu/ld-linux.so.2; do
-    if [ -x "$loader" ]; then
-        exec "$loader" "$@"
-    fi
-done
-
 exec "$@"

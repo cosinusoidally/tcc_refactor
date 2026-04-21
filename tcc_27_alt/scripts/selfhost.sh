@@ -7,6 +7,7 @@ cd "$ROOT"
 OUT=build/selfhost
 RUN_I386=${RUN_I386:-./scripts/run-i386.sh}
 BOOTROOT=build/root
+NOPP=build/nopp/tcc_nopp.c
 mkdir -p "$OUT"
 
 if ! ./scripts/has-i386-glibc.sh; then
@@ -20,14 +21,7 @@ build_tcc()
     compiler=$1
     output=$2
     bdir=$3
-    "$RUN_I386" "$compiler" -B"$bdir" -Iinclude -I. \
-        -DONE_SOURCE=1 \
-        -DTCC_TARGET_I386 \
-        '-DCONFIG_TRIPLET="i386-linux-gnu"' \
-        '-DCONFIG_TCC_CRTPREFIX="/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32"' \
-        '-DCONFIG_TCC_LIBPATHS="/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32"' \
-        '-DTCC_LIBTCC1="libtcc1.a"' \
-        -o "$output" tcc.c -lm -ldl
+    "$RUN_I386" "$compiler" -B"$bdir" -nostdinc "$NOPP" -o "$output" -lm -ldl
 }
 
 build_runtime()
@@ -40,8 +34,13 @@ build_runtime()
     "$RUN_I386" "$compiler" -ar rcs "$bdir/libtcc1.a" "$bdir/libtcc1.o" "$bdir/alloca86.o"
 }
 
+if [ ! -f "$NOPP" ]; then
+    ./scripts/gen-nopp.sh
+fi
+
 echo "building stage1 with $BOOTROOT/tcc"
 build_tcc "$BOOTROOT/tcc" "$OUT/tcc.stage1" "$BOOTROOT"
+chmod +x "$OUT/tcc.stage1"
 
 if ! "$RUN_I386" "$OUT/tcc.stage1" -v >/dev/null 2>&1; then
     echo "selfhost skipped: built stage1, but this host cannot execute i386 binaries"
@@ -53,18 +52,21 @@ build_runtime "$OUT/tcc.stage1" "$OUT/stage1root"
 
 echo "building stage2 with stage1"
 build_tcc "$OUT/tcc.stage1" "$OUT/tcc.stage2" "$OUT/stage1root"
+chmod +x "$OUT/tcc.stage2"
 
 echo "building runtime with stage2"
 build_runtime "$OUT/tcc.stage2" "$OUT/stage2root"
 
 echo "building stage3 with stage2"
 build_tcc "$OUT/tcc.stage2" "$OUT/tcc.stage3" "$OUT/stage2root"
+chmod +x "$OUT/tcc.stage3"
 
 cmp "$OUT/tcc.stage2" "$OUT/tcc.stage3"
 
 echo "checking stage2 dynamic output"
 "$RUN_I386" "$OUT/tcc.stage2" -B"$OUT/stage2root" -Iinclude -I. tests/hello.c -o "$OUT/hello"
 file "$OUT/hello" | grep -q 'ELF 32-bit'
+chmod +x "$OUT/hello"
 "$RUN_I386" "$OUT/hello" > "$OUT/hello.stdout"
 grep -q 'hello i386 42' "$OUT/hello.stdout"
 
