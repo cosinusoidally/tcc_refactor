@@ -110,6 +110,7 @@ int cc1_get_expr_table_count();
 int cc1_get_expr_table_overflow();
 int cc1_get_expr_table_cell();
 int cc1_eval_expr_table_value();
+int cc1_eval_function_table2();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -603,6 +604,14 @@ int main()
         return 221;
     if (cc1_eval_expr_table_value(2) != 1 || cc1_get_last_value() != 0)
         return 222;
+    if (cc1_eval_function_table2(0, 1, 0) != 1 ||
+        cc1_get_last_name() != 'f' ||
+        cc1_get_last_value() != 1)
+        return 223;
+    if (cc1_eval_function_table2(0, 0, 0) != 1 ||
+        cc1_get_last_name() != 'f' ||
+        cc1_get_last_value() != 0)
+        return 224;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)

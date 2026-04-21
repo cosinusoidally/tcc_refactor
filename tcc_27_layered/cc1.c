@@ -1686,6 +1686,30 @@ function cc1_eval_expr_table_value(index)
     return 1;
 }
 
+function cc1_eval_function_table2(index, arg0, arg1)
+{
+    var source_start;
+    if (index < 0) {
+        cc1_error = 68;
+        return 0;
+    }
+    if (index >= cc1_function_table_count) {
+        cc1_error = 69;
+        return 0;
+    }
+    source_start = cc1_get_function_table_cell(index, 3);
+    cc1_arg_0 = arg0;
+    cc1_arg_1 = arg1;
+    cc1_arg_2 = 0;
+    cc1_arg_3 = 0;
+    cc1_error = 0;
+    cc0_source_seek(source_start);
+    cc0_scan_next();
+    if (!cc1_parse_function_return_tokens())
+        return 0;
+    return 1;
+}
+
 function cc1_parse_function_return_tokens()
 {
     var candidate_active;

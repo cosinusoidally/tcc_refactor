@@ -97,7 +97,9 @@ compact operator flag word for assignment, call, arithmetic, comparison, and
 unary-not shapes. cc1 can seek the cc0 scanner to a recorded expression slice
 and evaluate simple return and initializer slices through the existing
 expression parser, turning the first recorded body slices into executable
-lowering inputs.
+lowering inputs. It can also seek from a bounded function-table record and run
+simple cc0-shaped functions through the existing cc1 function evaluator; this
+is now pinned against both a synthetic function and the real `cc0_add` record.
 Function signature parsing records total and maximum parameter counts for the
 real cc0 source.
 That is not a C parser yet, but it gives the layered

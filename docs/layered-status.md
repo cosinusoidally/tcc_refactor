@@ -166,7 +166,10 @@ expression lowering step bounded source ranges and a routing key to consume.
 cc1 can now seek the cc0 scanner back to an expression-slice start and evaluate
 simple return and initializer slices through the real expression parser, so
 recorded body data is beginning to feed executable lowering instead of only
-metrics.
+metrics. It can also seek from a bounded function-table record and evaluate
+simple cc0-shaped functions through the existing cc1 function evaluator; the
+smoke tests use this path for both a synthetic function and the real `cc0_add`
+record in `cc0.c`.
 This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and

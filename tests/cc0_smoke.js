@@ -682,6 +682,16 @@ if (cc1_eval_expr_table_value(1) !== 1 || cc1_get_last_value() !== 0)
 if (cc1_eval_expr_table_value(2) !== 1 || cc1_get_last_value() !== 0)
     throw new Error("cc1 cc0 source shell eval local init expr failed");
 
+if (cc1_eval_function_table2(0, 1, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_f ||
+    cc1_get_last_value() !== 1)
+    throw new Error("cc1 cc0 source shell eval function true failed");
+
+if (cc1_eval_function_table2(0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_f ||
+    cc1_get_last_value() !== 0)
+    throw new Error("cc1 cc0 source shell eval function false failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -924,6 +934,11 @@ if (cc1_get_expr_table_cell(15, 0) !== 1 ||
     cc1_get_expr_table_cell(15, 3) !== 4 ||
     cc1_get_expr_table_cell(15, 4) !== 0)
     throw new Error("cc1 cc0.c expr record 15 failed");
+
+if (cc1_eval_function_table2(0, 7, 8) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 15)
+    throw new Error("cc1 cc0.c eval cc0_add record failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");
