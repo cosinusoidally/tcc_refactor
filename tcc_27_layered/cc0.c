@@ -29,6 +29,7 @@ var CC0_CH_CR;
 var CC0_CH_SPACE;
 var CC0_CH_BANG;
 var CC0_CH_DQUOTE;
+var CC0_CH_HASH;
 var CC0_CH_SQUOTE;
 var CC0_CH_LPAREN;
 var CC0_CH_RPAREN;
@@ -36,6 +37,7 @@ var CC0_CH_STAR;
 var CC0_CH_PLUS;
 var CC0_CH_COMMA;
 var CC0_CH_MINUS;
+var CC0_CH_DOT;
 var CC0_CH_SLASH;
 var CC0_CH_0;
 var CC0_CH_7;
@@ -44,6 +46,10 @@ var CC0_CH_SEMI;
 var CC0_CH_LT;
 var CC0_CH_EQUAL;
 var CC0_CH_GT;
+var CC0_CH_AMP;
+var CC0_CH_PERCENT;
+var CC0_CH_CARET;
+var CC0_CH_BAR;
 var CC0_CH_A;
 var CC0_CH_C;
 var CC0_CH_H;
@@ -73,6 +79,27 @@ var CC0_CH_v;
 var CC0_CH_w;
 var CC0_CH_z;
 var CC0_LOWER_TO_UPPER_DELTA;
+var CC0_TCC_TOK_SHL;
+var CC0_TCC_TOK_SAR;
+var CC0_TCC_TOK_EQ;
+var CC0_TCC_TOK_NE;
+var CC0_TCC_TOK_GE;
+var CC0_TCC_TOK_LE;
+var CC0_TCC_TOK_LAND;
+var CC0_TCC_TOK_LOR;
+var CC0_TCC_TOK_DEC;
+var CC0_TCC_TOK_INC;
+var CC0_TCC_TOK_TWODOTS;
+var CC0_TCC_TOK_ARROW;
+var CC0_TCC_TOK_TWOSHARPS;
+var CC0_TCC_TOK_A_MOD;
+var CC0_TCC_TOK_A_AND;
+var CC0_TCC_TOK_A_MUL;
+var CC0_TCC_TOK_A_ADD;
+var CC0_TCC_TOK_A_SUB;
+var CC0_TCC_TOK_A_DIV;
+var CC0_TCC_TOK_A_XOR;
+var CC0_TCC_TOK_A_OR;
 var cc0_src_0;
 var cc0_src_1;
 var cc0_src_2;
@@ -117,6 +144,7 @@ CC0_CH_CR = 13;
 CC0_CH_SPACE = 32;
 CC0_CH_BANG = 33;
 CC0_CH_DQUOTE = 34;
+CC0_CH_HASH = 35;
 CC0_CH_SQUOTE = 39;
 CC0_CH_LPAREN = 40;
 CC0_CH_RPAREN = 41;
@@ -124,6 +152,7 @@ CC0_CH_STAR = 42;
 CC0_CH_PLUS = 43;
 CC0_CH_COMMA = 44;
 CC0_CH_MINUS = 45;
+CC0_CH_DOT = 46;
 CC0_CH_SLASH = 47;
 CC0_CH_0 = 48;
 CC0_CH_7 = 55;
@@ -132,6 +161,10 @@ CC0_CH_SEMI = 59;
 CC0_CH_LT = 60;
 CC0_CH_EQUAL = 61;
 CC0_CH_GT = 62;
+CC0_CH_AMP = 38;
+CC0_CH_PERCENT = 37;
+CC0_CH_CARET = 94;
+CC0_CH_BAR = 124;
 CC0_CH_A = 65;
 CC0_CH_C = 67;
 CC0_CH_H = 72;
@@ -161,6 +194,27 @@ CC0_CH_v = 118;
 CC0_CH_w = 119;
 CC0_CH_z = 122;
 CC0_LOWER_TO_UPPER_DELTA = 32;
+CC0_TCC_TOK_SHL = 1;
+CC0_TCC_TOK_SAR = 2;
+CC0_TCC_TOK_EQ = 148;
+CC0_TCC_TOK_NE = 149;
+CC0_TCC_TOK_GE = 157;
+CC0_TCC_TOK_LE = 158;
+CC0_TCC_TOK_LAND = 160;
+CC0_TCC_TOK_LOR = 161;
+CC0_TCC_TOK_DEC = 162;
+CC0_TCC_TOK_INC = 164;
+CC0_TCC_TOK_TWODOTS = 168;
+CC0_TCC_TOK_ARROW = 199;
+CC0_TCC_TOK_TWOSHARPS = 202;
+CC0_TCC_TOK_A_MOD = 165;
+CC0_TCC_TOK_A_AND = 166;
+CC0_TCC_TOK_A_MUL = 170;
+CC0_TCC_TOK_A_ADD = 171;
+CC0_TCC_TOK_A_SUB = 173;
+CC0_TCC_TOK_A_DIV = 175;
+CC0_TCC_TOK_A_XOR = 222;
+CC0_TCC_TOK_A_OR = 252;
 cc0_src_0 = -1;
 cc0_src_1 = -1;
 cc0_src_2 = -1;
@@ -439,6 +493,146 @@ function cc0_token_class(c)
     if (c == CC0_CH_DQUOTE)
         return CC0_TOK_STRING;
     return CC0_TOK_PUNCT;
+}
+
+function cc0_tccpp_pair_token(c0, c1)
+{
+    if (c0 == CC0_CH_LT)
+        if (c1 == CC0_CH_EQUAL)
+            return CC0_TCC_TOK_LE;
+    if (c0 == CC0_CH_GT)
+        if (c1 == CC0_CH_EQUAL)
+            return CC0_TCC_TOK_GE;
+    if (c0 == CC0_CH_BANG)
+        if (c1 == CC0_CH_EQUAL)
+            return CC0_TCC_TOK_NE;
+    if (c0 == CC0_CH_AMP)
+        if (c1 == CC0_CH_AMP)
+            return CC0_TCC_TOK_LAND;
+    if (c0 == CC0_CH_AMP)
+        if (c1 == CC0_CH_EQUAL)
+            return CC0_TCC_TOK_A_AND;
+    if (c0 == CC0_CH_PLUS)
+        if (c1 == CC0_CH_PLUS)
+            return CC0_TCC_TOK_INC;
+    if (c0 == CC0_CH_PLUS)
+        if (c1 == CC0_CH_EQUAL)
+            return CC0_TCC_TOK_A_ADD;
+    if (c0 == CC0_CH_MINUS)
+        if (c1 == CC0_CH_MINUS)
+            return CC0_TCC_TOK_DEC;
+    if (c0 == CC0_CH_MINUS)
+        if (c1 == CC0_CH_EQUAL)
+            return CC0_TCC_TOK_A_SUB;
+    if (c0 == CC0_CH_MINUS)
+        if (c1 == CC0_CH_GT)
+            return CC0_TCC_TOK_ARROW;
+    if (c0 == CC0_CH_EQUAL)
+        if (c1 == CC0_CH_EQUAL)
+            return CC0_TCC_TOK_EQ;
+    if (c0 == CC0_CH_LT)
+        if (c1 == CC0_CH_LT)
+            return CC0_TCC_TOK_SHL;
+    if (c0 == CC0_CH_GT)
+        if (c1 == CC0_CH_GT)
+            return CC0_TCC_TOK_SAR;
+    if (c0 == CC0_CH_STAR)
+        if (c1 == CC0_CH_EQUAL)
+            return CC0_TCC_TOK_A_MUL;
+    if (c0 == CC0_CH_SLASH)
+        if (c1 == CC0_CH_EQUAL)
+            return CC0_TCC_TOK_A_DIV;
+    if (c0 == CC0_CH_PERCENT)
+        if (c1 == CC0_CH_EQUAL)
+            return CC0_TCC_TOK_A_MOD;
+    if (c0 == CC0_CH_CARET)
+        if (c1 == CC0_CH_EQUAL)
+            return CC0_TCC_TOK_A_XOR;
+    if (c0 == CC0_CH_BAR)
+        if (c1 == CC0_CH_BAR)
+            return CC0_TCC_TOK_LOR;
+    if (c0 == CC0_CH_BAR)
+        if (c1 == CC0_CH_EQUAL)
+            return CC0_TCC_TOK_A_OR;
+    if (c0 == CC0_CH_DOT)
+        if (c1 == CC0_CH_DOT)
+            return CC0_TCC_TOK_TWODOTS;
+    if (c0 == CC0_CH_HASH)
+        if (c1 == CC0_CH_HASH)
+            return CC0_TCC_TOK_TWOSHARPS;
+    return 0;
+}
+
+function cc0_tccpp_pair_first(tok)
+{
+    if (tok == CC0_TCC_TOK_LE)
+        return CC0_CH_LT;
+    if (tok == CC0_TCC_TOK_GE)
+        return CC0_CH_GT;
+    if (tok == CC0_TCC_TOK_NE)
+        return CC0_CH_BANG;
+    if (tok == CC0_TCC_TOK_LAND)
+        return CC0_CH_AMP;
+    if (tok == CC0_TCC_TOK_LOR)
+        return CC0_CH_BAR;
+    if (tok == CC0_TCC_TOK_INC)
+        return CC0_CH_PLUS;
+    if (tok == CC0_TCC_TOK_DEC)
+        return CC0_CH_MINUS;
+    if (tok == CC0_TCC_TOK_EQ)
+        return CC0_CH_EQUAL;
+    if (tok == CC0_TCC_TOK_SHL)
+        return CC0_CH_LT;
+    if (tok == CC0_TCC_TOK_SAR)
+        return CC0_CH_GT;
+    if (tok == CC0_TCC_TOK_A_ADD)
+        return CC0_CH_PLUS;
+    if (tok == CC0_TCC_TOK_A_SUB)
+        return CC0_CH_MINUS;
+    if (tok == CC0_TCC_TOK_A_MUL)
+        return CC0_CH_STAR;
+    if (tok == CC0_TCC_TOK_A_DIV)
+        return CC0_CH_SLASH;
+    if (tok == CC0_TCC_TOK_A_MOD)
+        return CC0_CH_PERCENT;
+    if (tok == CC0_TCC_TOK_A_AND)
+        return CC0_CH_AMP;
+    if (tok == CC0_TCC_TOK_A_XOR)
+        return CC0_CH_CARET;
+    if (tok == CC0_TCC_TOK_A_OR)
+        return CC0_CH_BAR;
+    if (tok == CC0_TCC_TOK_ARROW)
+        return CC0_CH_MINUS;
+    if (tok == CC0_TCC_TOK_TWODOTS)
+        return CC0_CH_DOT;
+    if (tok == CC0_TCC_TOK_TWOSHARPS)
+        return CC0_CH_HASH;
+    return -1;
+}
+
+function cc0_tccpp_pair_second(tok)
+{
+    if (tok == CC0_TCC_TOK_LAND)
+        return CC0_CH_AMP;
+    if (tok == CC0_TCC_TOK_LOR)
+        return CC0_CH_BAR;
+    if (tok == CC0_TCC_TOK_INC)
+        return CC0_CH_PLUS;
+    if (tok == CC0_TCC_TOK_DEC)
+        return CC0_CH_MINUS;
+    if (tok == CC0_TCC_TOK_SHL)
+        return CC0_CH_LT;
+    if (tok == CC0_TCC_TOK_SAR)
+        return CC0_CH_GT;
+    if (tok == CC0_TCC_TOK_ARROW)
+        return CC0_CH_GT;
+    if (tok == CC0_TCC_TOK_TWODOTS)
+        return CC0_CH_DOT;
+    if (tok == CC0_TCC_TOK_TWOSHARPS)
+        return CC0_CH_HASH;
+    if (cc0_tccpp_pair_first(tok) >= 0)
+        return CC0_CH_EQUAL;
+    return -1;
 }
 
 function cc0_source_set8(c0, c1, c2, c3, c4, c5, c6, c7)

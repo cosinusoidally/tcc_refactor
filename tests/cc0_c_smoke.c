@@ -21,6 +21,9 @@ int cc0_is_name_continue();
 int cc0_is_space();
 int cc0_tccpp_char_flags();
 int cc0_tccpp_is_space();
+int cc0_tccpp_pair_token();
+int cc0_tccpp_pair_first();
+int cc0_tccpp_pair_second();
 int cc0_to_upper();
 int cc0_token_class();
 int cc0_source_set8();
@@ -182,6 +185,16 @@ int main()
         return 11;
     if (!cc0_tccpp_is_space(32) || cc0_tccpp_is_space(10) || cc0_tccpp_is_space(65))
         return 12;
+    if (cc0_tccpp_pair_token('<', '=') != 0x9e ||
+        cc0_tccpp_pair_token('-', '>') != 0xc7 ||
+        cc0_tccpp_pair_token('#', '#') != 0xca ||
+        cc0_tccpp_pair_token('x', '=') != 0)
+        return 186;
+    if (cc0_tccpp_pair_first(0xab) != '+' ||
+        cc0_tccpp_pair_second(0xab) != '=' ||
+        cc0_tccpp_pair_first(0xa1) != '|' ||
+        cc0_tccpp_pair_second(0xa1) != '|')
+        return 187;
     if (cc0_token_class(-1) != 0)
         return 13;
     if (cc0_token_class(65) != 1)

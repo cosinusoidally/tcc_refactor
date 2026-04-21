@@ -27,11 +27,15 @@ numbers, character literals, string literals, punctuation, and EOF. String
 literal tokens are copied back into the heap model used by `mks`, giving later
 layers a concrete pointer value. It also exposes token-word recognizers for
 `function`, `var`, `return`, `if`, `mkc`, and `mks`, keeping keyword and wrapper
-checks in the same byte-oriented layer as source access. This keeps the earliest
-phase below the preprocessor and suitable for the JS/C dialect intersection. The active
-`tccpp.c` tokenizer table now also gets its low ASCII space/name/number flags
-from cc0, and the compiler's digit, octal digit, uppercase conversion, and
-horizontal-whitespace checks are starting to call the cc0 helpers directly.
+checks in the same byte-oriented layer as source access. cc0 now also owns the
+historical TCC two-character preprocessing token map for spellings such as
+`<=`, `!=`, `&&`, `->`, and `##`; the active `tccpp.c` path asks cc0 for those
+spellings instead of carrying its own token table. This keeps the earliest
+phase below the preprocessor and suitable for the JS/C dialect intersection.
+The active `tccpp.c` tokenizer table now also gets its low ASCII
+space/name/number flags from cc0, and the compiler's digit, octal digit,
+uppercase conversion, and horizontal-whitespace checks are starting to call the
+cc0 helpers directly.
 Layered TCC can also compile this dialect directly with `-std=cc0`, where the
 parser asks cc0 to recognize `function` and `var` as integer type specifiers
 instead of requiring preprocessor definitions. This is the first
