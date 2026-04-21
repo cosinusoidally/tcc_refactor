@@ -9,6 +9,8 @@ the flattened source can be regenerated while the code is reduced further.
 Removed from this tree: non-i386 backends, PE/COFF output, Windows support,
 ARM/AArch64/C67/x86_64 generators, examples, generated manuals, configure
 machinery, and broad upstream test suites that are not relevant to this slice.
+Bounds checking/backtrace support and the in-memory `-run` engine are disabled;
+tests execute generated i386 ELF files through `scripts/run-i386.sh` instead.
 
 ## Build
 
@@ -18,13 +20,13 @@ machinery, and broad upstream test suites that are not relevant to this slice.
 
 This builds:
 
-- `build/root/tcc`: a host executable that emits i386 Linux ELF.
+- `build/root/tcc`: a 32-bit i386 Linux executable that emits i386 Linux ELF.
 - `build/root/libtcc1.a`: the minimal i386 runtime archive used when linking
   programs.
 
-The bootstrap compiler is built with the host C compiler, but the runtime
-archive is built with `build/root/tcc` itself. All generated files are kept
-under `build/`.
+The bootstrap compiler is built with the host C compiler using `-m32`, and the
+runtime archive is built with `build/root/tcc` itself. All generated files are
+kept under `build/`.
 
 ## No-Preprocessor Source
 
@@ -66,7 +68,7 @@ runtime archive and compile another copy from the same no-preprocessor source,
 and two consecutive self-built compilers match byte-for-byte:
 
 ```text
-host cc -> build/root/tcc
+host cc -m32 -> build/root/tcc
 build/root/tcc -> build/nopp/tcc_nopp.c
 build/root/tcc build/nopp/tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage1
 stage1 -> build/selfhost/stage1root/libtcc1.a

@@ -7,6 +7,7 @@ cd "$ROOT"
 BOOTROOT=build/root
 OUT=build/nopp
 NOPP="$OUT/tcc_nopp.c"
+RUN_I386=${RUN_I386:-./scripts/run-i386.sh}
 
 if [ ! -x "$BOOTROOT/tcc" ] || [ ! -f "$BOOTROOT/libtcc1.a" ]; then
     ./build.sh
@@ -14,9 +15,11 @@ fi
 
 mkdir -p "$OUT"
 
-"$BOOTROOT/tcc" -B"$BOOTROOT" -Iinclude -I. \
+"$RUN_I386" "$BOOTROOT/tcc" -B"$BOOTROOT" -Iinclude -I. \
     -DONE_SOURCE=1 \
     -DTCC_TARGET_I386 \
+    -DCONFIG_TCCBOOT \
+    -DCONFIG_TCC_NO_RUN \
     '-DCONFIG_TRIPLET="i386-linux-gnu"' \
     '-DCONFIG_TCC_CRTPREFIX="/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32"' \
     '-DCONFIG_TCC_LIBPATHS="/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32"' \

@@ -40,7 +40,6 @@ static int nb_states;
 #include "tccpp.c"
 #include "tccgen.c"
 #include "tccelf.c"
-#include "tccrun.c"
 #ifdef TCC_TARGET_I386
 #include "i386-gen.c"
 #include "i386-link.c"

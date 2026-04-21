@@ -5,18 +5,18 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
 ROOTDIR=build/root
-TCC="$ROOTDIR/tcc -B$ROOTDIR -Iinclude -I."
 RUN_I386=${RUN_I386:-./scripts/run-i386.sh}
+TCC="$RUN_I386 $ROOTDIR/tcc -B$ROOTDIR -Iinclude -I."
 OUT=build/check
 mkdir -p "$OUT"
 
 echo "checking compiler identity"
-"$ROOTDIR/tcc" -v >/dev/null
+"$RUN_I386" "$ROOTDIR/tcc" -v >/dev/null
 
 echo "checking preprocessor"
 for src in tests/pp/01.c tests/pp/02.c tests/pp/03.c tests/pp/04.c tests/pp/05.c; do
     base=${src%.c}
-    "$ROOTDIR/tcc" -E -P "$src" > "$OUT/$(basename "$base").out"
+    "$RUN_I386" "$ROOTDIR/tcc" -E -P "$src" > "$OUT/$(basename "$base").out"
     diff -u -w "$base.expect" "$OUT/$(basename "$base").out"
 done
 

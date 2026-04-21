@@ -150,7 +150,7 @@ extern long double strtold (const char *__nptr, char **__endptr);
 #endif
 
 /* only native compiler supports -run */
-#if defined _WIN32 == defined TCC_TARGET_PE
+#if !defined(CONFIG_TCC_NO_RUN) && defined _WIN32 == defined TCC_TARGET_PE
 # if (defined __i386__ || defined _X86_) && defined TCC_TARGET_I386
 #  define TCC_IS_NATIVE
 # elif (defined __x86_64__ || defined _AMD64_) && defined TCC_TARGET_X86_64
