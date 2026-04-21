@@ -156,7 +156,9 @@ It is included after `tcc.h` and before `tccgen.c`, so it may use the real TCC
 token ids and compiler state while parser behavior is migrated. It currently
 owns the cc0 dialect type-token decision used by `parse_btype`, plus assignment
 operator classification and the compound-assignment base-token mapping used by
-`expr_eq`.
+`expr_eq`. The expression parser's shift, comparison, and equality token
+predicates also live here, giving the layer a growing inventory of the parser's
+token grammar while `tccgen.c` still owns the parse actions.
 
 `tcc_unified.c` is the current full compiler layer. It maps the lower-layer
 `function` and `var` spelling to C, includes the active cc0/cc2 helpers and the

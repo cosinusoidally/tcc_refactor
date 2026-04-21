@@ -221,7 +221,9 @@ the C and JS smoke tests.
 compiler: the one-source build includes it after `tcc.h` and before
 `tccgen.c`. The current split moves the cc0 dialect type-token check used by
 `parse_btype`, the assignment-token predicate used by `expr_eq`, and the
-compound-assignment base-token mapping used before `gen_op`.
+compound-assignment base-token mapping used before `gen_op`. It also owns the
+shift, comparison, and equality token predicates used by the expression
+precedence parser.
 
 ## Current Legacy Shrink
 
@@ -242,7 +244,8 @@ character classifier, the PE import-definition tool, or the Win32
 cross-exec/wildcard helpers. The layered target is i386 Linux/ELF, and the active
 archive path now calls into cc2 for the first migrated piece of tool behavior.
 `tccgen.c` has also started shrinking: cc0 dialect type-token recognition and
-assignment-operator recognition now live in `cc3.c`, and the parser calls
+assignment-operator recognition now live in `cc3.c`, along with the expression
+parser's shift, comparison, and equality token predicates. The parser calls
 through that layer instead of open-coding those token decisions locally.
 
 ## Removed Run Surface

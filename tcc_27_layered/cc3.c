@@ -39,6 +39,36 @@ static int cc3_tccgen_is_assignment_token(int token)
     return 0;
 }
 
+static int cc3_tccgen_is_shift_token(int token)
+{
+    if (token == TOK_SHL)
+        return 1;
+    if (token == TOK_SAR)
+        return 1;
+    return 0;
+}
+
+static int cc3_tccgen_is_compare_token(int token)
+{
+    if (token >= TOK_ULE)
+        if (token <= TOK_GT)
+            return 1;
+    if (token == TOK_ULT)
+        return 1;
+    if (token == TOK_UGE)
+        return 1;
+    return 0;
+}
+
+static int cc3_tccgen_is_equality_token(int token)
+{
+    if (token == TOK_EQ)
+        return 1;
+    if (token == TOK_NE)
+        return 1;
+    return 0;
+}
+
 static int cc3_tccgen_assignment_base_token(int token)
 {
     if (token == '=')

@@ -5205,7 +5205,7 @@ static void expr_shift(void)
     int t;
 
     expr_sum();
-    while (tok == TOK_SHL || tok == TOK_SAR) {
+    while (cc3_tccgen_is_shift_token(tok)) {
         t = tok;
         next();
         expr_sum();
@@ -5218,8 +5218,7 @@ static void expr_cmp(void)
     int t;
 
     expr_shift();
-    while ((tok >= TOK_ULE && tok <= TOK_GT) ||
-           tok == TOK_ULT || tok == TOK_UGE) {
+    while (cc3_tccgen_is_compare_token(tok)) {
         t = tok;
         next();
         expr_shift();
@@ -5232,7 +5231,7 @@ static void expr_cmpeq(void)
     int t;
 
     expr_cmp();
-    while (tok == TOK_EQ || tok == TOK_NE) {
+    while (cc3_tccgen_is_equality_token(tok)) {
         t = tok;
         next();
         expr_cmp();
