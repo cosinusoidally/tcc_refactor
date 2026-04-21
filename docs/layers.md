@@ -100,10 +100,16 @@ compact operator flag word for assignment, call, arithmetic, comparison, and
 unary-not shapes. cc1 can seek the cc0 scanner to a recorded expression slice
 and evaluate simple return and initializer slices through the existing
 expression parser, turning the first recorded body slices into executable
-lowering inputs. It can also seek from a bounded function-table record and run
+lowering inputs. The cc1 table capacities are now named and large enough to
+record the whole current `cc0.c` source walk without overflow: 42 functions,
+389 body statements, 91 parameters, 253 expression slices, and the associated
+source symbols. It can also seek from a bounded function-table record and run
 simple cc0-shaped functions through the existing cc1 function evaluator; this
-is now pinned against a synthetic function and the real `cc0_add`,
-`cc0_select`, and `cc0_not` records, including the four-slot argument path.
+is now pinned against synthetic functions and the real `cc0_add`, `cc0_select`,
+`cc0_not`, and `cc0_is_word_function_chars` records. The evaluator has explicit
+argument and name slots for the observed nine-parameter cc0 word recognizers,
+and resolves single-character `CC0_CH_*` constants plus `CC0_CH_NUL` while
+evaluating guards.
 Function signature parsing records total and maximum parameter counts for the
 real cc0 source.
 That is not a C parser yet, but it gives the layered

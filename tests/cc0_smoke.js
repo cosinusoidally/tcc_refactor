@@ -705,6 +705,19 @@ if (cc1_eval_function_table4(0, 0, 7, 9, 0) !== 1 ||
     cc1_get_last_value() !== 9)
     throw new Error("cc1 cc0 source shell colliding parameter false failed");
 
+if (cc1_parse_cc0_source_string(mks("function fifth(a,b,c,d,e){if(e)return a;return d;}")) !== 1)
+    throw new Error("cc1 cc0 source shell five parameter parse failed");
+
+if (cc1_eval_function_table9(0, 3, 4, 5, 6, 1, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_f ||
+    cc1_get_last_value() !== 3)
+    throw new Error("cc1 cc0 source shell five parameter true failed");
+
+if (cc1_eval_function_table9(0, 3, 4, 5, 6, 0, 0, 0, 0, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_f ||
+    cc1_get_last_value() !== 6)
+    throw new Error("cc1 cc0 source shell five parameter false failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -843,10 +856,10 @@ if (cc1_get_global_slot_hash(2) !== 28778 || cc1_get_global_slot_len(2) !== 12)
 if (cc1_get_global_slot_hash(3) !== 5685 || cc1_get_global_slot_len(3) !== 14)
     throw new Error("cc1 cc0.c global slot 3 failed");
 
-if (cc1_get_symbol_table_count() !== 8)
+if (cc1_get_symbol_table_count() !== 216)
     throw new Error("cc1 cc0.c symbol table count failed");
 
-if (cc1_get_symbol_table_overflow() !== 1)
+if (cc1_get_symbol_table_overflow() !== 0)
     throw new Error("cc1 cc0.c symbol table overflow failed");
 
 if (cc1_get_symbol_table_cell(0, 0) !== 2 ||
@@ -861,10 +874,16 @@ if (cc1_get_symbol_table_cell(3, 0) !== 2 ||
     cc1_get_symbol_table_cell(3, 3) !== 3)
     throw new Error("cc1 cc0.c symbol 3 failed");
 
-if (cc1_get_function_table_count() !== 8)
+if (cc1_get_symbol_table_cell(215, 0) !== 1 ||
+    cc1_get_symbol_table_cell(215, 1) !== 8892 ||
+    cc1_get_symbol_table_cell(215, 2) !== 21 ||
+    cc1_get_symbol_table_cell(215, 3) !== 41)
+    throw new Error("cc1 cc0.c symbol 215 failed");
+
+if (cc1_get_function_table_count() !== 42)
     throw new Error("cc1 cc0.c function table count failed");
 
-if (cc1_get_function_table_overflow() !== 1)
+if (cc1_get_function_table_overflow() !== 0)
     throw new Error("cc1 cc0.c function table overflow failed");
 
 if (cc1_get_function_table_cell(0, 0) !== 16844 ||
@@ -883,10 +902,18 @@ if (cc1_get_function_table_cell(7, 0) !== 30345 ||
     cc1_get_function_table_cell(7, 5) !== 7)
     throw new Error("cc1 cc0.c function record 7 failed");
 
-if (cc1_get_statement_table_count() !== 16)
+if (cc1_get_function_table_cell(41, 0) !== 8892 ||
+    cc1_get_function_table_cell(41, 1) !== 21 ||
+    cc1_get_function_table_cell(41, 2) !== 0 ||
+    cc1_get_function_table_cell(41, 3) !== 15860 ||
+    cc1_get_function_table_cell(41, 4) !== 413 ||
+    cc1_get_function_table_cell(41, 5) !== 41)
+    throw new Error("cc1 cc0.c function record 41 failed");
+
+if (cc1_get_statement_table_count() !== 389)
     throw new Error("cc1 cc0.c statement table count failed");
 
-if (cc1_get_statement_table_overflow() !== 1)
+if (cc1_get_statement_table_overflow() !== 0)
     throw new Error("cc1 cc0.c statement table overflow failed");
 
 if (cc1_get_statement_table_cell(0, 0) !== 1 ||
@@ -901,7 +928,13 @@ if (cc1_get_statement_table_cell(15, 0) !== 2 ||
     cc1_get_statement_table_cell(15, 3) !== 3)
     throw new Error("cc1 cc0.c statement record 15 failed");
 
-if (cc1_get_param_table_count() !== 16 || cc1_get_param_table_overflow() !== 1)
+if (cc1_get_statement_table_cell(388, 0) !== 1 ||
+    cc1_get_statement_table_cell(388, 1) !== 1 ||
+    cc1_get_statement_table_cell(388, 2) !== 16012 ||
+    cc1_get_statement_table_cell(388, 3) !== 41)
+    throw new Error("cc1 cc0.c statement record 388 failed");
+
+if (cc1_get_param_table_count() !== 91 || cc1_get_param_table_overflow() !== 0)
     throw new Error("cc1 cc0.c param table bounds failed");
 
 if (cc1_get_param_table_cell(0, 0) !== 97 ||
@@ -915,6 +948,12 @@ if (cc1_get_param_table_cell(15, 0) !== 3315 ||
     cc1_get_param_table_cell(15, 2) !== 0 ||
     cc1_get_param_table_cell(15, 3) !== 4)
     throw new Error("cc1 cc0.c param record 15 failed");
+
+if (cc1_get_param_table_cell(90, 0) !== 27499 ||
+    cc1_get_param_table_cell(90, 1) !== 3 ||
+    cc1_get_param_table_cell(90, 2) !== 0 ||
+    cc1_get_param_table_cell(90, 3) !== 27)
+    throw new Error("cc1 cc0.c param record 90 failed");
 
 if (cc1_get_local_table_count() !== 4 || cc1_get_local_table_overflow() !== 0)
     throw new Error("cc1 cc0.c local table bounds failed");
@@ -931,7 +970,7 @@ if (cc1_get_local_table_cell(3, 0) !== 99 ||
     cc1_get_local_table_cell(3, 3) !== 29)
     throw new Error("cc1 cc0.c local record 3 failed");
 
-if (cc1_get_expr_table_count() !== 16 || cc1_get_expr_table_overflow() !== 1)
+if (cc1_get_expr_table_count() !== 253 || cc1_get_expr_table_overflow() !== 0)
     throw new Error("cc1 cc0.c expr table bounds failed");
 
 if (cc1_get_expr_table_cell(0, 0) !== 1 ||
@@ -947,6 +986,13 @@ if (cc1_get_expr_table_cell(15, 0) !== 1 ||
     cc1_get_expr_table_cell(15, 3) !== 4 ||
     cc1_get_expr_table_cell(15, 4) !== 0)
     throw new Error("cc1 cc0.c expr record 15 failed");
+
+if (cc1_get_expr_table_cell(252, 0) !== 1 ||
+    cc1_get_expr_table_cell(252, 1) !== 16019 ||
+    cc1_get_expr_table_cell(252, 2) !== 250 ||
+    cc1_get_expr_table_cell(252, 3) !== 41 ||
+    cc1_get_expr_table_cell(252, 4) !== 2)
+    throw new Error("cc1 cc0.c expr record 252 failed");
 
 if (cc1_eval_function_table2(0, 7, 8) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
@@ -972,6 +1018,16 @@ if (cc1_eval_function_table4(2, 4, 0, 0, 0) !== 1 ||
     cc1_get_last_name() !== CC0_CH_c ||
     cc1_get_last_value() !== 0)
     throw new Error("cc1 cc0.c eval cc0_not nonzero record failed");
+
+if (cc1_eval_function_table9(3, CC0_CH_f, CC0_CH_u, CC0_CH_n, CC0_CH_c, CC0_CH_t, CC0_CH_i, CC0_CH_o, CC0_CH_n, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 1)
+    throw new Error("cc1 cc0.c eval cc0_is_word_function_chars true failed");
+
+if (cc1_eval_function_table9(3, CC0_CH_z, CC0_CH_u, CC0_CH_n, CC0_CH_c, CC0_CH_t, CC0_CH_i, CC0_CH_o, CC0_CH_n, 0) !== 1 ||
+    cc1_get_last_name() !== CC0_CH_c ||
+    cc1_get_last_value() !== 0)
+    throw new Error("cc1 cc0.c eval cc0_is_word_function_chars false failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

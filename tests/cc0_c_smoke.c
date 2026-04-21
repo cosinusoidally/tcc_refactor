@@ -112,6 +112,7 @@ int cc1_get_expr_table_cell();
 int cc1_eval_expr_table_value();
 int cc1_eval_function_table2();
 int cc1_eval_function_table4();
+int cc1_eval_function_table9();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -623,6 +624,16 @@ int main()
         cc1_get_last_name() != 'p' ||
         cc1_get_last_value() != 9)
         return 227;
+    if (cc1_parse_cc0_source_string(mks("function fifth(a,b,c,d,e){if(e)return a;return d;}")) != 1)
+        return 228;
+    if (cc1_eval_function_table9(0, 3, 4, 5, 6, 1, 0, 0, 0, 0) != 1 ||
+        cc1_get_last_name() != 'f' ||
+        cc1_get_last_value() != 3)
+        return 229;
+    if (cc1_eval_function_table9(0, 3, 4, 5, 6, 0, 0, 0, 0, 0) != 1 ||
+        cc1_get_last_name() != 'f' ||
+        cc1_get_last_value() != 6)
+        return 230;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)

@@ -24,14 +24,29 @@ var cc1_name_0;
 var cc1_name_1;
 var cc1_name_2;
 var cc1_name_3;
+var cc1_name_4;
+var cc1_name_5;
+var cc1_name_6;
+var cc1_name_7;
+var cc1_name_8;
 var cc1_value_0;
 var cc1_value_1;
 var cc1_value_2;
 var cc1_value_3;
+var cc1_value_4;
+var cc1_value_5;
+var cc1_value_6;
+var cc1_value_7;
+var cc1_value_8;
 var cc1_arg_0;
 var cc1_arg_1;
 var cc1_arg_2;
 var cc1_arg_3;
+var cc1_arg_4;
+var cc1_arg_5;
+var cc1_arg_6;
+var cc1_arg_7;
+var cc1_arg_8;
 var cc1_function_count;
 var cc1_top_decl_count;
 var cc1_return_count;
@@ -112,8 +127,20 @@ var cc1_expr_table_ptr;
 var cc1_expr_table_limit;
 var cc1_expr_table_count;
 var cc1_expr_table_overflow;
+var cc1_symbol_table_capacity;
+var cc1_function_table_capacity;
+var cc1_statement_table_capacity;
+var cc1_param_table_capacity;
+var cc1_local_table_capacity;
+var cc1_expr_table_capacity;
 
 cc1_version = 1;
+cc1_symbol_table_capacity = 256;
+cc1_function_table_capacity = 64;
+cc1_statement_table_capacity = 512;
+cc1_param_table_capacity = 128;
+cc1_local_table_capacity = 128;
+cc1_expr_table_capacity = 512;
 cc1_last_value = 0;
 cc1_last_name = 0;
 cc1_error = 0;
@@ -121,14 +148,29 @@ cc1_name_0 = -1;
 cc1_name_1 = -1;
 cc1_name_2 = -1;
 cc1_name_3 = -1;
+cc1_name_4 = -1;
+cc1_name_5 = -1;
+cc1_name_6 = -1;
+cc1_name_7 = -1;
+cc1_name_8 = -1;
 cc1_value_0 = 0;
 cc1_value_1 = 0;
 cc1_value_2 = 0;
 cc1_value_3 = 0;
+cc1_value_4 = 0;
+cc1_value_5 = 0;
+cc1_value_6 = 0;
+cc1_value_7 = 0;
+cc1_value_8 = 0;
 cc1_arg_0 = 0;
 cc1_arg_1 = 0;
 cc1_arg_2 = 0;
 cc1_arg_3 = 0;
+cc1_arg_4 = 0;
+cc1_arg_5 = 0;
+cc1_arg_6 = 0;
+cc1_arg_7 = 0;
+cc1_arg_8 = 0;
 cc1_function_count = 0;
 cc1_top_decl_count = 0;
 cc1_return_count = 0;
@@ -226,10 +268,20 @@ function cc1_reset_name_table()
     cc1_name_1 = -1;
     cc1_name_2 = -1;
     cc1_name_3 = -1;
+    cc1_name_4 = -1;
+    cc1_name_5 = -1;
+    cc1_name_6 = -1;
+    cc1_name_7 = -1;
+    cc1_name_8 = -1;
     cc1_value_0 = 0;
     cc1_value_1 = 0;
     cc1_value_2 = 0;
     cc1_value_3 = 0;
+    cc1_value_4 = 0;
+    cc1_value_5 = 0;
+    cc1_value_6 = 0;
+    cc1_value_7 = 0;
+    cc1_value_8 = 0;
     return 1;
 }
 
@@ -323,7 +375,7 @@ function cc1_reset()
 
 function cc1_symbol_table_reset()
 {
-    cc1_symbol_table_limit = 8;
+    cc1_symbol_table_limit = cc1_symbol_table_capacity;
     cc1_symbol_table_count = 0;
     cc1_symbol_table_overflow = 0;
     cc1_symbol_table_ptr = cc0_cell_alloc(cc1_symbol_table_limit * 4);
@@ -349,7 +401,7 @@ function cc1_symbol_table_add(kind, hash, len, ordinal)
 
 function cc1_function_table_reset()
 {
-    cc1_function_table_limit = 8;
+    cc1_function_table_limit = cc1_function_table_capacity;
     cc1_function_table_count = 0;
     cc1_function_table_overflow = 0;
     cc1_function_table_ptr = cc0_cell_alloc(cc1_function_table_limit * 6);
@@ -377,7 +429,7 @@ function cc1_function_table_add(hash, len, param_count, source_start, source_spa
 
 function cc1_statement_table_reset()
 {
-    cc1_statement_table_limit = 16;
+    cc1_statement_table_limit = cc1_statement_table_capacity;
     cc1_statement_table_count = 0;
     cc1_statement_table_overflow = 0;
     cc1_statement_table_ptr = cc0_cell_alloc(cc1_statement_table_limit * 4);
@@ -403,7 +455,7 @@ function cc1_statement_table_add(kind, depth, source_start, function_ordinal)
 
 function cc1_param_table_reset()
 {
-    cc1_param_table_limit = 16;
+    cc1_param_table_limit = cc1_param_table_capacity;
     cc1_param_table_count = 0;
     cc1_param_table_overflow = 0;
     cc1_param_table_ptr = cc0_cell_alloc(cc1_param_table_limit * 4);
@@ -429,7 +481,7 @@ function cc1_param_table_add(hash, len, ordinal, function_ordinal)
 
 function cc1_local_table_reset()
 {
-    cc1_local_table_limit = 16;
+    cc1_local_table_limit = cc1_local_table_capacity;
     cc1_local_table_count = 0;
     cc1_local_table_overflow = 0;
     cc1_local_table_ptr = cc0_cell_alloc(cc1_local_table_limit * 4);
@@ -455,7 +507,7 @@ function cc1_local_table_add(hash, len, ordinal, function_ordinal)
 
 function cc1_expr_table_reset()
 {
-    cc1_expr_table_limit = 16;
+    cc1_expr_table_limit = cc1_expr_table_capacity;
     cc1_expr_table_count = 0;
     cc1_expr_table_overflow = 0;
     cc1_expr_table_ptr = cc0_cell_alloc(cc1_expr_table_limit * 5);
@@ -507,6 +559,26 @@ function cc1_bind_name_value(name, value)
         cc1_value_3 = value;
         return 1;
     }
+    if (cc1_name_4 == name) {
+        cc1_value_4 = value;
+        return 1;
+    }
+    if (cc1_name_5 == name) {
+        cc1_value_5 = value;
+        return 1;
+    }
+    if (cc1_name_6 == name) {
+        cc1_value_6 = value;
+        return 1;
+    }
+    if (cc1_name_7 == name) {
+        cc1_value_7 = value;
+        return 1;
+    }
+    if (cc1_name_8 == name) {
+        cc1_value_8 = value;
+        return 1;
+    }
     if (cc1_name_0 < 0) {
         cc1_name_0 = name;
         cc1_value_0 = value;
@@ -527,6 +599,31 @@ function cc1_bind_name_value(name, value)
         cc1_value_3 = value;
         return 1;
     }
+    if (cc1_name_4 < 0) {
+        cc1_name_4 = name;
+        cc1_value_4 = value;
+        return 1;
+    }
+    if (cc1_name_5 < 0) {
+        cc1_name_5 = name;
+        cc1_value_5 = value;
+        return 1;
+    }
+    if (cc1_name_6 < 0) {
+        cc1_name_6 = name;
+        cc1_value_6 = value;
+        return 1;
+    }
+    if (cc1_name_7 < 0) {
+        cc1_name_7 = name;
+        cc1_value_7 = value;
+        return 1;
+    }
+    if (cc1_name_8 < 0) {
+        cc1_name_8 = name;
+        cc1_value_8 = value;
+        return 1;
+    }
     cc1_error = 5;
     return 0;
 }
@@ -541,6 +638,16 @@ function cc1_lookup_name(name)
         return cc1_value_2;
     if (cc1_name_3 == name)
         return cc1_value_3;
+    if (cc1_name_4 == name)
+        return cc1_value_4;
+    if (cc1_name_5 == name)
+        return cc1_value_5;
+    if (cc1_name_6 == name)
+        return cc1_value_6;
+    if (cc1_name_7 == name)
+        return cc1_value_7;
+    if (cc1_name_8 == name)
+        return cc1_value_8;
     cc1_error = 6;
     return 0;
 }
@@ -641,8 +748,64 @@ function cc1_tok_is_cc0_ch_digit(digit)
     return 1;
 }
 
+function cc1_tok_is_cc0_ch_single()
+{
+    if (cc0_get_tok_class() != CC0_TOK_NAME)
+        return 0;
+    if (cc0_get_tok_len() != 8)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start()) != CC0_CH_C)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 1) != CC0_CH_C)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 2) != CC0_CH_0)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 3) != CC0_CH_UNDERSCORE)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 4) != CC0_CH_C)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 5) != CC0_CH_H)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 6) != CC0_CH_UNDERSCORE)
+        return 0;
+    return 1;
+}
+
+function cc1_tok_is_cc0_ch_name3(c0, c1, c2)
+{
+    if (cc0_get_tok_class() != CC0_TOK_NAME)
+        return 0;
+    if (cc0_get_tok_len() != 10)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start()) != CC0_CH_C)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 1) != CC0_CH_C)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 2) != CC0_CH_0)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 3) != CC0_CH_UNDERSCORE)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 4) != CC0_CH_C)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 5) != CC0_CH_H)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 6) != CC0_CH_UNDERSCORE)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 7) != c0)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 8) != c1)
+        return 0;
+    if (cc0_source_at(cc0_get_tok_start() + 9) != c2)
+        return 0;
+    return 1;
+}
+
 function cc1_lookup_current_name()
 {
+    if (cc1_tok_is_cc0_ch_single())
+        return cc0_source_at(cc0_get_tok_start() + 7);
+    if (cc1_tok_is_cc0_ch_name3(mkc('N'), mkc('U'), mkc('L')))
+        return CC0_CH_NUL;
     if (cc1_tok_is_cc0_ch_digit(CC0_CH_0))
         return CC0_CH_0;
     if (cc1_tok_is_cc0_ch_digit(CC0_CH_7))
@@ -823,6 +986,16 @@ function cc1_function_arg_value(index)
         return cc1_arg_2;
     if (index == 3)
         return cc1_arg_3;
+    if (index == 4)
+        return cc1_arg_4;
+    if (index == 5)
+        return cc1_arg_5;
+    if (index == 6)
+        return cc1_arg_6;
+    if (index == 7)
+        return cc1_arg_7;
+    if (index == 8)
+        return cc1_arg_8;
     cc1_error = 19;
     return 0;
 }
@@ -1716,6 +1889,11 @@ function cc1_eval_function_table2(index, arg0, arg1)
 
 function cc1_eval_function_table4(index, arg0, arg1, arg2, arg3)
 {
+    return cc1_eval_function_table9(index, arg0, arg1, arg2, arg3, 0, 0, 0, 0, 0);
+}
+
+function cc1_eval_function_table9(index, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
+{
     var source_start;
     if (index < 0) {
         cc1_error = 68;
@@ -1730,6 +1908,11 @@ function cc1_eval_function_table4(index, arg0, arg1, arg2, arg3)
     cc1_arg_1 = arg1;
     cc1_arg_2 = arg2;
     cc1_arg_3 = arg3;
+    cc1_arg_4 = arg4;
+    cc1_arg_5 = arg5;
+    cc1_arg_6 = arg6;
+    cc1_arg_7 = arg7;
+    cc1_arg_8 = arg8;
     cc1_error = 0;
     cc1_reset_name_table();
     cc0_source_seek(source_start);
@@ -1891,6 +2074,11 @@ function cc1_parse_function_return_string(source)
     cc1_arg_1 = 0;
     cc1_arg_2 = 0;
     cc1_arg_3 = 0;
+    cc1_arg_4 = 0;
+    cc1_arg_5 = 0;
+    cc1_arg_6 = 0;
+    cc1_arg_7 = 0;
+    cc1_arg_8 = 0;
     cc1_reset_name_table();
     cc0_source_set_string(source);
     cc0_scan_next();
@@ -1910,6 +2098,11 @@ function cc1_parse_function2_string(source, arg0, arg1)
     cc1_arg_1 = arg1;
     cc1_arg_2 = 0;
     cc1_arg_3 = 0;
+    cc1_arg_4 = 0;
+    cc1_arg_5 = 0;
+    cc1_arg_6 = 0;
+    cc1_arg_7 = 0;
+    cc1_arg_8 = 0;
     cc1_reset_name_table();
     cc0_source_set_string(source);
     cc0_scan_next();

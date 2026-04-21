@@ -170,11 +170,16 @@ expression lowering step bounded source ranges and a routing key to consume.
 cc1 can now seek the cc0 scanner back to an expression-slice start and evaluate
 simple return and initializer slices through the real expression parser, so
 recorded body data is beginning to feed executable lowering instead of only
-metrics. It can also seek from a bounded function-table record and evaluate
+metrics. The bounded cc1 tables now have named capacities large enough to hold
+the whole current `cc0.c` source walk, so the smoke path records all 42
+functions, 389 body-statement skeleton records, 91 parameter records, 253
+expression slices, and their source symbols without overflow. It can also seek from a bounded function-table record and evaluate
 simple cc0-shaped functions through the existing cc1 function evaluator; the
-smoke tests use this path for a synthetic function and the real `cc0_add`,
-`cc0_select`, and `cc0_not` records in `cc0.c`, including the four-slot
-argument path.
+smoke tests use this path for synthetic functions and the real `cc0_add`,
+`cc0_select`, `cc0_not`, and `cc0_is_word_function_chars` records in `cc0.c`.
+The function evaluator now has explicit argument and name slots for the
+observed nine-parameter cc0 word recognizers, and can resolve single-character
+`CC0_CH_*` constants plus `CC0_CH_NUL` while evaluating guards.
 This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
