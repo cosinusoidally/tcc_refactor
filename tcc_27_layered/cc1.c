@@ -60,6 +60,14 @@ var cc1_body_minus_op_count;
 var cc1_body_star_op_count;
 var cc1_body_compare_op_count;
 var cc1_body_not_op_count;
+var cc1_function_name_char_count;
+var cc1_max_function_name_len;
+var cc1_function_name_hash;
+var cc1_global_name_char_count;
+var cc1_max_global_name_len;
+var cc1_global_name_hash;
+var cc1_current_function_source_start;
+var cc1_max_function_source_span;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -105,6 +113,14 @@ cc1_body_minus_op_count = 0;
 cc1_body_star_op_count = 0;
 cc1_body_compare_op_count = 0;
 cc1_body_not_op_count = 0;
+cc1_function_name_char_count = 0;
+cc1_max_function_name_len = 0;
+cc1_function_name_hash = 0;
+cc1_global_name_char_count = 0;
+cc1_max_global_name_len = 0;
+cc1_global_name_hash = 0;
+cc1_current_function_source_start = 0;
+cc1_max_function_source_span = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -149,6 +165,14 @@ function cc1_reset()
     cc1_body_star_op_count = 0;
     cc1_body_compare_op_count = 0;
     cc1_body_not_op_count = 0;
+    cc1_function_name_char_count = 0;
+    cc1_max_function_name_len = 0;
+    cc1_function_name_hash = 0;
+    cc1_global_name_char_count = 0;
+    cc1_max_global_name_len = 0;
+    cc1_global_name_hash = 0;
+    cc1_current_function_source_start = 0;
+    cc1_max_function_source_span = 0;
     return 0;
 }
 
@@ -215,6 +239,37 @@ function cc1_lookup_name(name)
         return cc1_value_3;
     cc1_error = 6;
     return 0;
+}
+
+function cc1_hash_current_name_with(seed)
+{
+    var h;
+    var i;
+    h = seed;
+    i = 0;
+    while (i < cc0_get_tok_len()) {
+        h = (h * 33 + cc0_source_at(cc0_get_tok_start() + i)) % 32749;
+        i = i + 1;
+    }
+    return h;
+}
+
+function cc1_note_function_name_token()
+{
+    cc1_function_name_char_count = cc1_function_name_char_count + cc0_get_tok_len();
+    if (cc0_get_tok_len() > cc1_max_function_name_len)
+        cc1_max_function_name_len = cc0_get_tok_len();
+    cc1_function_name_hash = cc1_hash_current_name_with(cc1_function_name_hash);
+    return 1;
+}
+
+function cc1_note_global_name_token()
+{
+    cc1_global_name_char_count = cc1_global_name_char_count + cc0_get_tok_len();
+    if (cc0_get_tok_len() > cc1_max_global_name_len)
+        cc1_max_global_name_len = cc0_get_tok_len();
+    cc1_global_name_hash = cc1_hash_current_name_with(cc1_global_name_hash);
+    return 1;
 }
 
 function cc1_tok_is_cc0_ch_digit(digit)
@@ -1007,6 +1062,7 @@ function cc1_parse_top_var_decl_tokens()
         cc1_error = 41;
         return 0;
     }
+    cc1_note_global_name_token();
     cc1_top_decl_count = cc1_top_decl_count + 1;
     cc0_scan_next();
     if (!cc1_at_punct(CC0_CH_SEMI)) {
@@ -1023,6 +1079,7 @@ function cc1_parse_top_assignment_tokens()
         cc1_error = 43;
         return 0;
     }
+    cc1_note_global_name_token();
     cc0_scan_next();
     if (!cc1_at_punct(CC0_CH_EQUAL)) {
         cc1_error = 44;
@@ -1036,12 +1093,14 @@ function cc1_parse_top_assignment_tokens()
 function cc1_parse_function_signature_tokens()
 {
     var param_count;
+    cc1_current_function_source_start = cc0_get_tok_start();
     cc0_scan_next();
     if (cc0_get_tok_class() != CC0_TOK_NAME) {
         cc1_error = 45;
         return 0;
     }
     cc1_last_name = cc0_get_tok_first();
+    cc1_note_function_name_token();
     cc1_function_count = cc1_function_count + 1;
     cc0_scan_next();
     if (!cc1_at_punct(CC0_CH_LPAREN)) {
@@ -1148,9 +1207,13 @@ function cc1_parse_body_statement_tokens(body_depth)
 
 function cc1_skip_function_body_tokens()
 {
+    var span;
     cc1_begin_function_body_metrics();
     if (!cc1_parse_block_tokens(1))
         return 0;
+    span = cc0_get_tok_start() - cc1_current_function_source_start;
+    if (span > cc1_max_function_source_span)
+        cc1_max_function_source_span = span;
     return cc1_finish_function_body_metrics();
 }
 
@@ -1513,4 +1576,39 @@ function cc1_get_body_compare_op_count()
 function cc1_get_body_not_op_count()
 {
     return cc1_body_not_op_count;
+}
+
+function cc1_get_function_name_char_count()
+{
+    return cc1_function_name_char_count;
+}
+
+function cc1_get_max_function_name_len()
+{
+    return cc1_max_function_name_len;
+}
+
+function cc1_get_function_name_hash()
+{
+    return cc1_function_name_hash;
+}
+
+function cc1_get_global_name_char_count()
+{
+    return cc1_global_name_char_count;
+}
+
+function cc1_get_max_global_name_len()
+{
+    return cc1_max_global_name_len;
+}
+
+function cc1_get_global_name_hash()
+{
+    return cc1_global_name_hash;
+}
+
+function cc1_get_max_function_source_span()
+{
+    return cc1_max_function_source_span;
 }

@@ -76,6 +76,13 @@ int cc1_get_body_minus_op_count();
 int cc1_get_body_star_op_count();
 int cc1_get_body_compare_op_count();
 int cc1_get_body_not_op_count();
+int cc1_get_function_name_char_count();
+int cc1_get_max_function_name_len();
+int cc1_get_function_name_hash();
+int cc1_get_global_name_char_count();
+int cc1_get_max_global_name_len();
+int cc1_get_global_name_hash();
+int cc1_get_max_function_source_span();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -438,6 +445,20 @@ int main()
         return 178;
     if (cc1_get_body_not_op_count() != 0)
         return 179;
+    if (cc1_get_function_name_char_count() != 2)
+        return 180;
+    if (cc1_get_max_function_name_len() != 1)
+        return 181;
+    if (cc1_get_function_name_hash() != 3485)
+        return 182;
+    if (cc1_get_global_name_char_count() != 2)
+        return 183;
+    if (cc1_get_max_global_name_len() != 1)
+        return 184;
+    if (cc1_get_global_name_hash() != 3298)
+        return 185;
+    if (cc1_get_max_function_source_span() != 46)
+        return 186;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)

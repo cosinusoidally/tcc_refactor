@@ -529,6 +529,27 @@ if (cc1_get_body_compare_op_count() !== 0)
 if (cc1_get_body_not_op_count() !== 0)
     throw new Error("cc1 cc0 source shell not op count failed");
 
+if (cc1_get_function_name_char_count() !== 2)
+    throw new Error("cc1 cc0 source shell function name char count failed");
+
+if (cc1_get_max_function_name_len() !== 1)
+    throw new Error("cc1 cc0 source shell max function name length failed");
+
+if (cc1_get_function_name_hash() !== 3485)
+    throw new Error("cc1 cc0 source shell function name hash failed");
+
+if (cc1_get_global_name_char_count() !== 2)
+    throw new Error("cc1 cc0 source shell global name char count failed");
+
+if (cc1_get_max_global_name_len() !== 1)
+    throw new Error("cc1 cc0 source shell max global name length failed");
+
+if (cc1_get_global_name_hash() !== 3298)
+    throw new Error("cc1 cc0 source shell global name hash failed");
+
+if (cc1_get_max_function_source_span() !== 46)
+    throw new Error("cc1 cc0 source shell max function source span failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -621,6 +642,27 @@ if (cc1_get_body_compare_op_count() !== 102)
 
 if (cc1_get_body_not_op_count() !== 0)
     throw new Error("cc1 cc0.c not op count failed");
+
+if (cc1_get_function_name_char_count() !== 705)
+    throw new Error("cc1 cc0.c function name char count failed");
+
+if (cc1_get_max_function_name_len() !== 26)
+    throw new Error("cc1 cc0.c max function name length failed");
+
+if (cc1_get_function_name_hash() !== 12867)
+    throw new Error("cc1 cc0.c function name hash failed");
+
+if (cc1_get_global_name_char_count() !== 1836)
+    throw new Error("cc1 cc0.c global name char count failed");
+
+if (cc1_get_max_global_name_len() !== 24)
+    throw new Error("cc1 cc0.c max global name length failed");
+
+if (cc1_get_global_name_hash() !== 22993)
+    throw new Error("cc1 cc0.c global name hash failed");
+
+if (cc1_get_max_function_source_span() !== 1888)
+    throw new Error("cc1 cc0.c max function source span failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

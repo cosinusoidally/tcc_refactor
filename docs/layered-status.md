@@ -140,7 +140,10 @@ now also classified into plain expression statements, call-bearing expression
 statements, return statements whose expression contains a call, and `var`
 declarations with initializers. Assignment tails are further checked for simple
 name targets, and expression scans record the observed `+`, `-`, `*`,
-comparison, and unary-not operator families used by cc0 bodies. This is
+comparison, and unary-not operator families used by cc0 bodies. The source pass
+also records aggregate function/global name lengths and stable bounded hashes,
+plus the maximum function source span, so the next step toward a real symbol
+table has tested source identity data. This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and
 self-checking in both runtimes before larger grammar work is moved over.
