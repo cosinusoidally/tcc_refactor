@@ -105,6 +105,9 @@ int cc1_get_param_table_cell();
 int cc1_get_local_table_count();
 int cc1_get_local_table_overflow();
 int cc1_get_local_table_cell();
+int cc1_get_expr_table_count();
+int cc1_get_expr_table_overflow();
+int cc1_get_expr_table_cell();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -573,6 +576,20 @@ int main()
         cc1_get_local_table_cell(0, 2) != 0 ||
         cc1_get_local_table_cell(0, 3) != 1)
         return 214;
+    if (cc1_get_expr_table_count() != 5)
+        return 215;
+    if (cc1_get_expr_table_overflow() != 0)
+        return 216;
+    if (cc1_get_expr_table_cell(0, 0) != 1 ||
+        cc1_get_expr_table_cell(0, 1) != 47 ||
+        cc1_get_expr_table_cell(0, 2) != 1 ||
+        cc1_get_expr_table_cell(0, 3) != 0)
+        return 217;
+    if (cc1_get_expr_table_cell(3, 0) != 0 ||
+        cc1_get_expr_table_cell(3, 1) != 89 ||
+        cc1_get_expr_table_cell(3, 2) != 5 ||
+        cc1_get_expr_table_cell(3, 3) != 1)
+        return 218;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)

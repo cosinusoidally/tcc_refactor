@@ -91,6 +91,8 @@ body skeleton that later lowering will consume.
 Parameter declarations and local `var` declarations are also stored in bounded
 heap-backed tables with name hash/length, declaration ordinal, and owning
 function ordinal cells.
+Semicolon-terminated body tails are stored as bounded expression-slice records
+with tail kind, source start, source span, and owning function ordinal cells.
 Function signature parsing records total and maximum parameter counts for the
 real cc0 source.
 That is not a C parser yet, but it gives the layered

@@ -108,6 +108,10 @@ var cc1_local_table_ptr;
 var cc1_local_table_limit;
 var cc1_local_table_count;
 var cc1_local_table_overflow;
+var cc1_expr_table_ptr;
+var cc1_expr_table_limit;
+var cc1_expr_table_count;
+var cc1_expr_table_overflow;
 
 cc1_version = 1;
 cc1_last_value = 0;
@@ -201,6 +205,10 @@ cc1_local_table_ptr = 0;
 cc1_local_table_limit = 0;
 cc1_local_table_count = 0;
 cc1_local_table_overflow = 0;
+cc1_expr_table_ptr = 0;
+cc1_expr_table_limit = 0;
+cc1_expr_table_count = 0;
+cc1_expr_table_overflow = 0;
 
 function cc1_compile_unit(source_id)
 {
@@ -293,6 +301,10 @@ function cc1_reset()
     cc1_local_table_limit = 0;
     cc1_local_table_count = 0;
     cc1_local_table_overflow = 0;
+    cc1_expr_table_ptr = 0;
+    cc1_expr_table_limit = 0;
+    cc1_expr_table_count = 0;
+    cc1_expr_table_overflow = 0;
     return 0;
 }
 
@@ -425,6 +437,32 @@ function cc1_local_table_add(hash, len, ordinal, function_ordinal)
     cc0_cell_set(cc1_local_table_ptr, index + 2, ordinal);
     cc0_cell_set(cc1_local_table_ptr, index + 3, function_ordinal);
     cc1_local_table_count = cc1_local_table_count + 1;
+    return 1;
+}
+
+function cc1_expr_table_reset()
+{
+    cc1_expr_table_limit = 16;
+    cc1_expr_table_count = 0;
+    cc1_expr_table_overflow = 0;
+    cc1_expr_table_ptr = cc0_cell_alloc(cc1_expr_table_limit * 4);
+    return 1;
+}
+
+function cc1_expr_table_add(kind, source_start, source_span, function_ordinal)
+{
+    var index;
+
+    if (cc1_expr_table_count >= cc1_expr_table_limit) {
+        cc1_expr_table_overflow = 1;
+        return 1;
+    }
+    index = cc1_expr_table_count * 4;
+    cc0_cell_set(cc1_expr_table_ptr, index + 0, kind);
+    cc0_cell_set(cc1_expr_table_ptr, index + 1, source_start);
+    cc0_cell_set(cc1_expr_table_ptr, index + 2, source_span);
+    cc0_cell_set(cc1_expr_table_ptr, index + 3, function_ordinal);
+    cc1_expr_table_count = cc1_expr_table_count + 1;
     return 1;
 }
 
@@ -1267,14 +1305,17 @@ function cc1_parse_balanced_parens_tokens()
 
 function cc1_parse_statement_tail_tokens(mode)
 {
+    var expr_start;
     var has_assignment;
     var has_call;
     var previous_was_name;
+    expr_start = cc0_get_tok_start();
     has_assignment = 0;
     has_call = 0;
     previous_was_name = 0;
     while (cc0_get_tok_class() != CC0_TOK_EOF) {
         if (cc1_at_punct(CC0_CH_SEMI)) {
+            cc1_expr_table_add(mode, expr_start, cc0_get_tok_start() - expr_start, cc1_current_function_ordinal);
             if (mode == 1) {
                 if (has_call)
                     cc1_body_return_call_count = cc1_body_return_call_count + 1;
@@ -1573,6 +1614,7 @@ function cc1_parse_cc0_source_string(source)
     cc1_statement_table_reset();
     cc1_param_table_reset();
     cc1_local_table_reset();
+    cc1_expr_table_reset();
     cc0_source_set_string(source);
     cc0_scan_next();
     if (!cc1_parse_cc0_source_tokens())
@@ -2110,4 +2152,27 @@ function cc1_get_local_table_cell(index, field)
     if (field > 3)
         return -1;
     return cc0_cell_get(cc1_local_table_ptr, index * 4 + field);
+}
+
+function cc1_get_expr_table_count()
+{
+    return cc1_expr_table_count;
+}
+
+function cc1_get_expr_table_overflow()
+{
+    return cc1_expr_table_overflow;
+}
+
+function cc1_get_expr_table_cell(index, field)
+{
+    if (index < 0)
+        return -1;
+    if (index >= cc1_expr_table_count)
+        return -1;
+    if (field < 0)
+        return -1;
+    if (field > 3)
+        return -1;
+    return cc0_cell_get(cc1_expr_table_ptr, index * 4 + field);
 }
