@@ -83,8 +83,10 @@ function source span. cc1 also keeps fixed probes for the first four function
 and global symbols by source order, recording each symbol's bounded hash and
 length. The same source walk now stores the first bounded symbols in a cc0
 heap-backed table with kind, hash, length, and ordinal cells, and records when
-the table overflows. Function signature parsing records total and maximum
-parameter counts for the real cc0 source.
+the table overflows. It also stores bounded function records with name
+hash/length, parameter count, source start, source span, and ordinal cells.
+Function signature parsing records total and maximum parameter counts for the
+real cc0 source.
 That is not a C parser yet, but it gives the layered
 tree a tested lower-to-upper token stream and symbol-state boundary before
 preprocessing exists.

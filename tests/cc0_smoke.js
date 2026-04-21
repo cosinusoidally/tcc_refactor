@@ -588,6 +588,28 @@ if (cc1_get_symbol_table_cell(3, 0) !== 1 ||
     cc1_get_symbol_table_cell(3, 3) !== 1)
     throw new Error("cc1 cc0 source shell symbol 3 failed");
 
+if (cc1_get_function_table_count() !== 2)
+    throw new Error("cc1 cc0 source shell function table count failed");
+
+if (cc1_get_function_table_overflow() !== 0)
+    throw new Error("cc1 cc0 source shell function table overflow failed");
+
+if (cc1_get_function_table_cell(0, 0) !== 102 ||
+    cc1_get_function_table_cell(0, 1) !== 1 ||
+    cc1_get_function_table_cell(0, 2) !== 1 ||
+    cc1_get_function_table_cell(0, 3) !== 21 ||
+    cc1_get_function_table_cell(0, 4) !== 38 ||
+    cc1_get_function_table_cell(0, 5) !== 0)
+    throw new Error("cc1 cc0 source shell function record 0 failed");
+
+if (cc1_get_function_table_cell(1, 0) !== 119 ||
+    cc1_get_function_table_cell(1, 1) !== 1 ||
+    cc1_get_function_table_cell(1, 2) !== 1 ||
+    cc1_get_function_table_cell(1, 3) !== 59 ||
+    cc1_get_function_table_cell(1, 4) !== 46 ||
+    cc1_get_function_table_cell(1, 5) !== 1)
+    throw new Error("cc1 cc0 source shell function record 1 failed");
+
 if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) !== 0)
     throw new Error("cc1 accepted body return without semicolon");
 
@@ -743,6 +765,28 @@ if (cc1_get_symbol_table_cell(3, 0) !== 2 ||
     cc1_get_symbol_table_cell(3, 2) !== 14 ||
     cc1_get_symbol_table_cell(3, 3) !== 3)
     throw new Error("cc1 cc0.c symbol 3 failed");
+
+if (cc1_get_function_table_count() !== 8)
+    throw new Error("cc1 cc0.c function table count failed");
+
+if (cc1_get_function_table_overflow() !== 1)
+    throw new Error("cc1 cc0.c function table overflow failed");
+
+if (cc1_get_function_table_cell(0, 0) !== 16844 ||
+    cc1_get_function_table_cell(0, 1) !== 7 ||
+    cc1_get_function_table_cell(0, 2) !== 2 ||
+    cc1_get_function_table_cell(0, 3) !== 3227 ||
+    cc1_get_function_table_cell(0, 4) !== 46 ||
+    cc1_get_function_table_cell(0, 5) !== 0)
+    throw new Error("cc1 cc0.c function record 0 failed");
+
+if (cc1_get_function_table_cell(7, 0) !== 30345 ||
+    cc1_get_function_table_cell(7, 1) !== 20 ||
+    cc1_get_function_table_cell(7, 2) !== 3 ||
+    cc1_get_function_table_cell(7, 3) !== 4795 ||
+    cc1_get_function_table_cell(7, 4) !== 189 ||
+    cc1_get_function_table_cell(7, 5) !== 7)
+    throw new Error("cc1 cc0.c function record 7 failed");
 
 if (cc1_parse_sum8(49, 43, 43, 50, -1, -1, -1, -1) !== 0)
     throw new Error("cc1 bad sum accepted");

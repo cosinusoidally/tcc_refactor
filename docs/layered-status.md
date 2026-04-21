@@ -150,6 +150,9 @@ bounded hash and length, so the next step toward a real symbol table has tested
 ordered source identity data. In parallel, it writes the first bounded source
 symbols into a cc0 heap-backed table with kind, hash, length, and ordinal
 fields; overflow is recorded explicitly once the bootstrap-sized table fills.
+Function signatures and body spans are also copied into a bounded heap-backed
+function table, recording each function's name hash/length, parameter count,
+source start, source span, and ordinal.
 This is
 intentionally below C syntax and below the
 preprocessor; its purpose is to make the cc0-to-cc1 boundary executable and

@@ -93,6 +93,9 @@ int cc1_get_global_slot_len();
 int cc1_get_symbol_table_count();
 int cc1_get_symbol_table_overflow();
 int cc1_get_symbol_table_cell();
+int cc1_get_function_table_count();
+int cc1_get_function_table_overflow();
+int cc1_get_function_table_cell();
 int cc2_ar_is_conflict_option();
 int cc2_ar_is_verbose_option();
 int cc2_ar_be32();
@@ -506,6 +509,24 @@ int main()
         cc1_get_symbol_table_cell(3, 2) != 1 ||
         cc1_get_symbol_table_cell(3, 3) != 1)
         return 198;
+    if (cc1_get_function_table_count() != 2)
+        return 200;
+    if (cc1_get_function_table_overflow() != 0)
+        return 201;
+    if (cc1_get_function_table_cell(0, 0) != 102 ||
+        cc1_get_function_table_cell(0, 1) != 1 ||
+        cc1_get_function_table_cell(0, 2) != 1 ||
+        cc1_get_function_table_cell(0, 3) != 21 ||
+        cc1_get_function_table_cell(0, 4) != 38 ||
+        cc1_get_function_table_cell(0, 5) != 0)
+        return 202;
+    if (cc1_get_function_table_cell(1, 0) != 119 ||
+        cc1_get_function_table_cell(1, 1) != 1 ||
+        cc1_get_function_table_cell(1, 2) != 1 ||
+        cc1_get_function_table_cell(1, 3) != 59 ||
+        cc1_get_function_table_cell(1, 4) != 46 ||
+        cc1_get_function_table_cell(1, 5) != 1)
+        return 203;
     if (cc1_parse_cc0_source_string(mks("function bad(x){return 1}")) != 0)
         return 160;
     if (cc1_get_error() == 0)
