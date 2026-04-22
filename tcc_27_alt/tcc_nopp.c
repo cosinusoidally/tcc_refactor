@@ -563,7 +563,6 @@ struct sym_attr {
 struct TCCState {
     int verbose;
     int nostdlib;
-    int nocommon;
     int static_link;
     int rdynamic;
     int symbolic;
@@ -572,12 +571,6 @@ struct TCCState {
     char *rpath;
     int enable_new_dtags;
     int output_type;
-    int char_is_unsigned;
-    int leading_underscore;
-    int ms_extensions;
-    int dollars_in_identifiers;
-    int warn_write_strings;
-    int warn_error;
     int warn_none;
     int warn_implicit_function_declaration;
     Elf32_Addr text_addr;
@@ -884,7 +877,7 @@ static void *section_ptr_add(Section *sec, Elf32_Addr size);
 static void section_reserve(Section *sec, unsigned long size);
 static Section *find_section(TCCState *s1, const char *name);
 static Section *new_symtab(TCCState *s1, const char *symtab_name, int sh_type, int sh_flags, const char *strtab_name, const char *hash_name, int hash_sh_flags);
-static void put_extern_sym2(Sym *sym, int sh_num, Elf32_Addr value, unsigned long size, int can_add_underscore);
+static void put_extern_sym2(Sym *sym, int sh_num, Elf32_Addr value, unsigned long size);
 static void put_extern_sym(Sym *sym, Section *section, Elf32_Addr value, unsigned long size);
 static void greloc(Section *s, Sym *sym, unsigned long offset, int type);
 static void greloca(Section *s, Sym *sym, unsigned long offset, int type, Elf32_Addr addend);
@@ -2739,7 +2732,7 @@ static void preprocess_start(TCCState *s1)
     file->ifdef_stack_ptr = s1->ifdef_stack_ptr;
     pp_once++;
     pvtop = vtop = (__vstack + 1) - 1;
-    set_idnum('$', s1->dollars_in_identifiers ? 2 : 0);
+    set_idnum('$', 0);
     set_idnum('.', 0);
     parse_flags = 0;
     tok_flags = 0x0001 | 0x0002;
@@ -2939,13 +2932,11 @@ static void update_storage(Sym *sym)
     }
 }
 static void put_extern_sym2(Sym *sym, int sh_num,
-                            Elf32_Addr value, unsigned long size,
-                            int can_add_underscore)
+                            Elf32_Addr value, unsigned long size)
 {
     int sym_type, sym_bind, info, other, t;
     Elf32_Sym *esym;
     const char *name;
-    char buf1[256];
     if (!sym->c) {
         name = get_tok_str(sym->v, ((void*)0));
         t = sym->type.t;
@@ -2961,11 +2952,6 @@ static void put_extern_sym2(Sym *sym, int sh_num,
         else
             sym_bind = 1;
         other = 0;
-        if (tcc_state->leading_underscore && can_add_underscore) {
-            buf1[0] = '_';
-            pstrcpy(buf1 + 1, sizeof(buf1) - 1, name);
-            name = buf1;
-        }
         if (sym->asm_label)
             name = get_tok_str(sym->asm_label, ((void*)0));
         info = (((sym_bind) << 4) + ((sym_type) & 0xf));
@@ -2982,7 +2968,7 @@ static void put_extern_sym(Sym *sym, Section *section,
                            Elf32_Addr value, unsigned long size)
 {
     int sh_num = section ? section->sh_num : 0;
-    put_extern_sym2(sym, sh_num, value, size, 1);
+    put_extern_sym2(sym, sh_num, value, size);
 }
 static void greloca(Section *s, Sym *sym, unsigned long offset, int type,
                      Elf32_Addr addend)
@@ -4988,8 +4974,6 @@ do_decl:
                     	    else {
 				int v = btype.ref->v;
 				if (!(v & 0x20000000) && (v & ~0x40000000) < 0x10000000) {
-				    if (tcc_state->ms_extensions == 0)
-                        		expect("identifier");
 				}
                     	    }
                         }
@@ -5208,10 +5192,6 @@ static int parse_btype(CType *type, AttributeDef *ad)
         type_found = 1;
     }
 the_end:
-    if (tcc_state->char_is_unsigned) {
-        if ((t & (0x0020|0x000f)) == 1)
-            t |= 0x0010;
-    }
     bt = t & (0x000f|0x0800);
     if (bt == 0x0800)
         t |= 4 == 8 ? 4 : 3;
@@ -5497,11 +5477,7 @@ static void unary(void)
         goto str_init;
     case 0xb9:
         t = 1;
-        if (tcc_state->char_is_unsigned)
-            t = 1 | 0x0010;
     str_init:
-        if (tcc_state->warn_write_strings)
-            t |= 0x0100;
         type.t = t;
         mk_pointer(&type);
         type.t |= 0x0040;
@@ -7058,7 +7034,7 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
         }
         if (has_init)
             sec = data_section;
-        else if (tcc_state->nocommon)
+        else
             sec = bss_section;
         if (sec) {
 	    addr = section_add(sec, size, align);
@@ -10086,7 +10062,7 @@ static void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
     fflush(stdout);
     fprintf(stderr, "%s\n", buf);
     fflush(stderr);
-    if (!is_warning || s1->warn_error)
+    if (!is_warning)
         s1->nb_errors++;
 }
  void tcc_error_noabort(const char *fmt, ...)
@@ -10205,9 +10181,7 @@ static void tcc_cleanup(void)
         return ((void*)0);
     tcc_state = s;
     ++nb_states;
-    s->nocommon = 1;
     s->warn_implicit_function_declaration = 1;
-    s->ms_extensions = 1;
     s->seg_size = 32;
     tcc_set_lib_path(s, "/usr/local/lib/tcc");
     tccelf_new(s);
