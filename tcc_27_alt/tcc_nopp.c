@@ -2742,10 +2742,9 @@ redo:
         t = 3;
         if ((t1 & (0x000f | 0x0010 | 0x0080)) == (t | 0x0010))
           t |= 0x0010;
-        t |= (0x0800 & t1);
         goto std_op;
     } else {
-        t = 3 | (0x0800 & (t1 | t2));
+        t = 3;
         if ((t1 & (0x000f | 0x0010 | 0x0080)) == (3 | 0x0010) ||
             (t2 & (0x000f | 0x0010 | 0x0080)) == (3 | 0x0010))
             t |= 0x0010;
@@ -3014,8 +3013,6 @@ static void type_to_str(char *buf, int buf_size,
         tstr = "int";
         goto maybe_long;
     maybe_long:
-        if (t & 0x0800)
-            tstr = "long";
         if (!((t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20)))
             goto add_tstr;
         tstr = "enum ";
@@ -3104,7 +3101,7 @@ static void gen_assign_cast(CType *dt)
             (type2->t & 0x000f) == 0) {
         } else {
             if (!is_compatible_unqualified_types(type1, type2)) {
-		if ((type1->t & (0x000f|0x0800)) != (type2->t & (0x000f|0x0800))
+			if ((type1->t & 0x000f) != (type2->t & 0x000f)
                     || ((type1->t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20)) || ((type2->t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20))
                     )
                 ;
@@ -3348,11 +3345,8 @@ do_decl:
             skip('}');
             t.t = 3;
             if (nl >= 0) {
-                if (pl != (unsigned)pl)
-                    t.t = (4==8 ? 4|0x0800 : 4);
                 t.t |= 0x0010;
-            } else if (pl != (int)pl || nl != (int)nl)
-                t.t = (4==8 ? 4|0x0800 : 4);
+            }
             s->type.t = type->t = t.t | (2 << 20);
             s->c = 0;
             for (ss = s->next; ss; ss = ss->next) {
@@ -3364,8 +3358,7 @@ do_decl:
                     if (ll == (unsigned)ll)
                         continue;
                 }
-                ss->type.t = (ss->type.t & ~0x000f)
-                    | (4==8 ? 4|0x0800 : 4);
+	                ss->type.t = (ss->type.t & ~0x000f) | 3;
             }
         } else {
             c = 0;
@@ -3462,7 +3455,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
         basic_type:
             next();
         basic_type1:
-            if (u == 2 || u == 0x0800) {
+            if (u == 2) {
                 if (st != -1 || (bt != -1 && bt != 3))
                     tmbt: tcc_error("too many basic types");
                 st = u;
@@ -3472,7 +3465,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
                 bt = u;
             }
             if (u != 3)
-                t = (t & ~(0x000f|0x0800)) | u;
+                t = (t & ~0x000f) | u;
             typespec_found = 1;
             break;
         case TOK_VOID:
@@ -3563,7 +3556,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
             s = sym_find(tok);
             if (!s || !(s->type.t & 0x00004000))
                 goto the_end;
-            t &= ~(0x000f|0x0800);
+            t &= ~0x000f;
             u = t & ~(0x0100 | 0x0200), t ^= u;
             type->t = (s->type.t & ~0x00004000) | u;
             type->ref = s->type.ref;
@@ -3579,9 +3572,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
         type_found = 1;
     }
 the_end:
-    bt = t & (0x000f|0x0800);
-    if (bt == 0x0800)
-        t |= 4 == 8 ? 4 : 3;
+    bt = t & 0x000f;
     type->t = t;
     return type_found;
 }
@@ -3808,10 +3799,10 @@ static void unary(void)
         t = 3 | 0x0010;
         goto push_tokc;
     case 0xce:
-        t = 3 | 0x0800;
+        t = 3;
 	goto push_tokc;
     case 0xcf:
-        t = 3 | 0x0800 | 0x0010;
+        t = 3 | 0x0010;
 	goto push_tokc;
     case 0xb9:
         t = 1;
@@ -4254,7 +4245,7 @@ static void expr_cond(void)
             } else if (bt1 == 0 || bt2 == 0) {
                 type.t = 0;
             } else {
-                type.t = 3 | (0x0800 & (t1 | t2));
+                type.t = 3;
                 if ((t1 & (0x000f | 0x0010 | 0x0080)) == (3 | 0x0010) ||
                     (t2 & (0x000f | 0x0010 | 0x0080)) == (3 | 0x0010))
                     type.t |= 0x0010;
@@ -4777,8 +4768,7 @@ static void init_putv(CType *type, Section *sec, unsigned long c)
         if ((vtop->r & 0x0200)
             && bt != 5
             && bt != 6
-            && (bt != (4 == 8 ? 4 : 3)
-                || (type->t & 0x0080))
+            && (bt != 3 || (type->t & 0x0080))
             && !((vtop->r & 0x0030) && vtop->sym->v >= 0x10000000)
             )
             tcc_error("initializer element is not computable at load time");
@@ -5849,10 +5839,8 @@ static void build_got_entries(TCCState *s1)
 				    && ((sym->st_info) & 0xf) == 2)))
 			    goto jmp_slot;
 		    }
-                } else if (!(sym->st_shndx == 0xfff1
-			&& 4 == 8
-			))
-                    continue;
+	                } else
+	                    continue;
             }
             if (code_reloc(type)) {
             jmp_slot:
