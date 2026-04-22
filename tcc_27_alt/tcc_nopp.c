@@ -3085,7 +3085,7 @@ static void struct_layout(CType *type, AttributeDef *ad)
 }
 static void struct_decl(CType *type, int u)
 {
-    int v, c, align, flexible;
+    int v, align;
     Sym *s, *ss, **ps;
     AttributeDef ad, ad1;
     CType type1, btype;
@@ -3170,18 +3170,13 @@ do_decl:
 	                ss->type.t = (ss->type.t & ~0x000f) | 3;
             }
         } else {
-            c = 0;
-            flexible = 0;
             while (tok != '}') {
                 if (!parse_btype(&btype, &ad1)) {
 		    skip(';');
 		    continue;
 		}
                 while (1) {
-		    if (flexible)
-		        tcc_error("flexible array member '%s' not at the end of struct",
-                              get_tok_str(v, ((void*)0)));
-                    v = 0;
+	                    v = 0;
                     type1 = btype;
                     if (tok != ':') {
 			if (tok != ';')
@@ -3196,10 +3191,7 @@ do_decl:
                     	    }
                         }
                         if (type_size(&type1, &align) < 0) {
-			    if ((u == 7) && (type1.t & 0x0040) && c)
-			        flexible = 1;
-			    else
-			        tcc_error("field '%s' has incomplete type",
+				    tcc_error("field '%s' has incomplete type",
                                       get_tok_str(v, ((void*)0)));
                         }
                         if ((type1.t & 0x000f) == 6 ||
@@ -3209,9 +3201,6 @@ do_decl:
                     }
                     if (tok == ':') {
                         tcc_error("bit-fields are not supported in tcc_27_alt");
-                    }
-                    if (v != 0 || (type1.t & 0x000f) == 7) {
-			c = 1;
                     }
                     if (v == 0 &&
 			((type1.t & 0x000f) == 7)) {
@@ -4763,23 +4752,12 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
     int size, align, addr;
     TokenString *init_str = ((void*)0);
     Section *sec;
-    Sym *flexible_array;
     Sym *sym = ((void*)0);
     int saved_nocode_wanted = nocode_wanted;
     if (type->t & 0x00002000)
         nocode_wanted |= (nocode_wanted > 0) ? 0x40000000 : 0x80000000;
-    flexible_array = ((void*)0);
-    if ((type->t & 0x000f) == 7) {
-        Sym *field = type->ref->next;
-        if (field) {
-            while (field->next)
-                field = field->next;
-            if (field->type.t & 0x0040 && field->type.ref->c < 0)
-                flexible_array = field;
-        }
-    }
     size = type_size(type, &align);
-    if (size < 0 || (flexible_array && has_init)) {
+    if (size < 0) {
         if (!has_init)
             tcc_error("unknown type size");
         if (has_init == 2) {
@@ -4803,10 +4781,6 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
         if (size < 0)
             tcc_error("unknown type size");
     }
-    if (flexible_array &&
-	flexible_array->type.ref->c > 0)
-        size += flexible_array->type.ref->c
-	        * pointed_size(&flexible_array->type);
     if ((nocode_wanted > 0))
         size = 0, align = 1;
     if ((r & 0x003f) == 0x0032) {
@@ -4854,8 +4828,6 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
         tcc_error("variable length arrays are not supported in tcc_27_alt");
     } else if (has_init) {
         decl_initializer(type, sec, addr, 1, 0);
-        if (flexible_array)
-            flexible_array->type.ref->c = -1;
     }
  no_alloc:
     if (init_str) {
