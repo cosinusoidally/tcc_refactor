@@ -1295,7 +1295,6 @@ static void cstr_free(CString *cstr);
 static void cstr_reset(CString *cstr);
 static inline void sym_free(Sym *sym);
 static Sym *sym_push2(Sym **ps, int v, int t, int c);
-static Sym *sym_find2(Sym *s, int v);
 static Sym *sym_push(int v, CType *type, int r, int c);
 static void sym_pop(Sym **ptop, Sym *b, int keep);
 static inline Sym *struct_find(int v);
@@ -1383,7 +1382,6 @@ static void tcc_debug_start(TCCState *s1);
 static void tcc_debug_end(TCCState *s1);
 static void tcc_debug_funcstart(TCCState *s1, Sym *sym);
 static void tcc_debug_funcend(TCCState *s1, int size);
-static void tcc_debug_line(TCCState *s1);
 static int tccgen_compile(TCCState *s1);
 static void free_inline_functions(TCCState *s);
 static void check_vstack(void);
@@ -1425,7 +1423,6 @@ static int expr_const(void);
 static Section *text_section, *data_section, *bss_section;
 static Section *common_section;
 static Section *cur_text_section;
-static Section *last_text_section;
 static Section *symtab_section;
 static void tccelf_new(TCCState *s);
 static void tccelf_delete(TCCState *s);
@@ -1523,10 +1520,8 @@ static inline void add64le(unsigned char *p, int64_t x) {
     write64le(p, read64le(p) + x);
 }
 static void g(int c);
-static void gen_le16(int c);
 static void gen_le32(int c);
 static void gen_addr32(int r, Sym *sym, int c);
-static void gen_addrpc32(int r, Sym *sym, int c);
 static int gnu_ext = 1;
 static int tcc_ext = 1;
 static struct TCCState *tcc_state;
@@ -2768,13 +2763,6 @@ static TokenString *tok_str_alloc(void)
     tok_str_new(str);
     return str;
 }
-static int *tok_str_dup(TokenString *s)
-{
-    int *str;
-    str = tal_realloc_impl(&tokstr_alloc, 0, s->len * sizeof(int));
-    memcpy(str, s->str, s->len * sizeof(int));
-    return str;
-}
 static void tok_str_free_str(int *str)
 {
     tal_free_impl(tokstr_alloc, str);
@@ -3992,10 +3980,6 @@ static void tcc_debug_end(TCCState *s1)
 {
     (void)s1;
 }
-static void tcc_debug_line(TCCState *s1)
-{
-    (void)s1;
-}
 static void tcc_debug_funcstart(TCCState *s1, Sym *sym)
 {
     (void)s1;
@@ -4162,17 +4146,6 @@ static Sym *sym_push2(Sym **ps, int v, int t, int c)
     s->prev = *ps;
     *ps = s;
     return s;
-}
-static Sym *sym_find2(Sym *s, int v)
-{
-    while (s) {
-        if (s->v == v)
-            return s;
-        else if (s->v == -1)
-            return ((void*)0);
-        s = s->prev;
-    }
-    return ((void*)0);
 }
 static inline Sym *struct_find(int v)
 {
@@ -9337,7 +9310,6 @@ static void decl(int l)
 static Section *text_section, *data_section, *bss_section;
 static Section *common_section;
 static Section *cur_text_section;
-static Section *last_text_section;
 static Section *symtab_section;
 static int new_undef_sym = 0;
 static void tccelf_new(TCCState *s)
@@ -11150,11 +11122,6 @@ static void o(unsigned int c)
         c = c >> 8;
     }
 }
-static void gen_le16(int v)
-{
-    g(v);
-    g(v >> 8);
-}
 static void gen_le32(int c)
 {
     g(c);
@@ -11190,12 +11157,6 @@ static void gen_addr32(int r, Sym *sym, int c)
     if (r & 0x0200)
         greloc(cur_text_section, sym, ind, 1);
     gen_le32(c);
-}
-static void gen_addrpc32(int r, Sym *sym, int c)
-{
-    if (r & 0x0200)
-        greloc(cur_text_section, sym, ind, 2);
-    gen_le32(c - 4);
 }
 static void gen_modrm(int op_reg, int r, Sym *sym, int c)
 {
