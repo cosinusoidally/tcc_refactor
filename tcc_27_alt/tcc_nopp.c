@@ -6996,7 +6996,6 @@ typedef struct SectionMergeInfo {
     Section *s;
     unsigned long offset;
     uint8_t new_section;
-    uint8_t link_once;
 } SectionMergeInfo;
 static int tcc_object_type(int fd, Elf32_Ehdr *h)
 {
@@ -7014,7 +7013,7 @@ static int tcc_load_object_file(TCCState *s1,
 {
     Elf32_Ehdr ehdr;
     Elf32_Shdr *shdr, *sh;
-    int size, i, j, offset, offseti, nb_syms, sym_index, ret, seencompressed;
+    int size, i, j, offset, offseti, nb_syms, sym_index, ret;
     unsigned char *strsec, *strtab;
     int *old_to_new_syms;
     char *sh_name, *name;
@@ -7040,7 +7039,6 @@ static int tcc_load_object_file(TCCState *s1,
     symtab = ((void*)0);
     strtab = ((void*)0);
     nb_syms = 0;
-    seencompressed = 0;
     for(i = 1; i < ehdr.e_shnum; i++) {
         sh = &shdr[i];
         if (sh->sh_type == 2) {
@@ -7056,8 +7054,6 @@ static int tcc_load_object_file(TCCState *s1,
             sh = &shdr[sh->sh_link];
             strtab = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
         }
-	if (sh->sh_flags & (1 << 11))
-	    seencompressed = 1;
     }
     for(i = 1; i < ehdr.e_shnum; i++) {
         if (i == ehdr.e_shstrndx)
@@ -7070,27 +7066,15 @@ static int tcc_load_object_file(TCCState *s1,
             sh->sh_type != 16 &&
             sh->sh_type != 14 &&
             sh->sh_type != 15 &&
-            strcmp(sh_name, ".stabstr")
+	    strcmp(sh_name, ".stabstr")
             )
             continue;
-	if (seencompressed
-	    && (!strncmp(sh_name, ".debug_", sizeof(".debug_")-1)
-		|| (sh->sh_type == 9
-		    && !strncmp((char*)strsec + shdr[sh->sh_info].sh_name,
-			        ".debug_", sizeof(".debug_")-1))))
-	  continue;
         if (sh->sh_addralign < 1)
             sh->sh_addralign = 1;
         for(j = 1; j < s1->nb_sections;j++) {
             s = s1->sections[j];
             if (!strcmp(s->name, sh_name)) {
-                if (!strncmp(sh_name, ".gnu.linkonce",
-                             sizeof(".gnu.linkonce") - 1)) {
-                    sm_table[i].link_once = 1;
-                    goto next;
-                } else {
-                    goto found;
-                }
+                goto found;
             }
         }
         s = new_section(s1, sh_name, sh->sh_type, sh->sh_flags & ~(1 << 9));
@@ -7119,7 +7103,6 @@ static int tcc_load_object_file(TCCState *s1,
         } else {
             s->data_offset += size;
         }
-    next: ;
     }
     for(i = 1; i < ehdr.e_shnum; i++) {
         s = sm_table[i].s;
@@ -7140,15 +7123,6 @@ static int tcc_load_object_file(TCCState *s1,
         if (sym->st_shndx != 0 &&
             sym->st_shndx < 0xff00) {
             sm = &sm_table[sym->st_shndx];
-            if (sm->link_once) {
-                if ((((unsigned char) (sym->st_info)) >> 4) != 0) {
-                    name = (char *) strtab + sym->st_name;
-                    sym_index = find_elf_sym(symtab_section, name);
-                    if (sym_index)
-                        old_to_new_syms[i] = sym_index;
-                }
-                continue;
-            }
             if (!sm->s)
                 continue;
             sym->st_shndx = sm->s->sh_num;
@@ -7177,8 +7151,7 @@ static int tcc_load_object_file(TCCState *s1,
                 if (sym_index >= nb_syms)
                     goto invalid_reloc;
                 sym_index = old_to_new_syms[sym_index];
-                if (!sym_index && !sm->link_once
-                   ) {
+                if (!sym_index) {
                 invalid_reloc:
                     tcc_error_noabort("Invalid relocation entry [%2d] '%s' @ %.8x",
                         i, strsec + sh->sh_name, rel->r_offset);
