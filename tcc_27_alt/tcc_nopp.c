@@ -557,7 +557,6 @@ static int tok_ident;
 static TokenSym **table_ident;
 static TokenSym *hash_ident[16384];
 static char token_buf[1024 + 1];
-static CString cstr_buf;
 static TokenString tokstr_buf;
 static unsigned char isidnum_table[256 - (-1)];
 static struct TinyAlloc *toksym_alloc;
@@ -714,24 +713,6 @@ static void cstr_reset(CString *cstr)
 {
     cstr->size = 0;
 }
-static void add_char(CString *cstr, int c)
-{
-    if (c == '\'' || c == '\"' || c == '\\') {
-        cstr_ccat(cstr, '\\');
-    }
-    if (c >= 32 && c <= 126) {
-        cstr_ccat(cstr, c);
-    } else {
-        cstr_ccat(cstr, '\\');
-        if (c == '\n') {
-            cstr_ccat(cstr, 'n');
-        } else {
-            cstr_ccat(cstr, '0' + ((c >> 6) & 7));
-            cstr_ccat(cstr, '0' + ((c >> 3) & 7));
-            cstr_ccat(cstr, '0' + (c & 7));
-        }
-    }
-}
 static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
 {
     TokenSym *ts, **ptable;
@@ -778,10 +759,8 @@ static TokenSym *tok_alloc(const char *str, int len)
 }
 static const char *get_tok_str(int v, CValue *cv)
 {
-    char *p;
-    int i, len;
-    cstr_reset(&cstr_buf);
-    p = cstr_buf.data;
+    static char buf[64];
+    char *p = buf;
     switch(v) {
     case 0xb5:
     case 0xb6:
@@ -790,21 +769,13 @@ static const char *get_tok_str(int v, CValue *cv)
         sprintf(p, "%u", cv->i);
         break;
     case 0xb3:
-        cstr_ccat(&cstr_buf, '\'');
-        add_char(&cstr_buf, cv->i);
-        cstr_ccat(&cstr_buf, '\'');
-        cstr_ccat(&cstr_buf, '\0');
+        return "<char>";
         break;
     case 0xbe:
     case 0xbf:
         return (char*)cv->str.data;
     case 0xb9:
-        cstr_ccat(&cstr_buf, '\"');
-        len = cv->str.size - 1;
-        for(i=0;i<len;i++)
-            add_char(&cstr_buf, ((unsigned char *)cv->str.data)[i]);
-        cstr_ccat(&cstr_buf, '\"');
-        cstr_ccat(&cstr_buf, '\0');
+        return "<string>";
         break;
     case 0x9c:
         v = '<';
@@ -828,13 +799,13 @@ static const char *get_tok_str(int v, CValue *cv)
                     *p++ = q[0];
                     *p++ = q[1];
                     *p = '\0';
-                    return cstr_buf.data;
-                }
-                q += 3;
-            }
+            return buf;
+        }
+        q += 3;
+    }
         if (v >= 127) {
-            sprintf(cstr_buf.data, "<%02x>", v);
-            return cstr_buf.data;
+            sprintf(buf, "<%02x>", v);
+            return buf;
         }
         addv:
             *p++ = v;
@@ -848,7 +819,7 @@ static const char *get_tok_str(int v, CValue *cv)
         }
         break;
     }
-    return cstr_buf.data;
+    return buf;
 }
 static int handle_eob(void)
 {
@@ -1770,8 +1741,6 @@ static void tccpp_new(TCCState *s)
     tal_new(&tokstr_alloc, 128, (768 * 1024));
     tal_new(&cstr_alloc, 1024, (256 * 1024));
     memset(hash_ident, 0, 16384 * sizeof(TokenSym *));
-    cstr_new(&cstr_buf);
-    cstr_realloc(&cstr_buf, 1024);
     tok_str_new(&tokstr_buf);
     tok_str_realloc(&tokstr_buf, 256);
     tok_ident = 256;
@@ -1796,7 +1765,6 @@ static void tccpp_delete(TCCState *s)
     tcc_free(table_ident);
     table_ident = ((void*)0);
     cstr_free(&tokcstr);
-    cstr_free(&cstr_buf);
     tok_str_free_str(tokstr_buf.str);
     tal_delete(toksym_alloc);
     toksym_alloc = ((void*)0);
