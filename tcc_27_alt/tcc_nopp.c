@@ -471,27 +471,17 @@ typedef struct SValue {
     CValue c;
     struct Sym *sym;
 } SValue;
-struct SymAttr {
-    unsigned char aligned;
-    unsigned char packed;
-    unsigned char weak;
-    unsigned char visibility;
-    unsigned char dllexport;
-    unsigned char dllimport;
-};
 struct FuncAttr {
     unsigned char func_call;
     unsigned char func_type;
     unsigned short func_args;
 };
 typedef struct AttributeDef {
-    struct SymAttr a;
     struct FuncAttr f;
 } AttributeDef;
 typedef struct Sym {
     int v;
     unsigned short r;
-    struct SymAttr a;
     union {
         struct {
             int c;
@@ -621,8 +611,6 @@ struct TCCState {
     BufferedFile **include_stack_ptr;
     int ifdef_stack[64];
     int *ifdef_stack_ptr;
-    int pack_stack[8];
-    int *pack_stack_ptr;
     struct InlineFunc **inline_fns;
     int nb_inline_fns;
     Section **sections;
@@ -2811,8 +2799,6 @@ static void preprocess_start(TCCState *s1)
     file->ifdef_stack_ptr = s1->ifdef_stack_ptr;
     pp_once++;
     pvtop = vtop = (__vstack + 1) - 1;
-    s1->pack_stack[0] = 0;
-    s1->pack_stack_ptr = s1->pack_stack;
     set_idnum('$', s1->dollars_in_identifiers ? 2 : 0);
     set_idnum('.', 0);
     parse_flags = 0;
@@ -3005,13 +2991,8 @@ static void update_storage(Sym *sym)
     esym = elfsym(sym);
     if (!esym)
         return;
-    if (sym->a.visibility)
-        esym->st_other = (esym->st_other & ~((-1) & 0x03))
-            | sym->a.visibility;
     if (sym->type.t & 0x00002000)
         sym_bind = 0;
-    else if (sym->a.weak)
-        sym_bind = 2;
     else
         sym_bind = 1;
     old_sym_bind = (((unsigned char) (esym->st_info)) >> 4);
@@ -3395,18 +3376,6 @@ static void patch_storage(Sym *sym, AttributeDef *ad, CType *type)
 {
     if (type)
         patch_type(sym, type);
-    sym->a.weak |= ad->a.weak;
-    if (ad->a.visibility) {
-        int vis = sym->a.visibility;
-        int vis2 = ad->a.visibility;
-        if (vis == 0)
-            vis = vis2;
-        else if (vis2 != 0)
-            vis = (vis < vis2) ? vis : vis2;
-        sym->a.visibility = vis;
-    }
-    if (ad->a.aligned)
-        sym->a.aligned = ad->a.aligned;
     update_storage(sym);
 }
 static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
@@ -3416,7 +3385,6 @@ static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
     if (!s) {
         s = sym_push(v, type, r | 0x0030 | 0x0200, 0);
         s->type.t |= 0x00001000;
-        s->a = ad->a;
         s->sym_scope = 0;
     } else {
         if (s->type.ref == func_old_type.ref) {
@@ -4922,25 +4890,13 @@ static void struct_add_offset (Sym *s, int offset)
 }
 static void struct_layout(CType *type, AttributeDef *ad)
 {
-    int size, align, maxalign, offset, c, a, bt;
-    int pragma_pack = *tcc_state->pack_stack_ptr;
+    int size, align, maxalign, offset, c, a;
     Sym *f;
     maxalign = 1;
     offset = 0;
     c = 0;
     for (f = type->ref->next; f; f = f->next) {
         size = type_size(&f->type, &align);
-        a = f->a.aligned ? 1 << (f->a.aligned - 1) : 0;
-        if (f->a.packed || ad->a.packed)
-            align = 1;
-        if (pragma_pack) {
-            if (pragma_pack < align)
-                align = pragma_pack;
-            if (pragma_pack < a)
-                a = 0;
-        }
-        if (a)
-            align = a;
         if (type->ref->type.t == (1 << 20 | 7)) {
 	    offset = 0;
 	    if (size > c)
@@ -4977,15 +4933,10 @@ static void struct_layout(CType *type, AttributeDef *ad)
 	}
 	f->r = 0;
     }
-    a = bt = ad->a.aligned ? 1 << (ad->a.aligned - 1) : 1;
+    a = 1;
     if (a < maxalign)
         a = maxalign;
     type->ref->r = a;
-    if (pragma_pack && pragma_pack < maxalign) {
-        a = pragma_pack;
-        if (a < bt)
-            a = bt;
-    }
     c = (c + a - 1) & -a;
     type->ref->c = c;
 }
@@ -5132,7 +5083,6 @@ do_decl:
 		    }
                     if (v) {
                         ss = sym_push(v | 0x20000000, &type1, 0, 0);
-                        ss->a = ad1.a;
                         *ps = ss;
                         ps = &ss->next;
                     }
@@ -5150,14 +5100,10 @@ do_decl:
 }
 static void sym_to_attr(AttributeDef *ad, Sym *s)
 {
-    if (s->a.aligned && 0 == ad->a.aligned)
-        ad->a.aligned = s->a.aligned;
     if (s->f.func_call && 0 == ad->f.func_call)
         ad->f.func_call = s->f.func_call;
     if (s->f.func_type && 0 == ad->f.func_type)
         ad->f.func_type = s->f.func_type;
-    if (s->a.packed)
-        ad->a.packed = 1;
 }
 static void parse_btype_qualify(CType *type, int qualifiers)
 {
@@ -5416,7 +5362,6 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
         ad->f.func_args = arg_size;
         ad->f.func_type = l;
         s = sym_push(0x20000000, type, 0, 0);
-        s->a = ad->a;
         s->f = ad->f;
         s->next = first;
         type->t = 6;
@@ -5722,8 +5667,6 @@ static void unary(void)
         expr_type(&type, unary);
         s = vtop[1].sym;
         size = type_size(&type, &align);
-        if (s && s->a.aligned)
-            align = 1 << (s->a.aligned - 1);
         if (t == TOK_SIZEOF) {
             if (size < 0)
                 tcc_error("sizeof applied to an incomplete type");
@@ -6092,7 +6035,7 @@ static int condition_3way(void)
 {
     int c = -1;
     if ((vtop->r & (0x003f | 0x0100)) == 0x0030 &&
-	(!(vtop->r & 0x0200) || !vtop->sym->a.weak)) {
+	!(vtop->r & 0x0200)) {
 	vdup();
         gen_cast_s(11);
 	c = vtop->c.i;
@@ -7165,13 +7108,6 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
 	flexible_array->type.ref->c > 0)
         size += flexible_array->type.ref->c
 	        * pointed_size(&flexible_array->type);
-    if (ad->a.aligned) {
-	int speca = 1 << (ad->a.aligned - 1);
-        if (speca > align)
-            align = speca;
-    } else if (ad->a.packed) {
-        align = 1;
-    }
     if ((nocode_wanted > 0))
         size = 0, align = 1;
     if ((r & 0x003f) == 0x0032) {
@@ -7180,7 +7116,6 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
         addr = loc;
         if (v) {
             sym = sym_push(v, type, r, addr);
-            sym->a = ad->a;
         } else {
             vset(type, r, addr);
         }
@@ -7420,7 +7355,6 @@ found:
                     } else {
                         sym = sym_push(v, &type, 0, 0);
                     }
-                    sym->a = ad.a;
                     sym->f = ad.f;
                 } else {
                     r = 0;
@@ -7458,7 +7392,6 @@ found:
                 }
                 next();
             }
-            ad.a.aligned = 0;
         }
     }
     return 0;
