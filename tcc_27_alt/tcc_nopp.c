@@ -1,6 +1,5 @@
 typedef unsigned int size_t;
 typedef int ssize_t;
-typedef int wchar_t;
 typedef int ptrdiff_t;
 typedef int intptr_t;
 typedef unsigned int uintptr_t;
@@ -12,7 +11,6 @@ typedef unsigned char uint8_t;
 typedef unsigned short int uint16_t;
 typedef unsigned int uint32_t;
 typedef unsigned long long int uint64_t;
-typedef long int time_t;
 typedef long int off_t;
 typedef int mode_t;
 typedef char *va_list;
@@ -25,11 +23,7 @@ typedef struct { unsigned long int __val[32]; } __sigset_t;
 typedef int __jmp_buf[6];
 struct __jmp_buf_tag { __jmp_buf __jmpbuf; int __mask_was_saved; __sigset_t __saved_mask; };
 typedef struct __jmp_buf_tag jmp_buf[1];
-struct timeval { time_t tv_sec; long int tv_usec; };
-struct tm { int tm_sec; int tm_min; int tm_hour; int tm_mday; int tm_mon; int tm_year; int tm_wday; int tm_yday; int tm_isdst; long int tm_gmtoff; const char *tm_zone; };
-void *alloca(size_t size);
 void *malloc(size_t size);
-void *calloc(size_t nmemb, size_t size);
 void *realloc(void *ptr, size_t size);
 void free(void *ptr);
 void exit(int status);
@@ -39,12 +33,8 @@ int atoi(const char *nptr);
 long int strtol(const char *nptr, char **endptr, int base);
 unsigned long int strtoul(const char *nptr, char **endptr, int base);
 long long int strtoll(const char *nptr, char **endptr, int base);
-unsigned long long int strtoull(const char *nptr, char **endptr, int base);
 int setjmp(jmp_buf env);
 void longjmp(struct __jmp_buf_tag env[1], int val);
-time_t time(time_t *timer);
-struct tm *localtime(const time_t *timer);
-int gettimeofday(struct timeval *tv, void *tz);
 int open(const char *file, int oflag, ...);
 int close(int fd);
 ssize_t read(int fd, void *buf, size_t nbytes);
@@ -59,10 +49,7 @@ int printf(const char *format, ...);
 int sprintf(char *s, const char *format, ...);
 int snprintf(char *s, size_t maxlen, const char *format, ...);
 int vsnprintf(char *s, size_t maxlen, const char *format, va_list arg);
-size_t fread(void *ptr, size_t size, size_t n, FILE *stream);
 size_t fwrite(const void *ptr, size_t size, size_t n, FILE *stream);
-int fseek(FILE *stream, long int off, int whence);
-long int ftell(FILE *stream);
 void *memcpy(void *dest, const void *src, size_t n);
 void *memset(void *s, int c, size_t n);
 void *memmove(void *dest, const void *src, size_t n);
@@ -78,12 +65,7 @@ char *strstr(const char *haystack, const char *needle);
 size_t strlen(const char *s);
 int fputs(const char *s, FILE *stream);
 int fputc(int c, FILE *stream);
-int sscanf(const char *s, const char *format, ...);
-char *getcwd(char *buf, size_t size);
-int remove(const char *filename);
-int execvp(const char *file, char *const argv[]);
 int _setjmp(struct __jmp_buf_tag env[1]);
-void _longjmp(struct __jmp_buf_tag env[1], int val);
 struct TCCState;
 typedef struct TCCState TCCState;
 TCCState *tcc_new(void);
@@ -383,7 +365,6 @@ enum tcc_token {
      ,TOK___ashrdi3
      ,TOK___lshrdi3
      ,TOK___ashldi3
-     ,TOK_alloca
 };
 static struct TCCState *tcc_state;
 static char *pstrcpy(char *buf, int buf_size, const char *s);
@@ -685,7 +666,6 @@ static const char tcc_keywords[] =
      "__ashrdi3" "\0"
      "__lshrdi3" "\0"
      "__ashldi3" "\0"
-     "alloca" "\0"
 ;
 static const unsigned char tok_two_chars[] =
  {
