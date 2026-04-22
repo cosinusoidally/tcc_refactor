@@ -4667,31 +4667,26 @@ static int condition_3way(void)
 }
 static void expr_cond(void)
 {
-    int tt, u, r1, r2, rc, t1, t2, bt1, bt2, islv, c, g;
+    int tt, u, r1, r2, rc, t1, t2, bt1, bt2, islv, c;
     SValue sv;
     CType type, type1, type2;
     expr_lor();
     if (tok == '?') {
         next();
 	c = condition_3way();
-        g = (tok == ':' && gnu_ext);
         if (c < 0) {
             rc = 0x0001;
             gv(rc);
             save_regs(1);
-            if (g)
-                gv_dup();
             tt = gvtst(1, 0);
         } else {
-            if (!g)
-                vpop();
+            vpop();
             tt = 0;
         }
         if (1) {
             if (c == 0)
                 nocode_wanted++;
-            if (!g)
-                gexpr();
+            gexpr();
             type1 = vtop->type;
             sv = *vtop;
             vtop--;
@@ -5108,12 +5103,6 @@ static void block(int *bsym, int *csym, int is_expr)
 	nocode_wanted &= ~0x20000000;
         next();
         cr->v1 = cr->v2 = expr_const64();
-        if (gnu_ext && tok == 0xc8) {
-            next();
-            cr->v2 = expr_const64();
-            if (cr->v2 < cr->v1)
-                ;
-        }
         cr->sym = ind;
         dynarray_add(&cur_switch->p, &cur_switch->n, cr);
         skip(':');
