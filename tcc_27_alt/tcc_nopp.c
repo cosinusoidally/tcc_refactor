@@ -735,54 +735,12 @@ enum tcc_token {
      ,TOK___NAN__
      ,TOK___SNAN__
      ,TOK___INF__
-     ,TOK_SECTION1
-     ,TOK_SECTION2
-     ,TOK_ALIGNED1
-     ,TOK_ALIGNED2
-     ,TOK_PACKED1
-     ,TOK_PACKED2
-     ,TOK_WEAK1
-     ,TOK_WEAK2
-     ,TOK_ALIAS1
-     ,TOK_ALIAS2
-     ,TOK_UNUSED1
-     ,TOK_UNUSED2
-     ,TOK_CDECL1
-     ,TOK_CDECL2
-     ,TOK_CDECL3
-     ,TOK_STDCALL1
-     ,TOK_STDCALL2
-     ,TOK_STDCALL3
-     ,TOK_FASTCALL1
-     ,TOK_FASTCALL2
-     ,TOK_FASTCALL3
-     ,TOK_REGPARM1
-     ,TOK_REGPARM2
-     ,TOK_MODE
-     ,TOK_MODE_QI
-     ,TOK_MODE_DI
-     ,TOK_MODE_HI
-     ,TOK_MODE_SI
-     ,TOK_MODE_word
-     ,TOK_DLLEXPORT
-     ,TOK_DLLIMPORT
-     ,TOK_NORETURN1
-     ,TOK_NORETURN2
-     ,TOK_VISIBILITY1
-     ,TOK_VISIBILITY2
      ,TOK_builtin_types_compatible_p
      ,TOK_builtin_choose_expr
      ,TOK_builtin_constant_p
      ,TOK_builtin_frame_address
      ,TOK_builtin_return_address
      ,TOK_builtin_expect
-     ,TOK_pack
-     ,TOK_comment
-     ,TOK_lib
-     ,TOK_push_macro
-     ,TOK_pop_macro
-     ,TOK_once
-     ,TOK_option
      ,TOK_memcpy
      ,TOK_memmove
      ,TOK_memset
@@ -1161,54 +1119,12 @@ static const char tcc_keywords[] =
      "__nan__" "\0"
      "__snan__" "\0"
      "__inf__" "\0"
-     "section" "\0"
-     "__section__" "\0"
-     "aligned" "\0"
-     "__aligned__" "\0"
-     "packed" "\0"
-     "__packed__" "\0"
-     "weak" "\0"
-     "__weak__" "\0"
-     "alias" "\0"
-     "__alias__" "\0"
-     "unused" "\0"
-     "__unused__" "\0"
-     "cdecl" "\0"
-     "__cdecl" "\0"
-     "__cdecl__" "\0"
-     "stdcall" "\0"
-     "__stdcall" "\0"
-     "__stdcall__" "\0"
-     "fastcall" "\0"
-     "__fastcall" "\0"
-     "__fastcall__" "\0"
-     "regparm" "\0"
-     "__regparm__" "\0"
-     "__mode__" "\0"
-     "__QI__" "\0"
-     "__DI__" "\0"
-     "__HI__" "\0"
-     "__SI__" "\0"
-     "__word__" "\0"
-     "dllexport" "\0"
-     "dllimport" "\0"
-     "noreturn" "\0"
-     "__noreturn__" "\0"
-     "visibility" "\0"
-     "__visibility__" "\0"
      "__builtin_types_compatible_p" "\0"
      "__builtin_choose_expr" "\0"
      "__builtin_constant_p" "\0"
      "__builtin_frame_address" "\0"
      "__builtin_return_address" "\0"
      "__builtin_expect" "\0"
-     "pack" "\0"
-     "comment" "\0"
-     "lib" "\0"
-     "push_macro" "\0"
-     "pop_macro" "\0"
-     "once" "\0"
-     "option" "\0"
      "memcpy" "\0"
      "memmove" "\0"
      "memset" "\0"
