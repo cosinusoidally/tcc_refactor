@@ -438,7 +438,6 @@ typedef struct TokenSym {
     int len;
     char str[1];
 } TokenSym;
-typedef int nwchar_t;
 typedef struct CString {
     int size;
     void *data;
@@ -735,7 +734,6 @@ static void dynarray_add(void *ptab, int *nb_ptr, void *data);
 static void dynarray_reset(void *pp, int *n);
 static void cstr_ccat(CString *cstr, int ch);
 static void cstr_cat(CString *cstr, const char *str, int len);
-static void cstr_wccat(CString *cstr, int ch);
 static void cstr_new(CString *cstr);
 static void cstr_free(CString *cstr);
 static void cstr_reset(CString *cstr);
@@ -1238,15 +1236,6 @@ static void cstr_cat(CString *cstr, const char *str, int len)
     memmove(((unsigned char *)cstr->data) + cstr->size, str, len);
     cstr->size = size;
 }
-static void cstr_wccat(CString *cstr, int ch)
-{
-    int size;
-    size = cstr->size + sizeof(nwchar_t);
-    if (size > cstr->size_allocated)
-        cstr_realloc(cstr, size);
-    *(nwchar_t *)(((unsigned char *)cstr->data) + size - sizeof(nwchar_t)) = ch;
-    cstr->size = size;
-}
 static void cstr_new(CString *cstr)
 {
     memset(cstr, 0, sizeof(CString));
@@ -1338,8 +1327,6 @@ static const char *get_tok_str(int v, CValue *cv)
     case 0xb8:
         sprintf(p, "%llu", (unsigned long long)cv->i);
         break;
-    case 0xb4:
-        cstr_ccat(&cstr_buf, 'L');
     case 0xb3:
         cstr_ccat(&cstr_buf, '\'');
         add_char(&cstr_buf, cv->i);
@@ -1349,19 +1336,11 @@ static const char *get_tok_str(int v, CValue *cv)
     case 0xbe:
     case 0xbf:
         return (char*)cv->str.data;
-    case 0xba:
-        cstr_ccat(&cstr_buf, 'L');
     case 0xb9:
         cstr_ccat(&cstr_buf, '\"');
-        if (v == 0xb9) {
-            len = cv->str.size - 1;
-            for(i=0;i<len;i++)
-                add_char(&cstr_buf, ((unsigned char *)cv->str.data)[i]);
-        } else {
-            len = (cv->str.size / sizeof(nwchar_t)) - 1;
-            for(i=0;i<len;i++)
-                add_char(&cstr_buf, ((nwchar_t *)cv->str.data)[i]);
-        }
+        len = cv->str.size - 1;
+        for(i=0;i<len;i++)
+            add_char(&cstr_buf, ((unsigned char *)cv->str.data)[i]);
         cstr_ccat(&cstr_buf, '\"');
         cstr_ccat(&cstr_buf, '\0');
         break;
@@ -1735,7 +1714,6 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
     case 0xb5:
     case 0xb6:
     case 0xb3:
-    case 0xb4:
     case 0xbb:
     case 0xc0:
     case 0xce:
@@ -1745,7 +1723,6 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
     case 0xbe:
     case 0xbf:
     case 0xb9:
-    case 0xba:
         {
             size_t nb_words =
                 1 + (cv->str.size + sizeof(int) - 1) / sizeof(int);
@@ -1791,7 +1768,6 @@ static void TOK_GET(int *t, const int **pp, CValue *cv)
     case 0xce:
     case 0xb5:
     case 0xb3:
-    case 0xb4:
     case 0xc0:
         cv->i = *p++;
         break;
@@ -1803,7 +1779,6 @@ static void TOK_GET(int *t, const int **pp, CValue *cv)
 	tab[0] = *p++;
 	break;
     case 0xb9:
-    case 0xba:
     case 0xbe:
     case 0xbf:
         cv->str.size = *p++;
@@ -1875,7 +1850,7 @@ static void preprocess(int is_bof)
     (void)is_bof;
     tcc_error("preprocessor directives are not supported in tcc_27_alt");
 }
-static void parse_escape_string(CString *outstr, const uint8_t *buf, int is_long)
+static void parse_escape_string(CString *outstr, const uint8_t *buf)
 {
     int c, n;
     const uint8_t *p;
@@ -1963,64 +1938,17 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf, int is_long
                     tcc_warning("unknown escape sequence: \'\\x%x\'", c);
                 break;
             }
-        } else if (is_long && c >= 0x80) {
-            int cont;
-            int skip;
-            int i;
-            if (c < 0xC2) {
-	            skip = 1; goto invalid_utf8_sequence;
-            } else if (c <= 0xDF) {
-	            cont = 1; n = c & 0x1f;
-            } else if (c <= 0xEF) {
-	            cont = 2; n = c & 0xf;
-            } else if (c <= 0xF4) {
-	            cont = 3; n = c & 0x7;
-            } else {
-	            skip = 1; goto invalid_utf8_sequence;
-            }
-            for (i = 1; i <= cont; i++) {
-                int l = 0x80, h = 0xBF;
-                if (i == 1) {
-                    switch (c) {
-                    case 0xE0: l = 0xA0; break;
-                    case 0xED: h = 0x9F; break;
-                    case 0xF0: l = 0x90; break;
-                    case 0xF4: h = 0x8F; break;
-                    }
-                }
-                if (p[i] < l || p[i] > h) {
-                    skip = i; goto invalid_utf8_sequence;
-                }
-                n = (n << 6) | (p[i] & 0x3f);
-            }
-            p += 1 + cont;
-            c = n;
-            goto add_char_nonext;
-        invalid_utf8_sequence:
-            tcc_warning("ill-formed UTF-8 subsequence starting with: \'\\x%x\'", c);
-            c = 0xFFFD;
-            p += skip;
-            goto add_char_nonext;
         }
         p++;
     add_char_nonext:
-        if (!is_long)
-            cstr_ccat(outstr, c);
-        else {
-            cstr_wccat(outstr, c);
-        }
+        cstr_ccat(outstr, c);
     }
-    if (!is_long)
-        cstr_ccat(outstr, '\0');
-    else
-        cstr_wccat(outstr, '\0');
+    cstr_ccat(outstr, '\0');
 }
 static void parse_string(const char *s, int len)
 {
     uint8_t buf[1000], *p = buf;
-    int is_long, sep;
-    if ((is_long = *s == 'L'))
-        ++s, --len;
+    int sep;
     sep = *s++;
     len -= 2;
     if (len >= sizeof buf)
@@ -2028,34 +1956,25 @@ static void parse_string(const char *s, int len)
     memcpy(p, s, len);
     p[len] = 0;
     cstr_reset(&tokcstr);
-    parse_escape_string(&tokcstr, p, is_long);
+    parse_escape_string(&tokcstr, p);
     if (p != buf)
         tcc_free(p);
     if (sep == '\'') {
-        int char_size, i, n, c;
-        if (!is_long)
-            tok = 0xb3, char_size = 1;
-        else
-            tok = 0xb4, char_size = sizeof(nwchar_t);
-        n = tokcstr.size / char_size - 1;
+        int i, n, c;
+        tok = 0xb3;
+        n = tokcstr.size - 1;
         if (n < 1)
             tcc_error("empty character constant");
         if (n > 1)
             tcc_warning("multi-character character constant");
         for (c = i = 0; i < n; ++i) {
-            if (is_long)
-                c = ((nwchar_t *)tokcstr.data)[i];
-            else
-                c = (c << 8) | ((char *)tokcstr.data)[i];
+            c = (c << 8) | ((char *)tokcstr.data)[i];
         }
         tokc.i = c;
     } else {
         tokc.str.size = tokcstr.size;
         tokc.str.data = tokcstr.data;
-        if (!is_long)
-            tok = 0xb9;
-        else
-            tok = 0xba;
+        tok = 0xb9;
     }
 }
 static void bn_lshift(unsigned int *bn, int shift, int or_val)
@@ -2327,7 +2246,7 @@ static void parse_number(const char *p)
 }
 static void next_nomacro1(void)
 {
-    int t, c, is_long, len;
+    int t, c, len;
     TokenSym *ts;
     uint8_t *p, *p1;
     unsigned int h;
@@ -2416,7 +2335,7 @@ maybe_newline:
     case 'y': case 'z':
     case 'A': case 'B': case 'C': case 'D':
     case 'E': case 'F': case 'G': case 'H':
-    case 'I': case 'J': case 'K':
+    case 'I': case 'J': case 'K': case 'L':
     case 'M': case 'N': case 'O': case 'P':
     case 'Q': case 'R': case 'S': case 'T':
     case 'U': case 'V': case 'W': case 'X':
@@ -2448,7 +2367,6 @@ maybe_newline:
             cstr_cat(&tokcstr, (char *) p1, len);
             p--;
             { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
-        parse_ident_slow:
             while (isidnum_table[c - (-1)] & (2|4))
             {
                 cstr_ccat(&tokcstr, c);
@@ -2457,22 +2375,6 @@ maybe_newline:
             ts = tok_alloc(tokcstr.data, tokcstr.size);
         }
         tok = ts->tok;
-        break;
-    case 'L':
-        t = p[1];
-        if (t != '\\' && t != '\'' && t != '\"') {
-            goto parse_ident_fast;
-        } else {
-            { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
-            if (c == '\'' || c == '\"') {
-                is_long = 1;
-                goto str_const;
-            } else {
-                cstr_reset(&tokcstr);
-                cstr_ccat(&tokcstr, 'L');
-                goto parse_ident_slow;
-            }
-        }
         break;
     case '0': case '1': case '2': case '3':
     case '4': case '5': case '6': case '7':
@@ -2524,11 +2426,7 @@ maybe_newline:
         break;
     case '\'':
     case '\"':
-        is_long = 0;
-    str_const:
         cstr_reset(&tokcstr);
-        if (is_long)
-            cstr_ccat(&tokcstr, 'L');
         cstr_ccat(&tokcstr, c);
         p = parse_pp_string(p, c, &tokcstr);
         cstr_ccat(&tokcstr, c);
@@ -5419,7 +5317,6 @@ static void unary(void)
     case TOK_EXTENSION:
         next();
         goto tok_next;
-    case 0xb4:
     case 0xb5:
     case 0xb3:
 	t = 3;
@@ -5472,12 +5369,8 @@ static void unary(void)
             next();
         }
         break;
-    case 0xba:
-        t = 3;
-        goto str_init;
     case 0xb9:
         t = 1;
-    str_init:
         type.t = t;
         mk_pointer(&type);
         type.t |= 0x0040;
@@ -6840,7 +6733,7 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
     CType *t1;
     have_elem = tok == '}' || tok == ',';
     if (!have_elem && tok != '{' &&
-	tok != 0xba && tok != 0xb9 &&
+	tok != 0xb9 &&
 	!size_only) {
 	parse_init_elem(!sec ? 2 : 1);
 	have_elem = 1;
@@ -6855,7 +6748,7 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
         t1 = pointed_type(type);
         size1 = type_size(t1, &align1);
         no_oblock = 1;
-        if ((first && tok != 0xba && tok != 0xb9) ||
+        if ((first && tok != 0xb9) ||
             tok == '{') {
             if (tok != '{')
                 tcc_error("character array initializer must be a literal,"
@@ -6863,16 +6756,11 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
             skip('{');
             no_oblock = 0;
         }
-        if ((tok == 0xba &&
-             (t1->t & 0x000f) == 3
-            ) || (tok == 0xb9 && (t1->t & 0x000f) == 1)) {
+        if (tok == 0xb9 && (t1->t & 0x000f) == 1) {
 	    len = 0;
-            while (tok == 0xb9 || tok == 0xba) {
+            while (tok == 0xb9) {
                 int cstr_len, ch;
-                if (tok == 0xb9)
-                    cstr_len = tokc.str.size;
-                else
-                    cstr_len = tokc.str.size / sizeof(nwchar_t);
+                cstr_len = tokc.str.size;
                 cstr_len--;
                 nb = cstr_len;
                 if (n >= 0 && nb > (n - len))
@@ -6880,15 +6768,12 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
                 if (!size_only) {
                     if (cstr_len > nb)
                         tcc_warning("initializer-string for array is too long");
-                    if (sec && tok == 0xb9 && size1 == 1) {
+                    if (sec && size1 == 1) {
                         if (!(nocode_wanted > 0))
                             memcpy(sec->data + c + len, tokc.str.data, nb);
                     } else {
                         for(i=0;i<nb;i++) {
-                            if (tok == 0xb9)
-                                ch = ((unsigned char *)tokc.str.data)[i];
-                            else
-                                ch = ((nwchar_t *)tokc.str.data)[i];
+                            ch = ((unsigned char *)tokc.str.data)[i];
 			    vpushi(ch);
                             init_putv(t1, sec, c + (len + i) * size1);
                         }
@@ -6955,7 +6840,7 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
         skip_or_save_block(((void*)0));
     } else {
 	if (!have_elem) {
-	    if (tok != 0xb9 && tok != 0xba)
+	    if (tok != 0xb9)
 	      expect("string constant");
 	    parse_init_elem(!sec ? 2 : 1);
 	}
@@ -6989,7 +6874,7 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
             tcc_error("unknown type size");
         if (has_init == 2) {
 	    init_str = tok_str_alloc();
-            while (tok == 0xb9 || tok == 0xba) {
+            while (tok == 0xb9) {
                 tok_str_add_tok(init_str);
                 next();
             }
