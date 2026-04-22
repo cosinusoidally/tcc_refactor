@@ -771,103 +771,30 @@ static void expect(const char *msg)
     tcc_error("%s expected", msg);
 }
 typedef struct TinyAlloc {
-    unsigned  limit;
-    unsigned  size;
-    uint8_t *buffer;
-    uint8_t *p;
-    unsigned  nb_allocs;
-    struct TinyAlloc *next, *top;
+    int dummy;
 } TinyAlloc;
-typedef struct tal_header_t {
-    unsigned  size;
-} tal_header_t;
 static TinyAlloc *tal_new(TinyAlloc **pal, unsigned limit, unsigned size)
 {
-    TinyAlloc *al = tcc_mallocz(sizeof(TinyAlloc));
-    al->p = al->buffer = tcc_malloc(size);
-    al->limit = limit;
-    al->size = size;
-    if (pal) *pal = al;
-    return al;
+    (void)limit;
+    (void)size;
+    if (pal)
+        *pal = ((void*)0);
+    return ((void*)0);
 }
 static void tal_delete(TinyAlloc *al)
 {
-    TinyAlloc *next;
-tail_call:
-    if (!al)
-        return;
-    next = al->next;
-    tcc_free(al->buffer);
-    tcc_free(al);
-    al = next;
-    goto tail_call;
+    (void)al;
 }
 static void tal_free_impl(TinyAlloc *al, void *p )
 {
-    if (!p)
-        return;
-tail_call:
-    if (al->buffer <= (uint8_t *)p && (uint8_t *)p < al->buffer + al->size) {
-        al->nb_allocs--;
-        if (!al->nb_allocs)
-            al->p = al->buffer;
-    } else if (al->next) {
-        al = al->next;
-        goto tail_call;
-    }
-    else
+    (void)al;
+    if (p)
         tcc_free(p);
 }
 static void *tal_realloc_impl(TinyAlloc **pal, void *p, unsigned size )
 {
-    tal_header_t *header;
-    void *ret;
-    int is_own;
-    unsigned adj_size = (size + 3) & -4;
-    TinyAlloc *al = *pal;
-tail_call:
-    is_own = (al->buffer <= (uint8_t *)p && (uint8_t *)p < al->buffer + al->size);
-    if ((!p || is_own) && size <= al->limit) {
-        if (al->p + adj_size + sizeof(tal_header_t) < al->buffer + al->size) {
-            header = (tal_header_t *)al->p;
-            header->size = adj_size;
-            ret = al->p + sizeof(tal_header_t);
-            al->p += adj_size + sizeof(tal_header_t);
-            if (is_own) {
-                header = (((tal_header_t *)p) - 1);
-                memcpy(ret, p, header->size);
-            } else {
-                al->nb_allocs++;
-            }
-            return ret;
-        } else if (is_own) {
-            al->nb_allocs--;
-            ret = tal_realloc_impl(&*pal, 0, size);
-            header = (((tal_header_t *)p) - 1);
-            memcpy(ret, p, header->size);
-            return ret;
-        }
-        if (al->next) {
-            al = al->next;
-        } else {
-            TinyAlloc *bottom = al, *next = al->top ? al->top : al;
-            al = tal_new(pal, next->limit, next->size * 2);
-            al->next = next;
-            bottom->top = al;
-        }
-        goto tail_call;
-    }
-    if (is_own) {
-        al->nb_allocs--;
-        ret = tcc_malloc(size);
-        header = (((tal_header_t *)p) - 1);
-        memcpy(ret, p, header->size);
-    } else if (al->next) {
-        al = al->next;
-        goto tail_call;
-    } else
-        ret = tcc_realloc(p, size);
-    return ret;
+    (void)pal;
+    return tcc_realloc(p, size);
 }
 static void cstr_realloc(CString *cstr, int new_size)
 {
