@@ -554,11 +554,6 @@ typedef struct TokenString {
     const int *prev_ptr;
     char alloc;
 } TokenString;
-typedef struct InlineFunc {
-    TokenString *func_str;
-    Sym *sym;
-    char filename[1];
-} InlineFunc;
 typedef struct ExprValue {
     uint64_t v;
     Sym *sym;
@@ -611,8 +606,6 @@ struct TCCState {
     BufferedFile **include_stack_ptr;
     int ifdef_stack[64];
     int *ifdef_stack_ptr;
-    struct InlineFunc **inline_fns;
-    int nb_inline_fns;
     Section **sections;
     int nb_sections;
     Section **priv_sections;
@@ -670,9 +663,6 @@ enum tcc_token {
      ,TOK_SIGNED2
      ,TOK_SIGNED3
      ,TOK_AUTO
-     ,TOK_INLINE1
-     ,TOK_INLINE2
-     ,TOK_INLINE3
      ,TOK_RESTRICT1
      ,TOK_RESTRICT2
      ,TOK_RESTRICT3
@@ -759,18 +749,18 @@ static char *pstrncpy(char *out, const char *in, size_t num);
  void tcc_warning(const char *fmt, ...);
 static void dynarray_add(void *ptab, int *nb_ptr, void *data);
 static void dynarray_reset(void *pp, int *n);
-static inline void cstr_ccat(CString *cstr, int ch);
+static void cstr_ccat(CString *cstr, int ch);
 static void cstr_cat(CString *cstr, const char *str, int len);
 static void cstr_wccat(CString *cstr, int ch);
 static void cstr_new(CString *cstr);
 static void cstr_free(CString *cstr);
 static void cstr_reset(CString *cstr);
-static inline void sym_free(Sym *sym);
+static void sym_free(Sym *sym);
 static Sym *sym_push2(Sym **ps, int v, int t, int c);
 static Sym *sym_push(int v, CType *type, int r, int c);
 static void sym_pop(Sym **ptop, Sym *b, int keep);
-static inline Sym *struct_find(int v);
-static inline Sym *sym_find(int v);
+static Sym *struct_find(int v);
+static Sym *sym_find(int v);
 static Sym *global_identifier_push(int v, int t, int c);
 static void tcc_open_bf(TCCState *s1, const char *filename, int initlen);
 static int tcc_open(TCCState *s1, const char *filename);
@@ -797,7 +787,7 @@ static const char *get_tok_str(int v, CValue *cv);
 static void begin_macro(TokenString *str, int alloc);
 static void end_macro(void);
 static int set_idnum(int c, int val);
-static inline void tok_str_new(TokenString *s);
+static void tok_str_new(TokenString *s);
 static TokenString *tok_str_alloc(void);
 static void tok_str_free(TokenString *s);
 static void tok_str_free_str(int *str);
@@ -809,26 +799,26 @@ static void label_pop(Sym **ptop, Sym *slast, int keep);
 static void preprocess(int is_bof);
 static void next_nomacro(void);
 static void next(void);
-static inline void unget_tok(int last_tok);
+static void unget_tok(int last_tok);
 static void preprocess_start(TCCState *s1);
 static void preprocess_end(TCCState *s1);
 static void tccpp_new(TCCState *s);
 static void tccpp_delete(TCCState *s);
 static void skip(int c);
 static  void expect(const char *msg);
-static inline int is_space(int ch) {
+static int is_space(int ch) {
     return ch == ' ' || ch == '\t' || ch == '\v' || ch == '\f' || ch == '\r';
 }
-static inline int isid(int c) {
+static int isid(int c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
-static inline int isnum(int c) {
+static int isnum(int c) {
     return c >= '0' && c <= '9';
 }
-static inline int isoct(int c) {
+static int isoct(int c) {
     return c >= '0' && c <= '7';
 }
-static inline int toup(int c) {
+static int toup(int c) {
     return (c >= 'a' && c <= 'z') ? c - 'a' + 'A' : c;
 }
 static Sym *sym_free_first;
@@ -854,9 +844,8 @@ static void tcc_debug_end(TCCState *s1);
 static void tcc_debug_funcstart(TCCState *s1, Sym *sym);
 static void tcc_debug_funcend(TCCState *s1, int size);
 static int tccgen_compile(TCCState *s1);
-static void free_inline_functions(TCCState *s);
 static void check_vstack(void);
-static inline int is_float(int t);
+static int is_float(int t);
 static int ieee_finite(double d);
 static void test_lvalue(void);
 static void vpushi(int v);
@@ -928,7 +917,7 @@ static Elf32_Addr get_elf_sym_addr(TCCState *s, const char *name, int err);
 static int tcc_load_dll(TCCState *s1, int fd, const char *filename, int level);
 static uint8_t *parse_comment(uint8_t *p);
 static void minp(void);
-static inline void inp(void);
+static void inp(void);
 static int handle_eob(void);
 enum gotplt_entry {
     NO_GOTPLT_ENTRY,
@@ -961,28 +950,28 @@ static void gen_cvt_ftoi(int t);
 static void gen_cvt_ftof(int t);
 static void o(unsigned int c);
 static void gen_cvt_itof(int t);
-static inline uint16_t read16le(unsigned char *p) {
+static uint16_t read16le(unsigned char *p) {
     return p[0] | (uint16_t)p[1] << 8;
 }
-static inline void write16le(unsigned char *p, uint16_t x) {
+static void write16le(unsigned char *p, uint16_t x) {
     p[0] = x & 255;  p[1] = x >> 8 & 255;
 }
-static inline uint32_t read32le(unsigned char *p) {
+static uint32_t read32le(unsigned char *p) {
   return read16le(p) | (uint32_t)read16le(p + 2) << 16;
 }
-static inline void write32le(unsigned char *p, uint32_t x) {
+static void write32le(unsigned char *p, uint32_t x) {
     write16le(p, x);  write16le(p + 2, x >> 16);
 }
-static inline void add32le(unsigned char *p, int32_t x) {
+static void add32le(unsigned char *p, int32_t x) {
     write32le(p, read32le(p) + x);
 }
-static inline uint64_t read64le(unsigned char *p) {
+static uint64_t read64le(unsigned char *p) {
   return read32le(p) | (uint64_t)read32le(p + 4) << 32;
 }
-static inline void write64le(unsigned char *p, uint64_t x) {
+static void write64le(unsigned char *p, uint64_t x) {
     write32le(p, x);  write32le(p + 4, x >> 32);
 }
-static inline void add64le(unsigned char *p, int64_t x) {
+static void add64le(unsigned char *p, int64_t x) {
     write64le(p, read64le(p) + x);
 }
 static void g(int c);
@@ -1043,9 +1032,6 @@ static const char tcc_keywords[] =
      "__signed" "\0"
      "__signed__" "\0"
      "auto" "\0"
-     "inline" "\0"
-     "__inline" "\0"
-     "__inline__" "\0"
      "restrict" "\0"
      "__restrict" "\0"
      "__restrict__" "\0"
@@ -1259,7 +1245,7 @@ static void cstr_realloc(CString *cstr, int new_size)
     cstr->data = tal_realloc_impl(&cstr_alloc, cstr->data, size);
     cstr->size_allocated = size;
 }
-static inline void cstr_ccat(CString *cstr, int ch)
+static void cstr_ccat(CString *cstr, int ch)
 {
     int size;
     size = cstr->size + 1;
@@ -1487,7 +1473,7 @@ static int handle_eob(void)
         return (-1);
     }
 }
-static inline void inp(void)
+static void inp(void)
 {
     ch = *(++(file->buf_ptr));
     if (ch == '\\')
@@ -1653,12 +1639,12 @@ static int set_idnum(int c, int val)
     isidnum_table[c - (-1)] = val;
     return prev;
 }
-static inline void skip_spaces(void)
+static void skip_spaces(void)
 {
     while (isidnum_table[ch - (-1)] & 1)
         minp();
 }
-static inline int check_space(int t, int *spc)
+static int check_space(int t, int *spc)
 {
     if (t < 256 && (isidnum_table[t - (-1)] & 1)) {
         if (*spc)
@@ -1722,7 +1708,7 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
     p++;
     return p;
 }
-static inline void tok_str_new(TokenString *s)
+static void tok_str_new(TokenString *s)
 {
     s->str = ((void*)0);
     s->len = s->lastlen = 0;
@@ -1849,7 +1835,7 @@ static void tok_str_add_tok(TokenString *s)
     }
     tok_str_add2(s, tok, &tokc);
 }
-static inline void TOK_GET(int *t, const int **pp, CValue *cv)
+static void TOK_GET(int *t, const int **pp, CValue *cv)
 {
     const int *p = *pp;
     int n, *tab;
@@ -2392,7 +2378,7 @@ static void parse_number(const char *p)
     if (ch)
         tcc_error("invalid number\n");
 }
-static inline void next_nomacro1(void)
+static void next_nomacro1(void)
 {
     int t, c, is_long, len;
     TokenSym *ts;
@@ -2784,7 +2770,7 @@ static void next(void)
             parse_string((char *)tokc.str.data, tokc.str.size - 1);
     }
 }
-static inline void unget_tok(int last_tok)
+static void unget_tok(int last_tok)
 {
     TokenString *str = tok_str_alloc();
     tok_str_add2(str, tok, &tokc);
@@ -2891,7 +2877,7 @@ static struct switch_t {
 } *cur_switch;
 static void gen_cast(CType *type);
 static void gen_cast_s(int t);
-static inline CType *pointed_type(CType *type);
+static CType *pointed_type(CType *type);
 static int is_compatible_types(CType *type1, CType *type2);
 static int parse_btype(CType *type, AttributeDef *ad);
 static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
@@ -2903,14 +2889,13 @@ static void decl(int l);
 static int decl0(int l, int is_for_loop_init, Sym *);
 static void expr_eq(void);
 static int is_compatible_unqualified_types(CType *type1, CType *type2);
-static inline int64_t expr_const64(void);
+static int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
 static void vpush(CType *type);
 static int gvtst(int inv, int t);
-static void gen_inline_functions(TCCState *s);
 static void skip_or_save_block(TokenString **str);
 static void gv_dup(void);
-static inline int is_float(int t)
+static int is_float(int t)
 {
     int bt;
     bt = t & 0x000f;
@@ -2973,7 +2958,6 @@ static int tccgen_compile(TCCState *s1)
     parse_flags = 0x0001 | 0x0002 | 0x0040;
     next();
     decl(0x0030);
-    gen_inline_functions(s1);
     check_vstack();
     tcc_debug_end(s1);
     return 0;
@@ -3079,7 +3063,7 @@ static Sym *__sym_malloc(void)
     sym_free_first = last_sym;
     return last_sym;
 }
-static inline Sym *sym_malloc(void)
+static Sym *sym_malloc(void)
 {
     Sym *sym;
     sym = sym_free_first;
@@ -3088,7 +3072,7 @@ static inline Sym *sym_malloc(void)
     sym_free_first = sym->next;
     return sym;
 }
-static inline void sym_free(Sym *sym)
+static void sym_free(Sym *sym)
 {
     sym->next = sym_free_first;
     sym_free_first = sym;
@@ -3105,14 +3089,14 @@ static Sym *sym_push2(Sym **ps, int v, int t, int c)
     *ps = s;
     return s;
 }
-static inline Sym *struct_find(int v)
+static Sym *struct_find(int v)
 {
     v -= 256;
     if ((unsigned)v >= (unsigned)(tok_ident - 256))
         return ((void*)0);
     return table_ident[v]->sym_struct;
 }
-static inline Sym *sym_find(int v)
+static Sym *sym_find(int v)
 {
     v -= 256;
     if ((unsigned)v >= (unsigned)(tok_ident - 256))
@@ -3248,7 +3232,7 @@ static void vpush64(int ty, unsigned long long v)
     cval.i = v;
     vsetc(&ctype, 0x0030, &cval);
 }
-static inline void vpushll(long long v)
+static void vpushll(long long v)
 {
     vpush64(4, v);
 }
@@ -3298,7 +3282,7 @@ static void vrott(int n)
 {
     vrote(vtop, n);
 }
-static inline void vpushsym(CType *type, Sym *sym)
+static void vpushsym(CType *type, Sym *sym)
 {
     CValue cval;
     cval.i = 0;
@@ -3351,13 +3335,11 @@ static void patch_type(Sym *sym, CType *type)
                   get_tok_str(sym->v, ((void*)0)));
     } else if ((sym->type.t & 0x000f) == 6) {
         int static_proto = sym->type.t & 0x00002000;
-        if ((type->t & 0x00002000) && !static_proto && !(type->t & 0x00008000))
+        if ((type->t & 0x00002000) && !static_proto)
             tcc_warning("static storage ignored for redefinition of '%s'",
                 get_tok_str(sym->v, ((void*)0)));
         if (0 == (type->t & 0x00001000)) {
             sym->type.t = (type->t & ~0x00002000) | static_proto;
-            if (type->t & 0x00008000)
-                sym->type.t = type->t;
             sym->type.ref = type->ref;
         }
     } else {
@@ -4084,7 +4066,7 @@ static int pointed_size(CType *type)
     int align;
     return type_size(pointed_type(type), &align);
 }
-static inline int is_null_pointer(SValue *p)
+static int is_null_pointer(SValue *p)
 {
     if ((p->r & (0x003f | 0x0100 | 0x0200)) != 0x0030)
         return 0;
@@ -4093,7 +4075,7 @@ static inline int is_null_pointer(SValue *p)
         ((p->type.t & 0x000f) == 5 &&
          (4 == 4 ? (uint32_t)p->c.i == 0 : p->c.i == 0));
 }
-static inline int is_integer_btype(int bt)
+static int is_integer_btype(int bt)
 {
     return (bt == 1 || bt == 2 ||
             bt == 3 || bt == 4);
@@ -4510,7 +4492,7 @@ static int type_size(CType *type, int *a)
         return 1;
     }
 }
-static inline CType *pointed_type(CType *type)
+static CType *pointed_type(CType *type)
 {
     return &type->ref->type;
 }
@@ -4518,7 +4500,7 @@ static void mk_pointer(CType *type)
 {
     Sym *s;
     s = sym_push(0x20000000, type, 0, -1);
-    type->t = 5 | (type->t & (0x00001000 | 0x00002000 | 0x00004000 | 0x00008000));
+    type->t = 5 | (type->t & (0x00001000 | 0x00002000 | 0x00004000));
     type->ref = s;
 }
 static int is_compatible_func(CType *type1, CType *type2)
@@ -4549,8 +4531,8 @@ static int is_compatible_func(CType *type1, CType *type2)
 static int compare_types(CType *type1, CType *type2, int unqualified)
 {
     int bt1, t1, t2;
-    t1 = type1->t & (~((0x00001000 | 0x00002000 | 0x00004000 | 0x00008000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
-    t2 = type2->t & (~((0x00001000 | 0x00002000 | 0x00004000 | 0x00008000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
+    t1 = type1->t & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
+    t2 = type2->t & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
     if (unqualified) {
         t1 &= ~(0x0100 | 0x0200);
         t2 &= ~(0x0100 | 0x0200);
@@ -4598,8 +4580,6 @@ static void type_to_str(char *buf, int buf_size,
         pstrcat(buf, buf_size, "static ");
     if (t & 0x00004000)
         pstrcat(buf, buf_size, "typedef ");
-    if (t & 0x00008000)
-        pstrcat(buf, buf_size, "inline ");
     if (t & 0x0200)
         pstrcat(buf, buf_size, "volatile ");
     if (t & 0x0100)
@@ -4778,7 +4758,7 @@ static void vstore(void)
          (sbt == 3 && dbt == 2))
 	&& !(vtop->type.t & 0x0080)) {
         delayed_cast = 0x0400;
-        vtop->type.t = ft & (~((0x00001000 | 0x00002000 | 0x00004000 | 0x00008000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
+        vtop->type.t = ft & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
         if (ft & 0x0100)
             tcc_warning("assignment of read-only location");
     } else {
@@ -5067,7 +5047,7 @@ do_decl:
                                       get_tok_str(v, ((void*)0)));
                         }
                         if ((type1.t & 0x000f) == 6 ||
-                            (type1.t & (0x00001000 | 0x00002000 | 0x00004000 | 0x00008000)))
+                            (type1.t & (0x00001000 | 0x00002000 | 0x00004000)))
                             tcc_error("invalid type for '%s'",
                                   get_tok_str(v, ((void*)0)));
                     }
@@ -5248,12 +5228,6 @@ static int parse_btype(CType *type, AttributeDef *ad)
             t |= g;
             next();
             break;
-        case TOK_INLINE1:
-        case TOK_INLINE2:
-        case TOK_INLINE3:
-            t |= 0x00008000;
-            next();
-            break;
         case TOK_ATTRIBUTE1:
         case TOK_ATTRIBUTE2:
             parse_attribute(ad);
@@ -5290,7 +5264,7 @@ the_end:
     type->t = t;
     return type_found;
 }
-static inline void convert_parameter_type(CType *pt)
+static void convert_parameter_type(CType *pt)
 {
     pt->t &= ~(0x0100 | 0x0200);
     pt->t &= ~0x0040;
@@ -5390,8 +5364,8 @@ static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
 {
     CType *post, *ret;
     int qualifiers, storage;
-    storage = type->t & (0x00001000 | 0x00002000 | 0x00004000 | 0x00008000);
-    type->t &= ~(0x00001000 | 0x00002000 | 0x00004000 | 0x00008000);
+    storage = type->t & (0x00001000 | 0x00002000 | 0x00004000);
+    type->t &= ~(0x00001000 | 0x00002000 | 0x00004000);
     post = ret = type;
     while (tok == '*') {
         qualifiers = 0;
@@ -6211,7 +6185,7 @@ static void expr_const1(void)
     nocode_wanted--;
     const_wanted--;
 }
-static inline int64_t expr_const64(void)
+static int64_t expr_const64(void)
 {
     int64_t c;
     expr_const1();
@@ -7201,43 +7175,6 @@ static void gen_function(Sym *sym)
     nocode_wanted = 0x80000000;
     check_vstack();
 }
-static void gen_inline_functions(TCCState *s)
-{
-    Sym *sym;
-    int inline_generated, i, ln;
-    struct InlineFunc *fn;
-    ln = file->line_num;
-    do {
-        inline_generated = 0;
-        for (i = 0; i < s->nb_inline_fns; ++i) {
-            fn = s->inline_fns[i];
-            sym = fn->sym;
-            if (sym && sym->c) {
-                fn->sym = ((void*)0);
-                if (file)
-                    pstrcpy(file->filename, sizeof file->filename, fn->filename);
-                sym->type.t &= ~0x00008000;
-                begin_macro(fn->func_str, 1);
-                next();
-                cur_text_section = text_section;
-                gen_function(sym);
-                end_macro();
-                inline_generated = 1;
-            }
-        }
-    } while (inline_generated);
-    file->line_num = ln;
-}
-static void free_inline_functions(TCCState *s)
-{
-    int i;
-    for (i = 0; i < s->nb_inline_fns; ++i) {
-        struct InlineFunc *fn = s->inline_fns[i];
-        if (fn->sym)
-            tok_str_free(fn->func_str);
-    }
-    dynarray_reset(&s->inline_fns, &s->nb_inline_fns);
-}
 static int decl0(int l, int is_for_loop_init, Sym *func_sym)
 {
     int v, has_init, r;
@@ -7307,26 +7244,11 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
 		    if (sym->type.t == 0)
 		        sym->type = int_type;
 		}
-                if ((type.t & (0x00001000 | 0x00008000)) == (0x00001000 | 0x00008000))
-                    type.t = (type.t & ~0x00001000) | 0x00002000;
                 sym = external_global_sym(v, &type, 0);
                 type.t &= ~0x00001000;
                 patch_storage(sym, &ad, &type);
-                if ((type.t & (0x00008000 | 0x00002000)) ==
-                    (0x00008000 | 0x00002000)) {
-                    struct InlineFunc *fn;
-                    const char *filename;
-                    filename = file ? file->filename : "";
-                    fn = tcc_malloc(sizeof *fn + strlen(filename));
-                    strcpy(fn->filename, filename);
-                    fn->sym = sym;
-		    skip_or_save_block(&fn->func_str);
-                    dynarray_add(&tcc_state->inline_fns,
-				 &tcc_state->nb_inline_fns, fn);
-                } else {
-                    cur_text_section = text_section;
-                    gen_function(sym);
-                }
+                cur_text_section = text_section;
+                gen_function(sym);
                 break;
             } else {
 		if (l == 0x0033) {
@@ -7336,7 +7258,7 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
 		    tcc_error("declaration for parameter '%s' but no such parameter",
 			      get_tok_str(v, ((void*)0)));
 found:
-		    if (type.t & (0x00001000 | 0x00002000 | 0x00004000 | 0x00008000))
+		    if (type.t & (0x00001000 | 0x00002000 | 0x00004000))
 		        tcc_error("storage class specified for '%s'",
 				  get_tok_str(v, ((void*)0)));
 		    if (sym->type.t != 0)
@@ -9254,13 +9176,13 @@ static void load(int r, SValue *sv)
         } else if ((ft & 0x000f) == 10) {
             o(0xdb);
             r = 5;
-        } else if ((ft & (~((0x00001000 | 0x00002000 | 0x00004000 | 0x00008000)|(((1 << (6+6)) - 1) << 20 | 0x0080)))) == 1 || (ft & (~((0x00001000 | 0x00002000 | 0x00004000 | 0x00008000)|(((1 << (6+6)) - 1) << 20 | 0x0080)))) == 11) {
+        } else if ((ft & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)))) == 1 || (ft & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)))) == 11) {
             o(0xbe0f);
-        } else if ((ft & (~((0x00001000 | 0x00002000 | 0x00004000 | 0x00008000)|(((1 << (6+6)) - 1) << 20 | 0x0080)))) == (1 | 0x0010)) {
+        } else if ((ft & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)))) == (1 | 0x0010)) {
             o(0xb60f);
-        } else if ((ft & (~((0x00001000 | 0x00002000 | 0x00004000 | 0x00008000)|(((1 << (6+6)) - 1) << 20 | 0x0080)))) == 2) {
+        } else if ((ft & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)))) == 2) {
             o(0xbf0f);
-        } else if ((ft & (~((0x00001000 | 0x00002000 | 0x00004000 | 0x00008000)|(((1 << (6+6)) - 1) << 20 | 0x0080)))) == (2 | 0x0010)) {
+        } else if ((ft & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)))) == (2 | 0x0010)) {
             o(0xb70f);
         } else {
             o(0x8b);
@@ -10304,7 +10226,6 @@ static int tcc_compile(TCCState *s1)
     }
     s1->error_set_jmp_enabled = 0;
     preprocess_end(s1);
-    free_inline_functions(s1);
     sym_pop(&global_stack, ((void*)0), 0);
     sym_pop(&local_stack, ((void*)0), 0);
     tccelf_end_file(s1);
