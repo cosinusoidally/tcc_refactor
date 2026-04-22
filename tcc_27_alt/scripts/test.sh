@@ -30,7 +30,8 @@ for src in \
     tests/tests2/05_array.c \
     tests/tests2/07_function.c \
     tests/tests2/10_pointer.c \
-    tests/tests2/18_include.c
+    tests/tests2/18_include.c \
+    tests/implicit_call.c
 do
     obj="$OUT/$(basename "${src%.c}").o"
     $TCC -c "$src" -o "$obj"
