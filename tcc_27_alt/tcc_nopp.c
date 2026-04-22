@@ -1491,9 +1491,6 @@ static void gen_cvt_ftof(int t);
 static void ggoto(void);
 static void o(unsigned int c);
 static void gen_cvt_itof(int t);
-static void gen_vla_sp_save(int addr);
-static void gen_vla_sp_restore(int addr);
-static void gen_vla_alloc(CType *type, int align);
 static inline uint16_t read16le(unsigned char *p) {
     return p[0] | (uint16_t)p[1] << 8;
 }
@@ -3901,9 +3898,6 @@ static Sym *global_label_stack;
 static Sym *local_label_stack;
 static int local_scope;
 static int in_sizeof;
-static int vlas_in_scope;
-static int vla_sp_root_loc;
-static int vla_sp_loc;
 static SValue __vstack[1+256], *vtop, *pvtop;
 static int const_wanted;
 static int nocode_wanted;
@@ -3935,9 +3929,6 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has
 static void decl(int l);
 static int decl0(int l, int is_for_loop_init, Sym *);
 static void expr_eq(void);
-static void vla_runtime_type_size(CType *type, int *a);
-static void vla_sp_restore(void);
-static void vla_sp_restore_root(void);
 static int is_compatible_unqualified_types(CType *type1, CType *type2);
 static inline int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
@@ -5254,11 +5245,6 @@ static int pointed_size(CType *type)
     int align;
     return type_size(pointed_type(type), &align);
 }
-static void vla_runtime_pointed_size(CType *type)
-{
-    int align;
-    vla_runtime_type_size(pointed_type(type), &align);
-}
 static inline int is_null_pointer(SValue *p)
 {
     if ((p->r & (0x003f | 0x0100 | 0x0200)) != 0x0030)
@@ -5345,11 +5331,9 @@ redo:
             if (op != '-')
                 tcc_error("cannot use pointers here");
             check_comparison_pointer_types(vtop - 1, vtop, op);
-            if (vtop[-1].type.t & 0x0400) {
-                vla_runtime_pointed_size(&vtop[-1].type);
-            } else {
-                vpushi(pointed_size(&vtop[-1].type));
-            }
+            if (vtop[-1].type.t & 0x0400)
+                tcc_error("variable length arrays are not supported in tcc_27_alt");
+            vpushi(pointed_size(&vtop[-1].type));
             vrott(3);
             gen_opic(op);
             vtop->type.t = ptrdiff_type.t;
@@ -5367,13 +5351,11 @@ redo:
             type1 = vtop[-1].type;
             type1.t &= ~0x0040;
             if (vtop[-1].type.t & 0x0400)
-                vla_runtime_pointed_size(&vtop[-1].type);
-            else {
-                u = pointed_size(&vtop[-1].type);
-                if (u < 0)
-                    tcc_error("unknown array element size");
-                vpushi(u);
-            }
+                tcc_error("variable length arrays are not supported in tcc_27_alt");
+            u = pointed_size(&vtop[-1].type);
+            if (u < 0)
+                tcc_error("unknown array element size");
+            vpushi(u);
             gen_op('*');
             {
                 gen_opic(op);
@@ -5690,25 +5672,6 @@ static int type_size(CType *type, int *a)
     } else {
         *a = 1;
         return 1;
-    }
-}
-static void vla_runtime_type_size(CType *type, int *a)
-{
-    if (type->t & 0x0400) {
-        type_size(&type->ref->type, a);
-        vset(&int_type, 0x0032|0x0100, type->ref->c);
-    } else {
-        vpushi(type_size(type, a));
-    }
-}
-static void vla_sp_restore(void) {
-    if (vlas_in_scope) {
-        gen_vla_sp_restore(vla_sp_loc);
-    }
-}
-static void vla_sp_restore_root(void) {
-    if (vlas_in_scope) {
-        gen_vla_sp_restore(vla_sp_root_loc);
     }
 }
 static inline CType *pointed_type(CType *type)
@@ -6892,7 +6855,7 @@ static inline void convert_parameter_type(CType *pt)
 }
 static int post_type(CType *type, AttributeDef *ad, int storage, int td)
 {
-    int n, l, t1, arg_size, align;
+    int n, l, arg_size, align;
     Sym **plast, *s, *first;
     AttributeDef ad1;
     CType pt;
@@ -6960,49 +6923,21 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
         type->t = 6;
         type->ref = s;
     } else if (tok == '[') {
-	int saved_nocode_wanted = nocode_wanted;
         next();
         if (tok == TOK_RESTRICT1)
             next();
         n = -1;
-        t1 = 0;
         if (tok != ']') {
-            if (!local_stack || (storage & 0x00002000))
-                vpushi(expr_const());
-            else {
-		nocode_wanted = 0;
-		gexpr();
-	    }
-            if ((vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030) {
-                n = vtop->c.i;
-                if (n < 0)
-                    tcc_error("invalid array size");
-            } else {
-                if (!is_integer_btype(vtop->type.t & 0x000f))
-                    tcc_error("size of variable length array should be an integer");
-                t1 = 0x0400;
-            }
+            n = expr_const();
+            if (n < 0)
+                tcc_error("invalid array size");
         }
         skip(']');
         post_type(type, ad, storage, 0);
         if (type->t == 6)
             tcc_error("declaration of an array of functions");
-        t1 |= type->t & 0x0400;
-        if (t1 & 0x0400) {
-            loc -= type_size(&int_type, &align);
-            loc &= -align;
-            n = loc;
-            vla_runtime_type_size(type, &align);
-            gen_op('*');
-            vset(&int_type, 0x0032|0x0100, n);
-            vswap();
-            vstore();
-        }
-        if (n != -1)
-            vpop();
-	nocode_wanted = saved_nocode_wanted;
         s = sym_push(0x20000000, type, 0, n);
-        type->t = (t1 ? 0x0400 : 0x0040) | 5;
+        type->t = 0x0040 | 5;
         type->ref = s;
     }
     return 1;
@@ -7336,13 +7271,9 @@ static void unary(void)
         if (s && s->a.aligned)
             align = 1 << (s->a.aligned - 1);
         if (t == TOK_SIZEOF) {
-            if (!(type.t & 0x0400)) {
-                if (size < 0)
-                    tcc_error("sizeof applied to an incomplete type");
-                vpushs(size);
-            } else {
-                vla_runtime_type_size(&type, &align);
-            }
+            if (size < 0)
+                tcc_error("sizeof applied to an incomplete type");
+            vpushs(size);
         } else {
             vpushs(align);
         }
@@ -8231,7 +8162,6 @@ static void block(int *bsym, int *csym, int is_expr)
 	nocode_wanted &= ~0x20000000;
         next();
         d = ind;
-        vla_sp_restore();
         skip('(');
         gexpr();
         skip(')');
@@ -8247,7 +8177,6 @@ static void block(int *bsym, int *csym, int is_expr)
         gsym_addr(b, d);
     } else if (tok == '{') {
         Sym *llabel;
-        int block_vla_sp_loc = vla_sp_loc, saved_vlas_in_scope = vlas_in_scope;
         next();
         s = local_stack;
         llabel = local_label_stack;
@@ -8281,11 +8210,6 @@ static void block(int *bsym, int *csym, int is_expr)
         label_pop(&local_label_stack, llabel, is_expr);
         --local_scope;
 	sym_pop(&local_stack, s, is_expr);
-        if (vlas_in_scope > saved_vlas_in_scope) {
-            vla_sp_loc = saved_vlas_in_scope ? block_vla_sp_loc : vla_sp_root_loc;
-            vla_sp_restore();
-        }
-        vlas_in_scope = saved_vlas_in_scope;
         next();
     } else if (tok == TOK_RETURN) {
         next();
@@ -8311,7 +8235,6 @@ static void block(int *bsym, int *csym, int is_expr)
     } else if (tok == TOK_CONTINUE) {
         if (!csym)
             tcc_error("cannot continue");
-        vla_sp_restore_root();
         *csym = gjmp(*csym);
         next();
         skip(';');
@@ -8332,7 +8255,6 @@ static void block(int *bsym, int *csym, int is_expr)
         skip(';');
         d = ind;
         c = ind;
-        vla_sp_restore();
         a = 0;
         b = 0;
         if (tok != ';') {
@@ -8343,7 +8265,6 @@ static void block(int *bsym, int *csym, int is_expr)
         if (tok != ')') {
             e = gjmp(0);
             c = ind;
-            vla_sp_restore();
             gexpr();
             vpop();
             gjmp_addr(d);
@@ -8366,7 +8287,6 @@ static void block(int *bsym, int *csym, int is_expr)
         a = 0;
         b = 0;
         d = ind;
-        vla_sp_restore();
 	saved_nocode_wanted = nocode_wanted;
         block(&a, &b, 0);
         skip(TOK_WHILE);
@@ -8459,7 +8379,6 @@ static void block(int *bsym, int *csym, int is_expr)
                 if (s->r == 2)
                     s->r = 1;
             }
-            vla_sp_restore_root();
 	    if (s->r & 1)
                 s->jnext = gjmp(s->jnext);
             else
@@ -8485,7 +8404,6 @@ static void block(int *bsym, int *csym, int is_expr)
                 s = label_push(&global_label_stack, b, 0);
             }
             s->jnext = ind;
-            vla_sp_restore();
         block_after_label:
 	    nocode_wanted &= ~0x20000000;
             if (tok == '}') {
@@ -9030,19 +8948,7 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
         }
     }
     if (type->t & 0x0400) {
-        int a;
-        if ((nocode_wanted > 0))
-            goto no_alloc;
-        if (vlas_in_scope == 0) {
-            if (vla_sp_root_loc == -1)
-                vla_sp_root_loc = (loc -= 4);
-            gen_vla_sp_save(vla_sp_root_loc);
-        }
-        vla_runtime_type_size(type, &a);
-        gen_vla_alloc(type, a);
-        gen_vla_sp_save(addr);
-        vla_sp_loc = addr;
-        vlas_in_scope++;
+        tcc_error("variable length arrays are not supported in tcc_27_alt");
     } else if (has_init) {
 	size_t oldreloc_offset = 0;
 	if (sec && sec->reloc)
@@ -9067,8 +8973,6 @@ static void gen_function(Sym *sym)
     put_extern_sym(sym, cur_text_section, ind, 0);
     funcname = get_tok_str(sym->v, ((void*)0));
     func_ind = ind;
-    vla_sp_loc = -1;
-    vla_sp_root_loc = -1;
     tcc_debug_funcstart(tcc_state, sym);
     sym_push2(&local_stack, 0x20000000, 0, 0);
     local_scope = 1;
@@ -10872,7 +10776,6 @@ static int tcc_load_object_file(TCCState *s1,
         if (sh->sh_addralign > s->sh_addralign)
             s->sh_addralign = sh->sh_addralign;
         s->data_offset = offset;
-    no_align:
         sm_table[i].offset = offset;
         sm_table[i].s = s;
         size = sh->sh_size;
@@ -11787,22 +11690,6 @@ static void ggoto(void)
     gcall_or_jmp(1);
     vtop--;
 }
-static void gen_vla_sp_save(int addr) {
-    o(0x89);
-    gen_modrm(TREG_ESP, 0x0032, ((void*)0), addr);
-}
-static void gen_vla_sp_restore(int addr) {
-    o(0x8b);
-    gen_modrm(TREG_ESP, 0x0032, ((void*)0), addr);
-}
-static void gen_vla_alloc(CType *type, int align) {
-    int r;
-    r = gv(0x0001);
-    o(0x2b);
-    o(0xe0 | r);
-    o(0xf0e483);
-    vpop();
-}
 int code_reloc (int reloc_type)
 {
     switch (reloc_type) {
@@ -12597,7 +12484,6 @@ static int tcc_set_linker(TCCState *s, const char *option)
         const char *p = ((void*)0);
         char *end = ((void*)0);
         int ignoring = 0;
-        int ret;
         if (link_option(option, "Bsymbolic", &p)) {
             s->symbolic = 1;
         } else if (link_option(option, "nostdlib", &p)) {
