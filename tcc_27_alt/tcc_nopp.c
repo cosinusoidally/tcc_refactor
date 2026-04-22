@@ -167,7 +167,6 @@ typedef struct SValue {
 } SValue;
 struct FuncAttr {
     unsigned char func_type;
-    unsigned short func_args;
 };
 typedef struct AttributeDef {
     struct FuncAttr f;
@@ -3381,7 +3380,7 @@ static void convert_parameter_type(CType *pt)
 }
 static int post_type(CType *type, AttributeDef *ad, int storage, int td)
 {
-    int n, l, arg_size, align;
+    int n, l;
     Sym **plast, *s, *first;
     AttributeDef ad1;
     CType pt;
@@ -3400,15 +3399,13 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
 		  tcc_error("parameter type expected");
         first = ((void*)0);
         plast = &first;
-        arg_size = 0;
         if (l) {
             for(;;) {
-	                if ((pt.t & 0x000f) == 0 && tok == ')')
-	                    break;
-	                type_decl(&pt, &ad1, &n, 2 | 1);
-	                if ((pt.t & 0x000f) == 0)
-	                    tcc_error("parameter declared as void");
-	                arg_size += (type_size(&pt, &align) + 4 - 1) / 4;
+		                if ((pt.t & 0x000f) == 0 && tok == ')')
+		                    break;
+		                type_decl(&pt, &ad1, &n, 2 | 1);
+		                if ((pt.t & 0x000f) == 0)
+		                    tcc_error("parameter declared as void");
                 convert_parameter_type(&pt);
                 s = sym_push(n | 0x20000000, &pt, 0, 0);
                 *plast = s;
@@ -3432,7 +3429,6 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
             skip(']');
             mk_pointer(type);
         }
-        ad->f.func_args = arg_size;
         ad->f.func_type = l;
         s = sym_push(0x20000000, type, 0, 0);
         s->f = ad->f;
@@ -3530,24 +3526,6 @@ static void indir(void)
     if (!(vtop->type.t & 0x0040) && !(vtop->type.t & 0x0400)
         && (vtop->type.t & 0x000f) != 6) {
         vtop->r |= lvalue_type(vtop->type.t);
-    }
-}
-static void gfunc_param_typed(Sym *func, Sym *arg)
-{
-    int func_type;
-    CType type;
-    func_type = func->f.func_type;
-    if (func_type == 2 ||
-        (func_type == 3 && arg == ((void*)0))) {
-        if ((vtop->type.t & 0x000f) == 8) {
-            gen_cast_s(9);
-        }
-    } else if (arg == ((void*)0)) {
-        tcc_error("too many arguments to function");
-    } else {
-        type = arg->type;
-        type.t &= ~0x0100;
-        gen_assign_cast(&type);
     }
 }
 static void expr_type(CType *type, void (*expr_fn)(void))
@@ -3747,7 +3725,6 @@ static void unary(void)
             skip(']');
         } else if (tok == '(') {
             SValue ret;
-            Sym *sa;
             int nb_args;
             if ((vtop->type.t & 0x000f) != 6) {
                 if ((vtop->type.t & (0x000f | 0x0040)) == 5) {
@@ -3763,7 +3740,6 @@ static void unary(void)
             }
             s = vtop->type.ref;
             next();
-            sa = s->next;
             nb_args = 0;
             if ((s->type.t & 0x000f) == 7)
                 tcc_error("struct return values are not supported in tcc_27_alt");
@@ -3773,17 +3749,12 @@ static void unary(void)
             if (tok != ')') {
                 for(;;) {
                     expr_eq();
-                    gfunc_param_typed(s, sa);
                     nb_args++;
-                    if (sa)
-                        sa = sa->next;
                     if (tok == ')')
                         break;
                     skip(',');
                 }
             }
-            if (sa)
-                tcc_error("too few arguments to function");
             skip(')');
             gfunc_call(nb_args);
             vsetc(&ret.type, ret.r, &ret.c);
