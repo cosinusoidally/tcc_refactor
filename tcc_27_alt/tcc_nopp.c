@@ -274,7 +274,6 @@ typedef struct TokenString {
     int len;
     int lastlen;
     int allocated_len;
-    int last_line_num;
     int save_line_num;
     struct TokenString *prev;
     const int *prev_ptr;
@@ -924,9 +923,6 @@ static const char *get_tok_str(int v, CValue *cv)
         cstr_ccat(&cstr_buf, '\"');
         cstr_ccat(&cstr_buf, '\0');
         break;
-    case 0xc0:
-	cstr_cat(&cstr_buf, "<linenumber>", 0);
-	break;
     case 0x9c:
         v = '<';
         goto addv;
@@ -1148,7 +1144,6 @@ static void tok_str_new(TokenString *s)
     s->str = ((void*)0);
     s->len = s->lastlen = 0;
     s->allocated_len = 0;
-    s->last_line_num = -1;
 }
 static TokenString *tok_str_alloc(void)
 {
@@ -1223,7 +1218,6 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
     case 0xb5:
     case 0xb6:
     case 0xb3:
-    case 0xc0:
     case 0xce:
     case 0xcf:
         str[len++] = cv->tab[0];
@@ -1253,12 +1247,6 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
 }
 static void tok_str_add_tok(TokenString *s)
 {
-    CValue cval;
-    if (file->line_num != s->last_line_num) {
-        s->last_line_num = file->line_num;
-        cval.i = s->last_line_num;
-        tok_str_add2(s, 0xc0, &cval);
-    }
     tok_str_add2(s, tok, &tokc);
 }
 static void TOK_GET(int *t, const int **pp, CValue *cv)
@@ -1270,7 +1258,6 @@ static void TOK_GET(int *t, const int **pp, CValue *cv)
     case 0xce:
     case 0xb5:
     case 0xb3:
-    case 0xc0:
         cv->i = *p++;
         break;
     case 0xcf:
@@ -1877,15 +1864,9 @@ static void next_nomacro1(void)
 static void next_nomacro_spc(void)
 {
     if (macro_ptr) {
-    redo:
         tok = *macro_ptr;
-        if (tok) {
+        if (tok)
             TOK_GET(&tok, &macro_ptr, &tokc);
-            if (tok == 0xc0) {
-                file->line_num = tokc.i;
-                goto redo;
-            }
-        }
     } else {
         next_nomacro1();
     }
