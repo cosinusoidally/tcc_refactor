@@ -199,7 +199,6 @@ typedef struct SValue {
     struct Sym *sym;
 } SValue;
 struct FuncAttr {
-    unsigned char func_call;
     unsigned char func_type;
     unsigned short func_args;
 };
@@ -519,8 +518,6 @@ static int const_wanted;
 static int nocode_wanted;
 static int global_expr;
 static CType func_vt;
-static int func_var;
-static int func_vc;
 static int func_ind;
 static const char *funcname;
 static void tcc_debug_start(TCCState *s1);
@@ -614,7 +611,6 @@ static void gsym_addr(int t, int a);
 static void gsym(int t);
 static void load(int r, SValue *sv);
 static void store(int r, SValue *v);
-static int gfunc_sret(CType *vt, int variadic, CType *ret, int *align, int *regsize);
 static void gfunc_call(int nb_args);
 static void gfunc_prolog(CType *func_type);
 static void gfunc_epilog(void);
@@ -2103,8 +2099,6 @@ static int const_wanted;
 static int nocode_wanted;
 static int global_expr;
 static CType func_vt;
-static int func_var;
-static int func_vc;
 static int func_ind;
 static const char *funcname;
 static CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
@@ -2180,7 +2174,6 @@ static int tccgen_compile(TCCState *s1)
     ptrdiff_type.t = 3;
     func_old_type.t = 6;
     func_old_type.ref = sym_push(0x20000000, &int_type, 0, 0);
-    func_old_type.ref->f.func_call = 0;
     func_old_type.ref->f.func_type = 2;
     tcc_debug_start(s1);
     next();
@@ -3544,8 +3537,6 @@ static int is_compatible_func(CType *type1, CType *type2)
     s2 = type2->ref;
     if (!is_compatible_types(&s1->type, &s2->type))
         return 0;
-    if (s1->f.func_call != s2->f.func_call)
-        return 0;
     if (s1->f.func_type == 2 || s2->f.func_type == 2)
         return 1;
     if (s1->f.func_type != s2->f.func_type)
@@ -4101,8 +4092,6 @@ do_decl:
 }
 static void sym_to_attr(AttributeDef *ad, Sym *s)
 {
-    if (s->f.func_call && 0 == ad->f.func_call)
-        ad->f.func_call = s->f.func_call;
     if (s->f.func_type && 0 == ad->f.func_type)
         ad->f.func_type = s->f.func_type;
 }
@@ -4713,7 +4702,7 @@ static void unary(void)
         } else if (tok == '(') {
             SValue ret;
             Sym *sa;
-            int nb_args, ret_nregs, ret_align, regsize, variadic;
+            int nb_args;
             if ((vtop->type.t & 0x000f) != 6) {
                 if ((vtop->type.t & (0x000f | 0x0040)) == 5) {
                     vtop->type = *pointed_type(&vtop->type);
@@ -4729,31 +4718,15 @@ static void unary(void)
             s = vtop->type.ref;
             next();
             sa = s->next;
-            nb_args = regsize = 0;
+            nb_args = 0;
             ret.r2 = 0x0030;
-            if ((s->type.t & 0x000f) == 7) {
-                variadic = (s->f.func_type == 3);
-                ret_nregs = gfunc_sret(&s->type, variadic, &ret.type,
-                                       &ret_align, &regsize);
-                if (!ret_nregs) {
-                    size = type_size(&s->type, &align);
-                    loc = (loc - size) & -align;
-                    ret.type = s->type;
-                    ret.r = 0x0032 | 0x0100;
-                    vseti(0x0032, loc);
-                    ret.c = vtop->c;
-                    nb_args++;
-                }
-            } else {
-                ret_nregs = 1;
-                ret.type = s->type;
-            }
-            if (ret_nregs) {
-                if ((ret.type.t & 0x000f) == 4)
-                    ret.r2 = TREG_EDX;
-                ret.r = TREG_EAX;
-                ret.c.i = 0;
-            }
+            if ((s->type.t & 0x000f) == 7)
+                tcc_error("struct return values are not supported in tcc_27_alt");
+            ret.type = s->type;
+            if ((ret.type.t & 0x000f) == 4)
+                ret.r2 = TREG_EDX;
+            ret.r = TREG_EAX;
+            ret.c.i = 0;
             if (tok != ')') {
                 for(;;) {
                     expr_eq();
@@ -4770,29 +4743,8 @@ static void unary(void)
                 tcc_error("too few arguments to function");
             skip(')');
             gfunc_call(nb_args);
-            for (r = ret.r + ret_nregs + !ret_nregs; r-- > ret.r;) {
-                vsetc(&ret.type, r, &ret.c);
-                vtop->r2 = ret.r2;
-            }
-            if (((s->type.t & 0x000f) == 7) && ret_nregs) {
-                int addr, offset;
-                size = type_size(&s->type, &align);
-		if (regsize > align)
-		  align = regsize;
-                loc = (loc - size) & -align;
-                addr = loc;
-                offset = 0;
-                for (;;) {
-                    vset(&ret.type, 0x0032 | 0x0100, addr + offset);
-                    vswap();
-                    vstore();
-                    vtop--;
-                    if (--ret_nregs == 0)
-                        break;
-                    offset += regsize;
-                }
-                vset(&s->type, 0x0032 | 0x0100, addr);
-            }
+            vsetc(&ret.type, ret.r, &ret.c);
+            vtop->r2 = ret.r2;
         } else {
             break;
         }
@@ -5164,48 +5116,7 @@ static int is_label(void)
 static void gfunc_return(CType *func_type)
 {
     if ((func_type->t & 0x000f) == 7) {
-        CType type, ret_type;
-        int ret_align, ret_nregs, regsize;
-        ret_nregs = gfunc_sret(func_type, func_var, &ret_type,
-                               &ret_align, &regsize);
-        if (0 == ret_nregs) {
-            type = *func_type;
-            mk_pointer(&type);
-            vset(&type, 0x0032 | 0x0100, func_vc);
-            indir();
-            vswap();
-            vstore();
-        } else {
-            int r, size, addr, align;
-            size = type_size(func_type,&align);
-            if ((vtop->r != (0x0032 | 0x0100) ||
-                 (vtop->c.i & (ret_align-1)))
-                && (align & (ret_align-1))) {
-                loc = (loc - size) & -ret_align;
-                addr = loc;
-                type = *func_type;
-                vset(&type, 0x0032 | 0x0100, addr);
-                vswap();
-                vstore();
-                vpop();
-                vset(&ret_type, 0x0032 | 0x0100, addr);
-            }
-            vtop->type = ret_type;
-            r = 0x0004;
-            if (ret_nregs == 1)
-                gv(r);
-            else {
-                for (;;) {
-                    vdup();
-                    gv(r);
-                    vpop();
-                    if (--ret_nregs == 0)
-                      break;
-                    r <<= 1;
-                    vtop->c.i += regsize;
-                }
-            }
-        }
+        tcc_error("struct return values are not supported in tcc_27_alt");
     } else {
         gv(0x0004);
     }
@@ -6020,7 +5931,6 @@ static void gen_function(Sym *sym)
     cur_text_section = ((void*)0);
     funcname = "";
     func_vt.t = 0;
-    func_var = 0;
     ind = 0;
     nocode_wanted = 0x80000000;
     check_vstack();
@@ -7828,30 +7738,13 @@ static void gcall_or_jmp(int is_jmp)
         }
     }
 }
-static uint8_t fastcall_regs[3] = { TREG_EAX, TREG_EDX, TREG_ECX };
-static uint8_t fastcallw_regs[2] = { TREG_ECX, TREG_EDX };
-static int gfunc_sret(CType *vt, int variadic, CType *ret, int *ret_align, int *regsize)
-{
-    *ret_align = 1;
-    return 0;
-}
 static void gfunc_call(int nb_args)
 {
-    int size, align, r, args_size, i, func_call;
-    Sym *func_sym;
+    int size, r, args_size, i;
     args_size = 0;
     for(i = 0;i < nb_args; i++) {
         if ((vtop->type.t & 0x000f) == 7) {
-            size = type_size(&vtop->type, &align);
-            size = (size + 3) & ~3;
-            oad(0xec81, size);
-            r = get_reg(0x0001);
-            o(0x89);
-            o(0xe0 + r);
-            vset(&vtop->type, r | 0x0100, 0);
-            vswap();
-            vstore();
-            args_size += size;
+            tcc_error("struct arguments are not supported in tcc_27_alt");
         } else {
             r = gv(0x0001);
             if ((vtop->type.t & 0x000f) == 4) {
@@ -7866,87 +7759,36 @@ static void gfunc_call(int nb_args)
         vtop--;
     }
     save_regs(0);
-    func_sym = vtop->type.ref;
-    func_call = func_sym->f.func_call;
-    if ((func_call >= 2 && func_call <= 4) ||
-        func_call == 5) {
-        int fastcall_nb_regs;
-        uint8_t *fastcall_regs_ptr;
-        if (func_call == 5) {
-            fastcall_regs_ptr = fastcallw_regs;
-            fastcall_nb_regs = 2;
-        } else {
-            fastcall_regs_ptr = fastcall_regs;
-            fastcall_nb_regs = func_call - 2 + 1;
-        }
-        for(i = 0;i < fastcall_nb_regs; i++) {
-            if (args_size <= 0)
-                break;
-            o(0x58 + fastcall_regs_ptr[i]);
-            args_size -= 4;
-        }
-    }
-    else if ((vtop->type.ref->type.t & 0x000f) == 7)
-        args_size -= 4;
     gcall_or_jmp(0);
-    if (args_size && func_call != 1 && func_call != 5)
+    if (args_size)
         gadd_sp(args_size);
     vtop--;
 }
 static void gfunc_prolog(CType *func_type)
 {
-    int addr, align, size, func_call, fastcall_nb_regs;
-    int param_index, param_addr;
-    uint8_t *fastcall_regs_ptr;
+    int addr, align, size, param_addr;
     Sym *sym;
     CType *type;
     sym = func_type->ref;
-    func_call = sym->f.func_call;
     addr = 8;
     loc = 0;
-    func_vc = 0;
-    if (func_call >= 2 && func_call <= 4) {
-        fastcall_nb_regs = func_call - 2 + 1;
-        fastcall_regs_ptr = fastcall_regs;
-    } else if (func_call == 5) {
-        fastcall_nb_regs = 2;
-        fastcall_regs_ptr = fastcallw_regs;
-    } else {
-        fastcall_nb_regs = 0;
-        fastcall_regs_ptr = ((void*)0);
-    }
-    param_index = 0;
     ind += (9 + 0);
     func_sub_sp_offset = ind;
     func_vt = sym->type;
-    func_var = (sym->f.func_type == 3);
-    if ((func_vt.t & 0x000f) == 7) {
-        func_vc = addr;
-        addr += 4;
-        param_index++;
-    }
+    if ((func_vt.t & 0x000f) == 7)
+        tcc_error("struct return values are not supported in tcc_27_alt");
     while ((sym = sym->next) != ((void*)0)) {
         type = &sym->type;
+        if ((type->t & 0x000f) == 7)
+            tcc_error("struct arguments are not supported in tcc_27_alt");
         size = type_size(type, &align);
         size = (size + 3) & ~3;
-        if (param_index < fastcall_nb_regs) {
-            loc -= 4;
-            o(0x89);
-            gen_modrm(fastcall_regs_ptr[param_index], 0x0032, ((void*)0), loc);
-            param_addr = loc;
-        } else {
-            param_addr = addr;
-            addr += size;
-        }
+        param_addr = addr;
+        addr += size;
         sym_push(sym->v & ~0x20000000, type,
                  0x0032 | lvalue_type(type->t), param_addr);
-        param_index++;
     }
     func_ret_sub = 0;
-    if (func_call == 1 || func_call == 5)
-        func_ret_sub = addr - 8;
-    else if (func_vc)
-        func_ret_sub = 4;
 }
 static void gfunc_epilog(void)
 {
