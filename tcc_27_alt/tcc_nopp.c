@@ -399,7 +399,7 @@ static void tcc_close(void);
 static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags);
 static int tcc_add_crt(TCCState *s, const char *filename);
  int tcc_add_library_err(TCCState *s, const char *f);
- int tcc_parse_args(TCCState *s, int *argc, char ***argv, int optind);
+static int tcc_parse_args(TCCState *s, int argc, char **argv);
 static struct BufferedFile *file;
 static int tok;
 static CValue tokc;
@@ -8054,12 +8054,10 @@ static const char *take_arg(int argc, char **argv, int *optind,
         tcc_error("argument to '%s' is missing", r);
     return argv[(*optind)++];
 }
- int tcc_parse_args(TCCState *s, int *pargc, char ***pargv, int optind)
+static int tcc_parse_args(TCCState *s, int argc, char **argv)
 {
     const char *r, *optarg;
-    int action = 0;
-    char **argv = *pargv;
-    int argc = *pargc;
+    int action = 0, optind = 1;
     while (optind < argc) {
         r = argv[optind++];
         if (r[0] != '-' || r[1] == '\0') {
@@ -8097,8 +8095,6 @@ static const char *take_arg(int argc, char **argv, int *optind,
             tcc_error("unsupported option '%s'", r);
         }
     }
-    *pargc = argc;
-    *pargv = argv;
     if (action)
         return 0;
     return 1;
@@ -8123,11 +8119,9 @@ int main(int argc0, char **argv0)
     TCCState *s;
     int ret, opt, n = 0;
     const char *first_file;
-    int argc; char **argv;
 redo:
-    argc = argc0, argv = argv0;
     s = tcc_new();
-    opt = tcc_parse_args(s, &argc, &argv, 1);
+    opt = tcc_parse_args(s, argc0, argv0);
     if (n == 0) {
         if (opt == 1)
             tcc_error("no input files\n");
