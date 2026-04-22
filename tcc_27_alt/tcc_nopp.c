@@ -93,10 +93,6 @@ typedef struct TCCState TCCState;
 TCCState *tcc_new(void);
 void tcc_delete(TCCState *s);
 void tcc_set_lib_path(TCCState *s, const char *path);
-int tcc_add_include_path(TCCState *s, const char *pathname);
-int tcc_add_sysinclude_path(TCCState *s, const char *pathname);
-void tcc_define_symbol(TCCState *s, const char *sym, const char *value);
-void tcc_undefine_symbol(TCCState *s, const char *sym);
 int tcc_add_file(TCCState *s, const char *filename);
 int tcc_set_output_type(TCCState *s, int output_type);
 int tcc_add_library_path(TCCState *s, const char *pathname);
@@ -10189,17 +10185,6 @@ static int tcc_compile(TCCState *s1)
     tccelf_end_file(s1);
     return s1->nb_errors != 0 ? -1 : 0;
 }
- void tcc_define_symbol(TCCState *s1, const char *sym, const char *value)
-{
-    (void)s1;
-    (void)sym;
-    (void)value;
-}
- void tcc_undefine_symbol(TCCState *s1, const char *sym)
-{
-    (void)s1;
-    (void)sym;
-}
 static void tcc_cleanup(void)
 {
     if (((void*)0) == tcc_state)
@@ -10247,11 +10232,9 @@ static void tcc_cleanup(void)
     if (0 == --nb_states)
         tcc_memcheck();
 }
- int tcc_set_output_type(TCCState *s, int output_type)
+int tcc_set_output_type(TCCState *s, int output_type)
 {
     s->output_type = output_type;
-    if (s->char_is_unsigned)
-        tcc_define_symbol(s, "__CHAR_UNSIGNED__", ((void*)0));
     tcc_add_library_path(s, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
     tcc_split_path(s, &s->crt_paths, &s->nb_crt_paths, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
     if ((output_type == 2 || output_type == 3) &&
@@ -10260,18 +10243,6 @@ static void tcc_cleanup(void)
             tcc_add_crt(s, "crt1.o");
         tcc_add_crt(s, "crti.o");
     }
-    return 0;
-}
-int tcc_add_include_path(TCCState *s, const char *pathname)
-{
-    (void)s;
-    (void)pathname;
-    return 0;
-}
-int tcc_add_sysinclude_path(TCCState *s, const char *pathname)
-{
-    (void)s;
-    (void)pathname;
     return 0;
 }
 static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
