@@ -10,6 +10,11 @@ LDFLAGS=${LDFLAGS:-}
 LDLIBS=${LDLIBS:-"-lm -ldl"}
 RUN_I386=${RUN_I386:-./scripts/run-i386.sh}
 
+if [ "${1:-}" = coverage ]; then
+    CFLAGS="-m32 -std=gnu99 -Wall -g -O0 --coverage -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result"
+    LDFLAGS="--coverage"
+fi
+
 mkdir -p build
 ROOTDIR=build/root
 mkdir -p "$ROOTDIR"
