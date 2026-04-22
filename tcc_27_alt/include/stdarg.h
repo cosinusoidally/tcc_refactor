@@ -4,7 +4,6 @@
 #ifdef __x86_64__
 #ifndef _WIN64
 
-//This should be in sync with the declaration on our lib/libtcc1.c
 /* GCC compatible definition of va_list. */
 typedef struct {
     unsigned int gp_offset;

@@ -29,29 +29,17 @@ build_tcc()
     "$RUN_I386" "$compiler" -B"$bdir" -nostdinc "$NOPP" -o "$output" -lm -ldl
 }
 
-build_runtime()
-{
-    compiler=$1
-    bdir=$2
-    mkdir -p "$bdir"
-    "$RUN_I386" "$compiler" -B"$bdir" -nostdinc -c lib/libtcc1_nopp.c -o "$bdir/libtcc1.o"
-}
-
 echo "checking stage1: $STAGE1"
 if ! "$RUN_I386" "$STAGE1" -v >/dev/null 2>&1; then
     echo "selfhost skipped: stage1 exists, but this host cannot execute i386 binaries"
     exit 0
 fi
 
-echo "building stage2 runtime with stage1"
-build_runtime "$STAGE1" "$STAGE2ROOT"
+mkdir -p "$STAGE2ROOT" "$STAGE3ROOT"
 
 echo "building stage2 with stage1"
 build_tcc "$STAGE1" "$STAGE2" "$STAGE2ROOT"
 chmod +x "$STAGE2"
-
-echo "building stage3 runtime with stage2"
-build_runtime "$STAGE2" "$STAGE3ROOT"
 
 echo "building stage3 with stage2"
 build_tcc "$STAGE2" "$STAGE3" "$STAGE3ROOT"

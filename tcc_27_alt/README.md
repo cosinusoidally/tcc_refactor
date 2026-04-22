@@ -32,6 +32,8 @@ frontend treats `inline` spellings as ordinary identifiers rather than storage
 specifiers.
 Wide string/character literals and floating-point types/constants are outside
 the subset. Ordinary byte strings and character constants remain supported.
+64-bit integer types and operations are also outside the subset; `long` is
+treated as a 32-bit i386 integer and `long long` is not a supported target type.
 
 ## Build
 
@@ -39,15 +41,9 @@ the subset. Ordinary byte strings and character constants remain supported.
 ./build.sh
 ```
 
-This builds:
-
-- `build/root/tcc`: a 32-bit i386 Linux executable that emits i386 Linux ELF.
-- `build/root/libtcc1.o`: the minimal i386 runtime object used when linking
-  programs.
-
-The bootstrap compiler is built with the host C compiler using `-m32`, and the
-runtime object is built with `build/root/tcc` itself. All generated files are
-kept under `build/`.
+This builds `build/root/tcc`, a 32-bit i386 Linux executable that emits i386
+Linux ELF. The bootstrap compiler is built with the host C compiler using
+`-m32`. All generated files are kept under `build/`.
 
 ## No-Preprocessor Source
 
@@ -86,9 +82,7 @@ builds stage 3, and stage 2 and stage 3 must match byte-for-byte:
 ```text
 host cc -m32 tcc_nopp.c -nostdinc -> build/root/tcc
 stage1 = build/root/tcc
-stage1 -> build/selfhost/stage2root/libtcc1.o
 stage1 tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage2
-stage2 -> build/selfhost/stage3root/libtcc1.o
 stage2 tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage3
 cmp stage2 stage3
 ```
@@ -107,6 +101,5 @@ printing a skip reason.
 
 - `tcc_nopp.c`: the no-preprocessor compiler source, including driver,
   parser, ELF output/linking, and i386 code generator.
-- `lib/libtcc1_nopp.c`: minimal pure-C runtime routines for linked output.
 - `include/`: builtin headers supplied by TCC.
 - `tests/`: retained smoke tests for this reduced i386/Linux compiler.

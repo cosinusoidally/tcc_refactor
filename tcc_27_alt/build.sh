@@ -24,7 +24,4 @@ echo "building $ROOTDIR/tcc with ${CC}"
 $CC $CFLAGS -nostdinc -o "$ROOTDIR/tcc" tcc_nopp.c $LDFLAGS $LDLIBS
 chmod +x "$ROOTDIR/tcc"
 
-echo "building $ROOTDIR/libtcc1.o with $ROOTDIR/tcc"
-"$RUN_I386" "$ROOTDIR/tcc" -B"$ROOTDIR" -nostdinc -c lib/libtcc1_nopp.c -o "$ROOTDIR/libtcc1.o"
-
 echo "build complete"

@@ -6,11 +6,9 @@ typedef unsigned int uintptr_t;
 typedef signed char int8_t;
 typedef signed short int int16_t;
 typedef signed int int32_t;
-typedef signed long long int int64_t;
 typedef unsigned char uint8_t;
 typedef unsigned short int uint16_t;
 typedef unsigned int uint32_t;
-typedef unsigned long long int uint64_t;
 typedef long int off_t;
 typedef int mode_t;
 typedef char *va_list;
@@ -32,7 +30,6 @@ void qsort(void *base, size_t nmemb, size_t size, int (*compar)(const void *, co
 int atoi(const char *nptr);
 long int strtol(const char *nptr, char **endptr, int base);
 unsigned long int strtoul(const char *nptr, char **endptr, int base);
-long long int strtoll(const char *nptr, char **endptr, int base);
 int setjmp(jmp_buf env);
 void longjmp(struct __jmp_buf_tag env[1], int val);
 int open(const char *file, int oflag, ...);
@@ -164,7 +161,7 @@ typedef struct CType {
     struct Sym *ref;
 } CType;
 typedef union CValue {
-    uint64_t i;
+    unsigned int i;
     struct {
         int size;
         const void *data;
@@ -197,7 +194,7 @@ typedef struct Sym {
                 struct FuncAttr f;
             };
         };
-        long long enum_val;
+        int enum_val;
         int *d;
     };
     CType type;
@@ -253,7 +250,7 @@ typedef struct TokenString {
     char alloc;
 } TokenString;
 typedef struct ExprValue {
-    uint64_t v;
+    unsigned int v;
     Sym *sym;
     int pcrel;
 } ExprValue;
@@ -357,13 +354,6 @@ enum tcc_token {
      ,TOK_memcpy
      ,TOK_memmove
      ,TOK_memset
-     ,TOK___divdi3
-     ,TOK___moddi3
-     ,TOK___udivdi3
-     ,TOK___umoddi3
-     ,TOK___ashrdi3
-     ,TOK___lshrdi3
-     ,TOK___ashldi3
 };
 static struct TCCState *tcc_state;
 static char *pstrcpy(char *buf, int buf_size, const char *s);
@@ -658,13 +648,6 @@ static const char tcc_keywords[] =
      "memcpy" "\0"
      "memmove" "\0"
      "memset" "\0"
-     "__divdi3" "\0"
-     "__moddi3" "\0"
-     "__udivdi3" "\0"
-     "__umoddi3" "\0"
-     "__ashrdi3" "\0"
-     "__lshrdi3" "\0"
-     "__ashldi3" "\0"
 ;
 static const unsigned char tok_two_chars[] =
  {
@@ -846,9 +829,7 @@ static const char *get_tok_str(int v, CValue *cv)
     case 0xb6:
     case 0xce:
     case 0xcf:
-    case 0xb7:
-    case 0xb8:
-        sprintf(p, "%llu", (unsigned long long)cv->i);
+        sprintf(p, "%u", cv->i);
         break;
     case 0xb3:
         cstr_ccat(&cstr_buf, '\'');
@@ -1179,11 +1160,6 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
             len += nb_words;
         }
         break;
-    case 0xb7:
-    case 0xb8:
-        str[len++] = cv->tab[0];
-        str[len++] = cv->tab[1];
-        break;
     default:
         break;
     }
@@ -1196,8 +1172,6 @@ static void tok_str_add_tok(TokenString *s)
 static void TOK_GET(int *t, const int **pp, CValue *cv)
 {
     const int *p = *pp;
-    int n, *tab;
-    tab = cv->tab;
     switch(*t = *p++) {
     case 0xce:
     case 0xb5:
@@ -1214,16 +1188,6 @@ static void TOK_GET(int *t, const int **pp, CValue *cv)
         cv->str.size = *p++;
         cv->str.data = p;
         p += (cv->str.size + sizeof(int) - 1) / sizeof(int);
-        break;
-    case 0xb7:
-    case 0xb8:
-        n = 2;
-        goto copy;
-    copy:
-        while (n) {
-            *tab++ = *p++;
-            n--;
-        }
         break;
     default:
         break;
@@ -1428,7 +1392,7 @@ static void parse_number(const char *p)
         ((ch == 'p' || ch == 'P') && (b == 16 || b == 2))) {
         tcc_error("floating-point constants are not supported in tcc_27_alt");
     } else {
-        unsigned long long n, n1;
+        unsigned int n, n1;
         int lcount, ucount;
         const char *p1;
         *q = '\0';
@@ -1452,7 +1416,7 @@ static void parse_number(const char *p)
                 tcc_error("invalid digit");
             n1 = n;
             n = n * b + t;
-            if (n1 >= 0x1000000000000000ULL && n / b != n1)
+            if (n1 >= 0x10000000U && n / b != n1)
                 ;
         }
         lcount = ucount = 0;
@@ -1476,28 +1440,18 @@ static void parse_number(const char *p)
             }
         }
         if (ucount == 0 && b == 10) {
-            if (lcount <= (4 == 4)) {
-                if (n >= 0x80000000U)
-                    lcount = (4 == 4) + 1;
-            }
-            if (n >= 0x8000000000000000ULL)
+            if (n >= 0x80000000U)
                 ucount = 1;
         } else {
-            if (lcount <= (4 == 4)) {
-                if (n >= 0x100000000ULL)
-                    lcount = (4 == 4) + 1;
-                else if (n >= 0x80000000U)
-                    ucount = 1;
-            }
-            if (n >= 0x8000000000000000ULL)
+            if (n >= 0x80000000U)
                 ucount = 1;
         }
         tok = 0xb5;
-	if (lcount) {
+        if (lcount > 1)
+            tcc_error("64-bit integer constants are not supported in tcc_27_alt");
+        if (lcount) {
             tok = 0xce;
-            if (lcount == 2)
-                tok = 0xb7;
-	}
+        }
 	if (ucount)
 	    ++tok;
         tokc.i = n;
@@ -1913,7 +1867,7 @@ static const char *funcname;
 static CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
 static struct switch_t {
     struct case_t {
-        int64_t v1, v2;
+        int v1, v2;
 	int sym;
     } **p; int n;
     int def_sym;
@@ -1932,8 +1886,6 @@ static void decl(int l);
 static int decl0(int l, int is_for_loop_init, Sym *);
 static void expr_eq(void);
 static int is_compatible_unqualified_types(CType *type1, CType *type2);
-static int64_t expr_const64(void);
-static void vpush64(int ty, unsigned long long v);
 static void vpush(CType *type);
 static int gvtst(int inv, int t);
 static void skip_or_save_block(TokenString **str);
@@ -2217,19 +2169,6 @@ static void vpushs(Elf32_Addr v)
   cval.i = v;
   vsetc(&size_type, 0x0030, &cval);
 }
-static void vpush64(int ty, unsigned long long v)
-{
-    CValue cval;
-    CType ctype;
-    ctype.t = ty;
-    ctype.ref = ((void*)0);
-    cval.i = v;
-    vsetc(&ctype, 0x0030, &cval);
-}
-static void vpushll(long long v)
-{
-    vpush64(4, v);
-}
 static void vset(CType *type, int r, int v)
 {
     CValue cval;
@@ -2388,13 +2327,11 @@ static void save_reg_upstack(int r, int n)
     saved = 0;
     l = 0;
     for(p = (__vstack + 1), p1 = vtop - n; p <= p1; p++) {
-        if ((p->r & 0x003f) == r ||
-            ((p->type.t & 0x000f) == 4 && (p->r2 & 0x003f) == r)) {
+        if ((p->r & 0x003f) == r) {
             if (!saved) {
                 r = p->r & 0x003f;
                 type = &p->type;
-                if ((p->r & 0x0100) ||
-                    (type->t & 0x000f) != 4)
+                if (p->r & 0x0100)
                     type = &int_type;
                 size = type_size(type, &align);
                 loc = (loc - size) & -align;
@@ -2402,10 +2339,6 @@ static void save_reg_upstack(int r, int n)
                 sv.r = 0x0032 | 0x0100;
                 sv.c.i = loc;
                 store(r, &sv);
-                if ((type->t & 0x000f) == 4) {
-                    sv.c.i += 4;
-                    store(p->r2, &sv);
-                }
                 l = loc;
                 saved = 1;
             }
@@ -2469,57 +2402,18 @@ static void gaddrof(void)
 }
 static int gv(int rc)
 {
-    int r, rc2;
+    int r;
     if (vtop->type.t & 0x0080) {
         tcc_error("bit-fields are not supported in tcc_27_alt");
     } else {
         r = vtop->r & 0x003f;
-        rc2 = (rc & 0x0002) ? 0x0002 : 0x0001;
-        if (rc == 0x0004)
-            rc2 = 0x0020;
         if (r >= 0x0030
          || (vtop->r & 0x0100)
          || !(reg_classes[r] & rc)
-         || ((vtop->type.t & 0x000f) == 4 && !(reg_classes[vtop->r2] & rc2))
             )
         {
             r = get_reg(rc);
-            if ((vtop->type.t & 0x000f) == 4) {
-                int addr_type = 3, load_size = 4, load_type = 3;
-                unsigned long long ll;
-                int r2, original_type;
-                original_type = vtop->type.t;
-                if ((vtop->r & (0x003f | 0x0100)) == 0x0030) {
-                    ll = vtop->c.i;
-                    vtop->c.i = ll;
-                    load(r, vtop);
-                    vtop->r = r;
-                    vpushi(ll >> 32);
-                } else
-                if (vtop->r & 0x0100) {
-                    save_reg_upstack(vtop->r, 1);
-                    vtop->type.t = load_type;
-                    load(r, vtop);
-                    vdup();
-                    vtop[-1].r = r;
-                    vtop->type.t = addr_type;
-                    gaddrof();
-                    vpushi(load_size);
-                    gen_op('+');
-                    vtop->r |= 0x0100;
-                    vtop->type.t = load_type;
-                } else {
-                    load(r, vtop);
-                    vdup();
-                    vtop[-1].r = r;
-                    vtop->r = vtop[-1].r2;
-                }
-                r2 = get_reg(rc2);
-                load(r2, vtop);
-                vpop();
-                vtop->r2 = r2;
-                vtop->type.t = original_type;
-            } else if (vtop->r & 0x0100) {
+            if (vtop->r & 0x0100) {
                 int t1, t;
                 t = vtop->type.t;
                 t1 = t;
@@ -2564,63 +2458,20 @@ static void gv2(int rc1, int rc2)
         }
     }
 }
-static void lexpand(void)
-{
-    int u, v;
-    u = vtop->type.t & (0x0020 | 0x0010);
-    v = vtop->r & (0x003f | 0x0100);
-    if (v == 0x0030) {
-        vdup();
-        vtop[0].c.i >>= 32;
-    } else if (v == (0x0100|0x0030) || v == (0x0100|0x0032)) {
-        vdup();
-        vtop[0].c.i += 4;
-    } else {
-        gv(0x0001);
-        vdup();
-        vtop[0].r = vtop[-1].r2;
-        vtop[0].r2 = vtop[-1].r2 = 0x0030;
-    }
-    vtop[0].type.t = vtop[-1].type.t = 3 | u;
-}
-static void lbuild(int t)
-{
-    gv2(0x0001, 0x0001);
-    vtop[-1].r2 = vtop[0].r;
-    vtop[-1].type.t = t;
-    vpop();
-}
 static void gv_dup(void)
 {
-    int rc, t, r, r1;
+    int rc, r, r1;
     SValue sv;
-    t = vtop->type.t;
-    if ((t & 0x000f) == 4) {
-        lexpand();
-        gv_dup();
-        vswap();
-        vrotb(3);
-        gv_dup();
-        vrotb(4);
-        lbuild(t);
-        vrotb(3);
-        vrotb(3);
-        vswap();
-        lbuild(t);
-        vswap();
-    } else
-    {
-        rc = 0x0001;
-        sv.type.t = 3;
-        r = gv(rc);
-        r1 = get_reg(rc);
-        sv.r = r;
-        sv.c.i = 0;
-        load(r1, &sv);
-        vdup();
-        if (r != r1)
-            vtop->r = r1;
-    }
+    rc = 0x0001;
+    sv.type.t = 3;
+    r = gv(rc);
+    r1 = get_reg(rc);
+    sv.r = r;
+    sv.c.i = 0;
+    load(r1, &sv);
+    vdup();
+    if (r != r1)
+        vtop->r = r1;
 }
 static int gvtst(int inv, int t)
 {
@@ -2637,203 +2488,14 @@ static int gvtst(int inv, int t)
     }
     return gtst(inv, t);
 }
-static void gen_opl(int op)
+static unsigned int gen_opic_sdiv(unsigned int a, unsigned int b)
 {
-    int t, a, b, op1, c, i;
-    int func;
-    unsigned short reg_iret = TREG_EAX;
-    unsigned short reg_lret = TREG_EDX;
-    SValue tmp;
-    switch(op) {
-    case '/':
-    case 0xb2:
-        func = TOK___divdi3;
-        goto gen_func;
-    case 0xb0:
-        func = TOK___udivdi3;
-        goto gen_func;
-    case '%':
-        func = TOK___moddi3;
-        goto gen_mod_func;
-    case 0xb1:
-        func = TOK___umoddi3;
-    gen_mod_func:
-    gen_func:
-        vpush_global_sym(&func_old_type, func);
-        vrott(3);
-        gfunc_call(2);
-        vpushi(0);
-        vtop->r = reg_iret;
-        vtop->r2 = reg_lret;
-        break;
-    case '^':
-    case '&':
-    case '|':
-    case '*':
-    case '+':
-    case '-':
-        t = vtop->type.t;
-        vswap();
-        lexpand();
-        vrotb(3);
-        lexpand();
-        tmp = vtop[0];
-        vtop[0] = vtop[-3];
-        vtop[-3] = tmp;
-        tmp = vtop[-2];
-        vtop[-2] = vtop[-3];
-        vtop[-3] = tmp;
-        vswap();
-        if (op == '*') {
-            vpushv(vtop - 1);
-            vpushv(vtop - 1);
-            gen_op(0xc2);
-            lexpand();
-            for(i=0;i<4;i++)
-                vrotb(6);
-            tmp = vtop[0];
-            vtop[0] = vtop[-2];
-            vtop[-2] = tmp;
-            gen_op('*');
-            vrotb(3);
-            vrotb(3);
-            gen_op('*');
-            gen_op('+');
-            gen_op('+');
-        } else if (op == '+' || op == '-') {
-            if (op == '+')
-                op1 = 0xc3;
-            else
-                op1 = 0xc5;
-            gen_op(op1);
-            vrotb(3);
-            vrotb(3);
-            gen_op(op1 + 1);
-        } else {
-            gen_op(op);
-            vrotb(3);
-            vrotb(3);
-            gen_op(op);
-        }
-        lbuild(t);
-        break;
-    case 0x02:
-    case 0xc9:
-    case 0x01:
-        if ((vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030) {
-            t = vtop[-1].type.t;
-            vswap();
-            lexpand();
-            vrotb(3);
-            c = (int)vtop->c.i;
-            vpop();
-            if (op != 0x01)
-                vswap();
-            if (c >= 32) {
-                vpop();
-                if (c > 32) {
-                    vpushi(c - 32);
-                    gen_op(op);
-                }
-                if (op != 0x02) {
-                    vpushi(0);
-                } else {
-                    gv_dup();
-                    vpushi(31);
-                    gen_op(0x02);
-                }
-                vswap();
-            } else {
-                vswap();
-                gv_dup();
-                vpushi(c);
-                gen_op(op);
-                vswap();
-                vpushi(32 - c);
-                if (op == 0x01)
-                    gen_op(0xc9);
-                else
-                    gen_op(0x01);
-                vrotb(3);
-                vpushi(c);
-                if (op == 0x01)
-                    gen_op(0x01);
-                else
-                    gen_op(0xc9);
-                gen_op('|');
-            }
-            if (op != 0x01)
-                vswap();
-            lbuild(t);
-        } else {
-            switch(op) {
-            case 0x02:
-                func = TOK___ashrdi3;
-                goto gen_func;
-            case 0xc9:
-                func = TOK___lshrdi3;
-                goto gen_func;
-            case 0x01:
-                func = TOK___ashldi3;
-                goto gen_func;
-            }
-        }
-        break;
-    default:
-        t = vtop->type.t;
-        vswap();
-        lexpand();
-        vrotb(3);
-        lexpand();
-        tmp = vtop[-1];
-        vtop[-1] = vtop[-2];
-        vtop[-2] = tmp;
-        op1 = op;
-        if (op1 == 0x9c)
-            op1 = 0x9e;
-        else if (op1 == 0x9f)
-            op1 = 0x9d;
-        else if (op1 == 0x92)
-            op1 = 0x96;
-        else if (op1 == 0x97)
-            op1 = 0x93;
-        a = 0;
-        b = 0;
-        gen_op(op1);
-        if (op == 0x95) {
-            b = gvtst(0, 0);
-        } else {
-            a = gvtst(1, 0);
-            if (op != 0x94) {
-                vpushi(0x95);
-                vtop->r = 0x0033;
-                b = gvtst(0, 0);
-            }
-        }
-        op1 = op;
-        if (op1 == 0x9c)
-            op1 = 0x92;
-        else if (op1 == 0x9e)
-            op1 = 0x96;
-        else if (op1 == 0x9f)
-            op1 = 0x97;
-        else if (op1 == 0x9d)
-            op1 = 0x93;
-        gen_op(op1);
-        a = gvtst(1, a);
-        gsym(b);
-        vseti(0x0035, a);
-        break;
-    }
+    unsigned int x = (a >> 31 ? -a : a) / (b >> 31 ? -b : b);
+    return (a ^ b) >> 31 ? -x : x;
 }
-static uint64_t gen_opic_sdiv(uint64_t a, uint64_t b)
+static int gen_opic_lt(unsigned int a, unsigned int b)
 {
-    uint64_t x = (a >> 63 ? -a : a) / (b >> 63 ? -b : b);
-    return (a ^ b) >> 63 ? -x : x;
-}
-static int gen_opic_lt(uint64_t a, uint64_t b)
-{
-    return (a ^ (uint64_t)1 << 63) < (b ^ (uint64_t)1 << 63);
+    return (a ^ (unsigned int)1 << 31) < (b ^ (unsigned int)1 << 31);
 }
 static void gen_opic(int op)
 {
@@ -2843,9 +2505,9 @@ static void gen_opic(int op)
     int t2 = v2->type.t & 0x000f;
     int c1 = (v1->r & (0x003f | 0x0100 | 0x0200)) == 0x0030;
     int c2 = (v2->r & (0x003f | 0x0100 | 0x0200)) == 0x0030;
-    uint64_t l1 = c1 ? v1->c.i : 0;
-    uint64_t l2 = c2 ? v2->c.i : 0;
-    int shm = (t1 == 4) ? 63 : 31;
+    unsigned int l1 = c1 ? v1->c.i : 0;
+    unsigned int l2 = c2 ? v2->c.i : 0;
+    int shm = 31;
     if (t1 != 4 && (4 != 8 || t1 != 5))
         l1 = ((uint32_t)l1 |
               (v1->type.t & 0x0010 ? 0 : -(l1 & 0x80000000)));
@@ -2880,7 +2542,7 @@ static void gen_opic(int op)
         case 0x01: l1 <<= (l2 & shm); break;
         case 0xc9: l1 >>= (l2 & shm); break;
         case 0x02:
-            l1 = (l1 >> 63) ? ~(~l1 >> (l2 & shm)) : l1 >> (l2 & shm);
+            l1 = (l1 >> 31) ? ~(~l1 >> (l2 & shm)) : l1 >> (l2 & shm);
             break;
         case 0x92: l1 = l1 < l2; break;
         case 0x93: l1 = l1 >= l2; break;
@@ -2960,11 +2622,7 @@ static void gen_opic(int op)
             vtop->c.i = l2;
         } else {
         general_case:
-                if (t1 == 4 || t2 == 4 ||
-                    (4 == 8 && (t1 == 5 || t2 == 5)))
-                    gen_opl(op);
-                else
-                    gen_opi(op);
+                gen_opi(op);
         }
     }
 }
@@ -2978,14 +2636,11 @@ static int is_null_pointer(SValue *p)
     if ((p->r & (0x003f | 0x0100 | 0x0200)) != 0x0030)
         return 0;
     return ((p->type.t & 0x000f) == 3 && (uint32_t)p->c.i == 0) ||
-        ((p->type.t & 0x000f) == 4 && p->c.i == 0) ||
-        ((p->type.t & 0x000f) == 5 &&
-         (4 == 4 ? (uint32_t)p->c.i == 0 : p->c.i == 0));
+        ((p->type.t & 0x000f) == 5 && (uint32_t)p->c.i == 0);
 }
 static int is_integer_btype(int bt)
 {
-    return (bt == 1 || bt == 2 ||
-            bt == 3 || bt == 4);
+    return (bt == 1 || bt == 2 || bt == 3);
 }
 static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
 {
@@ -3069,8 +2724,6 @@ redo:
                 vswap();
                 t = t1, t1 = t2, t2 = t;
             }
-            if ((vtop[0].type.t & 0x000f) == 4)
-                gen_cast_s(3);
             type1 = vtop[-1].type;
             type1.t &= ~0x0040;
             if (vtop[-1].type.t & 0x0400)
@@ -3086,20 +2739,10 @@ redo:
             vtop->type = type1;
         }
     } else if (op == 0xc9 || op == 0x02 || op == 0x01) {
-        t = bt1 == 4 ? 4 : 3;
+        t = 3;
         if ((t1 & (0x000f | 0x0010 | 0x0080)) == (t | 0x0010))
           t |= 0x0010;
         t |= (0x0800 & t1);
-        goto std_op;
-    } else if (bt1 == 4 || bt2 == 4) {
-        t = 4 | 0x0800;
-        if (bt1 == 4)
-            t &= t1;
-        if (bt2 == 4)
-            t &= t2;
-        if ((t1 & (0x000f | 0x0010 | 0x0080)) == (4 | 0x0010) ||
-            (t2 & (0x000f | 0x0010 | 0x0080)) == (4 | 0x0010))
-            t |= 0x0010;
         goto std_op;
     } else {
         t = 3 | (0x0800 & (t1 | t2));
@@ -3155,10 +2798,7 @@ static void force_charshort_cast(int t)
         vpushi((1 << bits) - 1);
         gen_op('&');
     } else {
-        if ((vtop->type.t & 0x000f) == 4)
-            bits = 64 - bits;
-        else
-            bits = 32 - bits;
+        bits = 32 - bits;
         vpushi(bits);
         gen_op(0x01);
         vtop->type.t &= ~0x0010;
@@ -3186,18 +2826,14 @@ static void gen_cast(CType *type)
         c = (vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030;
         p = (vtop->r & (0x003f | 0x0100 | 0x0200)) == (0x0030 | 0x0200);
         if (c) {
-            if (sbt == (4|0x0010))
-                ;
-            else if (sbt & 0x0010)
+            if (sbt & 0x0010)
                 vtop->c.i = (uint32_t)vtop->c.i;
-            else if (sbt != 4)
+            else
                 vtop->c.i = ((uint32_t)vtop->c.i |
                               -(vtop->c.i & 0x80000000));
-            if (dbt == (4|0x0010))
-                ;
-            else if (dbt == 11)
+            if (dbt == 11)
                 vtop->c.i = (vtop->c.i != 0);
-            else if (dbt != 4) {
+            else {
                 uint32_t m = ((dbt & 0x000f) == 1 ? 0xff :
                               (dbt & 0x000f) == 2 ? 0xffff :
                               0xffffffff);
@@ -3209,23 +2845,7 @@ static void gen_cast(CType *type)
             vtop->r = 0x0030;
             vtop->c.i = 1;
         } else {
-            if ((dbt & 0x000f) == 4) {
-                if ((sbt & 0x000f) != 4) {
-                    gv(0x0001);
-                    if (sbt == (3 | 0x0010)) {
-                        vpushi(0);
-                        gv(0x0001);
-                    } else {
-                        if (sbt == 5)
-                            gen_cast_s(3);
-                        gv_dup();
-                        vpushi(31);
-                        gen_op(0x02);
-                    }
-                    vtop[-1].r2 = vtop->r;
-                    vpop();
-                }
-            } else if (dbt == 11) {
+            if (dbt == 11) {
                 vpushi(0);
                 gen_op(0x95);
             } else if ((dbt & 0x000f) == 1 ||
@@ -3234,11 +2854,6 @@ static void gen_cast(CType *type)
                     vtop->type.t = 3;
                 }
                 force_charshort_cast(dbt);
-            } else if ((dbt & 0x000f) == 3) {
-                if ((sbt & 0x000f) == 4) {
-                    lexpand();
-                    vpop();
-                }
             }
         }
     } else if ((dbt & 0x000f) == 5 && !(vtop->r & 0x0100)) {
@@ -3270,9 +2885,6 @@ static int type_size(CType *type, int *a)
         }
     } else if (((type->t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20)) && type->ref->c == -1) {
         return -1;
-    } else if (bt == 4) {
-        *a = 4;
-        return 8;
     } else if (bt == 3) {
         *a = 4;
         return 4;
@@ -3379,7 +2991,7 @@ static void type_to_str(char *buf, int buf_size,
         pstrcat(buf, buf_size, "const ");
     if (((t & 0x0020) && bt == 1)
         || ((t & 0x0010)
-            && (bt == 2 || bt == 3 || bt == 4)
+            && (bt == 2 || bt == 3)
             && !((t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20))
             ))
         pstrcat(buf, buf_size, (t & 0x0010) ? "unsigned " : "signed ");
@@ -3401,8 +3013,6 @@ static void type_to_str(char *buf, int buf_size,
     case 3:
         tstr = "int";
         goto maybe_long;
-    case 4:
-        tstr = "long long";
     maybe_long:
         if (t & 0x0800)
             tstr = "long";
@@ -3566,22 +3176,7 @@ static void vstore(void)
                 load(t, &sv);
                 vtop[-1].r = t | 0x0100;
             }
-            if ((ft & 0x000f) == 4) {
-                int addr_type = 3, load_size = 4, load_type = 3;
-                vtop[-1].type.t = load_type;
-                store(r, vtop - 1);
-                vswap();
-                vtop->type.t = addr_type;
-                gaddrof();
-                vpushi(load_size);
-                gen_op('+');
-                vtop->r |= 0x0100;
-                vswap();
-                vtop[-1].type.t = load_type;
-                store(vtop->r2, vtop - 1);
-            } else {
-                store(r, vtop - 1);
-            }
+            store(r, vtop - 1);
         vswap();
         vtop--;
         vtop->r |= delayed_cast;
@@ -3719,7 +3314,7 @@ do_decl:
             tcc_error("struct/union/enum already defined");
         ps = &s->next;
         if (u == (2 << 20)) {
-            long long ll = 0, pl = 0, nl = 0;
+            int ll = 0, pl = 0, nl = 0;
 	    CType t;
             t.ref = s;
             t.t = 3|0x00002000|(3 << 20);
@@ -3734,7 +3329,7 @@ do_decl:
                 next();
                 if (tok == '=') {
                     next();
-		    ll = expr_const64();
+			    ll = expr_const();
                 }
                 ss = sym_push(v, &t, 0x0030, 0);
                 ss->enum_val = ll;
@@ -3890,13 +3485,8 @@ static int parse_btype(CType *type, AttributeDef *ad)
             u = 3;
             goto basic_type;
         case TOK_LONG:
-            if ((t & (0x000f|0x0800)) == 0x0800) {
-                t = (t & ~(0x000f|0x0800)) | 4;
-            } else {
-                u = 0x0800;
-                goto basic_type;
-            }
             next();
+            typespec_found = 1;
             break;
         case TOK_BOOL:
             u = 11;
@@ -4217,17 +3807,11 @@ static void unary(void)
     case 0xb6:
         t = 3 | 0x0010;
         goto push_tokc;
-    case 0xb7:
-        t = 4;
-	goto push_tokc;
-    case 0xb8:
-        t = 4 | 0x0010;
-	goto push_tokc;
     case 0xce:
-        t = (4 == 8 ? 4 : 3) | 0x0800;
+        t = 3 | 0x0800;
 	goto push_tokc;
     case 0xcf:
-        t = (4 == 8 ? 4 : 3) | 0x0800 | 0x0010;
+        t = 3 | 0x0800 | 0x0010;
 	goto push_tokc;
     case 0xb9:
         t = 1;
@@ -4413,8 +3997,6 @@ static void unary(void)
             if ((s->type.t & 0x000f) == 7)
                 tcc_error("struct return values are not supported in tcc_27_alt");
             ret.type = s->type;
-            if ((ret.type.t & 0x000f) == 4)
-                ret.r2 = TREG_EDX;
             ret.r = TREG_EAX;
             ret.c.i = 0;
             if (tok != ')') {
@@ -4658,16 +4240,7 @@ static void expr_cond(void)
             t2 = type2.t;
             bt2 = t2 & 0x000f;
             type.ref = ((void*)0);
-            if (bt1 == 4 || bt2 == 4) {
-                type.t = 4 | 0x0800;
-                if (bt1 == 4)
-                    type.t &= t1;
-                if (bt2 == 4)
-                    type.t &= t2;
-                if ((t1 & (0x000f | 0x0010 | 0x0080)) == (4 | 0x0010) ||
-                    (t2 & (0x000f | 0x0010 | 0x0080)) == (4 | 0x0010))
-                    type.t |= 0x0010;
-            } else if (bt1 == 5 || bt2 == 5) {
+            if (bt1 == 5 || bt2 == 5) {
 		if (is_null_pointer (vtop))
 		  type = type1;
 		else if (is_null_pointer (&sv))
@@ -4697,9 +4270,6 @@ static void expr_cond(void)
                     gaddrof();
             }
             rc = 0x0001;
-            if ((type.t & 0x000f) == 4) {
-                rc = 0x0004;
-            }
             tt = r2 = 0;
             if (c < 0) {
                 r2 = gv(rc);
@@ -4765,23 +4335,14 @@ static void expr_const1(void)
     nocode_wanted--;
     const_wanted--;
 }
-static int64_t expr_const64(void)
+static int expr_const(void)
 {
-    int64_t c;
+    int c;
     expr_const1();
     if ((vtop->r & (0x003f | 0x0100 | 0x0200)) != 0x0030)
         expect("constant expression");
     c = vtop->c.i;
     vpop();
-    return c;
-}
-static int expr_const(void)
-{
-    int c;
-    int64_t wc = expr_const64();
-    c = wc;
-    if (c != wc && (unsigned)c != wc)
-        tcc_error("constant exceeds 32 bit");
     return c;
 }
 static int is_label(void)
@@ -4809,30 +4370,23 @@ static void gfunc_return(CType *func_type)
 }
 static int case_cmp(const void *pa, const void *pb)
 {
-    int64_t a = (*(struct case_t**) pa)->v1;
-    int64_t b = (*(struct case_t**) pb)->v1;
+    int a = (*(struct case_t**) pa)->v1;
+    int b = (*(struct case_t**) pb)->v1;
     return a < b ? -1 : a > b;
 }
 static void gcase(struct case_t **base, int len, int *bsym)
 {
     struct case_t *p;
     int e;
-    int ll = (vtop->type.t & 0x000f) == 4;
     gv(0x0001);
     while (len > 4) {
         p = base[len/2];
         vdup();
-	if (ll)
-	    vpushll(p->v2);
-	else
-	    vpushi(p->v2);
+        vpushi(p->v2);
         gen_op(0x9e);
         e = gtst(1, 0);
         vdup();
-	if (ll)
-	    vpushll(p->v1);
-	else
-	    vpushi(p->v1);
+        vpushi(p->v1);
         gen_op(0x9d);
         gtst_addr(0, p->sym);
         gcase(base, len/2, bsym);
@@ -4847,10 +4401,7 @@ static void gcase(struct case_t **base, int len, int *bsym)
     while (len--) {
         p = *base++;
         vdup();
-	if (ll)
-	    vpushll(p->v2);
-	else
-	    vpushi(p->v2);
+        vpushi(p->v2);
         if (p->v1 == p->v2) {
             gen_op(0x94);
             gtst_addr(0, p->sym);
@@ -4858,10 +4409,7 @@ static void gcase(struct case_t **base, int len, int *bsym)
             gen_op(0x9e);
             e = gtst(1, 0);
             vdup();
-	    if (ll)
-	        vpushll(p->v1);
-	    else
-	        vpushi(p->v1);
+            vpushi(p->v1);
             gen_op(0x9d);
             gtst_addr(0, p->sym);
             gsym(e);
@@ -5035,8 +4583,6 @@ static void block(int *bsym, int *csym, int is_expr)
         for (b = 1; b < sw.n; b++)
             if (sw.p[b - 1]->v2 >= sw.p[b]->v1)
                 tcc_error("duplicate case value");
-        if ((switchval.type.t & 0x000f) == 4)
-            switchval.type.t &= ~0x0010;
         vpushv(&switchval);
         gcase(sw.p, sw.n, &a);
         vpop();
@@ -5052,7 +4598,7 @@ static void block(int *bsym, int *csym, int is_expr)
             expect("switch");
 	nocode_wanted &= ~0x20000000;
         next();
-        cr->v1 = cr->v2 = expr_const64();
+        cr->v1 = cr->v2 = expr_const();
         cr->sym = ind;
         dynarray_add(&cur_switch->p, &cur_switch->n, cr);
         skip(':');
@@ -5280,7 +4826,7 @@ static void init_putv(CType *type, Section *sec, unsigned long c)
 		*(short *)ptr |= vtop->c.i;
 		break;
 	    case 4:
-		*(long long *)ptr |= vtop->c.i;
+		*(int *)ptr |= vtop->c.i;
 		break;
 	    case 5:
 		{
@@ -6331,17 +5877,10 @@ static void put_dt(Section *dynamic, int dt, Elf32_Addr val)
     dyn->d_tag = dt;
     dyn->d_un.d_val = val;
 }
-static int tcc_add_support(TCCState *s1, const char *filename)
-{
-    char buf[1024];
-    snprintf(buf, sizeof(buf), "%s/%s", s1->tcc_lib_path, filename);
-    return tcc_add_file(s1, buf);
-}
 static void tcc_add_runtime(TCCState *s1)
 {
     if (!s1->nostdlib) {
         tcc_add_library_err(s1, "c");
-        tcc_add_support(s1, "libtcc1.o");
         tcc_add_crt(s1, "crtn.o");
     }
 }
@@ -6436,7 +5975,7 @@ static int layout_sections(TCCState *s1, Elf32_Phdr *phdr, int phnum,
 {
     int i, j, k, sh_order_index, file_offset;
     unsigned long s_align;
-    long long tmp;
+    int tmp;
     Elf32_Addr addr;
     Elf32_Phdr *ph;
     Section *s;
@@ -7243,12 +6782,7 @@ static void gfunc_call(int nb_args)
             tcc_error("struct arguments are not supported in tcc_27_alt");
         } else {
             r = gv(0x0001);
-            if ((vtop->type.t & 0x000f) == 4) {
-                size = 8;
-                o(0x50 + vtop->r2);
-            } else {
-                size = 4;
-            }
+            size = 4;
             o(0x50 + r);
             args_size += size;
         }
