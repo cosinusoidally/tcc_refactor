@@ -608,7 +608,6 @@ struct TCCState {
     char *rpath;
     int enable_new_dtags;
     int output_type;
-    int output_format;
     int char_is_unsigned;
     int leading_underscore;
     int ms_extensions;
@@ -10114,26 +10113,6 @@ static void resolve_common_syms(TCCState *s1)
     }
     tcc_add_linker_symbols(s1);
 }
-static void tcc_output_binary(TCCState *s1, FILE *f,
-                              const int *sec_order)
-{
-    Section *s;
-    int i, offset, size;
-    offset = 0;
-    for(i=1;i<s1->nb_sections;i++) {
-        s = s1->sections[sec_order[i]];
-        if (s->sh_type != 8 &&
-            (s->sh_flags & (1 << 1))) {
-            while (offset < s->sh_offset) {
-                fputc(0, f);
-                offset++;
-            }
-            size = s->sh_size;
-            fwrite(s->data, 1, size, f);
-            offset += size;
-        }
-    }
-}
 static void fill_got_entry(TCCState *s1, Elf32_Rel *rel)
 {
     int sym_index = ((rel->r_info) >> 8);
@@ -10325,9 +10304,7 @@ static int layout_sections(TCCState *s1, Elf32_Phdr *phdr, int phnum,
     Section *s;
     file_type = s1->output_type;
     sh_order_index = 1;
-    file_offset = 0;
-    if (s1->output_format == 0)
-        file_offset = sizeof(Elf32_Ehdr) + phnum * sizeof(Elf32_Phdr);
+    file_offset = sizeof(Elf32_Ehdr) + phnum * sizeof(Elf32_Phdr);
     s_align = 0x1000;
     if (s1->section_align)
         s_align = s1->section_align;
@@ -10419,13 +10396,8 @@ static int layout_sections(TCCState *s1, Elf32_Phdr *phdr, int phnum,
             ph->p_memsz = addr - ph->p_vaddr;
             ph++;
             if (j == 0) {
-                if (s1->output_format == 0) {
-                    if ((addr & (s_align - 1)) != 0)
-                        addr += s_align;
-                } else {
-                    addr = (addr + s_align - 1) & ~(s_align - 1);
-                    file_offset = (file_offset + s_align - 1) & ~(s_align - 1);
-                }
+                if ((addr & (s_align - 1)) != 0)
+                    addr += s_align;
             }
         }
     }
@@ -10599,21 +10571,12 @@ static void tcc_output_elf(TCCState *s1, FILE *f, int phnum, Elf32_Phdr *phdr,
 static int tcc_write_elf_file(TCCState *s1, const char *filename, int phnum,
                               Elf32_Phdr *phdr, int file_offset, int *sec_order)
 {
-    int fd, mode, file_type;
     FILE *f;
-    file_type = s1->output_type;
-    if (file_type == 4)
-        mode = 0666;
-    else
-        mode = 0777;
     unlink(filename);
     f = fopen(filename, "wb");
     if (s1->verbose)
         printf("<- %s\n", filename);
-    if (s1->output_format == 0)
-        tcc_output_elf(s1, f, phnum, phdr, file_offset, sec_order);
-    else
-        tcc_output_binary(s1, f, sec_order);
+    tcc_output_elf(s1, f, phnum, phdr, file_offset, sec_order);
     fclose(f);
     return 0;
 }
@@ -11990,15 +11953,11 @@ void relocate(TCCState *s1, Elf32_Rel *rel, int type, unsigned char *ptr, Elf32_
             add32le(ptr, s1->sym_attrs[sym_index].got_offset);
             return;
         case 20:
-            if (s1->output_format != 1) {
-            output_file:
-                tcc_error("can only produce 16-bit binary files");
-            }
+            tcc_error("16-bit binary output is not supported");
             write16le(ptr, read16le(ptr) + val);
             return;
         case 21:
-            if (s1->output_format != 1)
-                goto output_file;
+            tcc_error("16-bit binary output is not supported");
             write16le(ptr, read16le(ptr) + val - addr);
             return;
         case 8:
@@ -12366,8 +12325,6 @@ static void tcc_cleanup(void)
  int tcc_set_output_type(TCCState *s, int output_type)
 {
     s->output_type = output_type;
-    if (output_type == 4)
-        s->output_format = 0;
     if (s->char_is_unsigned)
         tcc_define_symbol(s, "__CHAR_UNSIGNED__", ((void*)0));
     tcc_add_library_path(s, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
@@ -12656,12 +12613,7 @@ static int tcc_set_linker(TCCState *s, const char *option)
             copy_linker_arg(&s->init_symbol, p, 0);
             ignoring = 1;
         } else if (link_option(option, "oformat=", &p)) {
-            if (strstart("elf32-", &p)) {
-                s->output_format = 0;
-            } else if (!strcmp(p, "binary")) {
-                s->output_format = 1;
-            } else
-                goto err;
+            goto err;
         } else if (link_option(option, "as-needed", &p)) {
             ignoring = 1;
         } else if (link_option(option, "O", &p)) {
@@ -13202,7 +13154,6 @@ static const char help2[] =
     "  -enable-new-dtags             set DT_RUNPATH instead of DT_RPATH\n"
     "  -soname=                      set DT_SONAME elf tag\n"
     "  -Bsymbolic                    set DT_SYMBOLIC elf tag\n"
-    "  -oformat=[elf32/64-* binary]  set executable output format\n"
     "  -init= -fini= -as-needed -O   (ignored)\n"
     "See also the manual for more details.\n"
     ;
