@@ -487,10 +487,6 @@ struct FuncAttr {
 typedef struct AttributeDef {
     struct SymAttr a;
     struct FuncAttr f;
-    struct Section *section;
-    int alias_target;
-    int asm_label;
-    char attr_mode;
 } AttributeDef;
 typedef struct Sym {
     int v;
@@ -1393,7 +1389,6 @@ static int type_size(CType *type, int *a);
 static void mk_pointer(CType *type);
 static void vstore(void);
 static void inc(int post, int c);
-static void parse_mult_str (CString *astr, const char *msg);
 static int lvalue_type(int t);
 static void indir(void);
 static void unary(void);
@@ -4402,8 +4397,6 @@ static void patch_storage(Sym *sym, AttributeDef *ad, CType *type)
     }
     if (ad->a.aligned)
         sym->a.aligned = ad->a.aligned;
-    if (ad->asm_label)
-        sym->asm_label = ad->asm_label;
     update_storage(sym);
 }
 static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
@@ -5882,190 +5875,12 @@ static void inc(int post, int c)
     if (post)
         vpop();
 }
-static void parse_mult_str (CString *astr, const char *msg)
-{
-    if (tok != 0xb9)
-        expect(msg);
-    cstr_new(astr);
-    while (tok == 0xb9) {
-        cstr_cat(astr, tokc.str.data, -1);
-        next();
-    }
-    cstr_ccat(astr, '\0');
-}
-static int exact_log2p1(int i)
-{
-  int ret;
-  if (!i)
-    return 0;
-  for (ret = 1; i >= 1 << 8; ret += 8)
-    i >>= 8;
-  if (i >= 1 << 4)
-    ret += 4, i >>= 4;
-  if (i >= 1 << 2)
-    ret += 2, i >>= 2;
-  if (i >= 1 << 1)
-    ret++;
-  return ret;
-}
 static void parse_attribute(AttributeDef *ad)
 {
-    int t, n;
-    CString astr;
-redo:
+    (void)ad;
     if (tok != TOK_ATTRIBUTE1 && tok != TOK_ATTRIBUTE2)
         return;
-    next();
-    skip('(');
-    skip('(');
-    while (tok != ')') {
-        if (tok < 256)
-            expect("attribute name");
-        t = tok;
-        next();
-        switch(t) {
-        case TOK_SECTION1:
-        case TOK_SECTION2:
-            skip('(');
-	    parse_mult_str(&astr, "section name");
-            ad->section = find_section(tcc_state, (char *)astr.data);
-            skip(')');
-	    cstr_free(&astr);
-            break;
-        case TOK_ALIAS1:
-        case TOK_ALIAS2:
-            skip('(');
-	    parse_mult_str(&astr, "alias(\"target\")");
-            ad->alias_target =
-              tok_alloc((char*)astr.data, astr.size-1)->tok;
-            skip(')');
-	    cstr_free(&astr);
-            break;
-	case TOK_VISIBILITY1:
-	case TOK_VISIBILITY2:
-            skip('(');
-	    parse_mult_str(&astr,
-			   "visibility(\"default|hidden|internal|protected\")");
-	    if (!strcmp (astr.data, "default"))
-	        ad->a.visibility = 0;
-	    else if (!strcmp (astr.data, "hidden"))
-	        ad->a.visibility = 2;
-	    else if (!strcmp (astr.data, "internal"))
-	        ad->a.visibility = 1;
-	    else if (!strcmp (astr.data, "protected"))
-	        ad->a.visibility = 3;
-	    else
-                expect("visibility(\"default|hidden|internal|protected\")");
-            skip(')');
-	    cstr_free(&astr);
-            break;
-        case TOK_ALIGNED1:
-        case TOK_ALIGNED2:
-            if (tok == '(') {
-                next();
-                n = expr_const();
-                if (n <= 0 || (n & (n - 1)) != 0)
-                    tcc_error("alignment must be a positive power of two");
-                skip(')');
-            } else {
-                n = 8;
-            }
-            ad->a.aligned = exact_log2p1(n);
-	    if (n != 1 << (ad->a.aligned - 1))
-	      tcc_error("alignment of %d is larger than implemented", n);
-            break;
-        case TOK_PACKED1:
-        case TOK_PACKED2:
-            ad->a.packed = 1;
-            break;
-        case TOK_WEAK1:
-        case TOK_WEAK2:
-            ad->a.weak = 1;
-            break;
-        case TOK_UNUSED1:
-        case TOK_UNUSED2:
-            break;
-        case TOK_NORETURN1:
-        case TOK_NORETURN2:
-            break;
-        case TOK_CDECL1:
-        case TOK_CDECL2:
-        case TOK_CDECL3:
-            ad->f.func_call = 0;
-            break;
-        case TOK_STDCALL1:
-        case TOK_STDCALL2:
-        case TOK_STDCALL3:
-            ad->f.func_call = 1;
-            break;
-        case TOK_REGPARM1:
-        case TOK_REGPARM2:
-            skip('(');
-            n = expr_const();
-            if (n > 3)
-                n = 3;
-            else if (n < 0)
-                n = 0;
-            if (n > 0)
-                ad->f.func_call = 2 + n - 1;
-            skip(')');
-            break;
-        case TOK_FASTCALL1:
-        case TOK_FASTCALL2:
-        case TOK_FASTCALL3:
-            ad->f.func_call = 5;
-            break;
-        case TOK_MODE:
-            skip('(');
-            switch(tok) {
-                case TOK_MODE_DI:
-                    ad->attr_mode = 4 + 1;
-                    break;
-                case TOK_MODE_QI:
-                    ad->attr_mode = 1 + 1;
-                    break;
-                case TOK_MODE_HI:
-                    ad->attr_mode = 2 + 1;
-                    break;
-                case TOK_MODE_SI:
-                case TOK_MODE_word:
-                    ad->attr_mode = 3 + 1;
-                    break;
-                default:
-                    tcc_warning("__mode__(%s) not supported\n", get_tok_str(tok, ((void*)0)));
-                    break;
-            }
-            next();
-            skip(')');
-            break;
-        case TOK_DLLEXPORT:
-            ad->a.dllexport = 1;
-            break;
-        case TOK_DLLIMPORT:
-            ad->a.dllimport = 1;
-            break;
-        default:
-            if (tcc_state->warn_unsupported)
-                tcc_warning("'%s' attribute ignored", get_tok_str(t, ((void*)0)));
-            if (tok == '(') {
-                int parenthesis = 0;
-                do {
-                    if (tok == '(')
-                        parenthesis++;
-                    else if (tok == ')')
-                        parenthesis--;
-                    next();
-                } while (parenthesis && tok != -1);
-            }
-            break;
-        }
-        if (tok != ',')
-            break;
-        next();
-    }
-    skip(')');
-    skip(')');
-    goto redo;
+    tcc_error("attributes are not supported in tcc_27_alt");
 }
 static Sym * find_field (CType *type, int v)
 {
@@ -6486,10 +6301,6 @@ static int parse_btype(CType *type, AttributeDef *ad)
         case TOK_ATTRIBUTE1:
         case TOK_ATTRIBUTE2:
             parse_attribute(ad);
-            if (ad->attr_mode) {
-                u = ad->attr_mode -1;
-                t = (t & ~(0x000f|0x0800)) | u;
-            }
             break;
         case TOK_TYPEOF1:
         case TOK_TYPEOF2:
@@ -8585,13 +8396,10 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
                     goto no_alloc;
             }
         }
-        sec = ad->section;
-        if (!sec) {
-            if (has_init)
-                sec = data_section;
-            else if (tcc_state->nocommon)
-                sec = bss_section;
-        }
+        if (has_init)
+            sec = data_section;
+        else if (tcc_state->nocommon)
+            sec = bss_section;
         if (sec) {
 	    addr = section_add(sec, size, align);
         } else {
@@ -8784,9 +8592,7 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
                     dynarray_add(&tcc_state->inline_fns,
 				 &tcc_state->nb_inline_fns, fn);
                 } else {
-                    cur_text_section = ad.section;
-                    if (!cur_text_section)
-                        cur_text_section = text_section;
+                    cur_text_section = text_section;
                     gen_function(sym);
                 }
                 break;
@@ -8835,16 +8641,6 @@ found:
                          !has_init && l == 0x0030 && type.ref->c < 0)) {
                         type.t |= 0x00001000;
                         sym = external_sym(v, &type, r, &ad);
-                        if (ad.alias_target) {
-                            Elf32_Sym *esym;
-                            Sym *alias_target;
-                            alias_target = sym_find(ad.alias_target);
-                            esym = elfsym(alias_target);
-                            if (!esym)
-                                tcc_error("unsupported forward __alias__ attribute");
-                            sym->sym_scope = 0;
-                            put_extern_sym2(sym, esym->st_shndx, esym->st_value, esym->st_size, 0);
-                        }
                     } else {
                         if (type.t & 0x00002000)
                             r |= 0x0030;

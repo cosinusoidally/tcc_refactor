@@ -22,6 +22,9 @@ Variable length arrays are also outside the subset; array bounds must be
 compile-time constants.
 Bit-fields are outside the subset as well. The compiler source itself uses
 plain integer fields so the self-host input stays in the smaller dialect.
+GNU/MS declaration attributes are rejected; this removes section, alias,
+visibility, packed/aligned, and non-cdecl calling-convention syntax from the
+front end.
 
 ## Build
 
