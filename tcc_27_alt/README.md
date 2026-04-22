@@ -30,6 +30,8 @@ outside the supported subset.
 The compiler source has been ported away from `inline`, and the reduced
 frontend treats `inline` spellings as ordinary identifiers rather than storage
 specifiers.
+Wide string/character literals and floating-point types/constants are outside
+the subset. Ordinary byte strings and character constants remain supported.
 
 ## Build
 
