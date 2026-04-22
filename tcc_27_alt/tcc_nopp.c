@@ -354,9 +354,6 @@ enum tcc_token {
      ,TOK_DEFAULT
      ,TOK_ENUM
      ,TOK_SIZEOF
-     ,TOK_ASM1
-     ,TOK_ASM2
-     ,TOK_ASM3
      ,TOK_DEFINE
      ,TOK_INCLUDE
      ,TOK_INCLUDE_NEXT
@@ -659,9 +656,6 @@ static const char tcc_keywords[] =
      "default" "\0"
      "enum" "\0"
      "sizeof" "\0"
-     "asm" "\0"
-     "__asm" "\0"
-     "__asm__" "\0"
      "define" "\0"
      "include" "\0"
      "include_next" "\0"
