@@ -287,7 +287,6 @@ struct TCCState {
     int nostdlib;
     char *tcc_lib_path;
     int output_type;
-    int warn_implicit_function_declaration;
     int seg_size;
     DLLReference **loaded_dlls;
     int nb_loaded_dlls;
@@ -407,7 +406,6 @@ static char *pstrcat(char *buf, int buf_size, const char *s);
  void tcc_memcheck(void);
  void tcc_error_noabort(const char *fmt, ...);
   void tcc_error(const char *fmt, ...);
- void tcc_warning(const char *fmt, ...);
 static void dynarray_add(void *ptab, int *nb_ptr, void *data);
 static void dynarray_reset(void *pp, int *n);
 static void cstr_ccat(CString *cstr, int ch);
@@ -1294,7 +1292,6 @@ static void label_pop(Sym **ptop, Sym *slast, int keep)
     for(s = *ptop; s != slast; s = s1) {
         s1 = s->prev;
         if (s->r == 2) {
-            tcc_warning("label '%s' declared but not used", get_tok_str(s->v, ((void*)0)));
         } else if (s->r == 1) {
                 tcc_error("label '%s' used but not defined",
                       get_tok_str(s->v, ((void*)0)));
@@ -1392,10 +1389,6 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf)
                 break;
             default:
             invalid_escape:
-                if (c >= '!' && c <= '~')
-                    tcc_warning("unknown escape sequence: \'\\%c\'", c);
-                else
-                    tcc_warning("unknown escape sequence: \'\\x%x\'", c);
                 break;
             }
         }
@@ -1425,8 +1418,6 @@ static void parse_string(const char *s, int len)
         n = tokcstr.size - 1;
         if (n < 1)
             tcc_error("empty character constant");
-        if (n > 1)
-            tcc_warning("multi-character character constant");
         for (c = i = 0; i < n; ++i) {
             c = (c << 8) | ((char *)tokcstr.data)[i];
         }
@@ -1483,7 +1474,7 @@ static void parse_number(const char *p)
         tcc_error("floating-point constants are not supported in tcc_27_alt");
     } else {
         unsigned long long n, n1;
-        int lcount, ucount, ov = 0;
+        int lcount, ucount;
         const char *p1;
         *q = '\0';
         q = token_buf;
@@ -1507,7 +1498,7 @@ static void parse_number(const char *p)
             n1 = n;
             n = n * b + t;
             if (n1 >= 0x1000000000000000ULL && n / b != n1)
-                ov = 1;
+                ;
         }
         lcount = ucount = 0;
         p1 = p;
@@ -1535,7 +1526,7 @@ static void parse_number(const char *p)
                     lcount = (4 == 4) + 1;
             }
             if (n >= 0x8000000000000000ULL)
-                ov = 1, ucount = 1;
+                ucount = 1;
         } else {
             if (lcount <= (4 == 4)) {
                 if (n >= 0x100000000ULL)
@@ -1546,8 +1537,6 @@ static void parse_number(const char *p)
             if (n >= 0x8000000000000000ULL)
                 ucount = 1;
         }
-        if (ov)
-            tcc_warning("integer constant overflow");
         tok = 0xb5;
 	if (lcount) {
             tok = 0xce;
@@ -2383,9 +2372,6 @@ static void patch_type(Sym *sym, CType *type)
                   get_tok_str(sym->v, ((void*)0)));
     } else if ((sym->type.t & 0x000f) == 6) {
         int static_proto = sym->type.t & 0x00002000;
-        if ((type->t & 0x00002000) && !static_proto)
-            tcc_warning("static storage ignored for redefinition of '%s'",
-                get_tok_str(sym->v, ((void*)0)));
         if (0 == (type->t & 0x00001000)) {
             sym->type.t = (type->t & ~0x00002000) | static_proto;
             sym->type.ref = type->ref;
@@ -2397,9 +2383,6 @@ static void patch_type(Sym *sym, CType *type)
             else if (sym->type.ref->c != type->ref->c)
                 tcc_error("conflicting type for '%s'", get_tok_str(sym->v, ((void*)0)));
         }
-        if ((type->t ^ sym->type.t) & 0x00002000)
-            tcc_warning("storage mismatch for redefinition of '%s'",
-                get_tok_str(sym->v, ((void*)0)));
     }
 }
 static void patch_storage(Sym *sym, AttributeDef *ad, CType *type)
@@ -3063,7 +3046,6 @@ static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
     bt2 = type2->t & 0x000f;
     if ((is_integer_btype(bt1) || is_integer_btype(bt2)) && op != '-') {
         if (op != 0xa1 && op != 0xa0 )
-            tcc_warning("comparison between pointer and integer");
         return;
     }
     if (bt1 == 5) {
@@ -3083,12 +3065,8 @@ static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
     tmp_type2 = *type2;
     tmp_type1.t &= ~(0x0020 | 0x0010 | 0x0100 | 0x0200);
     tmp_type2.t &= ~(0x0020 | 0x0010 | 0x0100 | 0x0200);
-    if (!is_compatible_types(&tmp_type1, &tmp_type2)) {
-        if (op == '-')
-            goto invalid_operands;
-        else
-            tcc_warning("comparison of distinct pointer types lacks a cast");
-    }
+    if (!is_compatible_types(&tmp_type1, &tmp_type2) && op == '-')
+        goto invalid_operands;
 }
 static void gen_op(int op)
 {
@@ -3301,7 +3279,6 @@ static void gen_cast(CType *type)
                        (dbt & 0x000f) == 2) {
                 if (sbt == 5) {
                     vtop->type.t = 3;
-                    tcc_warning("nonportable conversion from pointer to char/short");
                 }
                 force_charshort_cast(dbt);
             } else if ((dbt & 0x000f) == 3) {
@@ -3546,21 +3523,15 @@ static void gen_assign_cast(CType *dt)
 	else
     	    tcc_error("cannot cast from/to void");
     }
-    if (dt->t & 0x0100)
-        tcc_warning("assignment of read-only location");
     switch(dbt) {
     case 5:
         if (is_null_pointer(vtop))
             goto type_ok;
         if (is_integer_btype(sbt)) {
-            tcc_warning("assignment makes pointer from integer without a cast");
             goto type_ok;
         }
         type1 = pointed_type(dt);
         if (sbt == 6) {
-            if ((type1->t & 0x000f) != 0 &&
-                !is_compatible_types(pointed_type(dt), st))
-                tcc_warning("assignment from incompatible pointer type");
             goto type_ok;
         }
         if (sbt != 5)
@@ -3573,20 +3544,15 @@ static void gen_assign_cast(CType *dt)
 		if ((type1->t & (0x000f|0x0800)) != (type2->t & (0x000f|0x0800))
                     || ((type1->t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20)) || ((type2->t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20))
                     )
-		    tcc_warning("assignment from incompatible pointer type");
-	    }
-        }
-        if ((!(type1->t & 0x0100) && (type2->t & 0x0100)) ||
-            (!(type1->t & 0x0200) && (type2->t & 0x0200)))
-            tcc_warning("assignment discards qualifiers from pointer target type");
+                ;
+		    }
+	        }
         break;
     case 1:
     case 2:
     case 3:
     case 4:
-        if (sbt == 5 || sbt == 6) {
-            tcc_warning("assignment makes integer from pointer without a cast");
-        } else if (sbt == 7) {
+        if (sbt == 7) {
             goto case_VT_STRUCT;
         }
         break;
@@ -3614,8 +3580,6 @@ static void vstore(void)
 	&& !(vtop->type.t & 0x0080)) {
         delayed_cast = 0x0400;
         vtop->type.t = ft & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
-        if (ft & 0x0100)
-            tcc_warning("assignment of read-only location");
     } else {
         delayed_cast = 0;
         if (!(ft & 0x0080))
@@ -4431,9 +4395,6 @@ static void unary(void)
             const char *name = get_tok_str(t, ((void*)0));
             if (tok != '(')
                 tcc_error("'%s' undeclared", name);
-            if (tcc_state->warn_implicit_function_declaration
-            )
-                tcc_warning("implicit declaration of function '%s'", name);
             s = external_global_sym(t, &func_old_type, 0);
         }
         r = s->r;
@@ -5175,7 +5136,7 @@ static void block(int *bsym, int *csym, int is_expr)
             next();
             cr->v2 = expr_const64();
             if (cr->v2 < cr->v1)
-                tcc_warning("empty case range");
+                ;
         }
         cr->sym = ind;
         dynarray_add(&cur_switch->p, &cur_switch->n, cr);
@@ -5231,9 +5192,7 @@ static void block(int *bsym, int *csym, int is_expr)
             s->jnext = ind;
         block_after_label:
 	    nocode_wanted &= ~0x20000000;
-            if (tok == '}') {
-                tcc_warning("deprecated use of label at end of compound statement");
-            } else {
+            if (tok != '}') {
                 if (is_expr)
                     vpop();
                 block(bsym, csym, is_expr);
@@ -5480,8 +5439,6 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
                 if (n >= 0 && nb > (n - len))
                     nb = n - len;
                 if (!size_only) {
-                    if (cstr_len > nb)
-                        tcc_warning("initializer-string for array is too long");
                     if (sec && size1 == 1) {
                         if (!(nocode_wanted > 0))
                             memcpy(sec->data + c + len, tokc.str.data, nb);
@@ -5724,13 +5681,10 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
             }
         }
         if (tok == ';') {
-	    if ((btype.t & 0x000f) == 7) {
-		int v = btype.ref->v;
-		if (!(v & 0x20000000) && (v & ~0x40000000) >= 0x10000000)
-        	    tcc_warning("unnamed struct/union that defines no instances");
+		    if ((btype.t & 0x000f) == 7) {
                 next();
-                continue;
-	    }
+	                continue;
+		    }
             if (((btype.t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20))) {
                 next();
                 continue;
@@ -7969,14 +7923,6 @@ static void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
         exit(1);
     }
 }
- void tcc_warning(const char *fmt, ...)
-{
-    TCCState *s1 = tcc_state;
-    va_list ap;
-    ap = ((char *)&(fmt)) + ((sizeof(fmt)+3)&~3);
-    error1(s1, 1, fmt, ap);
-    ;
-}
 static void tcc_open_bf(TCCState *s1, const char *filename, int initlen)
 {
     BufferedFile *bf;
@@ -8051,7 +7997,6 @@ static void tcc_cleanup(void)
         return ((void*)0);
     tcc_state = s;
     ++nb_states;
-    s->warn_implicit_function_declaration = 1;
     s->seg_size = 32;
     tcc_set_lib_path(s, "/usr/local/lib/tcc");
     tccelf_new(s);
@@ -8243,7 +8188,7 @@ static const char *take_arg(int argc, char **argv, int *optind,
         } else if (!strcmp(r, "-m64")) {
             tcc_error("tcc_27_alt only supports i386");
         } else {
-            tcc_warning("unsupported option '%s'", r);
+            tcc_error("unsupported option '%s'", r);
         }
     }
     *pargc = argc;
