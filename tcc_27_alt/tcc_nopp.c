@@ -171,7 +171,6 @@ typedef union CValue {
 typedef struct SValue {
     CType type;
     unsigned short r;
-    unsigned short r2;
     CValue c;
     struct Sym *sym;
 } SValue;
@@ -2128,7 +2127,6 @@ static void vsetc(CType *type, int r, CValue *vc)
     vtop++;
     vtop->type = *type;
     vtop->r = r;
-    vtop->r2 = 0x0030;
     vtop->c = *vc;
     vtop->sym = ((void*)0);
 }
@@ -2347,7 +2345,6 @@ static void save_reg_upstack(int r, int n)
             } else {
                 p->r = lvalue_type(p->type.t) | 0x0032;
             }
-            p->r2 = 0x0030;
             p->c.i = l;
         }
     }
@@ -2361,8 +2358,7 @@ static int get_reg(int rc)
             if (nocode_wanted)
                 return r;
             for(p=(__vstack + 1);p<=vtop;p++) {
-                if ((p->r & 0x003f) == r ||
-                    (p->r2 & 0x003f) == r)
+                if ((p->r & 0x003f) == r)
                     goto notfound;
             }
             return r;
@@ -2370,12 +2366,8 @@ static int get_reg(int rc)
     notfound: ;
     }
     for(p=(__vstack + 1);p<=vtop;p++) {
-        r = p->r2 & 0x003f;
-        if (r < 0x0030 && (reg_classes[r] & rc))
-            goto save_found;
         r = p->r & 0x003f;
         if (r < 0x0030 && (reg_classes[r] & rc)) {
-        save_found:
             save_reg(r);
             return r;
         }
@@ -3984,7 +3976,6 @@ static void unary(void)
             next();
             sa = s->next;
             nb_args = 0;
-            ret.r2 = 0x0030;
             if ((s->type.t & 0x000f) == 7)
                 tcc_error("struct return values are not supported in tcc_27_alt");
             ret.type = s->type;
@@ -4007,7 +3998,6 @@ static void unary(void)
             skip(')');
             gfunc_call(nb_args);
             vsetc(&ret.type, ret.r, &ret.c);
-            vtop->r2 = ret.r2;
         } else {
             break;
         }
@@ -7003,7 +6993,6 @@ static void gen_opi(int op)
         if (op == 0xc2) {
             o(0xf7);
             o(0xe0 + fr);
-            vtop->r2 = TREG_EDX;
             r = TREG_EAX;
         } else {
             if (op == 0xb0 || op == 0xb1) {
