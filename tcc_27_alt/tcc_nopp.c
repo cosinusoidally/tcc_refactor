@@ -327,7 +327,6 @@ struct TCCState {
     int nb_libraries;
     int filetype;
     char *outfile;
-    int option_r;
     int argc;
     char **argv;
 };
@@ -8398,9 +8397,6 @@ static const char *take_arg(int argc, char **argv, int *optind,
         }
         if (!strcmp(r, "-c")) {
             s->output_type = 4;
-        } else if (!strcmp(r, "-r")) {
-            s->option_r = 1;
-            s->output_type = 4;
         } else if (!strcmp(r, "-nostdlib")) {
             s->nostdlib = 1;
         } else if (!strcmp(r, "-nostdinc")) {
@@ -8463,7 +8459,6 @@ static const char help[] =
     "Linker options:\n"
     "  -Ldir       add library path 'dir'\n"
     "  -llib       link with dynamic or static library 'lib'\n"
-    "  -r          generate (relocatable) object file\n"
     "Misc. options:\n"
     "  -x c|n      specify type of the next infile\n"
     "  -nostdlib   do not link with standard crt and libraries\n"
@@ -8492,7 +8487,7 @@ static char *default_outputfile(TCCState *s, const char *first_file)
         name = tcc_basename(first_file);
     snprintf(buf, sizeof(buf), "%s", name);
     ext = tcc_fileextension(buf);
-    if (s->output_type == 4 && !s->option_r && *ext)
+    if (s->output_type == 4 && *ext)
         strcpy(ext, ".o");
     else
         strcpy(buf, "a.out");
@@ -8518,7 +8513,7 @@ redo:
         n = s->nb_files;
         if (n == 0)
             tcc_error("no input files\n");
-        if (s->output_type == 4 && !s->option_r) {
+        if (s->output_type == 4) {
             if (s->nb_libraries)
                 tcc_error("cannot specify libraries with -c");
             if (n > 1 && s->outfile)
@@ -8545,7 +8540,7 @@ redo:
         }
         s->filetype = 0;
         if (--n == 0 || ret
-            || (s->output_type == 4 && !s->option_r))
+            || s->output_type == 4)
             break;
     }
     if (0 == ret) {
