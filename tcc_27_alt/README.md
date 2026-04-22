@@ -3,8 +3,12 @@
 `tcc_27_alt` is a cut-down TinyCC 0.9.27 tree for one target only:
 i386 Linux ELF. The self-hosting compiler input is a flattened C source that
 does not contain `#include`, `#define`, or conditional preprocessing
-directives. The tree still keeps the historical preprocessor source for now so
-the flattened source can be regenerated while the code is reduced further.
+directives.
+
+The goal is still to keep this a generally useful compiler for a small,
+explicit C subset. It is intended as the base for a heavily refactored TCC,
+not only as a bootstrap stunt. Removed features should be ones outside that
+subset or outside the i386/Linux/ELF scope.
 
 Removed from this tree: non-i386 backends, PE/COFF output, Windows support,
 ARM/AArch64/C67/x86_64 generators, examples, generated manuals, configure
@@ -12,6 +16,8 @@ machinery, and broad upstream test suites that are not relevant to this slice.
 Bounds checking/backtrace support and the in-memory `-run` engine are disabled;
 tests execute generated i386 ELF files through `scripts/run-i386.sh` instead.
 Assembler input and inline assembler are not supported in this reduced tree.
+The assembler parser has been stripped; assembly sources, inline `asm`, asm
+labels, and register variables are outside the supported subset.
 
 ## Build
 

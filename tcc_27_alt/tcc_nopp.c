@@ -1340,7 +1340,7 @@ static void preprocess(int is_bof);
 static void next_nomacro(void);
 static void next(void);
 static inline void unget_tok(int last_tok);
-static void preprocess_start(TCCState *s1, int is_asm);
+static void preprocess_start(TCCState *s1);
 static void preprocess_end(TCCState *s1);
 static void tccpp_new(TCCState *s);
 static void tccpp_delete(TCCState *s);
@@ -1415,7 +1415,6 @@ static void mk_pointer(CType *type);
 static void vstore(void);
 static void inc(int post, int c);
 static void parse_mult_str (CString *astr, const char *msg);
-static void parse_asm_str(CString *astr);
 static int lvalue_type(int t);
 static void indir(void);
 static void unary(void);
@@ -1528,10 +1527,6 @@ static void gen_le16(int c);
 static void gen_le32(int c);
 static void gen_addr32(int r, Sym *sym, int c);
 static void gen_addrpc32(int r, Sym *sym, int c);
-static void asm_instr(void);
-static void asm_global_instr(void);
-static int tcc_assemble(TCCState *s1, int do_preprocess);
-static int asm_parse_regvar(int t);
 static int gnu_ext = 1;
 static int tcc_ext = 1;
 static struct TCCState *tcc_state;
@@ -3837,7 +3832,7 @@ static inline void unget_tok(int last_tok)
     begin_macro(str, 1);
     tok = last_tok;
 }
-static void preprocess_start(TCCState *s1, int is_asm)
+static void preprocess_start(TCCState *s1)
 {
     s1->include_stack_ptr = s1->include_stack;
     s1->ifdef_stack_ptr = s1->ifdef_stack;
@@ -3847,8 +3842,8 @@ static void preprocess_start(TCCState *s1, int is_asm)
     s1->pack_stack[0] = 0;
     s1->pack_stack_ptr = s1->pack_stack;
     set_idnum('$', s1->dollars_in_identifiers ? 2 : 0);
-    set_idnum('.', is_asm ? 2 : 0);
-    parse_flags = is_asm ? 0x0008 : 0;
+    set_idnum('.', 0);
+    parse_flags = 0;
     tok_flags = 0x0001 | 0x0002;
 }
 static void preprocess_end(TCCState *s1)
@@ -6923,22 +6918,6 @@ static inline void convert_parameter_type(CType *pt)
         mk_pointer(pt);
     }
 }
-static void parse_asm_str(CString *astr)
-{
-    skip('(');
-    parse_mult_str(astr, "string constant");
-}
-static int asm_label_instr(void)
-{
-    int v;
-    CString astr;
-    next();
-    parse_asm_str(&astr);
-    skip(')');
-    v = tok_alloc(astr.data, astr.size - 1)->tok;
-    cstr_free(&astr);
-    return v;
-}
 static int post_type(CType *type, AttributeDef *ad, int storage, int td)
 {
     int n, l, t1, arg_size, align;
@@ -8519,7 +8498,7 @@ static void block(int *bsym, int *csym, int is_expr)
         }
         skip(';');
     } else if (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3) {
-        asm_instr();
+        tcc_error("inline assembler is not supported in tcc_27_alt");
     } else {
         b = is_label();
         if (b) {
@@ -9038,11 +9017,6 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
         loc = (loc - size) & -align;
         addr = loc;
         if (v) {
-	    if (ad->asm_label) {
-		int reg = asm_parse_regvar(ad->asm_label);
-		if (reg >= 0)
-		    r = (r & ~0x003f) | reg;
-	    }
             sym = sym_push(v, type, r, addr);
             sym->a = ad->a;
         } else {
@@ -9201,8 +9175,7 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
             if (l != 0x0030)
                 break;
             if (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3) {
-                asm_global_instr();
-                continue;
+                tcc_error("inline assembler is not supported in tcc_27_alt");
             }
             if (tok >= TOK_DEFINE) {
                 btype.t = 3;
@@ -9240,10 +9213,7 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
                     decl0(0x0033, 0, sym);
             }
             if (gnu_ext && (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3)) {
-                ad.asm_label = asm_label_instr();
-                parse_attribute(&ad);
-                if (tok == '{')
-                    expect(";");
+                tcc_error("asm labels are not supported in tcc_27_alt");
             }
             if (tok == '{') {
                 if (l != 0x0030)
@@ -12080,26 +12050,6 @@ void relocate(TCCState *s1, Elf32_Rel *rel, int type, unsigned char *ptr, Elf32_
             return;
     }
 }
-static int tcc_assemble(TCCState *s1, int do_preprocess)
-{
-    (void)s1;
-    (void)do_preprocess;
-    tcc_error("assembler input is not supported in tcc_27_alt");
-    return -1;
-}
-static void asm_instr(void)
-{
-    tcc_error("inline assembler is not supported in tcc_27_alt");
-}
-static void asm_global_instr(void)
-{
-    tcc_error("inline assembler is not supported in tcc_27_alt");
-}
-static int asm_parse_regvar(int t)
-{
-    (void)t;
-    return -1;
-}
 static char *pstrcpy(char *buf, int buf_size, const char *s)
 {
     char *q, *q_end;
@@ -12364,19 +12314,16 @@ static int tcc_open(TCCState *s1, const char *filename)
 }
 static int tcc_compile(TCCState *s1)
 {
-    int filetype, is_asm;
+    int filetype;
     filetype = s1->filetype;
-    is_asm = filetype == 2 || filetype == 3;
     tccelf_begin_file(s1);
     if (_setjmp (s1->error_jmp_buf) == 0) {
         s1->nb_errors = 0;
         s1->error_set_jmp_enabled = 1;
-        preprocess_start(s1, is_asm);
-        if (is_asm) {
-            tcc_assemble(s1, filetype == 3);
-        } else {
-            tccgen_compile(s1);
-        }
+        if (filetype == 2 || filetype == 3)
+            tcc_error("assembler input is not supported in tcc_27_alt");
+        preprocess_start(s1);
+        tccgen_compile(s1);
     }
     s1->error_set_jmp_enabled = 0;
     preprocess_end(s1);
@@ -13135,8 +13082,6 @@ reparse:
         case TCC_OPTION_x:
             if (*optarg == 'c')
                 s->filetype = 1;
-            else if (*optarg == 'a')
-                s->filetype = 3;
             else if (*optarg == 'n')
                 s->filetype = 0;
             else
