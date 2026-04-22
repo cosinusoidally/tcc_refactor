@@ -472,20 +472,17 @@ typedef struct SValue {
     struct Sym *sym;
 } SValue;
 struct SymAttr {
-    unsigned short
-    aligned     : 5,
-    packed      : 1,
-    weak        : 1,
-    visibility  : 2,
-    dllexport   : 1,
-    dllimport   : 1,
-    unused      : 5;
+    unsigned char aligned;
+    unsigned char packed;
+    unsigned char weak;
+    unsigned char visibility;
+    unsigned char dllexport;
+    unsigned char dllimport;
 };
 struct FuncAttr {
-    unsigned
-    func_call   : 3,
-    func_type   : 2,
-    func_args   : 8;
+    unsigned char func_call;
+    unsigned char func_type;
+    unsigned short func_args;
 };
 typedef struct AttributeDef {
     struct SymAttr a;
@@ -506,7 +503,6 @@ typedef struct Sym {
                 int sym_scope;
                 int jnext;
                 struct FuncAttr f;
-                int auxtype;
             };
         };
         long long enum_val;
@@ -604,7 +600,6 @@ struct TCCState {
     int leading_underscore;
     int ms_extensions;
     int dollars_in_identifiers;
-    int ms_bitfields;
     int warn_write_strings;
     int warn_unsupported;
     int warn_error;
@@ -4538,121 +4533,11 @@ static void gaddrof(void)
     if ((vtop->r & 0x003f) == 0x0031)
         vtop->r = (vtop->r & ~(0x003f | (0x1000 | 0x2000 | 0x4000))) | 0x0032 | 0x0100;
 }
-static void incr_bf_adr(int o)
-{
-    vtop->type = char_pointer_type;
-    gaddrof();
-    vpushi(o);
-    gen_op('+');
-    vtop->type.t = (vtop->type.t & ~(0x000f|0x0020))
-        | (1|0x0010);
-    vtop->r = (vtop->r & ~(0x1000 | 0x2000 | 0x4000))
-        | (0x1000|0x4000|0x0100);
-}
-static void load_packed_bf(CType *type, int bit_pos, int bit_size)
-{
-    int n, o, bits;
-    save_reg_upstack(vtop->r, 1);
-    vpush64(type->t & 0x000f, 0);
-    bits = 0, o = bit_pos >> 3, bit_pos &= 7;
-    do {
-        vswap();
-        incr_bf_adr(o);
-        vdup();
-        n = 8 - bit_pos;
-        if (n > bit_size)
-            n = bit_size;
-        if (bit_pos)
-            vpushi(bit_pos), gen_op(0xc9), bit_pos = 0;
-        if (n < 8)
-            vpushi((1 << n) - 1), gen_op('&');
-        gen_cast(type);
-        if (bits)
-            vpushi(bits), gen_op(0x01);
-        vrotb(3);
-        gen_op('|');
-        bits += n, bit_size -= n, o = 1;
-    } while (bit_size);
-    vswap(), vpop();
-    if (!(type->t & 0x0010)) {
-        n = ((type->t & 0x000f) == 4 ? 64 : 32) - bits;
-        vpushi(n), gen_op(0x01);
-        vpushi(n), gen_op(0x02);
-    }
-}
-static void store_packed_bf(int bit_pos, int bit_size)
-{
-    int bits, n, o, m, c;
-    c = (vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030;
-    vswap();
-    save_reg_upstack(vtop->r, 1);
-    bits = 0, o = bit_pos >> 3, bit_pos &= 7;
-    do {
-        incr_bf_adr(o);
-        vswap();
-        c ? vdup() : gv_dup();
-        vrott(3);
-        if (bits)
-            vpushi(bits), gen_op(0xc9);
-        if (bit_pos)
-            vpushi(bit_pos), gen_op(0x01);
-        n = 8 - bit_pos;
-        if (n > bit_size)
-            n = bit_size;
-        if (n < 8) {
-            m = ((1 << n) - 1) << bit_pos;
-            vpushi(m), gen_op('&');
-            vpushv(vtop-1);
-            vpushi(m & 0x80 ? ~m & 0x7f : ~m);
-            gen_op('&');
-            gen_op('|');
-        }
-        vdup(), vtop[-1] = vtop[-2];
-        vstore(), vpop();
-        bits += n, bit_size -= n, bit_pos = 0, o = 1;
-    } while (bit_size);
-    vpop(), vpop();
-}
-static int adjust_bf(SValue *sv, int bit_pos, int bit_size)
-{
-    int t;
-    if (0 == sv->type.ref)
-        return 0;
-    t = sv->type.ref->auxtype;
-    if (t != -1 && t != 7) {
-        sv->type.t = (sv->type.t & ~0x000f) | t;
-        sv->r = (sv->r & ~(0x1000 | 0x2000 | 0x4000)) | lvalue_type(sv->type.t);
-    }
-    return t;
-}
 static int gv(int rc)
 {
-    int r, bit_pos, bit_size, size, align, rc2;
+    int r, size, align, rc2;
     if (vtop->type.t & 0x0080) {
-        CType type;
-        bit_pos = (((vtop->type.t) >> 20) & 0x3f);
-        bit_size = (((vtop->type.t) >> (20 + 6)) & 0x3f);
-        vtop->type.t &= ~(((1 << (6+6)) - 1) << 20 | 0x0080);
-        type.ref = ((void*)0);
-        type.t = vtop->type.t & 0x0010;
-        if ((vtop->type.t & 0x000f) == 11)
-            type.t |= 0x0010;
-        r = adjust_bf(vtop, bit_pos, bit_size);
-        if ((vtop->type.t & 0x000f) == 4)
-            type.t |= 4;
-        else
-            type.t |= 3;
-        if (r == 7) {
-            load_packed_bf(&type, bit_pos, bit_size);
-        } else {
-            int bits = (type.t & 0x000f) == 4 ? 64 : 32;
-            gen_cast(&type);
-            vpushi(bits - (bit_pos + bit_size));
-            gen_op(0x01);
-            vpushi(bits - bit_size);
-            gen_op(0x02);
-        }
-        r = gv(rc);
+        tcc_error("bit-fields are not supported in tcc_27_alt");
     } else {
         if (is_float(vtop->type.t) &&
             (vtop->r & (0x003f | 0x0100)) == 0x0030) {
@@ -4797,10 +4682,6 @@ static void gv_dup(void)
     SValue sv;
     t = vtop->type.t;
     if ((t & 0x000f) == 4) {
-        if (t & 0x0080) {
-            gv(0x0001);
-            t = vtop->type.t;
-        }
         lexpand();
         gv_dup();
         vswap();
@@ -5497,9 +5378,6 @@ static void gen_cast(CType *type)
         vtop->r &= ~0x0400;
         force_charshort_cast(vtop->type.t);
     }
-    if (vtop->type.t & 0x0080) {
-        gv(0x0001);
-    }
     dbt = type->t & (0x000f | 0x0010);
     sbt = vtop->type.t & (0x000f | 0x0010);
     if (sbt != dbt) {
@@ -5921,7 +5799,7 @@ static void gen_assign_cast(CType *dt)
 }
 static void vstore(void)
 {
-    int sbt, dbt, ft, r, t, size, align, bit_size, bit_pos, rc, delayed_cast;
+    int sbt, dbt, ft, r, t, size, align, rc, delayed_cast;
     ft = vtop[-1].type.t;
     sbt = vtop->type.t & 0x000f;
     dbt = ft & 0x000f;
@@ -5950,41 +5828,7 @@ static void vstore(void)
             vpushi(size);
             gfunc_call(3);
     } else if (ft & 0x0080) {
-        vdup(), vtop[-1] = vtop[-2];
-        bit_pos = (((ft) >> 20) & 0x3f);
-        bit_size = (((ft) >> (20 + 6)) & 0x3f);
-        vtop[-1].type.t = ft & ~(((1 << (6+6)) - 1) << 20 | 0x0080);
-        if ((ft & 0x000f) == 11) {
-            gen_cast(&vtop[-1].type);
-            vtop[-1].type.t = (vtop[-1].type.t & ~0x000f) | (1 | 0x0010);
-        }
-        r = adjust_bf(vtop - 1, bit_pos, bit_size);
-        if (r == 7) {
-            gen_cast_s((ft & 0x000f) == 4 ? 4 : 3);
-            store_packed_bf(bit_pos, bit_size);
-        } else {
-            unsigned long long mask = (1ULL << bit_size) - 1;
-            if ((ft & 0x000f) != 11) {
-                if ((vtop[-1].type.t & 0x000f) == 4)
-                    vpushll(mask);
-                else
-                    vpushi((unsigned)mask);
-                gen_op('&');
-            }
-            vpushi(bit_pos);
-            gen_op(0x01);
-            vswap();
-            vdup();
-            vrott(3);
-            if ((vtop->type.t & 0x000f) == 4)
-                vpushll(~(mask << bit_pos));
-            else
-                vpushi(~((unsigned)mask << bit_pos));
-            gen_op('&');
-            gen_op('|');
-            vstore();
-            vpop();
-        }
+        tcc_error("bit-fields are not supported in tcc_27_alt");
     } else if (dbt == 0) {
         --vtop;
     } else {
@@ -6253,96 +6097,34 @@ static void struct_add_offset (Sym *s, int offset)
 }
 static void struct_layout(CType *type, AttributeDef *ad)
 {
-    int size, align, maxalign, offset, c, bit_pos, bit_size;
-    int packed, a, bt, prevbt, prev_bit_size;
-    int pcc = !tcc_state->ms_bitfields;
+    int size, align, maxalign, offset, c, a, bt;
     int pragma_pack = *tcc_state->pack_stack_ptr;
     Sym *f;
     maxalign = 1;
     offset = 0;
     c = 0;
-    bit_pos = 0;
-    prevbt = 7;
-    prev_bit_size = 0;
     for (f = type->ref->next; f; f = f->next) {
-        if (f->type.t & 0x0080)
-            bit_size = (((f->type.t) >> (20 + 6)) & 0x3f);
-        else
-            bit_size = -1;
         size = type_size(&f->type, &align);
         a = f->a.aligned ? 1 << (f->a.aligned - 1) : 0;
-        packed = 0;
-        if (pcc && bit_size == 0) {
-        } else {
-            if (pcc && (f->a.packed || ad->a.packed))
-                align = packed = 1;
-            if (pragma_pack) {
-                packed = 1;
-                if (pragma_pack < align)
-                    align = pragma_pack;
-                if (pcc && pragma_pack < a)
-                    a = 0;
-            }
+        if (f->a.packed || ad->a.packed)
+            align = 1;
+        if (pragma_pack) {
+            if (pragma_pack < align)
+                align = pragma_pack;
+            if (pragma_pack < a)
+                a = 0;
         }
         if (a)
             align = a;
         if (type->ref->type.t == (1 << 20 | 7)) {
-	    if (pcc && bit_size >= 0)
-	        size = (bit_size + 7) >> 3;
 	    offset = 0;
 	    if (size > c)
 	        c = size;
-	} else if (bit_size < 0) {
-            if (pcc)
-                c += (bit_pos + 7) >> 3;
+	} else {
 	    c = (c + align - 1) & -align;
 	    offset = c;
 	    if (size > 0)
 	        c += size;
-	    bit_pos = 0;
-	    prevbt = 7;
-	    prev_bit_size = 0;
-	} else {
-            if (pcc) {
-                if (bit_size == 0) {
-            new_field:
-		    c = (c + ((bit_pos + 7) >> 3) + align - 1) & -align;
-		    bit_pos = 0;
-                } else if (f->a.aligned) {
-                    goto new_field;
-                } else if (!packed) {
-                    int a8 = align * 8;
-	            int ofs = ((c * 8 + bit_pos) % a8 + bit_size + a8 - 1) / a8;
-                    if (ofs > size / align)
-                        goto new_field;
-                }
-                if (size == 8 && bit_size <= 32)
-                    f->type.t = (f->type.t & ~0x000f) | 3, size = 4;
-                while (bit_pos >= align * 8)
-                    c += align, bit_pos -= align * 8;
-                offset = c;
-		if (f->v & 0x10000000
-                    )
-		    align = 1;
-	    } else {
-		bt = f->type.t & 0x000f;
-		if ((bit_pos + bit_size > size * 8)
-                    || (bit_size > 0) == (bt != prevbt)
-                    ) {
-		    c = (c + align - 1) & -align;
-		    offset = c;
-		    bit_pos = 0;
-		    if (bit_size || prev_bit_size)
-		        c += size;
-		}
-		if (bit_size == 0 && prevbt != bt)
-		    align = 1;
-		prevbt = bt;
-                prev_bit_size = bit_size;
-	    }
-	    f->type.t = (f->type.t & ~(0x3f << 20))
-		        | (bit_pos << 20);
-	    bit_pos += bit_size;
 	}
 	if (align > maxalign)
 	    maxalign = align;
@@ -6370,69 +6152,21 @@ static void struct_layout(CType *type, AttributeDef *ad)
 	}
 	f->r = 0;
     }
-    if (pcc)
-        c += (bit_pos + 7) >> 3;
     a = bt = ad->a.aligned ? 1 << (ad->a.aligned - 1) : 1;
     if (a < maxalign)
         a = maxalign;
     type->ref->r = a;
-    if (pragma_pack && pragma_pack < maxalign && 0 == pcc) {
+    if (pragma_pack && pragma_pack < maxalign) {
         a = pragma_pack;
         if (a < bt)
             a = bt;
     }
     c = (c + a - 1) & -a;
     type->ref->c = c;
-    for (f = type->ref->next; f; f = f->next) {
-        int s, px, cx, c0;
-        CType t;
-        if (0 == (f->type.t & 0x0080))
-            continue;
-        f->type.ref = f;
-        f->auxtype = -1;
-        bit_size = (((f->type.t) >> (20 + 6)) & 0x3f);
-        if (bit_size == 0)
-            continue;
-        bit_pos = (((f->type.t) >> 20) & 0x3f);
-        size = type_size(&f->type, &align);
-        if (bit_pos + bit_size <= size * 8 && f->c + size <= c)
-            continue;
-        c0 = -1, s = align = 1;
-        for (;;) {
-            px = f->c * 8 + bit_pos;
-            cx = (px >> 3) & -align;
-            px = px - (cx << 3);
-            if (c0 == cx)
-                break;
-            s = (px + bit_size + 7) >> 3;
-            if (s > 4) {
-                t.t = 4;
-            } else if (s > 2) {
-                t.t = 3;
-            } else if (s > 1) {
-                t.t = 2;
-            } else {
-                t.t = 1;
-            }
-            s = type_size(&t, &align);
-            c0 = cx;
-        }
-        if (px + bit_size <= s * 8 && cx + s <= c) {
-            f->c = cx;
-            bit_pos = px;
-	    f->type.t = (f->type.t & ~(0x3f << 20))
-		        | (bit_pos << 20);
-            if (s != size)
-                f->auxtype = t.t;
-        } else {
-            f->auxtype = 7;
-        }
-    }
 }
 static void struct_decl(CType *type, int u)
 {
-    int v, c, size, align, flexible;
-    int bit_size, bsize, bt;
+    int v, c, align, flexible;
     Sym *s, *ss, **ps;
     AttributeDef ad, ad1;
     CType type1, btype;
@@ -6533,7 +6267,6 @@ do_decl:
 		    if (flexible)
 		        tcc_error("flexible array member '%s' not at the end of struct",
                               get_tok_str(v, ((void*)0)));
-                    bit_size = -1;
                     v = 0;
                     type1 = btype;
                     if (tok != ':') {
@@ -6563,46 +6296,13 @@ do_decl:
                                   get_tok_str(v, ((void*)0)));
                     }
                     if (tok == ':') {
-                        next();
-                        bit_size = expr_const();
-                        if (bit_size < 0)
-                            tcc_error("negative width in bit-field '%s'",
-                                  get_tok_str(v, ((void*)0)));
-                        if (v && bit_size == 0)
-                            tcc_error("zero width for bit-field '%s'",
-                                  get_tok_str(v, ((void*)0)));
-			parse_attribute(&ad1);
-                    }
-                    size = type_size(&type1, &align);
-                    if (bit_size >= 0) {
-                        bt = type1.t & 0x000f;
-                        if (bt != 3 &&
-                            bt != 1 &&
-                            bt != 2 &&
-                            bt != 11 &&
-                            bt != 4)
-                            tcc_error("bitfields must have scalar type");
-                        bsize = size * 8;
-                        if (bit_size > bsize) {
-                            tcc_error("width of '%s' exceeds its type",
-                                  get_tok_str(v, ((void*)0)));
-                        } else if (bit_size == bsize
-                                    && !ad.a.packed && !ad1.a.packed) {
-                            ;
-                        } else if (bit_size == 64) {
-                            tcc_error("field width 64 not implemented");
-                        } else {
-                            type1.t = (type1.t & ~(((1 << (6+6)) - 1) << 20 | 0x0080))
-                                | 0x0080
-                                | (bit_size << (20 + 6));
-                        }
+                        tcc_error("bit-fields are not supported in tcc_27_alt");
                     }
                     if (v != 0 || (type1.t & 0x000f) == 7) {
 			c = 1;
                     }
                     if (v == 0 &&
-			((type1.t & 0x000f) == 7 ||
-			 bit_size >= 0)) {
+			((type1.t & 0x000f) == 7)) {
 		        v = anon_sym++;
 		    }
                     if (v) {
@@ -7023,10 +6723,6 @@ static void gfunc_param_typed(Sym *func, Sym *arg)
         (func_type == 3 && arg == ((void*)0))) {
         if ((vtop->type.t & 0x000f) == 8) {
             gen_cast_s(9);
-        } else if (vtop->type.t & 0x0080) {
-            type.t = vtop->type.t & (0x000f | 0x0010);
-	    type.ref = vtop->type.ref;
-            gen_cast(&type);
         }
     } else if (arg == ((void*)0)) {
         tcc_error("too many arguments to function");
@@ -8539,8 +8235,6 @@ static int decl_designator(CType *type, Section *sec, unsigned long c,
             c += index * type_size(type, &align);
         } else {
             f = *cur_field;
-	    while (f && (f->v & 0x10000000) && (f->type.t & 0x0080))
-	        *cur_field = f = f->next;
             if (!f)
                 tcc_error("too many field init");
 	    type = &f->type;
@@ -8632,23 +8326,6 @@ static void init_putv(CType *type, Section *sec, unsigned long c)
 		}
 	    }
 	} else {
-            if (type->t & 0x0080) {
-                int bit_pos, bit_size, bits, n;
-                unsigned char *p, v, m;
-                bit_pos = (((vtop->type.t) >> 20) & 0x3f);
-                bit_size = (((vtop->type.t) >> (20 + 6)) & 0x3f);
-                p = (unsigned char*)ptr + (bit_pos >> 3);
-                bit_pos &= 7, bits = 0;
-                while (bit_size) {
-                    n = 8 - bit_pos;
-                    if (n > bit_size)
-                        n = bit_size;
-                    v = vtop->c.i >> bits << bit_pos;
-                    m = ((1 << n) - 1) << bit_pos;
-                    *p = (*p & ~m) | (v & m);
-                    bits += n, bit_size -= n, bit_pos = 0, ++p;
-                }
-            } else
             switch(bt) {
 	    case 11:
 		vtop->c.i = vtop->c.i != 0;
@@ -12587,7 +12264,6 @@ static const FlagDef options_f[] = {
     { 0, 0, ((void*)0) }
 };
 static const FlagDef options_m[] = {
-    { ((size_t)&((TCCState *)0)->ms_bitfields), 0, "ms-bitfields" },
     { 0, 0, ((void*)0) }
 };
 static void parse_option_D(TCCState *s1, const char *optarg)
@@ -12978,7 +12654,6 @@ static const char help2[] =
     "  ms-extensions                 allow anonymous struct in struct\n"
     "  dollars-in-identifiers        allow '$' in C symbols\n"
     "-m... target specific options:\n"
-    "  ms-bitfields                  use MSVC bitfield layout\n"
     "-Wl,... linker options:\n"
     "  -nostdlib                     do not link with standard crt/libs\n"
     "  -export-all-symbols           same as -rdynamic\n"

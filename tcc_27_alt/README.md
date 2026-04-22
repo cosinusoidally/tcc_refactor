@@ -20,6 +20,8 @@ The assembler parser has been stripped; assembly sources, inline `asm`, asm
 labels, and register variables are outside the supported subset.
 Variable length arrays are also outside the subset; array bounds must be
 compile-time constants.
+Bit-fields are outside the subset as well. The compiler source itself uses
+plain integer fields so the self-host input stays in the smaller dialect.
 
 ## Build
 
