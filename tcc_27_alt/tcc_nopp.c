@@ -346,7 +346,6 @@ enum tcc_token {
      ,TOK_RESTRICT1
      ,TOK_RESTRICT2
      ,TOK_RESTRICT3
-     ,TOK_EXTENSION
      ,TOK_BOOL
      ,TOK_SHORT
      ,TOK_STRUCT
@@ -389,8 +388,6 @@ enum tcc_token {
      ,TOK___ashldi3
      ,TOK_alloca
 };
-static int gnu_ext;
-static int tcc_ext;
 static struct TCCState *tcc_state;
 static char *pstrcpy(char *buf, int buf_size, const char *s);
 static char *pstrcat(char *buf, int buf_size, const char *s);
@@ -601,8 +598,6 @@ static void add32le(unsigned char *p, int32_t x) {
 static void g(int c);
 static void gen_le32(int c);
 static void gen_addr32(int r, Sym *sym, int c);
-static int gnu_ext = 1;
-static int tcc_ext = 1;
 static struct TCCState *tcc_state;
 static int nb_states;
 static int tok_flags;
@@ -656,7 +651,6 @@ static const char tcc_keywords[] =
      "restrict" "\0"
      "__restrict" "\0"
      "__restrict__" "\0"
-     "__extension__" "\0"
      "_Bool" "\0"
      "short" "\0"
      "struct" "\0"
@@ -1375,18 +1369,12 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf)
             case 'v':
                 c = '\v';
                 break;
-            case 'e':
-                if (!gnu_ext)
-                    goto invalid_escape;
-                c = 27;
-                break;
             case '\'':
             case '\"':
             case '\\':
             case '?':
                 break;
             default:
-            invalid_escape:
                 break;
             }
         }
@@ -1443,10 +1431,6 @@ static void parse_number(const char *p)
             q--;
             ch = *p++;
             b = 16;
-        } else if (tcc_ext && (ch == 'b' || ch == 'B')) {
-            q--;
-            ch = *p++;
-            b = 2;
         }
     }
     while (1) {
@@ -3905,9 +3889,6 @@ static int parse_btype(CType *type, AttributeDef *ad)
     type->ref = ((void*)0);
     while(1) {
         switch(tok) {
-        case TOK_EXTENSION:
-            next();
-            continue;
         case TOK_CHAR:
             u = 1;
         basic_type:
@@ -4251,11 +4232,7 @@ static void unary(void)
     sizeof_caller = in_sizeof;
     in_sizeof = 0;
     type.ref = ((void*)0);
- tok_next:
     switch(tok) {
-    case TOK_EXTENSION:
-        next();
-        goto tok_next;
     case 0xb5:
     case 0xb3:
 	t = 3;
