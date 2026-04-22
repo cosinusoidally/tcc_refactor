@@ -88,29 +88,21 @@ int remove(const char *filename);
 int execvp(const char *file, char *const argv[]);
 int _setjmp(struct __jmp_buf_tag env[1]);
 void _longjmp(struct __jmp_buf_tag env[1], int val);
-void *dlopen(const char *file, int mode);
-int dlclose(void *handle);
-void *dlsym(void *handle, const char *name);
-char *dlerror(void);
 struct TCCState;
 typedef struct TCCState TCCState;
 TCCState *tcc_new(void);
 void tcc_delete(TCCState *s);
 void tcc_set_lib_path(TCCState *s, const char *path);
-void tcc_set_error_func(TCCState *s, void *error_opaque, void (*error_func)(void *opaque, const char *msg));
 void tcc_set_options(TCCState *s, const char *str);
 int tcc_add_include_path(TCCState *s, const char *pathname);
 int tcc_add_sysinclude_path(TCCState *s, const char *pathname);
 void tcc_define_symbol(TCCState *s, const char *sym, const char *value);
 void tcc_undefine_symbol(TCCState *s, const char *sym);
 int tcc_add_file(TCCState *s, const char *filename);
-int tcc_compile_string(TCCState *s, const char *buf);
 int tcc_set_output_type(TCCState *s, int output_type);
 int tcc_add_library_path(TCCState *s, const char *pathname);
 int tcc_add_library(TCCState *s, const char *libraryname);
-int tcc_add_symbol(TCCState *s, const char *name, const void *val);
 int tcc_output_file(TCCState *s, const char *filename);
-void *tcc_get_symbol(TCCState *s, const char *name);
 typedef uint16_t Elf32_Half;
 typedef uint16_t Elf64_Half;
 typedef uint32_t Elf32_Word;
@@ -631,8 +623,6 @@ struct TCCState {
     int nb_library_paths;
     char **crt_paths;
     int nb_crt_paths;
-    void *error_opaque;
-    void (*error_func)(void *opaque, const char *msg);
     int error_set_jmp_enabled;
     jmp_buf error_jmp_buf;
     int nb_errors;
@@ -642,8 +632,6 @@ struct TCCState {
     int *ifdef_stack_ptr;
     int pack_stack[8];
     int *pack_stack_ptr;
-    char **pragma_libs;
-    int nb_pragma_libs;
     struct InlineFunc **inline_fns;
     int nb_inline_fns;
     Section **sections;
@@ -1305,7 +1293,6 @@ static void tcc_close(void);
 static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags);
 static int tcc_add_crt(TCCState *s, const char *filename);
 static int tcc_add_dll(TCCState *s, const char *filename, int flags);
-static void tcc_add_pragma_libs(TCCState *s1);
  int tcc_add_library_err(TCCState *s, const char *f);
  void tcc_print_stats(TCCState *s, unsigned total_time);
  int tcc_parse_args(TCCState *s, int *argc, char ***argv, int optind);
@@ -9520,10 +9507,6 @@ static Elf32_Addr get_elf_sym_addr(TCCState *s, const char *name, int err)
     }
     return sym->st_value;
 }
- void *tcc_get_symbol(TCCState *s, const char *name)
-{
-    return (void*)(uintptr_t)get_elf_sym_addr(s, name, 0);
-}
 static int set_elf_sym(Section *s, Elf32_Addr value, unsigned long size,
                        int info, int other, int shndx, const char *name)
 {
@@ -9948,7 +9931,6 @@ static int tcc_add_support(TCCState *s1, const char *filename)
 }
 static void tcc_add_runtime(TCCState *s1)
 {
-    tcc_add_pragma_libs(s1);
     if (!s1->nostdlib) {
         tcc_add_library_err(s1, "c");
         tcc_add_support(s1, "libtcc1.o");
@@ -12027,21 +12009,11 @@ static void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
     else
         strcat_printf(buf, sizeof(buf), "error: ");
     strcat_vprintf(buf, sizeof(buf), fmt, ap);
-    if (!s1->error_func) {
-        fflush(stdout);
-        fprintf(stderr, "%s\n", buf);
-        fflush(stderr);
-    } else {
-        s1->error_func(s1->error_opaque, buf);
-    }
+    fflush(stdout);
+    fprintf(stderr, "%s\n", buf);
+    fflush(stderr);
     if (!is_warning || s1->warn_error)
         s1->nb_errors++;
-}
- void tcc_set_error_func(TCCState *s, void *error_opaque,
-                        void (*error_func)(void *opaque, const char *msg))
-{
-    s->error_opaque = error_opaque;
-    s->error_func = error_func;
 }
  void tcc_error_noabort(const char *fmt, ...)
 {
@@ -12140,16 +12112,6 @@ static int tcc_compile(TCCState *s1)
     tccelf_end_file(s1);
     return s1->nb_errors != 0 ? -1 : 0;
 }
- int tcc_compile_string(TCCState *s, const char *str)
-{
-    int len, ret;
-    len = strlen(str);
-    tcc_open_bf(s, "<string>", len);
-    memcpy(file->buffer, str, len);
-    ret = tcc_compile(s);
-    tcc_close();
-    return ret;
-}
  void tcc_define_symbol(TCCState *s1, const char *sym, const char *value)
 {
     (void)s1;
@@ -12203,7 +12165,6 @@ static void tcc_cleanup(void)
     tcc_free(s1->fini_symbol);
     tcc_free(s1->outfile);
     dynarray_reset(&s1->files, &s1->nb_files);
-    dynarray_reset(&s1->pragma_libs, &s1->nb_pragma_libs);
     dynarray_reset(&s1->argv, &s1->argc);
     tcc_free(s1);
     if (0 == --nb_states)
@@ -12353,19 +12314,6 @@ int tcc_add_library(TCCState *s, const char *libraryname)
     if (ret < 0)
         tcc_error_noabort("library '%s' not found", libname);
     return ret;
-}
-static void tcc_add_pragma_libs(TCCState *s1)
-{
-    int i;
-    for (i = 0; i < s1->nb_pragma_libs; i++)
-        tcc_add_library_err(s1, s1->pragma_libs[i]);
-}
- int tcc_add_symbol(TCCState *s, const char *name, const void *val)
-{
-    set_elf_sym(symtab_section, (uintptr_t)val, 0,
-        (((1) << 4) + ((0) & 0xf)), 0,
-        0xfff1, name);
-    return 0;
 }
  void tcc_set_lib_path(TCCState *s, const char *path)
 {
