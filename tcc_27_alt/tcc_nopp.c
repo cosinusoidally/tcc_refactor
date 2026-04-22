@@ -916,7 +916,6 @@ static void squeeze_multi_relocs(Section *sec, size_t oldrelocoffset);
 static Elf32_Addr get_elf_sym_addr(TCCState *s, const char *name, int err);
 static int tcc_load_dll(TCCState *s1, int fd, const char *filename, int level);
 static uint8_t *parse_comment(uint8_t *p);
-static void minp(void);
 static void inp(void);
 static int handle_eob(void);
 enum gotplt_entry {
@@ -964,15 +963,6 @@ static void write32le(unsigned char *p, uint32_t x) {
 }
 static void add32le(unsigned char *p, int32_t x) {
     write32le(p, read32le(p) + x);
-}
-static uint64_t read64le(unsigned char *p) {
-  return read32le(p) | (uint64_t)read32le(p + 4) << 32;
-}
-static void write64le(unsigned char *p, uint64_t x) {
-    write32le(p, x);  write32le(p + 4, x >> 32);
-}
-static void add64le(unsigned char *p, int64_t x) {
-    write64le(p, read64le(p) + x);
 }
 static void g(int c);
 static void gen_le32(int c);
@@ -1499,11 +1489,6 @@ static int handle_stray_noerror(void)
     }
     return 0;
 }
-static void handle_stray(void)
-{
-    if (handle_stray_noerror())
-        tcc_error("stray '\\' in program");
-}
 static int handle_stray1(uint8_t *p)
 {
     int c;
@@ -1523,12 +1508,6 @@ static int handle_stray1(uint8_t *p)
     p = file->buf_ptr;
     c = *p;
     return c;
-}
-static void minp(void)
-{
-    inp();
-    if (ch == '\\')
-        handle_stray();
 }
 static uint8_t *parse_line_comment(uint8_t *p)
 {
@@ -1638,21 +1617,6 @@ static int set_idnum(int c, int val)
     int prev = isidnum_table[c - (-1)];
     isidnum_table[c - (-1)] = val;
     return prev;
-}
-static void skip_spaces(void)
-{
-    while (isidnum_table[ch - (-1)] & 1)
-        minp();
-}
-static int check_space(int t, int *spc)
-{
-    if (t < 256 && (isidnum_table[t - (-1)] & 1)) {
-        if (*spc)
-            return 1;
-        *spc = 1;
-    } else
-        *spc = 0;
-    return 0;
 }
 static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
 {
