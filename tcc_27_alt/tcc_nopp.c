@@ -559,7 +559,6 @@ static void section_realloc(Section *sec, unsigned long new_size);
 static size_t section_add(Section *sec, Elf32_Addr size, int align);
 static void *section_ptr_add(Section *sec, Elf32_Addr size);
 static void section_reserve(Section *sec, unsigned long size);
-static Section *find_section(TCCState *s1, const char *name);
 static Section *new_symtab(TCCState *s1, const char *symtab_name, int sh_type, int sh_flags, const char *strtab_name, const char *hash_name, int hash_sh_flags);
 static void put_extern_sym2(Sym *sym, int sh_num, Elf32_Addr value, unsigned long size);
 static void put_extern_sym(Sym *sym, Section *section, Elf32_Addr value, unsigned long size);
@@ -6054,17 +6053,6 @@ static void section_reserve(Section *sec, unsigned long size)
     if (size > sec->data_offset)
         sec->data_offset = size;
 }
-static Section *find_section(TCCState *s1, const char *name)
-{
-    Section *sec;
-    int i;
-    for(i = 1; i < s1->nb_sections; i++) {
-        sec = s1->sections[i];
-        if (!strcmp(name, sec->name))
-            return sec;
-    }
-    return new_section(s1, name, 1, (1 << 1));
-}
 static int put_elf_str(Section *s, const char *sym)
 {
     int offset, len;
@@ -6523,30 +6511,6 @@ static void put_dt(Section *dynamic, int dt, Elf32_Addr val)
     dyn->d_tag = dt;
     dyn->d_un.d_val = val;
 }
-static void add_init_array_defines(TCCState *s1, const char *section_name)
-{
-    Section *s;
-    long end_offset;
-    char sym_start[1024];
-    char sym_end[1024];
-    snprintf(sym_start, sizeof(sym_start), "__%s_start", section_name + 1);
-    snprintf(sym_end, sizeof(sym_end), "__%s_end", section_name + 1);
-    s = find_section(s1, section_name);
-    if (!s) {
-        end_offset = 0;
-        s = data_section;
-    } else {
-        end_offset = s->data_offset;
-    }
-    set_elf_sym(symtab_section,
-                0, 0,
-                (((1) << 4) + ((0) & 0xf)), 0,
-                s->sh_num, sym_start);
-    set_elf_sym(symtab_section,
-                end_offset, 0,
-                (((1) << 4) + ((0) & 0xf)), 0,
-                s->sh_num, sym_end);
-}
 static int tcc_add_support(TCCState *s1, const char *filename)
 {
     char buf[1024];
@@ -6564,9 +6528,6 @@ static void tcc_add_runtime(TCCState *s1)
 }
 static void tcc_add_linker_symbols(TCCState *s1)
 {
-    char buf[1024];
-    int i;
-    Section *s;
     set_elf_sym(symtab_section,
                 text_section->data_offset, 0,
                 (((1) << 4) + ((0) & 0xf)), 0,
@@ -6579,37 +6540,6 @@ static void tcc_add_linker_symbols(TCCState *s1)
                 bss_section->data_offset, 0,
                 (((1) << 4) + ((0) & 0xf)), 0,
                 bss_section->sh_num, "_end");
-    add_init_array_defines(s1, ".preinit_array");
-    add_init_array_defines(s1, ".init_array");
-    add_init_array_defines(s1, ".fini_array");
-    for(i = 1; i < s1->nb_sections; i++) {
-        s = s1->sections[i];
-        if (s->sh_type == 1 &&
-            (s->sh_flags & (1 << 1))) {
-            const char *p;
-            int ch;
-            p = s->name;
-            for(;;) {
-                ch = *p;
-                if (!ch)
-                    break;
-                if (!isid(ch) && !isnum(ch))
-                    goto next_sec;
-                p++;
-            }
-            snprintf(buf, sizeof(buf), "__start_%s", s->name);
-            set_elf_sym(symtab_section,
-                        0, 0,
-                        (((1) << 4) + ((0) & 0xf)), 0,
-                        s->sh_num, buf);
-            snprintf(buf, sizeof(buf), "__stop_%s", s->name);
-            set_elf_sym(symtab_section,
-                        s->data_offset, 0,
-                        (((1) << 4) + ((0) & 0xf)), 0,
-                        s->sh_num, buf);
-        }
-    next_sec: ;
-    }
 }
 static void resolve_common_syms(TCCState *s1)
 {
