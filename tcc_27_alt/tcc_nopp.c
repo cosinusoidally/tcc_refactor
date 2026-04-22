@@ -143,7 +143,6 @@ enum {
 };
 typedef struct TokenSym {
     struct TokenSym *hash_next;
-    struct Sym *sym_define;
     struct Sym *sym_label;
     struct Sym *sym_struct;
     struct Sym *sym_identifier;
@@ -331,25 +330,6 @@ enum tcc_token {
      ,TOK_DEFAULT
      ,TOK_ENUM
      ,TOK_SIZEOF
-     ,TOK_DEFINE
-     ,TOK_INCLUDE
-     ,TOK_INCLUDE_NEXT
-     ,TOK_IFDEF
-     ,TOK_IFNDEF
-     ,TOK_ELIF
-     ,TOK_ENDIF
-     ,TOK_DEFINED
-     ,TOK_UNDEF
-     ,TOK_ERROR
-     ,TOK_WARNING
-     ,TOK_LINE
-     ,TOK_PRAGMA
-     ,TOK___LINE__
-     ,TOK___FILE__
-     ,TOK___DATE__
-     ,TOK___TIME__
-     ,TOK___VA_ARGS__
-     ,TOK___COUNTER__
      ,TOK_memcpy
      ,TOK_memmove
      ,TOK_memset
@@ -625,25 +605,6 @@ static const char tcc_keywords[] =
      "default" "\0"
      "enum" "\0"
      "sizeof" "\0"
-     "define" "\0"
-     "include" "\0"
-     "include_next" "\0"
-     "ifdef" "\0"
-     "ifndef" "\0"
-     "elif" "\0"
-     "endif" "\0"
-     "defined" "\0"
-     "undef" "\0"
-     "error" "\0"
-     "warning" "\0"
-     "line" "\0"
-     "pragma" "\0"
-     "__LINE__" "\0"
-     "__FILE__" "\0"
-     "__DATE__" "\0"
-     "__TIME__" "\0"
-     "__VA_ARGS__" "\0"
-     "__COUNTER__" "\0"
      "memcpy" "\0"
      "memmove" "\0"
      "memset" "\0"
@@ -786,7 +747,6 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
     ts = tal_realloc_impl(&toksym_alloc, 0, sizeof(TokenSym) + len);
     table_ident[i] = ts;
     ts->tok = tok_ident++;
-    ts->sym_define = ((void*)0);
     ts->sym_label = ((void*)0);
     ts->sym_struct = ((void*)0);
     ts->sym_identifier = ((void*)0);
@@ -3309,7 +3269,7 @@ do_decl:
             t.t = 3|0x00002000|(3 << 20);
             for(;;) {
                 v = tok;
-                if (v < TOK_DEFINE)
+                if (v <= TOK_SIZEOF)
                     expect("identifier");
                 ss = sym_find(v);
                 if (ss && !local_stack)
@@ -3583,36 +3543,29 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
     AttributeDef ad1;
     CType pt;
     if (tok == '(') {
+        l = 0;
         next();
 	if (td && !(td & 1))
 	  return 0;
-	if (tok == ')')
-	  l = 0;
-	else if (parse_btype(&pt, &ad1))
-	  l = 1;
-	else if (td)
-	  return 0;
-	else
-	  l = 2;
+		if (tok == ')')
+		  l = 0;
+		else if (parse_btype(&pt, &ad1))
+		  l = 1;
+		else if (td)
+		  return 0;
+		else
+		  tcc_error("parameter type expected");
         first = ((void*)0);
         plast = &first;
         arg_size = 0;
         if (l) {
             for(;;) {
-                if (l != 2) {
-                    if ((pt.t & 0x000f) == 0 && tok == ')')
-                        break;
-                    type_decl(&pt, &ad1, &n, 2 | 1);
-                    if ((pt.t & 0x000f) == 0)
-                        tcc_error("parameter declared as void");
-                    arg_size += (type_size(&pt, &align) + 4 - 1) / 4;
-                } else {
-                    n = tok;
-                    if (n < TOK_DEFINE)
-                        expect("identifier");
-                    pt.t = 0;
-                    next();
-                }
+	                if ((pt.t & 0x000f) == 0 && tok == ')')
+	                    break;
+	                type_decl(&pt, &ad1, &n, 2 | 1);
+	                if ((pt.t & 0x000f) == 0)
+	                    tcc_error("parameter declared as void");
+	                arg_size += (type_size(&pt, &align) + 4 - 1) / 4;
                 convert_parameter_type(&pt);
                 s = sym_push(n | 0x20000000, &pt, 0, 0);
                 *plast = s;
@@ -3628,8 +3581,7 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
 		if (l == 1 && !parse_btype(&pt, &ad1))
 		    tcc_error("invalid type");
             }
-        } else
-            l = 2;
+	        }
         skip(')');
         type->t &= ~0x0100;
         if (tok == '[') {
@@ -3901,7 +3853,7 @@ static void unary(void)
     default:
         t = tok;
         next();
-        if (t < TOK_DEFINE)
+        if (t <= TOK_SIZEOF)
             expect("identifier");
         s = sym_find(t);
         if (!s || (((s)->type.t & (0x000f | (0 | 0x0010))) == (0 | 0x0010))) {
@@ -4329,7 +4281,7 @@ static int expr_const(void)
 static int is_label(void)
 {
     int last_tok;
-    if (tok < TOK_DEFINE)
+    if (tok <= TOK_SIZEOF)
         return 0;
     last_tok = tok;
     next();
@@ -4599,7 +4551,7 @@ static void block(int *bsym, int *csym, int is_expr)
     } else
     if (tok == TOK_GOTO) {
         next();
-        if (tok >= TOK_DEFINE) {
+        if (tok > TOK_SIZEOF) {
             s = label_find(tok);
             if (!s) {
                 s = label_push(&global_label_stack, tok, 1);
@@ -5108,7 +5060,7 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
             }
             if (l != 0x0030)
                 break;
-            if (tok >= TOK_DEFINE) {
+            if (tok > TOK_SIZEOF) {
                 btype.t = 3;
             } else {
                 if (tok != (-1))
@@ -5137,8 +5089,6 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
                     tcc_error("function without file scope cannot be static");
                 }
                 sym = type.ref;
-                if (sym->f.func_type == 2 && l == 0x0030)
-                    decl0(0x0033, 0, sym);
             }
             if (tok == '{') {
                 if (l != 0x0030)
@@ -5159,22 +5109,7 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
                 gen_function(sym);
                 break;
             } else {
-		if (l == 0x0033) {
-		    for (sym = func_sym->next; sym; sym = sym->next)
-			if ((sym->v & ~0x20000000) == v)
-			    goto found;
-		    tcc_error("declaration for parameter '%s' but no such parameter",
-			      get_tok_str(v, ((void*)0)));
-found:
-		    if (type.t & (0x00001000 | 0x00002000 | 0x00004000))
-		        tcc_error("storage class specified for '%s'",
-				  get_tok_str(v, ((void*)0)));
-		    if (sym->type.t != 0)
-		        tcc_error("redefinition of parameter '%s'",
-				  get_tok_str(v, ((void*)0)));
-		    convert_parameter_type(&type);
-		    sym->type = type;
-		} else if (type.t & 0x00004000) {
+			if (type.t & 0x00004000) {
                     sym = sym_find(v);
                     if (sym && sym->sym_scope == local_scope) {
                         if (!is_compatible_types(&sym->type, &type)
