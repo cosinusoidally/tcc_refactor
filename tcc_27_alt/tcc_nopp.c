@@ -222,7 +222,6 @@ typedef struct Sym {
     CType type;
     union {
         struct Sym *next;
-        int asm_label;
     };
     struct Sym *prev;
     struct Sym *prev_tok;
@@ -2056,8 +2055,6 @@ static void put_extern_sym2(Sym *sym, int sh_num,
         else
             sym_bind = 1;
         other = 0;
-        if (sym->asm_label)
-            name = get_tok_str(sym->asm_label, ((void*)0));
         info = (((sym_bind) << 4) + ((sym_type) & 0xf));
         sym->c = put_elf_sym(symtab_section, value, size, info, other, sh_num, name);
     } else {
@@ -5174,8 +5171,6 @@ static void block(int *bsym, int *csym, int is_expr)
             expect("label identifier");
         }
         skip(';');
-    } else if (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3) {
-        tcc_error("inline assembler is not supported in tcc_27_alt");
     } else {
         b = is_label();
         if (b) {
@@ -5669,9 +5664,6 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
             }
             if (l != 0x0030)
                 break;
-            if (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3) {
-                tcc_error("inline assembler is not supported in tcc_27_alt");
-            }
             if (tok >= TOK_DEFINE) {
                 btype.t = 3;
             } else {
@@ -5703,9 +5695,6 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
                 sym = type.ref;
                 if (sym->f.func_type == 2 && l == 0x0030)
                     decl0(0x0033, 0, sym);
-            }
-            if (gnu_ext && (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3)) {
-                tcc_error("asm labels are not supported in tcc_27_alt");
             }
             if (tok == '{') {
                 if (l != 0x0030)
