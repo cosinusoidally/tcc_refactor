@@ -252,7 +252,6 @@ struct sym_attr {
 struct TCCState {
     int nostdlib;
     int output_type;
-    int seg_size;
     DLLReference **loaded_dlls;
     int nb_loaded_dlls;
     char **crt_paths;
@@ -3673,9 +3672,7 @@ static void unary(void)
         s = sym_find(t);
         if (!s || (((s)->type.t & (0x000f | (0 | 0x0010))) == (0 | 0x0010))) {
             const char *name = get_tok_str(t, ((void*)0));
-            if (tok != '(')
-                tcc_error("'%s' undeclared", name);
-            s = external_global_sym(t, &func_old_type, 0);
+            tcc_error("'%s' undeclared", name);
         }
         r = s->r;
         if ((r & 0x003f) < 0x0030)
@@ -7105,7 +7102,6 @@ static void tcc_cleanup(void)
         return ((void*)0);
     tcc_state = s;
     ++nb_states;
-    s->seg_size = 32;
     tccelf_new(s);
     tccpp_new(s);
     return s;
