@@ -8017,14 +8017,10 @@ static int tcc_open(TCCState *s1, const char *filename)
 }
 static int tcc_compile(TCCState *s1)
 {
-    int filetype;
-    filetype = s1->filetype;
     tccelf_begin_file(s1);
     if (_setjmp (s1->error_jmp_buf) == 0) {
         s1->nb_errors = 0;
         s1->error_set_jmp_enabled = 1;
-        if (filetype == 2 || filetype == 3)
-            tcc_error("assembler input is not supported in tcc_27_alt");
         preprocess_start(s1);
         tccgen_compile(s1);
     }
@@ -8125,11 +8121,7 @@ static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
         const char *ext = tcc_fileextension(filename);
         if (ext[0]) {
             ext++;
-            if (!strcmp(ext, "S"))
-                filetype = 3;
-            else if (!strcmp(ext, "s"))
-                filetype = 2;
-            else if (!strcmp(ext, "c") || !strcmp(ext, "i"))
+            if (!strcmp(ext, "c") || !strcmp(ext, "i"))
                 filetype = 1;
             else
                 flags |= 0x40;
