@@ -735,12 +735,6 @@ enum tcc_token {
      ,TOK___NAN__
      ,TOK___SNAN__
      ,TOK___INF__
-     ,TOK_builtin_types_compatible_p
-     ,TOK_builtin_choose_expr
-     ,TOK_builtin_constant_p
-     ,TOK_builtin_frame_address
-     ,TOK_builtin_return_address
-     ,TOK_builtin_expect
      ,TOK_memcpy
      ,TOK_memmove
      ,TOK_memset
@@ -1119,12 +1113,6 @@ static const char tcc_keywords[] =
      "__nan__" "\0"
      "__snan__" "\0"
      "__inf__" "\0"
-     "__builtin_types_compatible_p" "\0"
-     "__builtin_choose_expr" "\0"
-     "__builtin_constant_p" "\0"
-     "__builtin_frame_address" "\0"
-     "__builtin_return_address" "\0"
-     "__builtin_expect" "\0"
      "memcpy" "\0"
      "memmove" "\0"
      "memset" "\0"
@@ -5595,35 +5583,6 @@ static void parse_expr_type(CType *type)
     }
     skip(')');
 }
-static void parse_type(CType *type)
-{
-    AttributeDef ad;
-    int n;
-    if (!parse_btype(type, &ad)) {
-        expect("type");
-    }
-    type_decl(type, &ad, &n, 1);
-}
-static void parse_builtin_params(int nc, const char *args)
-{
-    char c, sep = '(';
-    CType t;
-    if (nc)
-        nocode_wanted++;
-    next();
-    while ((c = *args++)) {
-	skip(sep);
-	sep = ',';
-	switch (c) {
-	    case 'e': expr_eq(); continue;
-	    case 't': parse_type(&t); vpush(&t); continue;
-	    default: tcc_error("internal error"); break;
-	}
-    }
-    skip(')');
-    if (nc)
-        nocode_wanted--;
-}
 static void unary(void)
 {
     int n, t, align, size, r, sizeof_caller;
@@ -5804,82 +5763,6 @@ static void unary(void)
             vpushs(align);
         }
         vtop->type.t |= 0x0010;
-        break;
-    case TOK_builtin_expect:
-	parse_builtin_params(0, "ee");
-	vpop();
-        break;
-    case TOK_builtin_types_compatible_p:
-	parse_builtin_params(0, "tt");
-	vtop[-1].type.t &= ~(0x0100 | 0x0200);
-	vtop[0].type.t &= ~(0x0100 | 0x0200);
-	n = is_compatible_types(&vtop[-1].type, &vtop[0].type);
-	vtop -= 2;
-	vpushi(n);
-        break;
-    case TOK_builtin_choose_expr:
-	{
-	    int64_t c;
-	    next();
-	    skip('(');
-	    c = expr_const64();
-	    skip(',');
-	    if (!c) {
-		nocode_wanted++;
-	    }
-	    expr_eq();
-	    if (!c) {
-		vpop();
-		nocode_wanted--;
-	    }
-	    skip(',');
-	    if (c) {
-		nocode_wanted++;
-	    }
-	    expr_eq();
-	    if (c) {
-		vpop();
-		nocode_wanted--;
-	    }
-	    skip(')');
-	}
-        break;
-    case TOK_builtin_constant_p:
-	parse_builtin_params(1, "e");
-	n = (vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030;
-	vtop--;
-	vpushi(n);
-        break;
-    case TOK_builtin_frame_address:
-    case TOK_builtin_return_address:
-        {
-            int tok1 = tok;
-            int level;
-            next();
-            skip('(');
-            if (tok != 0xb5) {
-                tcc_error("%s only takes positive integers",
-                          tok1 == TOK_builtin_return_address ?
-                          "__builtin_return_address" :
-                          "__builtin_frame_address");
-            }
-            level = (uint32_t)tokc.i;
-            next();
-            skip(')');
-            type.t = 0;
-            mk_pointer(&type);
-            vset(&type, 0x0032, 0);
-            while (level--) {
-                mk_pointer(&vtop->type);
-                indir();
-            }
-            if (tok1 == TOK_builtin_return_address) {
-                vpushi(4);
-                gen_op('+');
-                mk_pointer(&vtop->type);
-                indir();
-            }
-        }
         break;
     case 0xa4:
     case 0xa2:
