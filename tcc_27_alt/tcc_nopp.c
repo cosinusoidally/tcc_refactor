@@ -380,9 +380,6 @@ enum tcc_token {
      ,TOK_SIZEOF
      ,TOK_ATTRIBUTE1
      ,TOK_ATTRIBUTE2
-     ,TOK_ALIGNOF1
-     ,TOK_ALIGNOF2
-     ,TOK_LABEL
      ,TOK_ASM1
      ,TOK_ASM2
      ,TOK_ASM3
@@ -403,10 +400,8 @@ enum tcc_token {
      ,TOK___FILE__
      ,TOK___DATE__
      ,TOK___TIME__
-     ,TOK___FUNCTION__
      ,TOK___VA_ARGS__
      ,TOK___COUNTER__
-     ,TOK___FUNC__
      ,TOK_memcpy
      ,TOK_memmove
      ,TOK_memset
@@ -705,9 +700,6 @@ static const char tcc_keywords[] =
      "sizeof" "\0"
      "__attribute" "\0"
      "__attribute__" "\0"
-     "__alignof" "\0"
-     "__alignof__" "\0"
-     "__label__" "\0"
      "asm" "\0"
      "__asm" "\0"
      "__asm__" "\0"
@@ -728,10 +720,8 @@ static const char tcc_keywords[] =
      "__FILE__" "\0"
      "__DATE__" "\0"
      "__TIME__" "\0"
-     "__FUNCTION__" "\0"
      "__VA_ARGS__" "\0"
      "__COUNTER__" "\0"
-     "__func__" "\0"
      "memcpy" "\0"
      "memmove" "\0"
      "memset" "\0"
@@ -2509,10 +2499,6 @@ static Sym *get_sym_ref(CType *type, Section *sec, unsigned long offset, unsigne
     sym->r = 0x0030 | 0x0200;
     put_extern_sym(sym, sec, offset, size);
     return sym;
-}
-static void vpush_ref(CType *type, Section *sec, unsigned long offset, unsigned long size)
-{
-    vpushsym(type, get_sym_ref(type, sec, offset, size));
 }
 static Sym *external_global_sym(int v, CType *type, int r)
 {
@@ -4500,26 +4486,6 @@ static void unary(void)
     case 0xcf:
         t = (4 == 8 ? 4 : 3) | 0x0800 | 0x0010;
 	goto push_tokc;
-    case TOK___FUNCTION__:
-        if (!gnu_ext)
-            goto tok_identifier;
-    case TOK___FUNC__:
-        {
-            void *ptr;
-            int len;
-            len = strlen(funcname) + 1;
-            type.t = 1;
-            mk_pointer(&type);
-            type.t |= 0x0040;
-            type.ref->c = len;
-            vpush_ref(&type, data_section, data_section->data_offset, len);
-            if (!(nocode_wanted > 0)) {
-                ptr = section_ptr_add(data_section, len);
-                memcpy(ptr, funcname, len);
-            }
-            next();
-        }
-        break;
     case 0xb9:
         t = 1;
         type.t = t;
@@ -4550,14 +4516,6 @@ static void unary(void)
                 unary();
                 gen_cast(&type);
             }
-        } else if (tok == '{') {
-	    int saved_nocode_wanted = nocode_wanted;
-            if (const_wanted)
-                tcc_error("expected constant");
-            save_regs(0);
-            block(((void*)0), ((void*)0), 1);
-	    nocode_wanted = saved_nocode_wanted;
-            skip(')');
         } else {
             gexpr();
             skip(')');
@@ -4605,21 +4563,14 @@ static void unary(void)
         gen_op('+');
         break;
     case TOK_SIZEOF:
-    case TOK_ALIGNOF1:
-    case TOK_ALIGNOF2:
-        t = tok;
         next();
         in_sizeof++;
         expr_type(&type, unary);
         s = vtop[1].sym;
         size = type_size(&type, &align);
-        if (t == TOK_SIZEOF) {
-            if (size < 0)
-                tcc_error("sizeof applied to an incomplete type");
-            vpushs(size);
-        } else {
-            vpushs(align);
-        }
+        if (size < 0)
+            tcc_error("sizeof applied to an incomplete type");
+        vpushs(size);
         vtop->type.t |= 0x0010;
         break;
     case 0xa4:
@@ -4638,7 +4589,6 @@ static void unary(void)
 	gen_op('-');
         break;
     default:
-    tok_identifier:
         t = tok;
         next();
         if (t < TOK_DEFINE)
@@ -5244,21 +5194,6 @@ static void block(int *bsym, int *csym, int is_expr)
         s = local_stack;
         llabel = local_label_stack;
         ++local_scope;
-        if (tok == TOK_LABEL) {
-            next();
-            for(;;) {
-                if (tok < TOK_DEFINE)
-                    expect("label identifier");
-                label_push(&local_label_stack, tok, 2);
-                next();
-                if (tok == ',') {
-                    next();
-                } else {
-                    skip(';');
-                    break;
-                }
-            }
-        }
         while (tok != '}') {
 	    if ((a = is_label()))
 		unget_tok(a);
