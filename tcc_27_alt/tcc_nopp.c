@@ -259,13 +259,7 @@ typedef struct BufferedFile {
     int fd;
     struct BufferedFile *prev;
     int line_num;
-    int line_ref;
-    int ifndef_macro;
-    int ifndef_macro_saved;
-    int *ifdef_stack_ptr;
     char filename[1024];
-    char *true_filename;
-    unsigned char unget[4];
     unsigned char buffer[1];
 } BufferedFile;
 typedef struct TokenString {
@@ -304,10 +298,6 @@ struct TCCState {
     int error_set_jmp_enabled;
     jmp_buf error_jmp_buf;
     int nb_errors;
-    BufferedFile *include_stack[32];
-    BufferedFile **include_stack_ptr;
-    int ifdef_stack[64];
-    int *ifdef_stack_ptr;
     Section **sections;
     int nb_sections;
     Section **priv_sections;
@@ -1902,9 +1892,6 @@ static void unget_tok(int last_tok)
 }
 static void preprocess_start(TCCState *s1)
 {
-    s1->include_stack_ptr = s1->include_stack;
-    s1->ifdef_stack_ptr = s1->ifdef_stack;
-    file->ifdef_stack_ptr = s1->ifdef_stack_ptr;
     pvtop = vtop = (__vstack + 1) - 1;
     set_idnum('$', 0);
     set_idnum('.', 0);
@@ -1920,7 +1907,6 @@ static void tccpp_new(TCCState *s)
 {
     int i, c;
     const char *p, *r;
-    s->include_stack_ptr = s->include_stack;
     for(i = (-1); i<128; i++)
         set_idnum(i,
             is_space(i) ? 1
@@ -7970,14 +7956,11 @@ static void strcat_printf(char *buf, int buf_size, const char *fmt, ...)
 static void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
 {
     char buf[2048];
-    BufferedFile **pf, *f;
+    BufferedFile *f;
     buf[0] = '\0';
     for (f = file; f && f->filename[0] == ':'; f = f->prev)
      ;
     if (f) {
-        for(pf = s1->include_stack; pf < s1->include_stack_ptr; pf++)
-            strcat_printf(buf, sizeof(buf), "In file included from %s:%d:\n",
-                (*pf)->filename, (*pf)->line_num);
         if (s1->error_set_jmp_enabled) {
             strcat_printf(buf, sizeof(buf), "%s:%d: ",
                 f->filename, f->line_num - !!(tok_flags & 0x0001));
@@ -8039,9 +8022,7 @@ static void tcc_open_bf(TCCState *s1, const char *filename, int initlen)
     bf->buf_end = bf->buffer + initlen;
     bf->buf_end[0] = '\\';
     pstrcpy(bf->filename, sizeof(bf->filename), filename);
-    bf->true_filename = bf->filename;
     bf->line_num = 1;
-    bf->ifdef_stack_ptr = s1->ifdef_stack_ptr;
     bf->fd = -1;
     bf->prev = file;
     file = bf;
@@ -8054,8 +8035,6 @@ static void tcc_close(void)
         close(bf->fd);
         total_lines += bf->line_num;
     }
-    if (bf->true_filename != bf->filename)
-        tcc_free(bf->true_filename);
     file = bf->prev;
     tcc_free(bf);
 }
@@ -8067,8 +8046,7 @@ static int tcc_open(TCCState *s1, const char *filename)
     else
         fd = open(filename, 00 | 0);
     if ((s1->verbose == 2 && fd >= 0) || s1->verbose == 3)
-        printf("%s %*s%s\n", fd < 0 ? "nf":"->",
-               (int)(s1->include_stack_ptr - s1->include_stack), "", filename);
+        printf("%s %s\n", fd < 0 ? "nf":"->", filename);
     if (fd < 0)
         return -1;
     tcc_open_bf(s1, filename, 0);
