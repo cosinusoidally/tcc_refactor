@@ -284,7 +284,6 @@ struct sym_attr {
     int dyn_index;
 };
 struct TCCState {
-    int verbose;
     int nostdlib;
     char *tcc_lib_path;
     int output_type;
@@ -313,8 +312,6 @@ struct TCCState {
     int nb_libraries;
     int filetype;
     char *outfile;
-    int argc;
-    char **argv;
 };
 struct filespec {
     char type;
@@ -6840,8 +6837,6 @@ static int tcc_write_elf_file(TCCState *s1, const char *filename, int phnum,
     FILE *f;
     unlink(filename);
     f = fopen(filename, "wb");
-    if (s1->verbose)
-        printf("<- %s\n", filename);
     tcc_output_elf(s1, f, phnum, phdr, file_offset, sec_order);
     fclose(f);
     return 0;
@@ -8018,8 +8013,6 @@ static int tcc_open(TCCState *s1, const char *filename)
         fd = 0, filename = "<stdin>";
     else
         fd = open(filename, 00 | 0);
-    if ((s1->verbose == 2 && fd >= 0) || s1->verbose == 3)
-        printf("%s %s\n", fd < 0 ? "nf":"->", filename);
     if (fd < 0)
         return -1;
     tcc_open_bf(s1, filename, 0);
@@ -8081,7 +8074,6 @@ static void tcc_cleanup(void)
     tcc_free(s1->tcc_lib_path);
     tcc_free(s1->outfile);
     dynarray_reset(&s1->files, &s1->nb_files);
-    dynarray_reset(&s1->argv, &s1->argc);
     tcc_free(s1);
     if (0 == --nb_states)
         tcc_memcheck();
@@ -8236,19 +8228,11 @@ static const char *take_arg(int argc, char **argv, int *optind,
             action = 1;
             continue;
         }
-        if (!strcmp(r, "-h") || !strcmp(r, "--help") || !strcmp(r, "-?"))
-            return 1;
-        if (!strcmp(r, "-dumpversion")) {
-            printf("%s\n", "0.9.27");
-            exit(0);
-        }
-        if (r[1] == 'v') {
-            while (*++r == 'v')
-                ++s->verbose;
-            continue;
-        }
         if (!strcmp(r, "-c")) {
             s->output_type = 4;
+        } else if (!strcmp(r, "-v")) {
+            printf("tcc_27_alt i386 Linux\n");
+            exit(0);
         } else if (!strcmp(r, "-nostdlib")) {
             s->nostdlib = 1;
         } else if (!strcmp(r, "-nostdinc")) {
@@ -8270,21 +8254,9 @@ static const char *take_arg(int argc, char **argv, int *optind,
         } else if (!strncmp(r, "-o", 2)) {
             tcc_free(s->outfile);
             s->outfile = tcc_strdup(r + 2);
-        } else if (!strcmp(r, "-x")) {
-            optarg = take_arg(argc, argv, &optind, r, 2);
-            if (*optarg == 'c')
-                s->filetype = 1;
-            else if (*optarg == 'n')
-                s->filetype = 0;
-            else
-                tcc_warning("unsupported language '%s'", optarg);
         } else if (!strcmp(r, "-m32")) {
         } else if (!strcmp(r, "-m64")) {
             tcc_error("tcc_27_alt only supports i386");
-        } else if (!strcmp(r, "--")) {
-            while (optind < argc)
-                args_parser_add_file(s, argv[optind++], s->filetype);
-            action = 1;
         } else {
             tcc_warning("unsupported option '%s'", r);
         }
@@ -8293,31 +8265,8 @@ static const char *take_arg(int argc, char **argv, int *optind,
     *pargv = argv;
     if (action)
         return 0;
-    if (s->verbose)
-        return 3;
     return 1;
 }
-static const char help[] =
-    "Tiny C Compiler ""0.9.27"" - Copyright (C) 2001-2006 Fabrice Bellard\n"
-    "Usage: tcc [options...] [-o outfile] [-c] infile(s)...\n"
-    "General options:\n"
-    "  -c          compile only - generate an object file\n"
-    "  -o outfile  set output filename\n"
-    "  -v          show version\n"
-    "  -h          show this help\n"
-    "Linker options:\n"
-    "  -llib       link with dynamic or static library 'lib'\n"
-    "Misc. options:\n"
-    "  -x c|n      specify type of the next infile\n"
-    "  -nostdlib   do not link with standard crt and libraries\n"
-    "  -Bdir       set tcc's private include/library dir\n"
-    ;
-static const char version[] =
-    "tcc version ""0.9.27"" ("
-        "i386"
-        " Linux"
-    ")\n"
-    ;
 static char *default_outputfile(TCCState *s, const char *first_file)
 {
     char buf[1024];
@@ -8345,11 +8294,7 @@ redo:
     opt = tcc_parse_args(s, &argc, &argv, 1);
     if (n == 0) {
         if (opt == 1)
-            return printf(help), 1;
-        if (s->verbose)
-            printf(version);
-        if (opt == 3)
-            return 0;
+            tcc_error("no input files\n");
         n = s->nb_files;
         if (n == 0)
             tcc_error("no input files\n");
@@ -8370,8 +8315,6 @@ redo:
             if (tcc_add_library_err(s, f->name) < 0)
                 ret = 1;
         } else {
-            if (1 == s->verbose)
-                printf("-> %s\n", f->name);
             if (!first_file)
                 first_file = f->name;
             if (tcc_add_file(s, f->name) < 0)
