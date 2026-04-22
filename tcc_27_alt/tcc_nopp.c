@@ -7873,7 +7873,7 @@ static void strcat_printf(char *buf, int buf_size, const char *fmt, ...)
     strcat_vprintf(buf, buf_size, fmt, ap);
     ;
 }
-static void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
+static void error1(TCCState *s1, const char *fmt, va_list ap)
 {
     char buf[2048];
     BufferedFile *f;
@@ -7891,23 +7891,19 @@ static void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
     } else {
         strcat_printf(buf, sizeof(buf), "tcc: ");
     }
-    if (is_warning)
-        strcat_printf(buf, sizeof(buf), "warning: ");
-    else
-        strcat_printf(buf, sizeof(buf), "error: ");
+    strcat_printf(buf, sizeof(buf), "error: ");
     strcat_vprintf(buf, sizeof(buf), fmt, ap);
     fflush(stdout);
     fprintf(stderr, "%s\n", buf);
     fflush(stderr);
-    if (!is_warning)
-        s1->nb_errors++;
+    s1->nb_errors++;
 }
  void tcc_error_noabort(const char *fmt, ...)
 {
     TCCState *s1 = tcc_state;
     va_list ap;
     ap = ((char *)&(fmt)) + ((sizeof(fmt)+3)&~3);
-    error1(s1, 0, fmt, ap);
+    error1(s1, fmt, ap);
     ;
 }
  void tcc_error(const char *fmt, ...)
@@ -7915,7 +7911,7 @@ static void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
     TCCState *s1 = tcc_state;
     va_list ap;
     ap = ((char *)&(fmt)) + ((sizeof(fmt)+3)&~3);
-    error1(s1, 0, fmt, ap);
+    error1(s1, fmt, ap);
     ;
     if (s1->error_set_jmp_enabled) {
         longjmp(s1->error_jmp_buf, 1);
