@@ -328,7 +328,6 @@ enum tcc_token {
      ,TOK_STATIC
      ,TOK_UNSIGNED
      ,TOK_GOTO
-     ,TOK_DO
      ,TOK_CONTINUE
      ,TOK_SWITCH
      ,TOK_CASE
@@ -639,7 +638,6 @@ static const char tcc_keywords[] =
      "static" "\0"
      "unsigned" "\0"
      "goto" "\0"
-     "do" "\0"
      "continue" "\0"
      "switch" "\0"
      "case" "\0"
@@ -1255,9 +1253,10 @@ static void TOK_GET(int *t, const int **pp, CValue *cv)
         n = 2;
         goto copy;
     copy:
-        do
+        while (n) {
             *tab++ = *p++;
-        while (--n);
+            n--;
+        }
         break;
     default:
         break;
@@ -1843,9 +1842,9 @@ static void next_nomacro_spc(void)
 }
 static void next_nomacro(void)
 {
-    do {
+    next_nomacro_spc();
+    while (tok < 256 && (isidnum_table[tok - (-1)] & 1))
         next_nomacro_spc();
-    } while (tok < 256 && (isidnum_table[tok - (-1)] & 1));
 }
 static void next(void)
 {
@@ -5069,26 +5068,6 @@ static void block(int *bsym, int *csym, int is_expr)
         --local_scope;
         sym_pop(&local_stack, s, 0);
     } else
-    if (tok == TOK_DO) {
-	int saved_nocode_wanted;
-	nocode_wanted &= ~0x20000000;
-        next();
-        a = 0;
-        b = 0;
-        d = ind;
-	saved_nocode_wanted = nocode_wanted;
-        block(&a, &b, 0);
-        skip(TOK_WHILE);
-        skip('(');
-        gsym(b);
-	gexpr();
-	c = gvtst(0, 0);
-	gsym_addr(c, d);
-	nocode_wanted = saved_nocode_wanted;
-        skip(')');
-        gsym(a);
-        skip(';');
-    } else
     if (tok == TOK_SWITCH) {
         struct switch_t *saved, sw;
 	int saved_nocode_wanted = nocode_wanted;
@@ -7828,7 +7807,7 @@ static void dynarray_reset(void *pp, int *n)
 static void tcc_split_path(TCCState *s, void *p_ary, int *p_nb_ary, const char *in)
 {
     const char *p;
-    do {
+    for (;;) {
         int c;
         CString str;
         cstr_new(&str);
@@ -7846,8 +7825,10 @@ static void tcc_split_path(TCCState *s, void *p_ary, int *p_nb_ary, const char *
             dynarray_add(p_ary, p_nb_ary, tcc_strdup(str.data));
         }
         cstr_free(&str);
+        if (!*p)
+            break;
         in = p+1;
-    } while (*p);
+    }
 }
 static void strcat_vprintf(char *buf, int buf_size, const char *fmt, va_list ap)
 {
