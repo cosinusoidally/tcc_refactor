@@ -458,10 +458,9 @@ static int tcc_add_crt(TCCState *s, const char *filename);
  int tcc_add_library_err(TCCState *s, const char *f);
  int tcc_parse_args(TCCState *s, int *argc, char ***argv, int optind);
 static struct BufferedFile *file;
-static int ch, tok;
+static int tok;
 static CValue tokc;
 static const int *macro_ptr;
-static int parse_flags;
 static int tok_flags;
 static CString tokcstr;
 static int total_lines;
@@ -482,7 +481,6 @@ static void tok_str_add_tok(TokenString *s);
 static Sym *label_find(int v);
 static Sym *label_push(Sym **ptop, int v, int flags);
 static void label_pop(Sym **ptop, Sym *slast, int keep);
-static void preprocess(int is_bof);
 static void next_nomacro(void);
 static void next(void);
 static void unget_tok(int last_tok);
@@ -599,7 +597,6 @@ static struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc);
 static void squeeze_multi_relocs(Section *sec, size_t oldrelocoffset);
 static Elf32_Addr get_elf_sym_addr(TCCState *s, const char *name, int err);
 static uint8_t *parse_comment(uint8_t *p);
-static void inp(void);
 static int handle_eob(void);
 enum gotplt_entry {
     NO_GOTPLT_ENTRY,
@@ -650,9 +647,8 @@ static int tcc_ext = 1;
 static struct TCCState *tcc_state;
 static int nb_states;
 static int tok_flags;
-static int parse_flags;
 static struct BufferedFile *file;
-static int ch, tok;
+static int tok;
 static CValue tokc;
 static const int *macro_ptr;
 static CString tokcstr;
@@ -665,7 +661,6 @@ static char token_buf[1024 + 1];
 static CString cstr_buf;
 static TokenString tokstr_buf;
 static unsigned char isidnum_table[256 - (-1)];
-static int pp_once;
 static struct TinyAlloc *toksym_alloc;
 static struct TinyAlloc *tokstr_alloc;
 static struct TinyAlloc *cstr_alloc;
@@ -1099,51 +1094,19 @@ static int handle_eob(void)
         return (-1);
     }
 }
-static void inp(void)
+static int next_src_char(uint8_t **pp)
 {
-    ch = *(++(file->buf_ptr));
-    if (ch == '\\')
-        ch = handle_eob();
-}
-static int handle_stray_noerror(void)
-{
-    while (ch == '\\') {
-        inp();
-        if (ch == '\n') {
-            file->line_num++;
-            inp();
-        } else if (ch == '\r') {
-            inp();
-            if (ch != '\n')
-                goto fail;
-            file->line_num++;
-            inp();
-        } else {
-        fail:
-            return 1;
-        }
-    }
-    return 0;
-}
-static int handle_stray1(uint8_t *p)
-{
-    int c;
-    file->buf_ptr = p;
+    uint8_t *p = *pp + 1;
     if (p >= file->buf_end) {
-        c = handle_eob();
-        if (c != '\\')
-            return c;
+        file->buf_ptr = p;
+        if (handle_eob() == (-1)) {
+            *pp = file->buf_ptr;
+            return (-1);
+        }
         p = file->buf_ptr;
     }
-    ch = *p;
-    if (handle_stray_noerror()) {
-        if (!(parse_flags & 0x0020))
-            tcc_error("stray '\\' in program");
-        *--file->buf_ptr = '\\';
-    }
-    p = file->buf_ptr;
-    c = *p;
-    return c;
+    *pp = p;
+    return *p;
 }
 static uint8_t *parse_line_comment(uint8_t *p)
 {
@@ -1158,21 +1121,7 @@ static uint8_t *parse_line_comment(uint8_t *p)
             file->buf_ptr = p;
             c = handle_eob();
             p = file->buf_ptr;
-            if (c == '\\') {
-                { p++; c = *p; if (c == '\\') { file->buf_ptr = p; c = handle_eob(); p = file->buf_ptr; }};
-                if (c == '\n') {
-                    file->line_num++;
-                    { p++; c = *p; if (c == '\\') { file->buf_ptr = p; c = handle_eob(); p = file->buf_ptr; }};
-                } else if (c == '\r') {
-                    { p++; c = *p; if (c == '\\') { file->buf_ptr = p; c = handle_eob(); p = file->buf_ptr; }};
-                    if (c == '\n') {
-                        file->line_num++;
-                        { p++; c = *p; if (c == '\\') { file->buf_ptr = p; c = handle_eob(); p = file->buf_ptr; }};
-                    }
-                }
-            } else {
-                goto redo;
-            }
+            goto redo;
         } else {
             p++;
         }
@@ -1211,23 +1160,7 @@ static uint8_t *parse_comment(uint8_t *p)
                     p = file->buf_ptr;
                     if (c == (-1))
                         tcc_error("unexpected end of file in comment");
-                    if (c == '\\') {
-                        while (c == '\\') {
-                            { p++; c = *p; if (c == '\\') { file->buf_ptr = p; c = handle_eob(); p = file->buf_ptr; }};
-                            if (c == '\n') {
-                                file->line_num++;
-                                { p++; c = *p; if (c == '\\') { file->buf_ptr = p; c = handle_eob(); p = file->buf_ptr; }};
-                            } else if (c == '\r') {
-                                { p++; c = *p; if (c == '\\') { file->buf_ptr = p; c = handle_eob(); p = file->buf_ptr; }};
-                                if (c == '\n') {
-                                    file->line_num++;
-                                    { p++; c = *p; if (c == '\\') { file->buf_ptr = p; c = handle_eob(); p = file->buf_ptr; }};
-                                }
-                            } else {
-                                goto after_star;
-                            }
-                        }
-                    }
+                    goto after_star;
                 } else {
                     break;
                 }
@@ -1270,12 +1203,12 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
             unterminated_string:
                 tcc_error("missing terminating %c character", sep);
             } else if (c == '\\') {
-                { p++; c = *p; if (c == '\\') { file->buf_ptr = p; c = handle_eob(); p = file->buf_ptr; }};
+                c = next_src_char(&p);
                 if (c == '\n') {
                     file->line_num++;
                     p++;
                 } else if (c == '\r') {
-                    { p++; c = *p; if (c == '\\') { file->buf_ptr = p; c = handle_eob(); p = file->buf_ptr; }};
+                    c = next_src_char(&p);
                     if (c != '\n')
                         expect("'\n' after '\r'");
                     file->line_num++;
@@ -1292,7 +1225,7 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
             file->line_num++;
             goto add_char;
         } else if (c == '\r') {
-            { p++; c = *p; if (c == '\\') { file->buf_ptr = p; c = handle_eob(); p = file->buf_ptr; }};
+            c = next_src_char(&p);
             if (c != '\n') {
                 cstr_ccat(str, '\r');
             } else {
@@ -1505,11 +1438,6 @@ static void label_pop(Sym **ptop, Sym *slast, int keep)
     }
     if (!keep)
         *ptop = slast;
-}
-static void preprocess(int is_bof)
-{
-    (void)is_bof;
-    tcc_error("preprocessor directives are not supported in tcc_27_alt");
 }
 static void parse_escape_string(CString *outstr, const uint8_t *buf)
 {
@@ -1774,10 +1702,7 @@ static void next_nomacro1(void)
     switch(c) {
     case ' ':
     case '\t':
-        tok = c;
         p++;
-        if (parse_flags & 0x0010)
-            goto keep_tok_flags;
         while (isidnum_table[*p - (-1)] & 1)
             ++p;
         goto redo_no_start;
@@ -1787,62 +1712,25 @@ static void next_nomacro1(void)
         p++;
         goto redo_no_start;
     case '\\':
-        c = handle_stray1(p);
+        file->buf_ptr = p;
+        c = handle_eob();
         p = file->buf_ptr;
-        if (c == '\\')
-            goto parse_simple;
-        if (c != (-1))
+        if (c != (-1)) {
+            if (c == '\\')
+                p++;
             goto redo_no_start;
-        {
-            TCCState *s1 = tcc_state;
-            if ((parse_flags & 0x0004)
-                && !(tok_flags & 0x0008)) {
-                tok_flags |= 0x0008;
-                tok = 10;
-                goto keep_tok_flags;
-            } else if (!(parse_flags & 0x0001)) {
-                tok = (-1);
-            } else if (s1->ifdef_stack_ptr != file->ifdef_stack_ptr) {
-                tcc_error("missing #endif");
-            } else {
-                tok = (-1);
-            }
         }
+        tok = (-1);
         break;
     case '\n':
         file->line_num++;
-        tok_flags |= 0x0001;
         p++;
-maybe_newline:
-        if (0 == (parse_flags & 0x0004))
-            goto redo_no_start;
-        tok = 10;
-        goto keep_tok_flags;
+        goto redo_no_start;
     case '#':
-        { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
-        if ((tok_flags & 0x0001) &&
-            (parse_flags & 0x0001)) {
-            file->buf_ptr = p;
-            preprocess(tok_flags & 0x0002);
-            p = file->buf_ptr;
-            goto maybe_newline;
-        } else {
-            if (c == '#') {
-                p++;
-                tok = 0xca;
-            } else {
-                if (parse_flags & 0x0008) {
-                    p = parse_line_comment(p - 1);
-                    goto redo_no_start;
-                } else {
-                    tok = '#';
-                }
-            }
-        }
+        tcc_error("preprocessor directives are not supported in tcc_27_alt");
         break;
     case '$':
-        if (!(isidnum_table[c - (-1)] & 2)
-         || (parse_flags & 0x0008))
+        if (!(isidnum_table[c - (-1)] & 2))
             goto parse_simple;
     case 'a': case 'b': case 'c': case 'd':
     case 'e': case 'f': case 'g': case 'h':
@@ -1884,11 +1772,11 @@ maybe_newline:
             cstr_reset(&tokcstr);
             cstr_cat(&tokcstr, (char *) p1, len);
             p--;
-            { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+            c = next_src_char(&p);
             while (isidnum_table[c - (-1)] & (2|4))
             {
                 cstr_ccat(&tokcstr, c);
-                { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+                c = next_src_char(&p);
             }
             ts = tok_alloc(tokcstr.data, tokcstr.size);
         }
@@ -1898,7 +1786,7 @@ maybe_newline:
     case '4': case '5': case '6': case '7':
     case '8': case '9':
         t = c;
-        { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+        c = next_src_char(&p);
     parse_num:
         cstr_reset(&tokcstr);
         for(;;) {
@@ -1907,13 +1795,12 @@ maybe_newline:
                   || c == '.'
                   || ((c == '+' || c == '-')
                       && (((t == 'e' || t == 'E')
-                            && !(parse_flags & 0x0008
-                                && ((char*)tokcstr.data)[0] == '0'
+                            && !(((char*)tokcstr.data)[0] == '0'
                                 && toup(((char*)tokcstr.data)[1]) == 'X'))
                           || t == 'p' || t == 'P'))))
                 break;
             t = c;
-            { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+            c = next_src_char(&p);
         }
         cstr_ccat(&tokcstr, '\0');
         tokc.str.size = tokcstr.size;
@@ -1921,7 +1808,7 @@ maybe_newline:
         tok = 0xbe;
         break;
     case '.':
-        { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+        c = next_src_char(&p);
         if (isnum(c)) {
             t = '.';
             goto parse_num;
@@ -1930,7 +1817,7 @@ maybe_newline:
             *--p = c = '.';
             goto parse_ident_fast;
         } else if (c == '.') {
-            { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+            c = next_src_char(&p);
             if (c == '.') {
                 p++;
                 tok = 0xc8;
@@ -1954,12 +1841,12 @@ maybe_newline:
         tok = 0xbf;
         break;
     case '<':
-        { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+        c = next_src_char(&p);
         if (c == '=') {
             p++;
             tok = 0x9e;
         } else if (c == '<') {
-            { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+            c = next_src_char(&p);
             if (c == '=') {
                 p++;
                 tok = 0x81;
@@ -1971,12 +1858,12 @@ maybe_newline:
         }
         break;
     case '>':
-        { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+        c = next_src_char(&p);
         if (c == '=') {
             p++;
             tok = 0x9d;
         } else if (c == '>') {
-            { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+            c = next_src_char(&p);
             if (c == '=') {
                 p++;
                 tok = 0x82;
@@ -1988,7 +1875,7 @@ maybe_newline:
         }
         break;
     case '&':
-        { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+        c = next_src_char(&p);
         if (c == '&') {
             p++;
             tok = 0xa0;
@@ -2000,7 +1887,7 @@ maybe_newline:
         }
         break;
     case '|':
-        { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+        c = next_src_char(&p);
         if (c == '|') {
             p++;
             tok = 0xa1;
@@ -2012,7 +1899,7 @@ maybe_newline:
         }
         break;
     case '+':
-        { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+        c = next_src_char(&p);
         if (c == '+') {
             p++;
             tok = 0xa4;
@@ -2024,7 +1911,7 @@ maybe_newline:
         }
         break;
     case '-':
-        { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+        c = next_src_char(&p);
         if (c == '-') {
             p++;
             tok = 0xa2;
@@ -2038,21 +1925,21 @@ maybe_newline:
             tok = '-';
         }
         break;
-    case '!': { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }}; if (c == '=') { p++; tok = 0x95; } else { tok = '!'; } break;
-    case '=': { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }}; if (c == '=') { p++; tok = 0x94; } else { tok = '='; } break;
-    case '*': { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }}; if (c == '=') { p++; tok = 0xaa; } else { tok = '*'; } break;
-    case '%': { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }}; if (c == '=') { p++; tok = 0xa5; } else { tok = '%'; } break;
-    case '^': { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }}; if (c == '=') { p++; tok = 0xde; } else { tok = '^'; } break;
+    case '!': c = next_src_char(&p); if (c == '=') { p++; tok = 0x95; } else { tok = '!'; } break;
+    case '=': c = next_src_char(&p); if (c == '=') { p++; tok = 0x94; } else { tok = '='; } break;
+    case '*': c = next_src_char(&p); if (c == '=') { p++; tok = 0xaa; } else { tok = '*'; } break;
+    case '%': c = next_src_char(&p); if (c == '=') { p++; tok = 0xa5; } else { tok = '%'; } break;
+    case '^': c = next_src_char(&p); if (c == '=') { p++; tok = 0xde; } else { tok = '^'; } break;
     case '/':
-        { p++; c = *p; if (c == '\\') { c = handle_stray1(p); p = file->buf_ptr; }};
+        c = next_src_char(&p);
         if (c == '*') {
             p = parse_comment(p);
             tok = ' ';
-            goto keep_tok_flags;
+            goto redo_no_start;
         } else if (c == '/') {
             p = parse_line_comment(p);
             tok = ' ';
-            goto keep_tok_flags;
+            goto redo_no_start;
         } else if (c == '=') {
             p++;
             tok = 0xaf;
@@ -2079,13 +1966,10 @@ maybe_newline:
     default:
         if (c >= 0x80 && c <= 0xFF)
 	    goto parse_ident_fast;
-        if (parse_flags & 0x0008)
-            goto parse_simple;
         tcc_error("unrecognized character \\x%02x", c);
         break;
     }
     tok_flags = 0;
-keep_tok_flags:
     file->buf_ptr = p;
 }
 static void next_nomacro_spc(void)
@@ -2113,10 +1997,7 @@ static void next_nomacro(void)
 static void next(void)
 {
  redo:
-    if (parse_flags & 0x0010)
-        next_nomacro_spc();
-    else
-        next_nomacro();
+    next_nomacro();
     if (macro_ptr) {
         if (tok == 0xcc || tok == 0xcb) {
             goto redo;
@@ -2126,11 +2007,9 @@ static void next(void)
         }
     }
     if (tok == 0xbe) {
-        if  (parse_flags & 0x0002)
-            parse_number((char *)tokc.str.data);
+        parse_number((char *)tokc.str.data);
     } else if (tok == 0xbf) {
-        if (parse_flags & 0x0040)
-            parse_string((char *)tokc.str.data, tokc.str.size - 1);
+        parse_string((char *)tokc.str.data, tokc.str.size - 1);
     }
 }
 static void unget_tok(int last_tok)
@@ -2146,12 +2025,10 @@ static void preprocess_start(TCCState *s1)
     s1->include_stack_ptr = s1->include_stack;
     s1->ifdef_stack_ptr = s1->ifdef_stack;
     file->ifdef_stack_ptr = s1->ifdef_stack_ptr;
-    pp_once++;
     pvtop = vtop = (__vstack + 1) - 1;
     set_idnum('$', 0);
     set_idnum('.', 0);
-    parse_flags = 0;
-    tok_flags = 0x0001 | 0x0002;
+    tok_flags = 0;
 }
 static void preprocess_end(TCCState *s1)
 {
@@ -2306,7 +2183,6 @@ static int tccgen_compile(TCCState *s1)
     func_old_type.ref->f.func_call = 0;
     func_old_type.ref->f.func_type = 2;
     tcc_debug_start(s1);
-    parse_flags = 0x0001 | 0x0002 | 0x0040;
     next();
     decl(0x0030);
     check_vstack();
