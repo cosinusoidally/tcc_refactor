@@ -91,7 +91,6 @@ void tcc_delete(TCCState *s);
 void tcc_set_lib_path(TCCState *s, const char *path);
 int tcc_add_file(TCCState *s, const char *filename);
 int tcc_set_output_type(TCCState *s, int output_type);
-int tcc_add_library_path(TCCState *s, const char *pathname);
 int tcc_add_library(TCCState *s, const char *libraryname);
 int tcc_output_file(TCCState *s, const char *filename);
 typedef uint16_t Elf32_Half;
@@ -300,8 +299,6 @@ struct TCCState {
     int seg_size;
     DLLReference **loaded_dlls;
     int nb_loaded_dlls;
-    char **library_paths;
-    int nb_library_paths;
     char **crt_paths;
     int nb_crt_paths;
     int error_set_jmp_enabled;
@@ -8129,7 +8126,6 @@ static void tcc_cleanup(void)
 {
     tcc_cleanup();
     tccelf_delete(s1);
-    dynarray_reset(&s1->library_paths, &s1->nb_library_paths);
     dynarray_reset(&s1->crt_paths, &s1->nb_crt_paths);
     tcc_free(s1->tcc_lib_path);
     tcc_free(s1->outfile);
@@ -8142,7 +8138,6 @@ static void tcc_cleanup(void)
 int tcc_set_output_type(TCCState *s, int output_type)
 {
     s->output_type = output_type;
-    tcc_add_library_path(s, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
     tcc_split_path(s, &s->crt_paths, &s->nb_crt_paths, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
     if (output_type == 2 && !s->nostdlib) {
         tcc_add_crt(s, "crt1.o");
@@ -8205,11 +8200,6 @@ static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
         s->filetype = filetype;
     }
     return tcc_add_file_internal(s, filename, flags);
-}
- int tcc_add_library_path(TCCState *s, const char *pathname)
-{
-    tcc_split_path(s, &s->library_paths, &s->nb_library_paths, pathname);
-    return 0;
 }
 static int tcc_add_library_internal(TCCState *s, const char *fmt,
     const char *filename, int flags, char **paths, int nb_paths)
@@ -8318,9 +8308,6 @@ static const char *take_arg(int argc, char **argv, int *optind,
             tcc_set_lib_path(s, optarg);
         } else if (!strncmp(r, "-I", 2)) {
             (void)take_arg(argc, argv, &optind, r, 2);
-        } else if (!strncmp(r, "-L", 2)) {
-            optarg = take_arg(argc, argv, &optind, r, 2);
-            tcc_add_library_path(s, optarg);
         } else if (!strncmp(r, "-l", 2)) {
             optarg = take_arg(argc, argv, &optind, r, 2);
             args_parser_add_file(s, optarg, 4);
@@ -8368,7 +8355,6 @@ static const char help[] =
     "  -v          show version\n"
     "  -h          show this help\n"
     "Linker options:\n"
-    "  -Ldir       add library path 'dir'\n"
     "  -llib       link with dynamic or static library 'lib'\n"
     "Misc. options:\n"
     "  -x c|n      specify type of the next infile\n"
@@ -8381,14 +8367,6 @@ static const char version[] =
         " Linux"
     ")\n"
     ;
-static void set_environment(TCCState *s)
-{
-    char * path;
-    path = getenv("LIBRARY_PATH");
-    if(path != ((void*)0)) {
-        tcc_add_library_path(s, path);
-    }
-}
 static char *default_outputfile(TCCState *s, const char *first_file)
 {
     char buf[1024];
@@ -8431,7 +8409,6 @@ redo:
                 tcc_error("cannot specify output file with -c many files");
         }
     }
-    set_environment(s);
     if (s->output_type == 0)
         s->output_type = 2;
     tcc_set_output_type(s, s->output_type);
