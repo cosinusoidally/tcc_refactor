@@ -25,6 +25,8 @@ plain integer fields so the self-host input stays in the smaller dialect.
 GNU/MS declaration attributes are rejected; this removes section, alias,
 visibility, packed/aligned, and non-cdecl calling-convention syntax from the
 front end.
+GNU `typeof`, C11 `_Generic`, labels-as-values, and computed `goto` are also
+outside the supported subset.
 
 ## Build
 

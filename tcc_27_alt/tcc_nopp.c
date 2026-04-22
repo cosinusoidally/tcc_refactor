@@ -689,7 +689,6 @@ enum tcc_token {
      ,TOK_RESTRICT2
      ,TOK_RESTRICT3
      ,TOK_EXTENSION
-     ,TOK_GENERIC
      ,TOK_FLOAT
      ,TOK_DOUBLE
      ,TOK_BOOL
@@ -704,9 +703,6 @@ enum tcc_token {
      ,TOK_ATTRIBUTE2
      ,TOK_ALIGNOF1
      ,TOK_ALIGNOF2
-     ,TOK_TYPEOF1
-     ,TOK_TYPEOF2
-     ,TOK_TYPEOF3
      ,TOK_LABEL
      ,TOK_ASM1
      ,TOK_ASM2
@@ -975,7 +971,6 @@ static void gen_opi(int op);
 static void gen_opf(int op);
 static void gen_cvt_ftoi(int t);
 static void gen_cvt_ftof(int t);
-static void ggoto(void);
 static void o(unsigned int c);
 static void gen_cvt_itof(int t);
 static inline uint16_t read16le(unsigned char *p) {
@@ -1067,7 +1062,6 @@ static const char tcc_keywords[] =
      "__restrict" "\0"
      "__restrict__" "\0"
      "__extension__" "\0"
-     "_Generic" "\0"
      "float" "\0"
      "double" "\0"
      "_Bool" "\0"
@@ -1082,9 +1076,6 @@ static const char tcc_keywords[] =
      "__attribute__" "\0"
      "__alignof" "\0"
      "__alignof__" "\0"
-     "typeof" "\0"
-     "__typeof" "\0"
-     "__typeof__" "\0"
      "__label__" "\0"
      "asm" "\0"
      "__asm" "\0"
@@ -2918,7 +2909,6 @@ static inline CType *pointed_type(CType *type);
 static int is_compatible_types(CType *type1, CType *type2);
 static int parse_btype(CType *type, AttributeDef *ad);
 static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
-static void parse_expr_type(CType *type);
 static void init_putv(CType *type, Section *sec, unsigned long c);
 static void decl_initializer(CType *type, Section *sec, unsigned long c, int first, int size_only);
 static void block(int *bsym, int *csym, int is_expr);
@@ -5322,15 +5312,6 @@ static int parse_btype(CType *type, AttributeDef *ad)
         case TOK_ATTRIBUTE2:
             parse_attribute(ad);
             break;
-        case TOK_TYPEOF1:
-        case TOK_TYPEOF2:
-        case TOK_TYPEOF3:
-            next();
-            parse_expr_type(&type1);
-            type1.t &= ~((0x00001000 | 0x00002000 | 0x00004000 | 0x00008000)&~0x00004000);
-	    if (type1.ref)
-                sym_to_attr(ad, type1.ref);
-            goto basic_type2;
         default:
             if (typespec_found)
                 goto the_end;
@@ -5571,18 +5552,6 @@ static void expr_type(CType *type, void (*expr_fn)(void))
     vpop();
     nocode_wanted--;
 }
-static void parse_expr_type(CType *type)
-{
-    int n;
-    AttributeDef ad;
-    skip('(');
-    if (parse_btype(type, &ad)) {
-        type_decl(type, &ad, &n, 1);
-    } else {
-        expr_type(type, gexpr);
-    }
-    skip(')');
-}
 static void unary(void)
 {
     int n, t, align, size, r, sizeof_caller;
@@ -5788,87 +5757,6 @@ static void unary(void)
 	vswap();
 	gen_op('-');
         break;
-    case 0xa0:
-        if (!gnu_ext)
-            goto tok_identifier;
-        next();
-        if (tok < TOK_DEFINE)
-            expect("label identifier");
-        s = label_find(tok);
-        if (!s) {
-            s = label_push(&global_label_stack, tok, 1);
-        } else {
-            if (s->r == 2)
-                s->r = 1;
-        }
-        if (!s->type.t) {
-            s->type.t = 0;
-            mk_pointer(&s->type);
-            s->type.t |= 0x00002000;
-        }
-        vpushsym(&s->type, s);
-        next();
-        break;
-    case TOK_GENERIC:
-    {
-	CType controlling_type;
-	int has_default = 0;
-	int has_match = 0;
-	int learn = 0;
-	TokenString *str = ((void*)0);
-	next();
-	skip('(');
-	expr_type(&controlling_type, expr_eq);
-	controlling_type.t &= ~(0x0100 | 0x0200 | 0x0040);
-	for (;;) {
-	    learn = 0;
-	    skip(',');
-	    if (tok == TOK_DEFAULT) {
-		if (has_default)
-		    tcc_error("too many 'default'");
-		has_default = 1;
-		if (!has_match)
-		    learn = 1;
-		next();
-	    } else {
-	        AttributeDef ad_tmp;
-		int itmp;
-	        CType cur_type;
-		parse_btype(&cur_type, &ad_tmp);
-		type_decl(&cur_type, &ad_tmp, &itmp, 1);
-		if (compare_types(&controlling_type, &cur_type, 0)) {
-		    if (has_match) {
-		      tcc_error("type match twice");
-		    }
-		    has_match = 1;
-		    learn = 1;
-		}
-	    }
-	    skip(':');
-	    if (learn) {
-		if (str)
-		    tok_str_free(str);
-		skip_or_save_block(&str);
-	    } else {
-		skip_or_save_block(((void*)0));
-	    }
-	    if (tok == ')')
-		break;
-	}
-	if (!str) {
-	    char buf[60];
-	    type_to_str(buf, sizeof buf, &controlling_type, ((void*)0));
-	    tcc_error("type '%s' does not match any association", buf);
-	}
-	begin_macro(str, 1);
-	next();
-	expr_eq();
-	if (tok != (-1))
-	    expect(",");
-	end_macro();
-        next();
-	break;
-    }
     case TOK___NAN__:
         vpush64(9, 0x7ff8000000000000ULL);
         next();
@@ -6774,13 +6662,7 @@ static void block(int *bsym, int *csym, int is_expr)
     } else
     if (tok == TOK_GOTO) {
         next();
-        if (tok == '*' && gnu_ext) {
-            next();
-            gexpr();
-            if ((vtop->type.t & 0x000f) != 5)
-                expect("pointer");
-            ggoto();
-        } else if (tok >= TOK_DEFINE) {
+        if (tok >= TOK_DEFINE) {
             s = label_find(tok);
             if (!s) {
                 s = label_push(&global_label_stack, tok, 1);
@@ -10054,11 +9936,6 @@ static void gen_cvt_ftoi(int t)
 static void gen_cvt_ftof(int t)
 {
     gv(0x0002);
-}
-static void ggoto(void)
-{
-    gcall_or_jmp(1);
-    vtop--;
 }
 int code_reloc (int reloc_type)
 {
