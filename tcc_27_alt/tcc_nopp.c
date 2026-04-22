@@ -287,7 +287,6 @@ struct TCCState {
     int nostdlib;
     char *tcc_lib_path;
     int output_type;
-    int warn_none;
     int warn_implicit_function_declaration;
     int seg_size;
     DLLReference **loaded_dlls;
@@ -309,7 +308,6 @@ struct TCCState {
     int nb_sym_attrs;
     struct filespec **files;
     int nb_files;
-    int nb_libraries;
     int filetype;
     char *outfile;
 };
@@ -7975,8 +7973,6 @@ static void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
 {
     TCCState *s1 = tcc_state;
     va_list ap;
-    if (s1->warn_none)
-        return;
     ap = ((char *)&(fmt)) + ((sizeof(fmt)+3)&~3);
     error1(s1, 1, fmt, ap);
     ;
@@ -8236,8 +8232,6 @@ static const char *take_arg(int argc, char **argv, int *optind,
         } else if (!strcmp(r, "-nostdlib")) {
             s->nostdlib = 1;
         } else if (!strcmp(r, "-nostdinc")) {
-        } else if (!strcmp(r, "-w")) {
-            s->warn_none = 1;
         } else if (!strncmp(r, "-B", 2)) {
             optarg = take_arg(argc, argv, &optind, r, 2);
             tcc_set_lib_path(s, optarg);
@@ -8246,7 +8240,6 @@ static const char *take_arg(int argc, char **argv, int *optind,
         } else if (!strncmp(r, "-l", 2)) {
             optarg = take_arg(argc, argv, &optind, r, 2);
             args_parser_add_file(s, optarg, 4);
-            s->nb_libraries++;
         } else if (!strcmp(r, "-o")) {
             optarg = take_arg(argc, argv, &optind, r, 2);
             tcc_free(s->outfile);
@@ -8299,8 +8292,6 @@ redo:
         if (n == 0)
             tcc_error("no input files\n");
         if (s->output_type == 4) {
-            if (s->nb_libraries)
-                tcc_error("cannot specify libraries with -c");
             if (n > 1 && s->outfile)
                 tcc_error("cannot specify output file with -c many files");
         }
