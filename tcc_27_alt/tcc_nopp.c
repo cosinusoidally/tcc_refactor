@@ -72,7 +72,6 @@ TCCState *tcc_new(void);
 void tcc_delete(TCCState *s);
 void tcc_set_lib_path(TCCState *s, const char *path);
 int tcc_add_file(TCCState *s, const char *filename);
-int tcc_set_output_type(TCCState *s, int output_type);
 int tcc_add_library(TCCState *s, const char *libraryname);
 int tcc_output_file(TCCState *s, const char *filename);
 typedef uint16_t Elf32_Half;
@@ -6343,8 +6342,7 @@ static void tcc_add_runtime(TCCState *s1)
     if (!s1->nostdlib) {
         tcc_add_library_err(s1, "c");
         tcc_add_support(s1, "libtcc1.o");
-        if (s1->output_type != 1)
-            tcc_add_crt(s1, "crtn.o");
+        tcc_add_crt(s1, "crtn.o");
     }
 }
 static void tcc_add_linker_symbols(TCCState *s1)
@@ -7921,16 +7919,6 @@ static void tcc_cleanup(void)
     if (0 == --nb_states)
         tcc_memcheck();
 }
-int tcc_set_output_type(TCCState *s, int output_type)
-{
-    s->output_type = output_type;
-    tcc_split_path(s, &s->crt_paths, &s->nb_crt_paths, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
-    if (output_type == 2 && !s->nostdlib) {
-        tcc_add_crt(s, "crt1.o");
-        tcc_add_crt(s, "crti.o");
-    }
-    return 0;
-}
 static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
 {
     int ret;
@@ -8135,7 +8123,11 @@ redo:
     }
     if (s->output_type == 0)
         s->output_type = 2;
-    tcc_set_output_type(s, s->output_type);
+    tcc_split_path(s, &s->crt_paths, &s->nb_crt_paths, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
+    if (s->output_type == 2 && !s->nostdlib) {
+        tcc_add_crt(s, "crt1.o");
+        tcc_add_crt(s, "crti.o");
+    }
     for (first_file = ((void*)0), ret = 0;;) {
         struct filespec *f = s->files[s->nb_files - n];
         s->filetype = f->type;
@@ -8154,13 +8146,10 @@ redo:
             break;
     }
     if (0 == ret) {
-        if (s->output_type == 1) {
-        } else {
-            if (!s->outfile)
-                s->outfile = default_outputfile(s, first_file);
-            if (tcc_output_file(s, s->outfile))
-                ret = 1;
-        }
+        if (!s->outfile)
+            s->outfile = default_outputfile(s, first_file);
+        if (tcc_output_file(s, s->outfile))
+            ret = 1;
     }
     tcc_delete(s);
     if (ret == 0 && n)
