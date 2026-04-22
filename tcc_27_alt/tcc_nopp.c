@@ -67,7 +67,6 @@ struct TCCState;
 typedef struct TCCState TCCState;
 TCCState *tcc_new(void);
 void tcc_delete(TCCState *s);
-void tcc_set_lib_path(TCCState *s, const char *path);
 int tcc_add_file(TCCState *s, const char *filename);
 int tcc_add_library(TCCState *s, const char *libraryname);
 int tcc_output_file(TCCState *s, const char *filename);
@@ -260,7 +259,6 @@ struct sym_attr {
 };
 struct TCCState {
     int nostdlib;
-    char *tcc_lib_path;
     int output_type;
     int seg_size;
     DLLReference **loaded_dlls;
@@ -319,9 +317,6 @@ enum tcc_token {
      ,TOK_SIGNED2
      ,TOK_SIGNED3
      ,TOK_AUTO
-     ,TOK_RESTRICT1
-     ,TOK_RESTRICT2
-     ,TOK_RESTRICT3
      ,TOK_BOOL
      ,TOK_SHORT
      ,TOK_STRUCT
@@ -592,9 +587,6 @@ static const char tcc_keywords[] =
      "__signed" "\0"
      "__signed__" "\0"
      "auto" "\0"
-     "restrict" "\0"
-     "__restrict" "\0"
-     "__restrict__" "\0"
      "_Bool" "\0"
      "short" "\0"
      "struct" "\0"
@@ -3350,9 +3342,6 @@ static int parse_btype(CType *type, AttributeDef *ad)
             break;
         case TOK_REGISTER:
         case TOK_AUTO:
-        case TOK_RESTRICT1:
-        case TOK_RESTRICT2:
-        case TOK_RESTRICT3:
             next();
             break;
         case TOK_UNSIGNED:
@@ -3473,8 +3462,6 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
         type->ref = s;
     } else if (tok == '[') {
         next();
-        if (tok == TOK_RESTRICT1)
-            next();
         n = -1;
         if (tok != ']') {
             n = expr_const();
@@ -3512,10 +3499,6 @@ static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
         case TOK_VOLATILE2:
         case TOK_VOLATILE3:
             qualifiers |= 0x0200;
-            goto redo;
-        case TOK_RESTRICT1:
-        case TOK_RESTRICT2:
-        case TOK_RESTRICT3:
             goto redo;
         }
         mk_pointer(type);
@@ -7063,13 +7046,7 @@ static void tcc_split_path(TCCState *s, void *p_ary, int *p_nb_ary, const char *
         CString str;
         cstr_new(&str);
         for (p = in; c = *p, c != '\0' && c != ":"[0]; ++p) {
-            if (c == '{' && p[1] && p[2] == '}') {
-                c = p[1], p += 2;
-                if (c == 'B')
-                    cstr_cat(&str, s->tcc_lib_path, -1);
-            } else {
-                cstr_ccat(&str, c);
-            }
+            cstr_ccat(&str, c);
         }
         if (str.size) {
             cstr_ccat(&str, '\0');
@@ -7215,7 +7192,6 @@ static void tcc_cleanup(void)
     tcc_state = s;
     ++nb_states;
     s->seg_size = 32;
-    tcc_set_lib_path(s, "/usr/local/lib/tcc");
     tccelf_new(s);
     tccpp_new(s);
     return s;
@@ -7225,7 +7201,6 @@ static void tcc_cleanup(void)
     tcc_cleanup();
     tccelf_delete(s1);
     dynarray_reset(&s1->crt_paths, &s1->nb_crt_paths);
-    tcc_free(s1->tcc_lib_path);
     tcc_free(s1->outfile);
     dynarray_reset(&s1->files, &s1->nb_files);
     tcc_free(s1);
@@ -7334,11 +7309,6 @@ int tcc_add_library(TCCState *s, const char *libraryname)
         tcc_error_noabort("library '%s' not found", libname);
     return ret;
 }
- void tcc_set_lib_path(TCCState *s, const char *path)
-{
-    tcc_free(s->tcc_lib_path);
-    s->tcc_lib_path = tcc_strdup(path);
-}
 static void args_parser_add_file(TCCState *s, const char* filename, int filetype)
 {
     struct filespec *f = tcc_malloc(sizeof *f + strlen(filename));
@@ -7375,8 +7345,7 @@ static int tcc_parse_args(TCCState *s, int argc, char **argv)
             s->nostdlib = 1;
         } else if (!strcmp(r, "-nostdinc")) {
         } else if (!strncmp(r, "-B", 2)) {
-            optarg = take_arg(argc, argv, &optind, r, 2);
-            tcc_set_lib_path(s, optarg);
+            (void)take_arg(argc, argv, &optind, r, 2);
         } else if (!strncmp(r, "-I", 2)) {
             (void)take_arg(argc, argv, &optind, r, 2);
         } else if (!strncmp(r, "-l", 2)) {
