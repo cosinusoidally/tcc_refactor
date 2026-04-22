@@ -1,4 +1,4 @@
-int printf(const char *, ...);
+int printf(char *, ...);
 
 int myfunc(int x)
 {

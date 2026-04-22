@@ -111,7 +111,7 @@ typedef union CValue {
     unsigned int i;
     struct {
         int size;
-        const void *data;
+        void *data;
     } str;
     int tab[12/4];
 } CValue;
@@ -191,7 +191,7 @@ typedef struct TokenString {
     int allocated_len;
     int save_line_num;
     struct TokenString *prev;
-    const int *prev_ptr;
+    int *prev_ptr;
     char alloc;
 } TokenString;
 typedef struct ExprValue {
@@ -249,12 +249,6 @@ enum tcc_token {
      ,TOK_CONTINUE
      ,TOK_SWITCH
      ,TOK_CASE
-     ,TOK_CONST1
-     ,TOK_CONST2
-     ,TOK_CONST3
-     ,TOK_VOLATILE1
-     ,TOK_VOLATILE2
-     ,TOK_VOLATILE3
      ,TOK_LONG
      ,TOK_REGISTER
      ,TOK_SIGNED1
@@ -274,21 +268,21 @@ enum tcc_token {
      ,TOK_memset
 };
 static struct TCCState *tcc_state;
-static char *pstrcpy(char *buf, int buf_size, const char *s);
- char *tcc_basename(const char *name);
- char *tcc_fileextension (const char *name);
+static char *pstrcpy(char *buf, int buf_size, char *s);
+ char *tcc_basename(char *name);
+ char *tcc_fileextension (char *name);
  void tcc_free(void *ptr);
  void *tcc_malloc(unsigned long size);
  void *tcc_mallocz(unsigned long size);
  void *tcc_realloc(void *ptr, unsigned long size);
- char *tcc_strdup(const char *str);
+ char *tcc_strdup(char *str);
  void tcc_memcheck(void);
- void tcc_error_noabort(const char *fmt, ...);
-  void tcc_error(const char *fmt, ...);
+ void tcc_error_noabort(char *fmt, ...);
+  void tcc_error(char *fmt, ...);
 static void dynarray_add(void *ptab, int *nb_ptr, void *data);
 static void dynarray_reset(void *pp, int *n);
 static void cstr_ccat(CString *cstr, int ch);
-static void cstr_cat(CString *cstr, const char *str, int len);
+static void cstr_cat(CString *cstr, char *str, int len);
 static void cstr_new(CString *cstr);
 static void cstr_free(CString *cstr);
 static void cstr_reset(CString *cstr);
@@ -299,25 +293,25 @@ static void sym_pop(Sym **ptop, Sym *b, int keep);
 static Sym *struct_find(int v);
 static Sym *sym_find(int v);
 static Sym *global_identifier_push(int v, int t, int c);
-static void tcc_open_bf(TCCState *s1, const char *filename, int initlen);
-static int tcc_open(TCCState *s1, const char *filename);
+static void tcc_open_bf(TCCState *s1, char *filename, int initlen);
+static int tcc_open(TCCState *s1, char *filename);
 static void tcc_close(void);
-static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags);
-static int tcc_add_crt(TCCState *s, const char *filename);
- int tcc_add_library_err(TCCState *s, const char *f);
+static int tcc_add_file_internal(TCCState *s1, char *filename, int flags);
+static int tcc_add_crt(TCCState *s, char *filename);
+ int tcc_add_library_err(TCCState *s, char *f);
 static int tcc_parse_args(TCCState *s, int argc, char **argv);
 static struct BufferedFile *file;
 static int tok;
 static CValue tokc;
-static const int *macro_ptr;
+static int *macro_ptr;
 static int tok_flags;
 static CString tokcstr;
 static int total_lines;
 static int total_bytes;
 static int tok_ident;
 static TokenSym **table_ident;
-static TokenSym *tok_alloc(const char *str, int len);
-static const char *get_tok_str(int v, CValue *cv);
+static TokenSym *tok_alloc(char *str, int len);
+static char *get_tok_str(int v, CValue *cv);
 static void begin_macro(TokenString *str, int alloc);
 static void end_macro(void);
 static int set_idnum(int c, int val);
@@ -338,7 +332,7 @@ static void preprocess_end(TCCState *s1);
 static void tccpp_new(TCCState *s);
 static void tccpp_delete(TCCState *s);
 static void skip(int c);
-static  void expect(const char *msg);
+static  void expect(char *msg);
 static int is_space(int ch) {
     return ch == ' ' || ch == '\t' || ch == '\v' || ch == '\f' || ch == '\r';
 }
@@ -369,7 +363,7 @@ static int nocode_wanted;
 static int global_expr;
 static CType func_vt;
 static int func_ind;
-static const char *funcname;
+static char *funcname;
 static int tccgen_compile(TCCState *s1);
 static void check_vstack(void);
 static void test_lvalue(void);
@@ -412,20 +406,20 @@ static void tccelf_new(TCCState *s);
 static void tccelf_delete(TCCState *s);
 static void tccelf_begin_file(TCCState *s1);
 static void tccelf_end_file(TCCState *s1);
-static Section *new_section(TCCState *s1, const char *name, int sh_type, int sh_flags);
+static Section *new_section(TCCState *s1, char *name, int sh_type, int sh_flags);
 static void section_realloc(Section *sec, unsigned long new_size);
 static size_t section_add(Section *sec, Elf32_Addr size, int align);
 static void *section_ptr_add(Section *sec, Elf32_Addr size);
 static void section_reserve(Section *sec, unsigned long size);
-static Section *new_symtab(TCCState *s1, const char *symtab_name, int sh_type, int sh_flags, const char *strtab_name, const char *hash_name, int hash_sh_flags);
+static Section *new_symtab(TCCState *s1, char *symtab_name, int sh_type, int sh_flags, char *strtab_name, char *hash_name, int hash_sh_flags);
 static void put_extern_sym2(Sym *sym, int sh_num, Elf32_Addr value, unsigned long size);
 static void put_extern_sym(Sym *sym, Section *section, Elf32_Addr value, unsigned long size);
 static void greloc(Section *s, Sym *sym, unsigned long offset, int type);
 static void greloca(Section *s, Sym *sym, unsigned long offset, int type, Elf32_Addr addend);
-static int put_elf_str(Section *s, const char *sym);
-static int put_elf_sym(Section *s, Elf32_Addr value, unsigned long size, int info, int other, int shndx, const char *name);
-static int set_elf_sym(Section *s, Elf32_Addr value, unsigned long size, int info, int other, int shndx, const char *name);
-static int find_elf_sym(Section *s, const char *name);
+static int put_elf_str(Section *s, char *sym);
+static int put_elf_sym(Section *s, Elf32_Addr value, unsigned long size, int info, int other, int shndx, char *name);
+static int set_elf_sym(Section *s, Elf32_Addr value, unsigned long size, int info, int other, int shndx, char *name);
+static int find_elf_sym(Section *s, char *name);
 static void put_elf_reloc(Section *symtab, Section *s, unsigned long offset, int type, int symbol);
 static void put_elf_reloca(Section *symtab, Section *s, unsigned long offset, int type, int symbol, Elf32_Addr addend);
 static void resolve_common_syms(TCCState *s1);
@@ -436,7 +430,7 @@ static int tcc_load_object_file(TCCState *s1, int fd, unsigned long file_offset)
 static void tcc_add_runtime(TCCState *s1);
 static void build_got_entries(TCCState *s1);
 static struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc);
-static Elf32_Addr get_elf_sym_addr(TCCState *s, const char *name, int err);
+static Elf32_Addr get_elf_sym_addr(TCCState *s, char *name, int err);
 static uint8_t *parse_comment(uint8_t *p);
 static int handle_eob(void);
 enum gotplt_entry {
@@ -450,7 +444,7 @@ static int gotplt_entry_type (int reloc_type);
 static unsigned create_plt_entry(TCCState *s1, unsigned got_offset, struct sym_attr *attr);
 static void relocate(TCCState *s1, Elf32_Rel *rel, int type, unsigned char *ptr, Elf32_Addr addr, Elf32_Addr val);
 static void relocate_plt(TCCState *s1);
-static const int reg_classes[4];
+static int reg_classes[4];
 static void gsym_addr(int t, int a);
 static void gsym(int t);
 static void load(int r, SValue *sv);
@@ -488,7 +482,7 @@ static int tok_flags;
 static struct BufferedFile *file;
 static int tok;
 static CValue tokc;
-static const int *macro_ptr;
+static int *macro_ptr;
 static CString tokcstr;
 static int total_lines;
 static int total_bytes;
@@ -502,7 +496,7 @@ static struct TinyAlloc *toksym_alloc;
 static struct TinyAlloc *tokstr_alloc;
 static struct TinyAlloc *cstr_alloc;
 static TokenString *macro_stack;
-static const char tcc_keywords[] =
+static char tcc_keywords[] =
      "int" "\0"
      "void" "\0"
      "char" "\0"
@@ -519,12 +513,6 @@ static const char tcc_keywords[] =
      "continue" "\0"
      "switch" "\0"
      "case" "\0"
-     "const" "\0"
-     "__const" "\0"
-     "__const__" "\0"
-     "volatile" "\0"
-     "__volatile" "\0"
-     "__volatile__" "\0"
      "long" "\0"
      "register" "\0"
      "signed" "\0"
@@ -543,7 +531,7 @@ static const char tcc_keywords[] =
      "memmove" "\0"
      "memset" "\0"
 ;
-static const unsigned char tok_two_chars[] =
+static unsigned char tok_two_chars[] =
  {
     '<','=', 0x9e,
     '>','=', 0x9d,
@@ -575,7 +563,7 @@ static void skip(int c)
         tcc_error("'%c' expected (got \"%s\")", c, get_tok_str(tok, &tokc));
     next();
 }
-static void expect(const char *msg)
+static void expect(char *msg)
 {
     tcc_error("%s expected", msg);
 }
@@ -625,7 +613,7 @@ static void cstr_ccat(CString *cstr, int ch)
     ((unsigned char *)cstr->data)[size - 1] = ch;
     cstr->size = size;
 }
-static void cstr_cat(CString *cstr, const char *str, int len)
+static void cstr_cat(CString *cstr, char *str, int len)
 {
     int size;
     if (len <= 0)
@@ -649,7 +637,7 @@ static void cstr_reset(CString *cstr)
 {
     cstr->size = 0;
 }
-static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
+static TokenSym *tok_alloc_new(TokenSym **pts, char *str, int len)
 {
     TokenSym *ts, **ptable;
     int i;
@@ -673,7 +661,7 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
     *pts = ts;
     return ts;
 }
-static TokenSym *tok_alloc(const char *str, int len)
+static TokenSym *tok_alloc(char *str, int len)
 {
     TokenSym *ts, **pts;
     int i;
@@ -693,7 +681,7 @@ static TokenSym *tok_alloc(const char *str, int len)
     }
     return tok_alloc_new(pts, str, len);
 }
-static const char *get_tok_str(int v, CValue *cv)
+static char *get_tok_str(int v, CValue *cv)
 {
     static char buf[64];
     char *p = buf;
@@ -729,7 +717,7 @@ static const char *get_tok_str(int v, CValue *cv)
         return strcpy(p, "<eof>");
     default:
         if (v < 256) {
-            const unsigned char *q = tok_two_chars;
+            unsigned char *q = tok_two_chars;
             while (*q) {
                 if (q[2] == v) {
                     *p++ = q[0];
@@ -1034,9 +1022,9 @@ static void tok_str_add_tok(TokenString *s)
 {
     tok_str_add2(s, tok, &tokc);
 }
-static void TOK_GET(int *t, const int **pp, CValue *cv)
+static void TOK_GET(int *t, int **pp, CValue *cv)
 {
-    const int *p = *pp;
+    int *p = *pp;
     switch(*t = *p++) {
     case 0xce:
     case 0xb5:
@@ -1101,10 +1089,10 @@ static void label_pop(Sym **ptop, Sym *slast, int keep)
     if (!keep)
         *ptop = slast;
 }
-static void parse_escape_string(CString *outstr, const uint8_t *buf)
+static void parse_escape_string(CString *outstr, uint8_t *buf)
 {
     int c, n;
-    const uint8_t *p;
+    uint8_t *p;
     p = buf;
     for(;;) {
         c = *p;
@@ -1186,7 +1174,7 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf)
     }
     cstr_ccat(outstr, '\0');
 }
-static void parse_string(const char *s, int len)
+static void parse_string(char *s, int len)
 {
     uint8_t buf[1000], *p = buf;
     int sep;
@@ -1216,7 +1204,7 @@ static void parse_string(const char *s, int len)
         tok = 0xb9;
     }
 }
-static void parse_number(const char *p)
+static void parse_number(char *p)
 {
     int b, t, ch;
     char *q;
@@ -1259,7 +1247,7 @@ static void parse_number(const char *p)
     } else {
         unsigned int n, n1;
         int lcount, ucount;
-        const char *p1;
+        char *p1;
         *q = '\0';
         q = token_buf;
         if (b == 10 && *q == '0') {
@@ -1664,7 +1652,7 @@ static void preprocess_end(TCCState *s1)
 static void tccpp_new(TCCState *s)
 {
     int i, c;
-    const char *p, *r;
+    char *p, *r;
     for(i = (-1); i<128; i++)
         set_idnum(i,
             is_space(i) ? 1
@@ -1725,7 +1713,7 @@ static int nocode_wanted;
 static int global_expr;
 static CType func_vt;
 static int func_ind;
-static const char *funcname;
+static char *funcname;
 static CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
 static struct switch_t {
     struct case_t {
@@ -1747,7 +1735,6 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has
 static void decl(int l);
 static int decl0(int l, int is_for_loop_init, Sym *);
 static void expr_eq(void);
-static int is_compatible_unqualified_types(CType *type1, CType *type2);
 static void vpush(CType *type);
 static int gvtst(int inv, int t);
 static void skip_or_save_block(TokenString **str);
@@ -1809,7 +1796,7 @@ static void put_extern_sym2(Sym *sym, int sh_num,
 {
     int sym_type, sym_bind, info, other, t;
     Elf32_Sym *esym;
-    const char *name;
+    char *name;
     if (!sym->c) {
         name = get_tok_str(sym->v, ((void*)0));
         t = sym->type.t;
@@ -2778,7 +2765,7 @@ static int is_compatible_func(CType *type1, CType *type2)
     while (s1 != ((void*)0)) {
         if (s2 == ((void*)0))
             return 0;
-        if (!is_compatible_unqualified_types(&s1->type, &s2->type))
+        if (!is_compatible_types(&s1->type, &s2->type))
             return 0;
         s1 = s1->next;
         s2 = s2->next;
@@ -2787,15 +2774,11 @@ static int is_compatible_func(CType *type1, CType *type2)
         return 0;
     return 1;
 }
-static int compare_types(CType *type1, CType *type2, int unqualified)
+static int is_compatible_types(CType *type1, CType *type2)
 {
     int bt1, t1, t2;
     t1 = type1->t & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
     t2 = type2->t & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
-    if (unqualified) {
-        t1 &= ~(0x0100 | 0x0200);
-        t2 &= ~(0x0100 | 0x0200);
-    }
     if ((t1 & 0x000f) != 1) {
         t1 &= ~0x0020;
         t2 &= ~0x0020;
@@ -2815,16 +2798,8 @@ static int compare_types(CType *type1, CType *type2, int unqualified)
         return 1;
     }
 }
-static int is_compatible_types(CType *type1, CType *type2)
-{
-    return compare_types(type1,type2,0);
-}
-static int is_compatible_unqualified_types(CType *type1, CType *type2)
-{
-    return compare_types(type1,type2,1);
-}
 static void type_to_str(char *buf, int buf_size,
-                 CType *type, const char *varstr)
+                 CType *type, char *varstr)
 {
     (void)type;
     if (varstr)
@@ -2863,7 +2838,7 @@ static void gen_assign_cast(CType *dt)
         if ((type1->t & 0x000f) == 0 ||
             (type2->t & 0x000f) == 0) {
         } else {
-            if (!is_compatible_unqualified_types(type1, type2)) {
+            if (!is_compatible_types(type1, type2)) {
 			if ((type1->t & 0x000f) != (type2->t & 0x000f)
                     || ((type1->t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20)) || ((type2->t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20))
                     )
@@ -2881,7 +2856,7 @@ static void gen_assign_cast(CType *dt)
         break;
     case 7:
     case_VT_STRUCT:
-        if (!is_compatible_unqualified_types(dt, st)) {
+        if (!is_compatible_types(dt, st)) {
         error:
             type_to_str(buf1, sizeof(buf1), st, ((void*)0));
             type_to_str(buf2, sizeof(buf2), dt, ((void*)0));
@@ -3181,14 +3156,6 @@ static void sym_to_attr(AttributeDef *ad, Sym *s)
     if (s->f.func_type && 0 == ad->f.func_type)
         ad->f.func_type = s->f.func_type;
 }
-static void parse_btype_qualify(CType *type, int qualifiers)
-{
-    while (type->t & 0x0040) {
-        type->ref = sym_push(0x20000000, &type->ref->type, 0, type->ref->c);
-        type = &type->ref->type;
-    }
-    type->t |= qualifiers;
-}
 static int parse_btype(CType *type, AttributeDef *ad)
 {
     int t, u, bt, st, type_found, typespec_found, g;
@@ -3248,22 +3215,6 @@ static int parse_btype(CType *type, AttributeDef *ad)
         case TOK_UNION:
             struct_decl(&type1, (1 << 20 | 7));
             goto basic_type2;
-        case TOK_CONST1:
-        case TOK_CONST2:
-        case TOK_CONST3:
-            type->t = t;
-            parse_btype_qualify(type, 0x0100);
-            t = type->t;
-            next();
-            break;
-        case TOK_VOLATILE1:
-        case TOK_VOLATILE2:
-        case TOK_VOLATILE3:
-            type->t = t;
-            parse_btype_qualify(type, 0x0200);
-            t = type->t;
-            next();
-            break;
         case TOK_SIGNED1:
         case TOK_SIGNED2:
         case TOK_SIGNED3:
@@ -3306,11 +3257,8 @@ static int parse_btype(CType *type, AttributeDef *ad)
             if (!s || !(s->type.t & 0x00004000))
                 goto the_end;
             t &= ~0x000f;
-            u = t & ~(0x0100 | 0x0200), t ^= u;
-            type->t = (s->type.t & ~0x00004000) | u;
+            type->t = (s->type.t & ~0x00004000) | t;
             type->ref = s->type.ref;
-            if (t)
-                parse_btype_qualify(type, t);
             t = type->t;
             sym_to_attr(ad, s);
             next();
@@ -3327,7 +3275,6 @@ the_end:
 }
 static void convert_parameter_type(CType *pt)
 {
-    pt->t &= ~(0x0100 | 0x0200);
     pt->t &= ~0x0040;
     if ((pt->t & 0x000f) == 6) {
         mk_pointer(pt);
@@ -3376,9 +3323,8 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
 		if (l == 1 && !parse_btype(&pt, &ad1))
 		    tcc_error("invalid type");
             }
-	        }
+        }
         skip(')');
-        type->t &= ~0x0100;
         if (tok == '[') {
             next();
             skip(']');
@@ -3411,28 +3357,13 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
 static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
 {
     CType *post, *ret;
-    int qualifiers, storage;
+    int storage;
     storage = type->t & (0x00001000 | 0x00002000 | 0x00004000);
     type->t &= ~(0x00001000 | 0x00002000 | 0x00004000);
     post = ret = type;
     while (tok == '*') {
-        qualifiers = 0;
-    redo:
         next();
-        switch(tok) {
-        case TOK_CONST1:
-        case TOK_CONST2:
-        case TOK_CONST3:
-            qualifiers |= 0x0100;
-            goto redo;
-        case TOK_VOLATILE1:
-        case TOK_VOLATILE2:
-        case TOK_VOLATILE3:
-            qualifiers |= 0x0200;
-            goto redo;
-        }
         mk_pointer(type);
-        type->t |= qualifiers;
 	if (ret == type)
 	    ret = pointed_type(type);
     }
@@ -3627,7 +3558,7 @@ static void unary(void)
             expect("identifier");
         s = sym_find(t);
         if (!s || (((s)->type.t & (0x000f | (0 | 0x0010))) == (0 | 0x0010))) {
-            const char *name = get_tok_str(t, ((void*)0));
+            char *name = get_tok_str(t, ((void*)0));
             if (tok != '(')
                 tcc_error("'%s' undeclared", name);
             s = external_global_sym(t, &func_old_type, 0);
@@ -3649,10 +3580,8 @@ static void unary(void)
             inc(1, tok);
             next();
         } else if (tok == '.' || tok == 0xc7) {
-            int qualifiers;
             if (tok == 0xc7)
                 indir();
-            qualifiers = vtop->type.t & (0x0100 | 0x0200);
             test_lvalue();
             gaddrof();
             if ((vtop->type.t & 0x000f) != 7)
@@ -3667,7 +3596,6 @@ static void unary(void)
             vpushi(s->c);
             gen_op('+');
             vtop->type = s->type;
-            vtop->type.t |= qualifiers;
             if (!(vtop->type.t & 0x0040)) {
                 vtop->r |= lvalue_type(vtop->type.t);
             }
@@ -4064,7 +3992,7 @@ static void gfunc_return(CType *func_type)
     }
     vtop--;
 }
-static int case_cmp(const void *pa, const void *pb)
+static int case_cmp(void *pa, void *pb)
 {
     int a = (*(struct case_t**) pa)->v1;
     int b = (*(struct case_t**) pb)->v1;
@@ -4567,7 +4495,7 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
     }
     if (have_elem &&
 	!(type->t & 0x0040) &&
-	is_compatible_unqualified_types(type, &vtop->type)) {
+	is_compatible_types(type, &vtop->type)) {
         init_putv(type, sec, c);
     } else if (type->t & 0x0040) {
         s = type->ref;
@@ -4987,7 +4915,7 @@ static void tccelf_end_file(TCCState *s1)
     }
     tcc_free(tr);
 }
-static Section *new_section(TCCState *s1, const char *name, int sh_type, int sh_flags)
+static Section *new_section(TCCState *s1, char *name, int sh_type, int sh_flags)
 {
     Section *sec;
     sec = tcc_mallocz(sizeof(Section) + strlen(name));
@@ -5019,9 +4947,9 @@ static Section *new_section(TCCState *s1, const char *name, int sh_type, int sh_
     return sec;
 }
 static Section *new_symtab(TCCState *s1,
-                           const char *symtab_name, int sh_type, int sh_flags,
-                           const char *strtab_name,
-                           const char *hash_name, int hash_sh_flags)
+                           char *symtab_name, int sh_type, int sh_flags,
+                           char *strtab_name,
+                           char *hash_name, int hash_sh_flags)
 {
     Section *symtab, *strtab, *hash;
     int *ptr, nb_buckets;
@@ -5080,7 +5008,7 @@ static void section_reserve(Section *sec, unsigned long size)
     if (size > sec->data_offset)
         sec->data_offset = size;
 }
-static int put_elf_str(Section *s, const char *sym)
+static int put_elf_str(Section *s, char *sym)
 {
     int offset, len;
     char *ptr;
@@ -5090,7 +5018,7 @@ static int put_elf_str(Section *s, const char *sym)
     memmove(ptr, sym, len);
     return offset;
 }
-static unsigned long elf_hash(const unsigned char *name)
+static unsigned long elf_hash(unsigned char *name)
 {
     unsigned long h = 0, g;
     while (*name) {
@@ -5133,7 +5061,7 @@ static void rebuild_hash(Section *s, unsigned int nb_buckets)
     }
 }
 static int put_elf_sym(Section *s, Elf32_Addr value, unsigned long size,
-    int info, int other, int shndx, const char *name)
+    int info, int other, int shndx, char *name)
 {
     int name_offset, sym_index;
     int nbuckets, h;
@@ -5173,12 +5101,12 @@ static int put_elf_sym(Section *s, Elf32_Addr value, unsigned long size,
     }
     return sym_index;
 }
-static int find_elf_sym(Section *s, const char *name)
+static int find_elf_sym(Section *s, char *name)
 {
     Elf32_Sym *sym;
     Section *hs;
     int nbuckets, sym_index, h;
-    const char *name1;
+    char *name1;
     hs = s->hash;
     if (!hs)
         return 0;
@@ -5194,7 +5122,7 @@ static int find_elf_sym(Section *s, const char *name)
     }
     return 0;
 }
-static Elf32_Addr get_elf_sym_addr(TCCState *s, const char *name, int err)
+static Elf32_Addr get_elf_sym_addr(TCCState *s, char *name, int err)
 {
     int sym_index;
     Elf32_Sym *sym;
@@ -5208,7 +5136,7 @@ static Elf32_Addr get_elf_sym_addr(TCCState *s, const char *name, int err)
     return sym->st_value;
 }
 static int set_elf_sym(Section *s, Elf32_Addr value, unsigned long size,
-                       int info, int other, int shndx, const char *name)
+                       int info, int other, int shndx, char *name)
 {
     Elf32_Sym *esym;
     int sym_bind, sym_index, sym_type, esym_bind;
@@ -5366,7 +5294,7 @@ static void relocate_syms(TCCState *s1, Section *symtab, int do_resolve)
 {
     Elf32_Sym *sym;
     int sym_bind, sh_num;
-    const char *name;
+    char *name;
     for (sym = (Elf32_Sym *) symtab->data + 1; sym < (Elf32_Sym *) (symtab->data + symtab->data_offset); sym++) {
         sh_num = sym->st_shndx;
         if (sh_num == 0) {
@@ -5428,7 +5356,7 @@ static struct sym_attr * put_got_entry(TCCState *s1, int dyn_reloc_type,
                                        int info, int sym_index)
 {
     int need_plt_entry;
-    const char *name;
+    char *name;
     Elf32_Sym *sym;
     struct sym_attr *attr;
     unsigned got_offset;
@@ -5588,7 +5516,7 @@ static void fill_local_got_entries(TCCState *s1)
 }
 static void bind_exe_dynsyms(TCCState *s1)
 {
-    const char *name;
+    char *name;
     int dynindex, index;
     Elf32_Sym *sym;
     for (sym = (Elf32_Sym *) symtab_section->data + 1; sym < (Elf32_Sym *) (symtab_section->data + symtab_section->data_offset); sym++) {
@@ -5885,7 +5813,7 @@ static void tcc_output_elf(TCCState *s1, FILE *f, int phnum, Elf32_Phdr *phdr,
         fwrite(sh, 1, sizeof(Elf32_Shdr), f);
     }
 }
-static int tcc_write_elf_file(TCCState *s1, const char *filename, int phnum,
+static int tcc_write_elf_file(TCCState *s1, char *filename, int phnum,
                               Elf32_Phdr *phdr, int file_offset, int *sec_order)
 {
     FILE *f;
@@ -5934,7 +5862,7 @@ static void tidy_section_headers(TCCState *s1, int *sec_order)
     s1->nb_sections = nnew;
     tcc_free(backmap);
 }
-static int elf_output_file(TCCState *s1, const char *filename)
+static int elf_output_file(TCCState *s1, char *filename)
 {
     int i, ret, phnum, shnum, file_type, file_offset, *sec_order;
     struct dyn_inf dyninf = {0};
@@ -5951,7 +5879,7 @@ static int elf_output_file(TCCState *s1, const char *filename)
 	resolve_common_syms(s1);
         if (file_type == 2) {
             char *ptr;
-            const char *elfint = getenv("LD_SO");
+            char *elfint = getenv("LD_SO");
             if (elfint == ((void*)0))
                 elfint = "/lib/ld-linux.so.2";
             interp = new_section(s1, ".interp", 1, (1 << 1));
@@ -6024,7 +5952,7 @@ static int elf_output_file(TCCState *s1, const char *filename)
     tcc_free(phdr);
     return ret;
 }
- int tcc_output_file(TCCState *s, const char *filename)
+ int tcc_output_file(TCCState *s, char *filename)
 {
     int ret;
         ret = elf_output_file(s, filename);
@@ -6221,7 +6149,7 @@ static int tcc_load_object_file(TCCState *s1,
     tcc_free(shdr);
     return ret;
 }
-static const int reg_classes[4] = {
+static int reg_classes[4] = {
       0x0001 | 0x0004,
       0x0001 | 0x0010,
       0x0001 | 0x0020,
@@ -6828,7 +6756,7 @@ void relocate(TCCState *s1, Elf32_Rel *rel, int type, unsigned char *ptr, Elf32_
             return;
     }
 }
-static char *pstrcpy(char *buf, int buf_size, const char *s)
+static char *pstrcpy(char *buf, int buf_size, char *s)
 {
     char *q, *q_end;
     int c;
@@ -6845,14 +6773,14 @@ static char *pstrcpy(char *buf, int buf_size, const char *s)
     }
     return buf;
 }
- char *tcc_basename(const char *name)
+ char *tcc_basename(char *name)
 {
     char *p = strchr(name, 0);
     while (p > name && !(p[-1] == '/'))
         --p;
     return p;
 }
- char *tcc_fileextension (const char *name)
+ char *tcc_fileextension (char *name)
 {
     char *b = tcc_basename(name);
     char *e = strrchr(b, '.');
@@ -6885,7 +6813,7 @@ static char *pstrcpy(char *buf, int buf_size, const char *s)
         tcc_error("memory full (realloc)");
     return ptr1;
 }
- char *tcc_strdup(const char *str)
+ char *tcc_strdup(char *str)
 {
     char *ptr;
     ptr = tcc_malloc(strlen(str) + 1);
@@ -6921,9 +6849,9 @@ static void dynarray_reset(void *pp, int *n)
     tcc_free(*(void**)pp);
     *(void**)pp = ((void*)0);
 }
-static void tcc_split_path(TCCState *s, void *p_ary, int *p_nb_ary, const char *in)
+static void tcc_split_path(TCCState *s, void *p_ary, int *p_nb_ary, char *in)
 {
-    const char *p;
+    char *p;
     for (;;) {
         int c;
         CString str;
@@ -6941,20 +6869,20 @@ static void tcc_split_path(TCCState *s, void *p_ary, int *p_nb_ary, const char *
         in = p+1;
     }
 }
-static void strcat_vprintf(char *buf, int buf_size, const char *fmt, va_list ap)
+static void strcat_vprintf(char *buf, int buf_size, char *fmt, va_list ap)
 {
     int len;
     len = strlen(buf);
     vsnprintf(buf + len, buf_size - len, fmt, ap);
 }
-static void strcat_printf(char *buf, int buf_size, const char *fmt, ...)
+static void strcat_printf(char *buf, int buf_size, char *fmt, ...)
 {
     va_list ap;
     ap = ((char *)&(fmt)) + ((sizeof(fmt)+3)&~3);
     strcat_vprintf(buf, buf_size, fmt, ap);
     ;
 }
-static void error1(TCCState *s1, const char *fmt, va_list ap)
+static void error1(TCCState *s1, char *fmt, va_list ap)
 {
     char buf[2048];
     BufferedFile *f;
@@ -6973,7 +6901,7 @@ static void error1(TCCState *s1, const char *fmt, va_list ap)
     fprintf(stderr, "%s\n", buf);
     fflush(stderr);
 }
- void tcc_error_noabort(const char *fmt, ...)
+ void tcc_error_noabort(char *fmt, ...)
 {
     TCCState *s1 = tcc_state;
     va_list ap;
@@ -6982,7 +6910,7 @@ static void error1(TCCState *s1, const char *fmt, va_list ap)
     ;
     exit(1);
 }
- void tcc_error(const char *fmt, ...)
+ void tcc_error(char *fmt, ...)
 {
     TCCState *s1 = tcc_state;
     va_list ap;
@@ -6991,7 +6919,7 @@ static void error1(TCCState *s1, const char *fmt, va_list ap)
     ;
     exit(1);
 }
-static void tcc_open_bf(TCCState *s1, const char *filename, int initlen)
+static void tcc_open_bf(TCCState *s1, char *filename, int initlen)
 {
     BufferedFile *bf;
     int buflen = initlen ? initlen : 8192;
@@ -7016,7 +6944,7 @@ static void tcc_close(void)
     file = bf->prev;
     tcc_free(bf);
 }
-static int tcc_open(TCCState *s1, const char *filename)
+static int tcc_open(TCCState *s1, char *filename)
 {
     int fd;
     if (strcmp(filename, "-") == 0)
@@ -7075,7 +7003,7 @@ static void tcc_cleanup(void)
     if (0 == --nb_states)
         tcc_memcheck();
 }
-static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
+static int tcc_add_file_internal(TCCState *s1, char *filename, int flags)
 {
     int ret;
     ret = tcc_open(s1, filename);
@@ -7108,12 +7036,12 @@ static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
     tcc_close();
     return ret;
 }
- int tcc_add_file(TCCState *s, const char *filename)
+ int tcc_add_file(TCCState *s, char *filename)
 {
     int filetype = s->filetype;
     int flags = 0x10;
     if (filetype == 0) {
-        const char *ext = tcc_fileextension(filename);
+        char *ext = tcc_fileextension(filename);
         if (ext[0]) {
             ext++;
             if (!strcmp(ext, "c") || !strcmp(ext, "i"))
@@ -7127,8 +7055,8 @@ static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
     }
     return tcc_add_file_internal(s, filename, flags);
 }
-static int tcc_add_library_internal(TCCState *s, const char *fmt,
-    const char *filename, int flags, char **paths, int nb_paths)
+static int tcc_add_library_internal(TCCState *s, char *fmt,
+    char *filename, int flags, char **paths, int nb_paths)
 {
     char buf[1024];
     int i;
@@ -7139,14 +7067,14 @@ static int tcc_add_library_internal(TCCState *s, const char *fmt,
     }
     return -1;
 }
-static int tcc_add_crt(TCCState *s, const char *filename)
+static int tcc_add_crt(TCCState *s, char *filename)
 {
     if (-1 == tcc_add_library_internal(s, "%s/%s",
         filename, 0, s->crt_paths, s->nb_crt_paths))
         tcc_error_noabort("file '%s' not found", filename);
     return 0;
 }
-static int tcc_add_needed_dll(TCCState *s, const char *soname)
+static int tcc_add_needed_dll(TCCState *s, char *soname)
 {
     int i;
     DLLReference *dllref;
@@ -7160,7 +7088,7 @@ static int tcc_add_needed_dll(TCCState *s, const char *soname)
     dynarray_add(&s->loaded_dlls, &s->nb_loaded_dlls, dllref);
     return 0;
 }
-int tcc_add_library(TCCState *s, const char *libraryname)
+int tcc_add_library(TCCState *s, char *libraryname)
 {
     if (!strcmp(libraryname, "c"))
         return tcc_add_needed_dll(s, "libc.so.6");
@@ -7170,22 +7098,22 @@ int tcc_add_library(TCCState *s, const char *libraryname)
         return tcc_add_needed_dll(s, "libdl.so.2");
     return tcc_add_needed_dll(s, libraryname);
 }
- int tcc_add_library_err(TCCState *s, const char *libname)
+ int tcc_add_library_err(TCCState *s, char *libname)
 {
     int ret = tcc_add_library(s, libname);
     if (ret < 0)
         tcc_error_noabort("library '%s' not found", libname);
     return ret;
 }
-static void args_parser_add_file(TCCState *s, const char* filename, int filetype)
+static void args_parser_add_file(TCCState *s, char* filename, int filetype)
 {
     struct filespec *f = tcc_malloc(sizeof *f + strlen(filename));
     f->type = filetype;
     strcpy(f->name, filename);
     dynarray_add(&s->files, &s->nb_files, f);
 }
-static const char *take_arg(int argc, char **argv, int *optind,
-                            const char *r, int prefix_len)
+static char *take_arg(int argc, char **argv, int *optind,
+                            char *r, int prefix_len)
 {
     if (r[prefix_len])
         return r + prefix_len;
@@ -7195,7 +7123,7 @@ static const char *take_arg(int argc, char **argv, int *optind,
 }
 static int tcc_parse_args(TCCState *s, int argc, char **argv)
 {
-    const char *r, *optarg;
+    char *r, *optarg;
     int action = 0, optind = 1;
     while (optind < argc) {
         r = argv[optind++];
@@ -7237,11 +7165,11 @@ static int tcc_parse_args(TCCState *s, int argc, char **argv)
         return 0;
     return 1;
 }
-static char *default_outputfile(TCCState *s, const char *first_file)
+static char *default_outputfile(TCCState *s, char *first_file)
 {
     char buf[1024];
     char *ext;
-    const char *name = "a";
+    char *name = "a";
     if (first_file && strcmp(first_file, "-"))
         name = tcc_basename(first_file);
     snprintf(buf, sizeof(buf), "%s", name);
@@ -7256,7 +7184,7 @@ int main(int argc0, char **argv0)
 {
     TCCState *s;
     int ret, opt, n = 0;
-    const char *first_file;
+    char *first_file;
 redo:
     s = tcc_new();
     opt = tcc_parse_args(s, argc0, argv0);

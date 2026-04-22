@@ -1,4 +1,4 @@
-int printf(const char *, ...);
+int printf(char *, ...);
 int obj_value(void);
 
 int main(void)
