@@ -17,10 +17,6 @@ typedef struct FILE FILE;
 extern FILE *stdin;
 extern FILE *stdout;
 extern FILE *stderr;
-typedef struct { unsigned long int __val[32]; } __sigset_t;
-typedef int __jmp_buf[6];
-struct __jmp_buf_tag { __jmp_buf __jmpbuf; int __mask_was_saved; __sigset_t __saved_mask; };
-typedef struct __jmp_buf_tag jmp_buf[1];
 void *malloc(size_t size);
 void *realloc(void *ptr, size_t size);
 void free(void *ptr);
@@ -30,8 +26,6 @@ void qsort(void *base, size_t nmemb, size_t size, int (*compar)(const void *, co
 int atoi(const char *nptr);
 long int strtol(const char *nptr, char **endptr, int base);
 unsigned long int strtoul(const char *nptr, char **endptr, int base);
-int setjmp(jmp_buf env);
-void longjmp(struct __jmp_buf_tag env[1], int val);
 int open(const char *file, int oflag, ...);
 int close(int fd);
 ssize_t read(int fd, void *buf, size_t nbytes);
@@ -62,7 +56,6 @@ char *strstr(const char *haystack, const char *needle);
 size_t strlen(const char *s);
 int fputs(const char *s, FILE *stream);
 int fputc(int c, FILE *stream);
-int _setjmp(struct __jmp_buf_tag env[1]);
 struct TCCState;
 typedef struct TCCState TCCState;
 TCCState *tcc_new(void);
@@ -265,9 +258,6 @@ struct TCCState {
     int nb_loaded_dlls;
     char **crt_paths;
     int nb_crt_paths;
-    int error_set_jmp_enabled;
-    jmp_buf error_jmp_buf;
-    int nb_errors;
     Section **sections;
     int nb_sections;
     Section **priv_sections;
@@ -5898,8 +5888,6 @@ static int final_sections_reloc(TCCState *s1)
     int i;
     Section *s;
     relocate_syms(s1, s1->symtab, 0);
-    if (s1->nb_errors != 0)
-        return -1;
     for(i = 1; i < s1->nb_sections; i++) {
         s = s1->sections[i];
         if (s->reloc && s != s1->got && (s->sh_flags & (1 << 1)))
@@ -6056,7 +6044,6 @@ static int elf_output_file(TCCState *s1, const char *filename)
     Elf32_Sym *sym;
     Section *strsec, *interp, *dynamic, *dynstr;
     file_type = s1->output_type;
-    s1->nb_errors = 0;
     ret = -1;
     phdr = ((void*)0);
     sec_order = ((void*)0);
@@ -6084,8 +6071,6 @@ static int elf_output_file(TCCState *s1, const char *filename)
         dynamic->sh_entsize = sizeof(Elf32_Dyn);
         build_got(s1);
         bind_exe_dynsyms(s1);
-        if (s1->nb_errors)
-            goto the_end;
         build_got_entries(s1);
     }
     strsec = new_section(s1, ".shstrtab", 3, 0);
@@ -7079,13 +7064,8 @@ static void error1(TCCState *s1, const char *fmt, va_list ap)
     for (f = file; f && f->filename[0] == ':'; f = f->prev)
      ;
     if (f) {
-        if (s1->error_set_jmp_enabled) {
-            strcat_printf(buf, sizeof(buf), "%s:%d: ",
-                f->filename, f->line_num - !!(tok_flags & 0x0001));
-        } else {
-            strcat_printf(buf, sizeof(buf), "%s: ",
-                f->filename);
-        }
+        strcat_printf(buf, sizeof(buf), "%s:%d: ",
+            f->filename, f->line_num - !!(tok_flags & 0x0001));
     } else {
         strcat_printf(buf, sizeof(buf), "tcc: ");
     }
@@ -7094,7 +7074,6 @@ static void error1(TCCState *s1, const char *fmt, va_list ap)
     fflush(stdout);
     fprintf(stderr, "%s\n", buf);
     fflush(stderr);
-    s1->nb_errors++;
 }
  void tcc_error_noabort(const char *fmt, ...)
 {
@@ -7103,6 +7082,7 @@ static void error1(TCCState *s1, const char *fmt, va_list ap)
     ap = ((char *)&(fmt)) + ((sizeof(fmt)+3)&~3);
     error1(s1, fmt, ap);
     ;
+    exit(1);
 }
  void tcc_error(const char *fmt, ...)
 {
@@ -7111,11 +7091,7 @@ static void error1(TCCState *s1, const char *fmt, va_list ap)
     ap = ((char *)&(fmt)) + ((sizeof(fmt)+3)&~3);
     error1(s1, fmt, ap);
     ;
-    if (s1->error_set_jmp_enabled) {
-        longjmp(s1->error_jmp_buf, 1);
-    } else {
-        exit(1);
-    }
+    exit(1);
 }
 static void tcc_open_bf(TCCState *s1, const char *filename, int initlen)
 {
@@ -7158,18 +7134,13 @@ static int tcc_open(TCCState *s1, const char *filename)
 static int tcc_compile(TCCState *s1)
 {
     tccelf_begin_file(s1);
-    if (_setjmp (s1->error_jmp_buf) == 0) {
-        s1->nb_errors = 0;
-        s1->error_set_jmp_enabled = 1;
-        preprocess_start(s1);
-        tccgen_compile(s1);
-    }
-    s1->error_set_jmp_enabled = 0;
+    preprocess_start(s1);
+    tccgen_compile(s1);
     preprocess_end(s1);
     sym_pop(&global_stack, ((void*)0), 0);
     sym_pop(&local_stack, ((void*)0), 0);
     tccelf_end_file(s1);
-    return s1->nb_errors != 0 ? -1 : 0;
+    return 0;
 }
 static void tcc_cleanup(void)
 {
