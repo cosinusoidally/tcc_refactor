@@ -378,8 +378,6 @@ enum tcc_token {
      ,TOK_DEFAULT
      ,TOK_ENUM
      ,TOK_SIZEOF
-     ,TOK_ATTRIBUTE1
-     ,TOK_ATTRIBUTE2
      ,TOK_ASM1
      ,TOK_ASM2
      ,TOK_ASM3
@@ -515,10 +513,6 @@ static int global_expr;
 static CType func_vt;
 static int func_ind;
 static const char *funcname;
-static void tcc_debug_start(TCCState *s1);
-static void tcc_debug_end(TCCState *s1);
-static void tcc_debug_funcstart(TCCState *s1, Sym *sym);
-static void tcc_debug_funcend(TCCState *s1, int size);
 static int tccgen_compile(TCCState *s1);
 static void check_vstack(void);
 static void test_lvalue(void);
@@ -586,7 +580,6 @@ static int tcc_load_object_file(TCCState *s1, int fd, unsigned long file_offset)
 static void tcc_add_runtime(TCCState *s1);
 static void build_got_entries(TCCState *s1);
 static struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc);
-static void squeeze_multi_relocs(Section *sec, size_t oldrelocoffset);
 static Elf32_Addr get_elf_sym_addr(TCCState *s, const char *name, int err);
 static uint8_t *parse_comment(uint8_t *p);
 static int handle_eob(void);
@@ -698,8 +691,6 @@ static const char tcc_keywords[] =
      "default" "\0"
      "enum" "\0"
      "sizeof" "\0"
-     "__attribute" "\0"
-     "__attribute__" "\0"
      "asm" "\0"
      "__asm" "\0"
      "__asm__" "\0"
@@ -2056,27 +2047,6 @@ static void check_vstack(void)
     if (pvtop != vtop)
         tcc_error("internal compiler error: vstack leak (%d)", vtop - pvtop);
 }
-static void tcc_debug_start(TCCState *s1)
-{
-    (void)s1;
-    put_elf_sym(symtab_section, 0, 0,
-                (((0) << 4) + ((4) & 0xf)), 0,
-                0xfff1, file->filename);
-}
-static void tcc_debug_end(TCCState *s1)
-{
-    (void)s1;
-}
-static void tcc_debug_funcstart(TCCState *s1, Sym *sym)
-{
-    (void)s1;
-    (void)sym;
-}
-static void tcc_debug_funcend(TCCState *s1, int size)
-{
-    (void)s1;
-    (void)size;
-}
 static int tccgen_compile(TCCState *s1)
 {
     cur_text_section = ((void*)0);
@@ -2092,11 +2062,9 @@ static int tccgen_compile(TCCState *s1)
     func_old_type.t = 6;
     func_old_type.ref = sym_push(0x20000000, &int_type, 0, 0);
     func_old_type.ref->f.func_type = 2;
-    tcc_debug_start(s1);
     next();
     decl(0x0030);
     check_vstack();
-    tcc_debug_end(s1);
     return 0;
 }
 static Elf32_Sym *elfsym(Sym *s)
@@ -3760,13 +3728,6 @@ static void inc(int post, int c)
     if (post)
         vpop();
 }
-static void parse_attribute(AttributeDef *ad)
-{
-    (void)ad;
-    if (tok != TOK_ATTRIBUTE1 && tok != TOK_ATTRIBUTE2)
-        return;
-    tcc_error("attributes are not supported in tcc_27_alt");
-}
 static Sym * find_field (CType *type, int v)
 {
     Sym *s = type->ref;
@@ -3855,7 +3816,6 @@ static void struct_decl(CType *type, int u)
     CType type1, btype;
     memset(&ad, 0, sizeof ad);
     next();
-    parse_attribute(&ad);
     if (tok != '{') {
         v = tok;
         next();
@@ -3998,7 +3958,6 @@ do_decl:
                 skip(';');
             }
             skip('}');
-	    parse_attribute(&ad);
 	    struct_layout(type, &ad);
         }
     }
@@ -4136,10 +4095,6 @@ static int parse_btype(CType *type, AttributeDef *ad)
                 tcc_error("multiple storage classes");
             t |= g;
             next();
-            break;
-        case TOK_ATTRIBUTE1:
-        case TOK_ATTRIBUTE2:
-            parse_attribute(ad);
             break;
         default:
             if (typespec_found)
@@ -4291,10 +4246,6 @@ static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
         case TOK_RESTRICT2:
         case TOK_RESTRICT3:
             goto redo;
-	case TOK_ATTRIBUTE1:
-	case TOK_ATTRIBUTE2:
-	    parse_attribute(ad);
-	    break;
         }
         mk_pointer(type);
         type->t |= qualifiers;
@@ -4303,7 +4254,6 @@ static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
     }
     if (tok == '(') {
 	if (!post_type(type, ad, 0, td)) {
-	    parse_attribute(ad);
 	    post = type_decl(type, ad, v, td);
 	    skip(')');
 	}
@@ -4316,7 +4266,6 @@ static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
 	*v = 0;
     }
     post_type(post, ad, storage, 0);
-    parse_attribute(ad);
     type->t |= storage;
     return ret;
 }
@@ -5751,12 +5700,7 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
     if (type->t & 0x0400) {
         tcc_error("variable length arrays are not supported in tcc_27_alt");
     } else if (has_init) {
-	size_t oldreloc_offset = 0;
-	if (sec && sec->reloc)
-	  oldreloc_offset = sec->reloc->data_offset;
         decl_initializer(type, sec, addr, 1, 0);
-	if (sec && sec->reloc)
-	  squeeze_multi_relocs(sec, oldreloc_offset);
         if (flexible_array)
             flexible_array->type.ref->c = -1;
     }
@@ -5774,7 +5718,6 @@ static void gen_function(Sym *sym)
     put_extern_sym(sym, cur_text_section, ind, 0);
     funcname = get_tok_str(sym->v, ((void*)0));
     func_ind = ind;
-    tcc_debug_funcstart(tcc_state, sym);
     sym_push2(&local_stack, 0x20000000, 0, 0);
     local_scope = 1;
     gfunc_prolog(&sym->type);
@@ -5789,7 +5732,6 @@ static void gen_function(Sym *sym)
     local_scope = 0;
     sym_pop(&local_stack, ((void*)0), 0);
     elfsym(sym)->st_size = ind - func_ind;
-    tcc_debug_funcend(tcc_state, ind - func_ind);
     cur_text_section = ((void*)0);
     funcname = "";
     func_vt.t = 0;
@@ -6341,33 +6283,6 @@ static void put_elf_reloc(Section *symtab, Section *s, unsigned long offset,
                            int type, int symbol)
 {
     put_elf_reloca(symtab, s, offset, type, symbol, 0);
-}
-static void squeeze_multi_relocs(Section *s, size_t oldrelocoffset)
-{
-    Section *sr = s->reloc;
-    Elf32_Rel *r, *dest;
-    ssize_t a;
-    Elf32_Addr addr;
-    if (oldrelocoffset + sizeof(*r) >= sr->data_offset)
-      return;
-    for (a = oldrelocoffset + sizeof(*r); a < sr->data_offset; a += sizeof(*r)) {
-	ssize_t i = a - sizeof(*r);
-	addr = ((Elf32_Rel*)(sr->data + a))->r_offset;
-	for (; i >= (ssize_t)oldrelocoffset &&
-	       ((Elf32_Rel*)(sr->data + i))->r_offset > addr; i -= sizeof(*r)) {
-	    Elf32_Rel tmp = *(Elf32_Rel*)(sr->data + a);
-	    *(Elf32_Rel*)(sr->data + a) = *(Elf32_Rel*)(sr->data + i);
-	    *(Elf32_Rel*)(sr->data + i) = tmp;
-	}
-    }
-    r = (Elf32_Rel*)(sr->data + oldrelocoffset);
-    dest = r;
-    for (; r < (Elf32_Rel*)(sr->data + sr->data_offset); r++) {
-	if (dest->r_offset != r->r_offset)
-	  dest++;
-	*dest = *r;
-    }
-    sr->data_offset = (unsigned char*)dest - sr->data + sizeof(*r);
 }
 static struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc)
 {
