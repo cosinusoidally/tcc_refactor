@@ -2552,7 +2552,7 @@ static void gen_assign_cast(CType *dt)
 {
     CType *st, *type1, *type2;
     char buf1[256], buf2[256];
-    int dbt, sbt;
+    int dbt, sbt, ok;
     st = &vtop->type;
     dbt = dt->t & 0x000f;
     sbt = st->t & 0x000f;
@@ -2562,48 +2562,40 @@ static void gen_assign_cast(CType *dt)
 	else
     	    tcc_error("cannot cast from/to void");
     }
+    ok = 1;
     switch(dbt) {
     case 5:
         if (is_null_pointer(vtop))
-            goto type_ok;
-        if (is_integer_btype(sbt)) {
-            goto type_ok;
+            break;
+        if (!is_integer_btype(sbt) && sbt != 6) {
+            if (sbt != 5) {
+                ok = 0;
+            } else {
+                type1 = pointed_type(dt);
+                type2 = pointed_type(st);
+                if ((type1->t & 0x000f) != 0 &&
+                    (type2->t & 0x000f) != 0 &&
+                    !is_compatible_types(type1, type2)) {
+                }
+            }
         }
-        type1 = pointed_type(dt);
-        if (sbt == 6) {
-            goto type_ok;
-        }
-        if (sbt != 5)
-            goto error;
-        type2 = pointed_type(st);
-        if ((type1->t & 0x000f) == 0 ||
-            (type2->t & 0x000f) == 0) {
-        } else {
-            if (!is_compatible_types(type1, type2)) {
-			if ((type1->t & 0x000f) != (type2->t & 0x000f))
-                ;
-		    }
-	        }
         break;
     case 1:
     case 2:
     case 3:
     case 4:
-        if (sbt == 7) {
-            goto case_VT_STRUCT;
-        }
+        if (sbt == 7)
+            ok = is_compatible_types(dt, st);
         break;
     case 7:
-    case_VT_STRUCT:
-        if (!is_compatible_types(dt, st)) {
-        error:
-            type_to_str(buf1, sizeof(buf1), st, ((void*)0));
-            type_to_str(buf2, sizeof(buf2), dt, ((void*)0));
-            tcc_error("cannot cast '%s' to '%s'", buf1, buf2);
-        }
+        ok = is_compatible_types(dt, st);
         break;
     }
- type_ok:
+    if (!ok) {
+        type_to_str(buf1, sizeof(buf1), st, ((void*)0));
+        type_to_str(buf2, sizeof(buf2), dt, ((void*)0));
+        tcc_error("cannot cast '%s' to '%s'", buf1, buf2);
+    }
     gen_cast(dt);
 }
 static void vstore(void)
@@ -2747,11 +2739,13 @@ static void struct_layout(CType *type, AttributeDef *ad)
 }
 static void struct_decl(CType *type, int u)
 {
-    int v, align;
+    int v, align, use_existing;
     Sym *s, *ss, **ps;
     AttributeDef ad, ad1;
     CType type1, btype;
     memset(&ad, 0, sizeof ad);
+    s = ((void*)0);
+    use_existing = 0;
     next();
     if (tok != '{') {
         v = tok;
@@ -2759,19 +2753,20 @@ static void struct_decl(CType *type, int u)
         if (v < 256)
             expect("struct name");
         s = struct_find(v);
-        if (s && (s->sym_scope == local_scope || tok != '{')) {
-            if (u == s->type.t)
-                goto do_decl;
+        if (s && (s->sym_scope == local_scope || tok != '{') && u != s->type.t) {
             tcc_error("redefinition of '%s'", get_tok_str(v, ((void*)0)));
         }
+        if (s && (s->sym_scope == local_scope || tok != '{'))
+            use_existing = 1;
     } else {
         v = anon_sym++;
     }
-    type1.t = u;
-    type1.ref = ((void*)0);
-    s = sym_push(v | 0x40000000, &type1, 0, -1);
-    s->r = 0;
-do_decl:
+    if (!use_existing) {
+        type1.t = u;
+        type1.ref = ((void*)0);
+        s = sym_push(v | 0x40000000, &type1, 0, -1);
+        s->r = 0;
+    }
     type->t = s->type.t;
     type->ref = s;
     if (tok == '{') {
@@ -2837,7 +2832,7 @@ static void sym_to_attr(AttributeDef *ad, Sym *s)
 }
 static int parse_btype(CType *type, AttributeDef *ad)
 {
-    int t, u, bt, st, type_found, typespec_found, g;
+    int t, u, bt, st, type_found, typespec_found, g, done, basic;
     Sym *s;
     CType type1;
     memset(ad, 0, sizeof(AttributeDef));
@@ -2846,42 +2841,36 @@ static int parse_btype(CType *type, AttributeDef *ad)
     t = 3;
     bt = st = -1;
     type->ref = ((void*)0);
-    while(1) {
+    done = 0;
+    while(!done) {
+        basic = 0;
         switch(tok) {
         case 258:
             u = 1;
-        basic_type:
             next();
-        basic_type1:
-            if (u == 2) {
-                if (st != -1 || (bt != -1 && bt != 3))
-                    tmbt: tcc_error("too many basic types");
-                st = u;
-            } else {
-                if (bt != -1 || (st != -1 && u != 3))
-                    goto tmbt;
-                bt = u;
-            }
-            if (u != 3)
-                t = (t & ~0x000f) | u;
-            typespec_found = 1;
+            basic = 1;
             break;
         case 257:
             u = 0;
-            goto basic_type;
+            next();
+            basic = 1;
+            break;
         case 279:
             u = 2;
-            goto basic_type;
+            next();
+            basic = 1;
+            break;
         case 256:
             u = 3;
-            goto basic_type;
+            next();
+            basic = 1;
+            break;
         case 280:
             struct_decl(&type1, 7);
-        basic_type2:
             u = type1.t;
             type->ref = type1.ref;
-            goto basic_type1;
-            goto basic_type2;
+            basic = 1;
+            break;
         case 267:
             if ((t & (0x0020|0x0010)) == 0x0020)
                 tcc_error("signed and unsigned modifier");
@@ -2891,25 +2880,35 @@ static int parse_btype(CType *type, AttributeDef *ad)
             break;
         case 265:
             g = 0x00001000;
-            goto storage;
+            if (t & (0x00001000|0x00002000|0x00004000) & ~g)
+                tcc_error("multiple storage classes");
+            t |= g;
+            next();
+            break;
         case 266:
             g = 0x00002000;
-            goto storage;
+            if (t & (0x00001000|0x00002000|0x00004000) & ~g)
+                tcc_error("multiple storage classes");
+            t |= g;
+            next();
+            break;
         case 282:
             g = 0x00004000;
-            goto storage;
-       storage:
             if (t & (0x00001000|0x00002000|0x00004000) & ~g)
                 tcc_error("multiple storage classes");
             t |= g;
             next();
             break;
         default:
-            if (typespec_found)
-                goto the_end;
+            if (typespec_found) {
+                done = 1;
+                break;
+            }
             s = sym_find(tok);
-            if (!s || !(s->type.t & 0x00004000))
-                goto the_end;
+            if (!s || !(s->type.t & 0x00004000)) {
+                done = 1;
+                break;
+            }
             t &= ~0x000f;
             type->t = (s->type.t & ~0x00004000) | t;
             type->ref = s->type.ref;
@@ -2920,9 +2919,23 @@ static int parse_btype(CType *type, AttributeDef *ad)
             st = bt = -2;
             break;
         }
-        type_found = 1;
+        if (basic) {
+            if (u == 2) {
+                if (st != -1 || (bt != -1 && bt != 3))
+                    tcc_error("too many basic types");
+                st = u;
+            } else {
+                if (bt != -1 || (st != -1 && u != 3))
+                    tcc_error("too many basic types");
+                bt = u;
+            }
+            if (u != 3)
+                t = (t & ~0x000f) | u;
+            typespec_found = 1;
+        }
+        if (!done)
+            type_found = 1;
     }
-the_end:
     bt = t & 0x000f;
     type->t = t;
     return type_found;
@@ -3088,20 +3101,28 @@ static void unary(void)
     case 0xb5:
     case 0xb3:
 	t = 3;
- push_tokc:
 	type.t = t;
 	vsetc(&type, 0x0030, &tokc);
         next();
         break;
     case 0xb6:
         t = 3 | 0x0010;
-        goto push_tokc;
+	type.t = t;
+	vsetc(&type, 0x0030, &tokc);
+        next();
+        break;
     case 0xce:
         t = 3;
-	goto push_tokc;
+	type.t = t;
+	vsetc(&type, 0x0030, &tokc);
+        next();
+        break;
     case 0xcf:
         t = 3 | 0x0010;
-	goto push_tokc;
+	type.t = t;
+	vsetc(&type, 0x0030, &tokc);
+        next();
+        break;
     case 0xb9:
         t = 1;
         type.t = t;
@@ -3254,9 +3275,8 @@ static void unary(void)
                 if ((vtop->type.t & (0x000f | 0x0040)) == 5) {
                     vtop->type = *pointed_type(&vtop->type);
                     if ((vtop->type.t & 0x000f) != 6)
-                        goto error_func;
+                        expect("function pointer");
                 } else {
-                error_func:
                     expect("function pointer");
                 }
             } else {
