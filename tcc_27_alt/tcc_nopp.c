@@ -70,14 +70,59 @@ typedef struct {
   Elf32_Sword d_tag;
   Elf32_Word d_un;
 } Elf32_Dyn;
-typedef struct TokenSym {
-    struct TokenSym *hash_next;
-    struct Sym *sym_struct;
-    struct Sym *sym_identifier;
-    int tok;
-    int len;
-    char str[1];
-} TokenSym;
+typedef unsigned char TokenSym;
+static TokenSym **ts_hash_next_ref(TokenSym *ts)
+{
+    return (TokenSym **)ts;
+}
+static void ts_set_hash_next(TokenSym *ts, TokenSym *next)
+{
+    *(TokenSym **)ts = next;
+}
+static struct Sym *ts_sym_struct(TokenSym *ts)
+{
+    return *(struct Sym **)(ts + 4);
+}
+static struct Sym **ts_sym_struct_ref(TokenSym *ts)
+{
+    return (struct Sym **)(ts + 4);
+}
+static void ts_set_sym_struct(TokenSym *ts, struct Sym *sym)
+{
+    *(struct Sym **)(ts + 4) = sym;
+}
+static struct Sym *ts_sym_identifier(TokenSym *ts)
+{
+    return *(struct Sym **)(ts + 8);
+}
+static struct Sym **ts_sym_identifier_ref(TokenSym *ts)
+{
+    return (struct Sym **)(ts + 8);
+}
+static void ts_set_sym_identifier(TokenSym *ts, struct Sym *sym)
+{
+    *(struct Sym **)(ts + 8) = sym;
+}
+static int ts_tok(TokenSym *ts)
+{
+    return *(int *)(ts + 12);
+}
+static void ts_set_tok(TokenSym *ts, int tok)
+{
+    *(int *)(ts + 12) = tok;
+}
+static int ts_len(TokenSym *ts)
+{
+    return *(int *)(ts + 16);
+}
+static void ts_set_len(TokenSym *ts, int len)
+{
+    *(int *)(ts + 16) = len;
+}
+static char *ts_str(TokenSym *ts)
+{
+    return (char *)(ts + 20);
+}
 typedef unsigned int CString[3];
 static int cstr_size(CString *cstr)
 {
@@ -619,15 +664,15 @@ static TokenSym *tok_alloc_new(TokenSym **pts, char *str, int len)
         ptable = tcc_realloc(table_ident, (i + 512) * sizeof(TokenSym *));
         table_ident = ptable;
     }
-    ts = tcc_realloc(0, sizeof(TokenSym) + len);
+    ts = tcc_realloc(0, 21 + len);
     table_ident[i] = ts;
-    ts->tok = tok_ident++;
-    ts->sym_struct = ((void*)0);
-    ts->sym_identifier = ((void*)0);
-    ts->len = len;
-    ts->hash_next = ((void*)0);
-    memcpy(ts->str, str, len);
-    ts->str[len] = '\0';
+    ts_set_tok(ts, tok_ident++);
+    ts_set_sym_struct(ts, ((void*)0));
+    ts_set_sym_identifier(ts, ((void*)0));
+    ts_set_len(ts, len);
+    ts_set_hash_next(ts, ((void*)0));
+    memcpy(ts_str(ts), str, len);
+    ts_str(ts)[len] = '\0';
     *pts = ts;
     return ts;
 }
@@ -645,9 +690,9 @@ static TokenSym *tok_alloc(char *str, int len)
         ts = *pts;
         if (!ts)
             break;
-        if (ts->len == len && !memcmp(ts->str, str, len))
+        if (ts_len(ts) == len && !memcmp(ts_str(ts), str, len))
             return ts;
-        pts = &(ts->hash_next);
+        pts = ts_hash_next_ref(ts);
     }
     return tok_alloc_new(pts, str, len);
 }
@@ -696,7 +741,7 @@ static char *get_tok_str(int v, CValue *cv)
             *p++ = v;
             *p = '\0';
         } else if (v < tok_ident) {
-            return table_ident[v - 256]->str;
+            return ts_str(table_ident[v - 256]);
         } else if (v >= 0x10000000) {
             sprintf(p, "L.%u", v - 0x10000000);
         } else {
@@ -1105,9 +1150,9 @@ static uint8_t *scan_ident_token(uint8_t *p, int c)
                 ts = tok_alloc_new(pts, (char *) p1, p - p1);
                 break;
             }
-            if (ts->len == p - p1 && !memcmp(ts->str, p1, p - p1))
+            if (ts_len(ts) == p - p1 && !memcmp(ts_str(ts), p1, p - p1))
                 break;
-            pts = &(ts->hash_next);
+            pts = ts_hash_next_ref(ts);
         }
     } else {
         cstr_reset(&tokcstr);
@@ -1121,7 +1166,7 @@ static uint8_t *scan_ident_token(uint8_t *p, int c)
         }
         ts = tok_alloc(cstr_data(&tokcstr), cstr_size(&tokcstr));
     }
-    tok = ts->tok;
+    tok = ts_tok(ts);
     return p;
 }
 static uint8_t *scan_number_token(uint8_t *p, int t, int c)
@@ -1581,14 +1626,14 @@ static Sym *struct_find(int v)
     v -= 256;
     if ((unsigned)v >= (unsigned)(tok_ident - 256))
         return ((void*)0);
-    return table_ident[v]->sym_struct;
+    return ts_sym_struct(table_ident[v]);
 }
 static Sym *sym_find(int v)
 {
     v -= 256;
     if ((unsigned)v >= (unsigned)(tok_ident - 256))
         return ((void*)0);
-    return table_ident[v]->sym_identifier;
+    return ts_sym_identifier(table_ident[v]);
 }
 static Sym *sym_push(int v, CType *type, int r, int c)
 {
@@ -1604,9 +1649,9 @@ static Sym *sym_push(int v, CType *type, int r, int c)
     if (!(v & 0x20000000) && (v & ~0x40000000) < 0x10000000) {
         ts = table_ident[(v & ~0x40000000) - 256];
         if (v & 0x40000000)
-            ps = &ts->sym_struct;
+            ps = ts_sym_struct_ref(ts);
         else
-            ps = &ts->sym_identifier;
+            ps = ts_sym_identifier_ref(ts);
         s->prev_tok = *ps;
         *ps = s;
         s->sym_scope = local_scope;
@@ -1621,7 +1666,7 @@ static Sym *global_identifier_push(int v, int t, int c)
     Sym *s, **ps;
     s = sym_push2(&global_stack, v, t, c);
     if (v < 0x10000000) {
-        ps = &table_ident[v - 256]->sym_identifier;
+        ps = ts_sym_identifier_ref(table_ident[v - 256]);
         while (*ps != ((void*)0) && (*ps)->sym_scope)
             ps = &(*ps)->prev_tok;
         s->prev_tok = *ps;
@@ -1641,9 +1686,9 @@ static void sym_pop(Sym **ptop, Sym *b, int keep)
         if (!(v & 0x20000000) && (v & ~0x40000000) < 0x10000000) {
             ts = table_ident[(v & ~0x40000000) - 256];
             if (v & 0x40000000)
-                ps = &ts->sym_struct;
+                ps = ts_sym_struct_ref(ts);
             else
-                ps = &ts->sym_identifier;
+                ps = ts_sym_identifier_ref(ts);
             *ps = s->prev_tok;
         }
 	if (!keep)
