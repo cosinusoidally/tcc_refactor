@@ -542,12 +542,11 @@ static struct Sym *sv_sym(struct SValue *sv)
 {
     return sv->sym;
 }
-typedef unsigned char AttributeDef;
-static int ad_ft(AttributeDef *ad)
+static int ad_ft(unsigned char *ad)
 {
     return *ad;
 }
-static void ad_set_ft(AttributeDef *ad, int ft)
+static void ad_set_ft(unsigned char *ad, int ft)
 {
     *ad = ft;
 }
@@ -571,11 +570,11 @@ static void sym_set_ft(struct Sym *s, int ft)
 {
     s->func_type = ft;
 }
-static void sym_set_ad_ft(struct Sym *s, AttributeDef *ad)
+static void sym_set_ad_ft(struct Sym *s, unsigned char *ad)
 {
     s->func_type = ad_ft(ad);
 }
-static void ad_set_sym_ft(AttributeDef *ad, struct Sym *s)
+static void ad_set_sym_ft(unsigned char *ad, struct Sym *s)
 {
     ad_set_ft(ad, sym_ft(s));
 }
@@ -600,28 +599,26 @@ struct Section {
     struct Section *prev;
     char name[1];
 };
-typedef char DLLReference;
-static int dllr_level(DLLReference *d)
+static int dllr_level(char *d)
 {
     return 0;
 }
-static void dllr_set_level(DLLReference *d, int level)
+static void dllr_set_level(char *d, int level)
 {
 }
-static char *dllr_name(DLLReference *d)
+static char *dllr_name(char *d)
 {
     return d;
 }
-static void dllr_set_name(DLLReference **pd, char *name)
+static void dllr_set_name(char **pd, char *name)
 {
     *pd = tcc_strdup(name);
 }
-typedef char FileSpec;
-static char *fs_name(FileSpec *f)
+static char *fs_name(char *f)
 {
     return f;
 }
-static void fs_set_name(FileSpec **pf, char *name)
+static void fs_set_name(char **pf, char *name)
 {
     *pf = tcc_strdup(name);
 }
@@ -718,7 +715,7 @@ static void sattr_set_dyn_index(SymAttr *a, int v)
 struct TCCState {
     int nostdlib;
     int output_type;
-    DLLReference **loaded_dlls;
+    char **loaded_dlls;
     int nb_loaded_dlls;
     struct Section **sections;
     int nb_sections;
@@ -730,7 +727,7 @@ struct TCCState {
     struct Section *symtab;
     SymAttr *sym_attrs;
     int nb_sym_attrs;
-    FileSpec **files;
+    char **files;
     int nb_files;
     char *outfile;
 };
@@ -1814,12 +1811,12 @@ static void gen_cast(struct CType *type);
 static void gen_cast_s(int t);
 static struct CType *pointed_type(struct CType *type);
 static int is_compatible_types(struct CType *type1, struct CType *type2);
-static int parse_btype(struct CType *type, AttributeDef *ad);
-static struct CType *type_decl(struct CType *type, AttributeDef *ad, int *v, int td);
+static int parse_btype(struct CType *type, unsigned char *ad);
+static struct CType *type_decl(struct CType *type, unsigned char *ad, int *v, int td);
 static void init_putv(struct CType *type, struct Section *sec, unsigned int c);
 static void decl_initializer(struct CType *type, struct Section *sec, unsigned int c, int first);
 static void block(int *bsym, int *csym, int is_expr);
-static void decl_initializer_alloc(struct CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
+static void decl_initializer_alloc(struct CType *type, unsigned char *ad, int r, int has_init, int v, int scope);
 static void decl(int l);
 static int decl0(int l, int is_for_loop_init, struct Sym *);
 static void expr_eq(void);
@@ -2212,13 +2209,13 @@ static void patch_type(struct Sym *sym, struct CType *type)
         }
     }
 }
-static void patch_storage(struct Sym *sym, AttributeDef *ad, struct CType *type)
+static void patch_storage(struct Sym *sym, unsigned char *ad, struct CType *type)
 {
     if (type)
         patch_type(sym, type);
     update_storage(sym);
 }
-static struct Sym *external_sym(int v, struct CType *type, int r, AttributeDef *ad)
+static struct Sym *external_sym(int v, struct CType *type, int r, unsigned char *ad)
 {
     struct Sym *s;
     s = sym_find(v);
@@ -3038,7 +3035,7 @@ static void struct_add_offset (struct Sym *s, int offset)
 	  s->c += offset;
     }
 }
-static void struct_layout(struct CType *type, AttributeDef *ad)
+static void struct_layout(struct CType *type, unsigned char *ad)
 {
     int size, align, maxalign, offset, c, a;
     struct Sym *f;
@@ -3088,7 +3085,7 @@ static void struct_decl(struct CType *type, int u)
 {
     int v, align, use_existing;
     struct Sym *s, *ss, **ps;
-    AttributeDef ad, ad1;
+    unsigned char ad, ad1;
     struct CType type1, btype;
     memset(&ad, 0, sizeof ad);
     s = ((void*)0);
@@ -3172,17 +3169,17 @@ static void struct_decl(struct CType *type, int u)
         struct_layout(type, &ad);
     }
 }
-static void sym_to_attr(AttributeDef *ad, struct Sym *s)
+static void sym_to_attr(unsigned char *ad, struct Sym *s)
 {
     if (sym_ft(s) && 0 == ad_ft(ad))
         ad_set_sym_ft(ad, s);
 }
-static int parse_btype(struct CType *type, AttributeDef *ad)
+static int parse_btype(struct CType *type, unsigned char *ad)
 {
     int t, u, bt, st, type_found, typespec_found, g, done, basic;
     struct Sym *s;
     struct CType type1;
-    memset(ad, 0, sizeof(AttributeDef));
+    memset(ad, 0, sizeof(unsigned char));
     type_found = 0;
     typespec_found = 0;
     t = 3;
@@ -3269,11 +3266,11 @@ static void convert_parameter_type(struct CType *pt)
         mk_pointer(pt);
     }
 }
-static int post_type(struct CType *type, AttributeDef *ad, int storage, int td)
+static int post_type(struct CType *type, unsigned char *ad, int storage, int td)
 {
     int n, l;
     struct Sym **plast, *s, *first;
-    AttributeDef ad1;
+    unsigned char ad1;
     struct CType pt;
     if (tok == '(') {
         l = 0;
@@ -3342,7 +3339,7 @@ static int post_type(struct CType *type, AttributeDef *ad, int storage, int td)
     }
     return 1;
 }
-static struct CType *type_decl(struct CType *type, AttributeDef *ad, int *v, int td)
+static struct CType *type_decl(struct CType *type, unsigned char *ad, int *v, int td)
 {
     struct CType *post, *ret;
     int storage;
@@ -3415,7 +3412,7 @@ static void unary(void)
     int n, t, align, size, r, sizeof_caller;
     struct CType type;
     struct Sym *s;
-    AttributeDef ad;
+    unsigned char ad;
     sizeof_caller = in_sizeof;
     in_sizeof = 0;
     ct_set_ref(&type, ((void*)0));
@@ -3445,7 +3442,7 @@ static void unary(void)
         mk_pointer(&type);
         ct_or_t(&type, 0x0040);
         ct_ref(&type)->c = cv_str_size(&tokc);
-        memset(&ad, 0, sizeof(AttributeDef));
+        memset(&ad, 0, sizeof(unsigned char));
         decl_initializer_alloc(&type, &ad, 0x0030, 2, 0, 0);
     } else if (tok == '(') {
         next();
@@ -4358,7 +4355,7 @@ static void decl_initializer(struct CType *type, struct Section *sec, unsigned i
         init_putv(type, sec, c);
     }
 }
-static void decl_initializer_alloc(struct CType *type, AttributeDef *ad, int r,
+static void decl_initializer_alloc(struct CType *type, unsigned char *ad, int r,
                                    int has_init, int v, int scope)
 {
     int size, align, addr;
@@ -4455,7 +4452,7 @@ static int decl0(int l, int is_for_loop_init, struct Sym *func_sym)
     int v, has_init, r;
     struct CType type, btype;
     struct Sym *sym;
-    AttributeDef ad;
+    unsigned char ad;
     while (1) {
         if (!parse_btype(&btype, &ad)) {
             if (is_for_loop_init)
@@ -5636,7 +5633,7 @@ static int elf_output_file(struct TCCState *s1, char *filename)
     alloc_sec_names(s1, file_type, strsec);
     if (dynamic) {
         for(i = 0; i < s1->nb_loaded_dlls; i++) {
-            DLLReference *dllref = s1->loaded_dlls[i];
+            char *dllref = s1->loaded_dlls[i];
             if (dllr_level(dllref) == 0)
                 put_dt(dynamic, 1, put_elf_str(dynstr, dllr_name(dllref)));
         }
@@ -6638,7 +6635,7 @@ static void tcc_add_crt(struct TCCState *s, char *filename)
 static void tcc_add_needed_dll(struct TCCState *s, char *soname)
 {
     int i;
-    DLLReference *dllref;
+    char *dllref;
     for(i = 0; i < s->nb_loaded_dlls; i++) {
         dllref = s->loaded_dlls[i];
         if (!strcmp(soname, dllr_name(dllref)))
@@ -6661,7 +6658,7 @@ static void tcc_add_library(struct TCCState *s, char *libraryname)
 }
 static void args_parser_add_file(struct TCCState *s, char* filename)
 {
-    FileSpec *f;
+    char *f;
     fs_set_name(&f, filename);
     dynarray_add(&s->files, &s->nb_files, f);
 }
