@@ -211,7 +211,7 @@ static void sym_pop(Sym **ptop, Sym *b, int keep);
 static Sym *struct_find(int v);
 static Sym *sym_find(int v);
 static Sym *global_identifier_push(int v, int t, int c);
-static void tcc_open_bf(TCCState *s1, char *filename, int initlen);
+static void tcc_open_bf(TCCState *s1, char *filename);
 static int tcc_open(TCCState *s1, char *filename);
 static void tcc_close(void);
 static int tcc_add_file_internal(TCCState *s1, char *filename, int flags);
@@ -368,8 +368,6 @@ static struct BufferedFile *file;
 static int tok;
 static CValue tokc;
 static CString tokcstr;
-static int total_lines;
-static int total_bytes;
 static int tok_ident;
 static TokenSym **table_ident;
 static TokenSym *hash_ident[16384];
@@ -609,7 +607,6 @@ static int handle_eob(void)
         } else {
             len = 0;
         }
-        total_bytes += len;
         bf->buf_ptr = bf->buffer;
         bf->buf_end = bf->buffer + len;
         *bf->buf_end = '\\';
@@ -6381,13 +6378,12 @@ static void error1(TCCState *s1, char *fmt, va_list ap)
     ;
     exit(1);
 }
-static void tcc_open_bf(TCCState *s1, char *filename, int initlen)
+static void tcc_open_bf(TCCState *s1, char *filename)
 {
     BufferedFile *bf;
-    int buflen = initlen ? initlen : 8192;
-    bf = tcc_mallocz(sizeof(BufferedFile) + buflen);
+    bf = tcc_mallocz(sizeof(BufferedFile) + 8192);
     bf->buf_ptr = bf->buffer;
-    bf->buf_end = bf->buffer + initlen;
+    bf->buf_end = bf->buffer;
     bf->buf_end[0] = '\\';
     pstrcpy(bf->filename, sizeof(bf->filename), filename);
     bf->line_num = 1;
@@ -6400,7 +6396,6 @@ static void tcc_close(void)
     BufferedFile *bf = file;
     if (bf->fd > 0) {
         close(bf->fd);
-        total_lines += bf->line_num;
     }
     file = bf->prev;
     tcc_free(bf);
@@ -6414,7 +6409,7 @@ static int tcc_open(TCCState *s1, char *filename)
         fd = open(filename, 00 | 0);
     if (fd < 0)
         return -1;
-    tcc_open_bf(s1, filename, 0);
+    tcc_open_bf(s1, filename);
     file->fd = fd;
     return fd;
 }
