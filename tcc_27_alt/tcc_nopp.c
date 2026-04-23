@@ -457,6 +457,39 @@ typedef struct CType {
     int t;
     struct Sym *ref;
 } CType;
+static int ct_t(CType *ct)
+{
+    return ct->t;
+}
+static void ct_set_t(CType *ct, int t)
+{
+    ct->t = t;
+}
+static void ct_or_t(CType *ct, int t)
+{
+    ct->t |= t;
+}
+static void ct_and_t(CType *ct, int t)
+{
+    ct->t &= t;
+}
+static void ct_clear_t(CType *ct, int t)
+{
+    ct->t &= ~t;
+}
+static struct Sym *ct_ref(CType *ct)
+{
+    return ct->ref;
+}
+static void ct_set_ref(CType *ct, struct Sym *ref)
+{
+    ct->ref = ref;
+}
+static void ct_copy(CType *dst, CType *src)
+{
+    ct_set_t(dst, ct_t(src));
+    ct_set_ref(dst, ct_ref(src));
+}
 typedef unsigned int CValue[3];
 static unsigned int cv_i(CValue *cv)
 {
@@ -1795,14 +1828,14 @@ static int tccgen_compile(TCCState *s1)
     anon_sym = 0x10000000;
     const_wanted = 0;
     nocode_wanted = 0x80000000;
-    int_type.t = 3;
-    char_pointer_type.t = 1;
+    ct_set_t(&int_type, 3);
+    ct_set_t(&char_pointer_type, 1);
     mk_pointer(&char_pointer_type);
-    size_type.t = 3 | 0x0010;
-    ptrdiff_type.t = 3;
-    func_old_type.t = 6;
-    func_old_type.ref = sym_push(0x20000000, &int_type, 0, 0);
-    sym_set_ft(func_old_type.ref, 2);
+    ct_set_t(&size_type, 3 | 0x0010);
+    ct_set_t(&ptrdiff_type, 3);
+    ct_set_t(&func_old_type, 6);
+    ct_set_ref(&func_old_type, sym_push(0x20000000, &int_type, 0, 0));
+    sym_set_ft(ct_ref(&func_old_type), 2);
     next();
     decl(0x0030);
     check_vstack();
@@ -1821,7 +1854,7 @@ static void update_storage(Sym *sym)
     esym = elfsym(sym);
     if (!esym)
         return;
-    if (sym->type.t & 0x00002000)
+    if (ct_t(&sym->type) & 0x00002000)
         sym_bind = 0;
     else
         sym_bind = 1;
@@ -1838,7 +1871,7 @@ static void put_extern_sym2(Sym *sym, int sh_num,
     char *name;
     if (!sym->c) {
         name = get_tok_str(sym->v, ((void*)0));
-        t = sym->type.t;
+        t = ct_t(&sym->type);
         if ((t & 0x000f) == 6) {
             sym_type = 2;
         } else if ((t & 0x000f) == 0) {
@@ -1920,7 +1953,7 @@ static Sym *sym_push2(Sym **ps, int v, int t, int c)
     s = sym_malloc();
     memset(s, 0, sizeof *s);
     s->v = v;
-    s->type.t = t;
+    ct_set_t(&s->type, t);
     s->c = c;
     s->prev = *ps;
     *ps = s;
@@ -1948,8 +1981,8 @@ static Sym *sym_push(int v, CType *type, int r, int c)
         ps = &local_stack;
     else
         ps = &global_stack;
-    s = sym_push2(ps, v, type->t, c);
-    s->type.ref = type->ref;
+    s = sym_push2(ps, v, ct_t(type), c);
+    ct_set_ref(&s->type, ct_ref(type));
     s->r = r;
     if (!(v & 0x20000000) && (v & ~0x40000000) < 0x10000000) {
         ts = table_ident[(v & ~0x40000000) - 256];
