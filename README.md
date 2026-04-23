@@ -1,3 +1,6 @@
+# NOTE THIS IS AN AI ASSISTED CODEBASE. INITIAL SCAFFOLDING WAS HUMAN GENERATED
+# A HUMAN SHOULD REVIEW ALL CODE BEFORE USE
+
 # tcc_refactor
 
 This repository is an experiment in refactoring TinyCC into a layered,
