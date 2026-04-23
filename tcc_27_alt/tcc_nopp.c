@@ -164,12 +164,9 @@ struct sym_attr {
     int dyn_index;
 };
 struct TCCState {
-    int nostdlib;
     int output_type;
     DLLReference **loaded_dlls;
     int nb_loaded_dlls;
-    char **crt_paths;
-    int nb_crt_paths;
     Section **sections;
     int nb_sections;
     Section **priv_sections;
@@ -200,8 +197,6 @@ static void dynarray_add(void *ptab, int *nb_ptr, void *data);
 static void dynarray_reset(void *pp, int *n);
 static void cstr_ccat(CString *cstr, int ch);
 static void cstr_cat(CString *cstr, char *str, int len);
-static void cstr_new(CString *cstr);
-static void cstr_free(CString *cstr);
 static void cstr_reset(CString *cstr);
 static void sym_free(Sym *sym);
 static Sym *sym_push2(Sym **ps, int v, int t, int c);
@@ -214,7 +209,7 @@ static void tcc_open_bf(TCCState *s1, char *filename);
 static int tcc_open(TCCState *s1, char *filename);
 static void tcc_close(void);
 static int tcc_add_file_internal(TCCState *s1, char *filename, int flags);
-static int tcc_add_crt(TCCState *s, char *filename);
+static void tcc_add_crt(TCCState *s, char *filename);
 static void tcc_add_library(TCCState *s, char *libraryname);
 static int tcc_parse_args(TCCState *s, int argc, char **argv);
 static TokenSym *tok_alloc(char *str, int len);
@@ -316,7 +311,6 @@ static void relocate_syms(TCCState *s1, Section *symtab, int do_resolve);
 static void relocate_section(TCCState *s1, Section *s);
 static int tcc_object_type(int fd, Elf32_Ehdr *h);
 static int tcc_load_object_file(TCCState *s1, int fd, unsigned int file_offset);
-static void tcc_add_runtime(TCCState *s1);
 static void build_got_entries(TCCState *s1);
 static struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc);
 static Elf32_Addr get_elf_sym_addr(TCCState *s, char *name, int err);
@@ -459,15 +453,6 @@ static void cstr_cat(CString *cstr, char *str, int len)
         cstr_realloc(cstr, size);
     memmove(((unsigned char *)cstr->data) + cstr->size, str, len);
     cstr->size = size;
-}
-static void cstr_new(CString *cstr)
-{
-    memset(cstr, 0, sizeof(CString));
-}
-static void cstr_free(CString *cstr)
-{
-    tcc_free(cstr->data);
-    cstr_new(cstr);
 }
 static void cstr_reset(CString *cstr)
 {
@@ -4878,13 +4863,6 @@ static void put_dt(Section *dynamic, int dt, Elf32_Addr val)
     dyn->d_tag = dt;
     dyn->d_un = val;
 }
-static void tcc_add_runtime(TCCState *s1)
-{
-    if (!s1->nostdlib) {
-        tcc_add_library(s1, "c");
-        tcc_add_crt(s1, "crtn.o");
-    }
-}
 static void tcc_add_linker_symbols(TCCState *s1)
 {
     set_elf_sym(symtab_section,
@@ -5281,7 +5259,8 @@ static int elf_output_file(TCCState *s1, char *filename)
     sec_order = ((void*)0);
     interp = dynamic = dynstr = ((void*)0);
     if (file_type != 4) {
-        tcc_add_runtime(s1);
+        tcc_add_library(s1, "c");
+        tcc_add_crt(s1, "crtn.o");
 	resolve_common_syms(s1);
         if (file_type == 2) {
             char *ptr;
@@ -6255,26 +6234,6 @@ static void dynarray_reset(void *pp, int *n)
     tcc_free(*(void**)pp);
     *(void**)pp = ((void*)0);
 }
-static void tcc_split_path(TCCState *s, void *p_ary, int *p_nb_ary, char *in)
-{
-    char *p;
-    for (;;) {
-        int c;
-        CString str;
-        cstr_new(&str);
-        for (p = in; c = *p, c != '\0' && c != ":"[0]; ++p) {
-            cstr_ccat(&str, c);
-        }
-        if (str.size) {
-            cstr_ccat(&str, '\0');
-            dynarray_add(p_ary, p_nb_ary, tcc_strdup(str.data));
-        }
-        cstr_free(&str);
-        if (!*p)
-            break;
-        in = p+1;
-    }
-}
 static void strcat_vprintf(char *buf, int buf_size, char *fmt, va_list ap)
 {
     int len;
@@ -6393,25 +6352,23 @@ static void tcc_add_file(TCCState *s, char *filename)
         flags |= 0x40;
     tcc_add_file_internal(s, filename, flags);
 }
-static int tcc_add_library_internal(TCCState *s, char *fmt,
-    char *filename, int flags, char **paths, int nb_paths)
+static void tcc_add_crt(TCCState *s, char *filename)
 {
+    char *paths[4];
     char buf[1024];
     int i;
-    for(i = 0; i < nb_paths; i++) {
-        snprintf(buf, sizeof(buf), fmt, paths[i], filename);
-        if (access(buf, 0) == 0 &&
-            tcc_add_file_internal(s, buf, flags | 0x40) == 0)
-            return 0;
+    paths[0] = "/usr/lib/i386-linux-gnu";
+    paths[1] = "/lib/i386-linux-gnu";
+    paths[2] = "/usr/lib32";
+    paths[3] = "/lib32";
+    for(i = 0; i < 4; i++) {
+        snprintf(buf, sizeof(buf), "%s/%s", paths[i], filename);
+        if (access(buf, 0) == 0) {
+            tcc_add_file_internal(s, buf, 0x40);
+            return;
+        }
     }
-    return -1;
-}
-static int tcc_add_crt(TCCState *s, char *filename)
-{
-    if (-1 == tcc_add_library_internal(s, "%s/%s",
-        filename, 0, s->crt_paths, s->nb_crt_paths))
-        tcc_error("file '%s' not found", filename);
-    return 0;
+    tcc_error("file '%s' not found", filename);
 }
 static void tcc_add_needed_dll(TCCState *s, char *soname)
 {
@@ -6468,8 +6425,6 @@ static int tcc_parse_args(TCCState *s, int argc, char **argv)
         } else if (!strcmp(r, "-v")) {
             printf("tcc_27_alt i386 Linux\n");
             exit(0);
-        } else if (!strcmp(r, "-nostdlib")) {
-            s->nostdlib = 1;
         } else if (!strncmp(r, "-l", 2)) {
             optarg = take_arg(argc, argv, &optind, r, 2);
             tcc_add_library(s, optarg);
@@ -6519,8 +6474,7 @@ int main(int argc0, char **argv0)
         s->output_type = 2;
     if (s->output_type == 4 && s->nb_files > 1)
         tcc_error("-c accepts one input file in tcc_27_alt");
-    tcc_split_path(s, &s->crt_paths, &s->nb_crt_paths, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
-    if (s->output_type == 2 && !s->nostdlib) {
+    if (s->output_type == 2) {
         tcc_add_crt(s, "crt1.o");
         tcc_add_crt(s, "crti.o");
     }
