@@ -22,6 +22,8 @@ Variable length arrays are also outside the subset; array bounds must be
 compile-time constants.
 Bit-fields are outside the subset as well. The compiler source itself uses
 plain integer fields so the self-host input stays in the smaller dialect.
+`enum` and `union` declarations are outside the subset. The compiler source
+uses numeric constants and plain structs instead.
 GNU/MS declaration attributes are rejected; this removes section, alias,
 visibility, packed/aligned, and non-cdecl calling-convention syntax from the
 front end.
@@ -32,8 +34,10 @@ frontend treats `inline` spellings as ordinary identifiers rather than storage
 specifiers.
 Wide string/character literals and floating-point types/constants are outside
 the subset. Ordinary byte strings and character constants remain supported.
-64-bit integer types and operations are also outside the subset; `long` is
-treated as a 32-bit i386 integer and `long long` is not a supported target type.
+64-bit integer types and operations are also outside the subset. The reduced
+dialect uses `int`/`unsigned int` for 32-bit integers; `long`, `long long`,
+explicit `signed`, `register`, `auto`, and `_Bool` spellings are reserved but
+not accepted as type or storage specifiers.
 
 ## Build
 
