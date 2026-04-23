@@ -27,7 +27,7 @@ uses numeric constants and plain structs instead.
 GNU/MS declaration attributes are rejected; this removes section, alias,
 visibility, packed/aligned, and non-cdecl calling-convention syntax from the
 front end.
-GNU `typeof`, C11 `_Generic`, labels-as-values, and computed `goto` are also
+GNU `typeof`, C11 `_Generic`, labels-as-values, and computed-branch extensions are also
 outside the supported subset.
 The compiler source has been ported away from `inline`, and the reduced
 frontend treats `inline` spellings as ordinary identifiers rather than storage

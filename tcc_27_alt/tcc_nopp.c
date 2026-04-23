@@ -71,7 +71,6 @@ typedef struct {
 } Elf32_Dyn;
 typedef struct TokenSym {
     struct TokenSym *hash_next;
-    struct Sym *sym_label;
     struct Sym *sym_struct;
     struct Sym *sym_identifier;
     int tok;
@@ -222,12 +221,8 @@ static int tcc_parse_args(TCCState *s, int argc, char **argv);
 static TokenSym *tok_alloc(char *str, int len);
 static char *get_tok_str(int v, CValue *cv);
 static int set_idnum(int c, int val);
-static Sym *label_find(int v);
-static Sym *label_push(Sym **ptop, int v, int flags);
-static void label_pop(Sym **ptop, Sym *slast, int keep);
 static void next_nomacro(void);
 static void next(void);
-static void unget_tok(int last_tok);
 static void preprocess_start(TCCState *s1);
 static void preprocess_end(TCCState *s1);
 static void tccpp_new(TCCState *s);
@@ -254,8 +249,6 @@ static void **sym_pools;
 static int nb_sym_pools;
 static Sym *global_stack;
 static Sym *local_stack;
-static Sym *local_label_stack;
-static Sym *global_label_stack;
 static CType char_pointer_type, func_old_type, int_type, size_type;
 static SValue __vstack[1+  256], *vtop, *pvtop;
 static int rsym, anon_sym, ind, loc;
@@ -387,7 +380,7 @@ static TokenSym **table_ident;
 static TokenSym *hash_ident[16384];
 static char token_buf[1024 + 1];
 static unsigned char isidnum_table[256 - (-1)];
-static char tcc_keywords[216] =
+static char tcc_keywords[211] =
      "int" "\0"
      "void" "\0"
      "char" "\0"
@@ -400,7 +393,6 @@ static char tcc_keywords[216] =
      "extern" "\0"
      "static" "\0"
      "unsigned" "\0"
-     "goto" "\0"
      "continue" "\0"
      "switch" "\0"
      "case" "\0"
@@ -516,7 +508,6 @@ static TokenSym *tok_alloc_new(TokenSym **pts, char *str, int len)
     ts = tcc_realloc(0, sizeof(TokenSym) + len);
     table_ident[i] = ts;
     ts->tok = tok_ident++;
-    ts->sym_label = ((void*)0);
     ts->sym_struct = ((void*)0);
     ts->sym_identifier = ((void*)0);
     ts->len = len;
@@ -785,48 +776,6 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
     }
     p++;
     return p;
-}
-static Sym *label_find(int v)
-{
-    v -= 256;
-    if ((unsigned)v >= (unsigned)(tok_ident - 256))
-        return ((void*)0);
-    return table_ident[v]->sym_label;
-}
-static Sym *label_push(Sym **ptop, int v, int flags)
-{
-    Sym *s, **ps;
-    s = sym_push2(ptop, v, 0, 0);
-    s->r = flags;
-    ps = &table_ident[v - 256]->sym_label;
-    if (ptop == &global_label_stack) {
-        while (*ps != ((void*)0))
-            ps = &(*ps)->prev_tok;
-    }
-    s->prev_tok = *ps;
-    *ps = s;
-    return s;
-}
-static void label_pop(Sym **ptop, Sym *slast, int keep)
-{
-    Sym *s, *s1;
-    for(s = *ptop; s != slast; s = s1) {
-        s1 = s->prev;
-        if (s->r == 2) {
-        } else if (s->r == 1) {
-                tcc_error("label '%s' used but not defined",
-                      get_tok_str(s->v, ((void*)0)));
-        } else {
-            if (s->c) {
-                put_extern_sym(s, cur_text_section, s->jnext, 1);
-            }
-        }
-        table_ident[s->v - 256]->sym_label = s->prev_tok;
-        if (!keep)
-            sym_free(s);
-    }
-    if (!keep)
-        *ptop = slast;
 }
 static void parse_escape_string(CString *outstr, uint8_t *buf)
 {
@@ -1372,13 +1321,6 @@ static void next(void)
         parse_string((char *)tokc.str.data, tokc.str.size - 1);
     }
 }
-static void unget_tok(int last_tok)
-{
-    pushed_tok = tok;
-    pushed_tokc = tokc;
-    has_pushed_tok = 1;
-    tok = last_tok;
-}
 static void preprocess_start(TCCState *s1)
 {
     pvtop = vtop = (__vstack + 1) - 1;
@@ -1432,8 +1374,6 @@ static void **sym_pools;
 static int nb_sym_pools;
 static Sym *global_stack;
 static Sym *local_stack;
-static Sym *global_label_stack;
-static Sym *local_label_stack;
 static int local_scope;
 static int in_sizeof;
 static SValue __vstack[1+256], *vtop, *pvtop;
@@ -2619,7 +2559,7 @@ static void vstore(void)
             vswap();
             vtop->type.t = 5;
             gaddrof();
-            vpush_global_sym(&func_old_type, 287);
+            vpush_global_sym(&func_old_type, 286);
             vswap();
             vpushv(vtop - 2);
             vtop->type.t = 5;
@@ -2855,7 +2795,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
             next();
             basic = 1;
             break;
-        case 279:
+        case 278:
             u = 2;
             next();
             basic = 1;
@@ -2865,7 +2805,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
             next();
             basic = 1;
             break;
-        case 280:
+        case 279:
             struct_decl(&type1, 7);
             u = type1.t;
             type->ref = type1.ref;
@@ -2892,7 +2832,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
             t |= g;
             next();
             break;
-        case 282:
+        case 281:
             g = 0x00004000;
             if (t & (0x00001000|0x00002000|0x00004000) & ~g)
                 tcc_error("multiple storage classes");
@@ -3189,7 +3129,7 @@ static void unary(void)
         vpushi(0);
         gen_op('+');
         break;
-    case 285:
+    case 284:
         next();
         in_sizeof++;
         expr_type(&type, unary);
@@ -3218,7 +3158,7 @@ static void unary(void)
     default:
         t = tok;
         next();
-        if (t <= 285)
+        if (t <= 284)
             expect("identifier");
         s = sym_find(t);
         if (!s || (((s)->type.t & (0x000f | (0 | 0x0010))) == (0 | 0x0010))) {
@@ -3630,20 +3570,6 @@ static int expr_const(void)
     vpop();
     return c;
 }
-static int is_label(void)
-{
-    int last_tok;
-    if (tok <= 285)
-        return 0;
-    last_tok = tok;
-    next();
-    if (tok == ':') {
-        return last_tok;
-    } else {
-        unget_tok(last_tok);
-        return 0;
-    }
-}
 static void gfunc_return(CType *func_type)
 {
     if ((func_type->t & 0x000f) == 7) {
@@ -3757,23 +3683,17 @@ static void block(int *bsym, int *csym, int is_expr)
         gsym(a);
         gsym_addr(b, d);
     } else if (tok == '{') {
-        Sym *llabel;
         next();
         s = local_stack;
-        llabel = local_label_stack;
         ++local_scope;
         while (tok != '}') {
-	    if ((a = is_label()))
-		unget_tok(a);
-	    else
-	        decl(0x0032);
+	    decl(0x0032);
             if (tok != '}') {
                 if (is_expr)
                     vpop();
                 block(bsym, csym, is_expr);
             }
         }
-        label_pop(&local_label_stack, llabel, is_expr);
         --local_scope;
 	sym_pop(&local_stack, s, is_expr);
         next();
@@ -3798,7 +3718,7 @@ static void block(int *bsym, int *csym, int is_expr)
         next();
         skip(';');
 	nocode_wanted |= 0x20000000;
-    } else if (tok == 269) {
+    } else if (tok == 268) {
         if (!csym)
             tcc_error("cannot continue");
         *csym = gjmp(*csym);
@@ -3846,7 +3766,7 @@ static void block(int *bsym, int *csym, int is_expr)
         --local_scope;
         sym_pop(&local_stack, s, 0);
     } else
-    if (tok == 270) {
+    if (tok == 269) {
         struct switch_t *saved, sw;
 	int saved_nocode_wanted = nocode_wanted;
 	SValue switchval;
@@ -3877,7 +3797,7 @@ static void block(int *bsym, int *csym, int is_expr)
         cur_switch = saved;
         gsym(a);
     } else
-    if (tok == 271) {
+    if (tok == 270) {
         struct case_t *cr = tcc_malloc(sizeof(struct case_t));
         if (!cur_switch)
             expect("switch");
@@ -3892,7 +3812,7 @@ static void block(int *bsym, int *csym, int is_expr)
         if (tok != '}')
             block(bsym, csym, is_expr);
     } else
-    if (tok == 283) {
+    if (tok == 282) {
         next();
         skip(':');
         if (!cur_switch)
@@ -3904,58 +3824,17 @@ static void block(int *bsym, int *csym, int is_expr)
 	nocode_wanted &= ~0x20000000;
         if (tok != '}')
             block(bsym, csym, is_expr);
-    } else
-    if (tok == 268) {
-        next();
-        if (tok > 285) {
-            s = label_find(tok);
-            if (!s) {
-                s = label_push(&global_label_stack, tok, 1);
+    } else {
+        if (tok != ';') {
+            if (is_expr) {
+                vpop();
+                gexpr();
             } else {
-                if (s->r == 2)
-                    s->r = 1;
+                gexpr();
+                vpop();
             }
-	    if (s->r & 1)
-                s->jnext = gjmp(s->jnext);
-            else
-                gjmp_addr(s->jnext);
-            next();
-        } else {
-            expect("label identifier");
         }
         skip(';');
-    } else {
-        b = is_label();
-        if (b) {
-	    next();
-            s = label_find(b);
-            if (s) {
-                if (s->r == 0)
-                    tcc_error("duplicate label '%s'", get_tok_str(s->v, ((void*)0)));
-                gsym(s->jnext);
-                s->r = 0;
-            } else {
-                s = label_push(&global_label_stack, b, 0);
-            }
-            s->jnext = ind;
-	    nocode_wanted &= ~0x20000000;
-            if (tok != '}') {
-                if (is_expr)
-                    vpop();
-                block(bsym, csym, is_expr);
-            }
-        } else {
-            if (tok != ';') {
-                if (is_expr) {
-                    vpop();
-                    gexpr();
-                } else {
-                    gexpr();
-                    vpop();
-                }
-            }
-            skip(';');
-        }
     }
 }
 static void parse_init_elem(int expr_type)
@@ -3982,7 +3861,7 @@ static void init_putz(Section *sec, unsigned int c, int size)
 {
     if (sec) {
     } else {
-        vpush_global_sym(&func_old_type, 288);
+        vpush_global_sym(&func_old_type, 287);
         vseti(0x0032, c);
         vpushi(0);
         vpushs(size);
@@ -4316,7 +4195,6 @@ static void gen_function(Sym *sym)
     gsym(rsym);
     gfunc_epilog();
     cur_text_section->data_offset = ind;
-    label_pop(&global_label_stack, ((void*)0), 0);
     local_scope = 0;
     sym_pop(&local_stack, ((void*)0), 0);
     elfsym(sym)->st_size = ind - func_ind;
@@ -4343,7 +4221,7 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
             }
             if (l != 0x0030)
                 break;
-            if (tok > 285) {
+            if (tok > 284) {
                 btype.t = 3;
             } else {
                 if (tok != (-1))
