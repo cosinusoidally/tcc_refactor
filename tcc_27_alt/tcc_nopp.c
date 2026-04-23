@@ -85,16 +85,84 @@ static void rel_set_sym_type(Elf32_Rel *rel, int sym, int type)
 {
     rel_set_info(rel, (((sym) << 8) + ((type) & 0xff)));
 }
-typedef struct {
-  Elf32_Word p_type;
-  Elf32_Off p_offset;
-  Elf32_Addr p_vaddr;
-  Elf32_Addr p_paddr;
-  Elf32_Word p_filesz;
-  Elf32_Word p_memsz;
-  Elf32_Word p_flags;
-  Elf32_Word p_align;
-} Elf32_Phdr;
+typedef unsigned int Elf32_Phdr[8];
+static Elf32_Word ph_type(Elf32_Phdr *ph)
+{
+    return *(unsigned int *)ph;
+}
+static void ph_set_type(Elf32_Phdr *ph, Elf32_Word type)
+{
+    *(unsigned int *)ph = type;
+}
+static Elf32_Off ph_offset(Elf32_Phdr *ph)
+{
+    return *(((unsigned int *)ph) + 1);
+}
+static void ph_set_offset(Elf32_Phdr *ph, Elf32_Off offset)
+{
+    *(((unsigned int *)ph) + 1) = offset;
+}
+static void ph_and_offset(Elf32_Phdr *ph, Elf32_Off mask)
+{
+    ph_set_offset(ph, ph_offset(ph) & mask);
+}
+static Elf32_Addr ph_vaddr(Elf32_Phdr *ph)
+{
+    return *(((unsigned int *)ph) + 2);
+}
+static void ph_set_vaddr(Elf32_Phdr *ph, Elf32_Addr vaddr)
+{
+    *(((unsigned int *)ph) + 2) = vaddr;
+}
+static void ph_and_vaddr(Elf32_Phdr *ph, Elf32_Addr mask)
+{
+    ph_set_vaddr(ph, ph_vaddr(ph) & mask);
+}
+static Elf32_Addr ph_paddr(Elf32_Phdr *ph)
+{
+    return *(((unsigned int *)ph) + 3);
+}
+static void ph_set_paddr(Elf32_Phdr *ph, Elf32_Addr paddr)
+{
+    *(((unsigned int *)ph) + 3) = paddr;
+}
+static Elf32_Word ph_filesz(Elf32_Phdr *ph)
+{
+    return *(((unsigned int *)ph) + 4);
+}
+static void ph_set_filesz(Elf32_Phdr *ph, Elf32_Word filesz)
+{
+    *(((unsigned int *)ph) + 4) = filesz;
+}
+static Elf32_Word ph_memsz(Elf32_Phdr *ph)
+{
+    return *(((unsigned int *)ph) + 5);
+}
+static void ph_set_memsz(Elf32_Phdr *ph, Elf32_Word memsz)
+{
+    *(((unsigned int *)ph) + 5) = memsz;
+}
+static void ph_set_sizes(Elf32_Phdr *ph, Elf32_Word filesz, Elf32_Word memsz)
+{
+    ph_set_filesz(ph, filesz);
+    ph_set_memsz(ph, memsz);
+}
+static Elf32_Word ph_flags(Elf32_Phdr *ph)
+{
+    return *(((unsigned int *)ph) + 6);
+}
+static void ph_set_flags(Elf32_Phdr *ph, Elf32_Word flags)
+{
+    *(((unsigned int *)ph) + 6) = flags;
+}
+static Elf32_Word ph_align(Elf32_Phdr *ph)
+{
+    return *(((unsigned int *)ph) + 7);
+}
+static void ph_set_align(Elf32_Phdr *ph, Elf32_Word align)
+{
+    *(((unsigned int *)ph) + 7) = align;
+}
 typedef unsigned int Elf32_Dyn[2];
 static void dyn_set_tag(Elf32_Dyn *dyn, Elf32_Sword tag)
 {
@@ -4995,12 +5063,12 @@ static int layout_sections(TCCState *s1, Elf32_Phdr *phdr, int phnum,
         dyni_set_rel_addr(dyninf, 0);
         dyni_set_rel_size(dyninf, 0);
         for(j = 0; j < 2; j++) {
-            ph->p_type = 1;
+            ph_set_type(ph, 1);
             if (j == 0)
-                ph->p_flags = (1 << 2) | (1 << 0);
+                ph_set_flags(ph, (1 << 2) | (1 << 0));
             else
-                ph->p_flags = (1 << 2) | (1 << 1);
-            ph->p_align = s_align;
+                ph_set_flags(ph, (1 << 2) | (1 << 1));
+            ph_set_align(ph, s_align);
             for(k = 0; k < 5; k++) {
                 for(i = 1; i < s1->nb_sections; i++) {
                     s = s1->sections[i];
@@ -5038,10 +5106,10 @@ static int layout_sections(TCCState *s1, Elf32_Phdr *phdr, int phnum,
                     file_offset += (int) ( addr - tmp );
                     s->sh_offset = file_offset;
                     s->sh_addr = addr;
-                    if (ph->p_offset == 0) {
-                        ph->p_offset = file_offset;
-                        ph->p_vaddr = addr;
-                        ph->p_paddr = ph->p_vaddr;
+                    if (ph_offset(ph) == 0) {
+                        ph_set_offset(ph, file_offset);
+                        ph_set_vaddr(ph, addr);
+                        ph_set_paddr(ph, ph_vaddr(ph));
                     }
                     if (s->sh_type == 9) {
                         if (dyni_rel_size(dyninf) == 0)
@@ -5054,12 +5122,12 @@ static int layout_sections(TCCState *s1, Elf32_Phdr *phdr, int phnum,
                 }
             }
 	    if (j == 0) {
-		ph->p_offset &= ~(ph->p_align - 1);
-		ph->p_vaddr &= ~(ph->p_align - 1);
-		ph->p_paddr &= ~(ph->p_align - 1);
+		ph_and_offset(ph, ~(ph_align(ph) - 1));
+		ph_and_vaddr(ph, ~(ph_align(ph) - 1));
+		ph_set_paddr(ph, ph_paddr(ph) & ~(ph_align(ph) - 1));
 	    }
-            ph->p_filesz = file_offset - ph->p_offset;
-            ph->p_memsz = addr - ph->p_vaddr;
+            ph_set_filesz(ph, file_offset - ph_offset(ph));
+            ph_set_memsz(ph, addr - ph_vaddr(ph));
             ph++;
             if (j == 0) {
                 if ((addr & (s_align - 1)) != 0)
@@ -5086,33 +5154,34 @@ static void fill_unloadable_phdr(Elf32_Phdr *phdr, int phnum, Section *interp,
     Elf32_Phdr *ph;
     if (interp) {
         ph = &phdr[0];
-        ph->p_type = 6;
-        ph->p_offset = sizeof(Elf32_Ehdr);
-        ph->p_filesz = ph->p_memsz = phnum * sizeof(Elf32_Phdr);
-        ph->p_vaddr = interp->sh_addr - ph->p_filesz;
-        ph->p_paddr = ph->p_vaddr;
-        ph->p_flags = (1 << 2) | (1 << 0);
-        ph->p_align = 4;
+        ph_set_type(ph, 6);
+        ph_set_offset(ph, sizeof(Elf32_Ehdr));
+        ph_set_sizes(ph, phnum * sizeof(Elf32_Phdr),
+                     phnum * sizeof(Elf32_Phdr));
+        ph_set_vaddr(ph, interp->sh_addr - ph_filesz(ph));
+        ph_set_paddr(ph, ph_vaddr(ph));
+        ph_set_flags(ph, (1 << 2) | (1 << 0));
+        ph_set_align(ph, 4);
         ph++;
-        ph->p_type = 3;
-        ph->p_offset = interp->sh_offset;
-        ph->p_vaddr = interp->sh_addr;
-        ph->p_paddr = ph->p_vaddr;
-        ph->p_filesz = interp->sh_size;
-        ph->p_memsz = interp->sh_size;
-        ph->p_flags = (1 << 2);
-        ph->p_align = interp->sh_addralign;
+        ph_set_type(ph, 3);
+        ph_set_offset(ph, interp->sh_offset);
+        ph_set_vaddr(ph, interp->sh_addr);
+        ph_set_paddr(ph, ph_vaddr(ph));
+        ph_set_filesz(ph, interp->sh_size);
+        ph_set_memsz(ph, interp->sh_size);
+        ph_set_flags(ph, (1 << 2));
+        ph_set_align(ph, interp->sh_addralign);
     }
     if (dynamic) {
         ph = &phdr[phnum - 1];
-        ph->p_type = 2;
-        ph->p_offset = dynamic->sh_offset;
-        ph->p_vaddr = dynamic->sh_addr;
-        ph->p_paddr = ph->p_vaddr;
-        ph->p_filesz = dynamic->sh_size;
-        ph->p_memsz = dynamic->sh_size;
-        ph->p_flags = (1 << 2) | (1 << 1);
-        ph->p_align = dynamic->sh_addralign;
+        ph_set_type(ph, 2);
+        ph_set_offset(ph, dynamic->sh_offset);
+        ph_set_vaddr(ph, dynamic->sh_addr);
+        ph_set_paddr(ph, ph_vaddr(ph));
+        ph_set_filesz(ph, dynamic->sh_size);
+        ph_set_memsz(ph, dynamic->sh_size);
+        ph_set_flags(ph, (1 << 2) | (1 << 1));
+        ph_set_align(ph, dynamic->sh_addralign);
     }
 }
 static void fill_dynamic(TCCState *s1, DynInf *dyninf)
