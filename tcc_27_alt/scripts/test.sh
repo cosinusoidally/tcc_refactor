@@ -4,11 +4,11 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
-ROOTDIR=build/root
+ROOTDIR=${ROOTDIR:-build/root}
 RUN_I386=${RUN_I386:-./scripts/run-i386.sh}
 CC=${CC:-cc}
 TCC="$RUN_I386 $ROOTDIR/tcc"
-OUT=build/check
+OUT=${OUT:-build/check}
 mkdir -p "$OUT"
 
 echo "checking compiler identity"

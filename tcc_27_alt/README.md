@@ -73,6 +73,17 @@ On an x86_64-only host without i386 glibc development files, the dynamic link
 test is reported as skipped. Install the distribution's i386 libc development
 package to enable it.
 
+## Coverage
+
+```sh
+./scripts/coverage-html.sh
+```
+
+This builds an instrumented compiler under `build/coverage/root`, runs the
+normal checks, runs the 3-stage bootstrap, and writes an HTML report to
+`build/coverage/html/index.html`. Set `SELFHOST=0` to skip the bootstrap during
+a coverage run.
+
 ## Self-host
 
 ```sh

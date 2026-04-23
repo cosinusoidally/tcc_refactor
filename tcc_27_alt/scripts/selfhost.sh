@@ -4,9 +4,9 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
-OUT=build/selfhost
+OUT=${OUT:-build/selfhost}
 RUN_I386=${RUN_I386:-./scripts/run-i386.sh}
-STAGE1ROOT=build/root
+STAGE1ROOT=${STAGE1ROOT:-build/root}
 STAGE1=$STAGE1ROOT/tcc
 STAGE2=$OUT/tcc.stage2
 STAGE3=$OUT/tcc.stage3
