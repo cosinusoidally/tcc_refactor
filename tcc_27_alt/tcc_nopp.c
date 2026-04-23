@@ -520,25 +520,25 @@ static void cv_copy(CValue *dst, CValue *src)
     cv_set_str_size(dst, cv_str_size(src));
     cv_set_str_data(dst, cv_str_data(src));
 }
-typedef struct SValue {
+struct SValue {
     struct CType type;
     unsigned short r;
     CValue c;
     struct Sym *sym;
-} SValue;
-static unsigned short sv_r(SValue *sv)
+};
+static unsigned short sv_r(struct SValue *sv)
 {
     return sv->r;
 }
-static void sv_set_r(SValue *sv, unsigned short r)
+static void sv_set_r(struct SValue *sv, unsigned short r)
 {
     sv->r = r;
 }
-static CValue *sv_c(SValue *sv)
+static CValue *sv_c(struct SValue *sv)
 {
     return &sv->c;
 }
-static struct Sym *sv_sym(SValue *sv)
+static struct Sym *sv_sym(struct SValue *sv)
 {
     return sv->sym;
 }
@@ -790,7 +790,7 @@ static int nb_sym_pools;
 static Sym *global_stack;
 static Sym *local_stack;
 static struct CType char_pointer_type, func_old_type, int_type, size_type;
-static SValue __vstack[1+  256], *vtop, *pvtop;
+static struct SValue __vstack[1+  256], *vtop, *pvtop;
 static int rsym, anon_sym, ind, loc;
 static int const_wanted;
 static int nocode_wanted;
@@ -808,10 +808,10 @@ static Sym *external_global_sym(int v, struct CType *type, int r);
 static void vset(struct CType *type, int r, int v);
 static void vswap(void);
 static void vpush_global_sym(struct CType *type, int v);
-static void vrote(SValue *e, int n);
+static void vrote(struct SValue *e, int n);
 static void vrott(int n);
 static void vrotb(int n);
-static void vpushv(SValue *v);
+static void vpushv(struct SValue *v);
 static void save_reg(int r);
 static void save_reg_upstack(int r, int n);
 static int get_reg(int rc);
@@ -873,8 +873,8 @@ static void relocate_plt(struct TCCState *s1);
 static int reg_classes[4];
 static void gsym_addr(int t, int a);
 static void gsym(int t);
-static void load(int r, SValue *sv);
-static void store(int r, SValue *v);
+static void load(int r, struct SValue *sv);
+static void store(int r, struct SValue *v);
 static void gfunc_call(int nb_args);
 static void gfunc_prolog(struct CType *func_type);
 static void gfunc_epilog(void);
@@ -1802,7 +1802,7 @@ static Sym *global_stack;
 static Sym *local_stack;
 static int local_scope;
 static int in_sizeof;
-static SValue __vstack[1+256], *vtop, *pvtop;
+static struct SValue __vstack[1+256], *vtop, *pvtop;
 static int const_wanted;
 static int nocode_wanted;
 static int global_expr;
@@ -2069,7 +2069,7 @@ static void vsetc(struct CType *type, int r, CValue *vc)
 }
 static void vswap(void)
 {
-    SValue tmp;
+    struct SValue tmp;
     if (vtop >= (__vstack + 1) && !nocode_wanted) {
         int v = vtop->r & 0x003f;
         if (v == 0x0033 || (v & ~1) == 0x0034)
@@ -2117,7 +2117,7 @@ static void vseti(int r, int v)
     ct_set_ref(&type, ((void*)0));
     vset(&type, r, v);
 }
-static void vpushv(SValue *v)
+static void vpushv(struct SValue *v)
 {
     if (vtop >= (__vstack + 1) + (256 - 1))
         tcc_error("memory full (vstack)");
@@ -2131,16 +2131,16 @@ static void vdup(void)
 static void vrotb(int n)
 {
     int i;
-    SValue tmp;
+    struct SValue tmp;
     tmp = vtop[-n + 1];
     for(i=-n+1;i!=0;i++)
         vtop[i] = vtop[i+1];
     vtop[0] = tmp;
 }
-static void vrote(SValue *e, int n)
+static void vrote(struct SValue *e, int n)
 {
     int i;
-    SValue tmp;
+    struct SValue tmp;
     tmp = *e;
     for(i = 0;i < n - 1; i++)
         e[-i] = e[-i - 1];
@@ -2242,7 +2242,7 @@ static void vpush_global_sym(struct CType *type, int v)
 }
 static void save_regs(int n)
 {
-    SValue *p, *p1;
+    struct SValue *p, *p1;
     for(p = (__vstack + 1), p1 = vtop - n; p <= p1; p++)
         save_reg(p->r);
 }
@@ -2253,7 +2253,7 @@ static void save_reg(int r)
 static void save_reg_upstack(int r, int n)
 {
     int l, saved, size, align;
-    SValue *p, *p1, sv;
+    struct SValue *p, *p1, sv;
     struct CType *type;
     if ((r &= 0x003f) >= 0x0030)
         return;
@@ -2290,7 +2290,7 @@ static void save_reg_upstack(int r, int n)
 static int get_reg(int rc)
 {
     int r;
-    SValue *p;
+    struct SValue *p;
     for(r=0;r<4;r++) {
         if (reg_classes[r] & rc) {
             int used = 0;
@@ -2315,7 +2315,7 @@ static int get_reg(int rc)
 }
 static void move_reg(int r, int s, int t)
 {
-    SValue sv;
+    struct SValue sv;
     if (r != s) {
         save_reg(r);
         ct_set_t(&sv.type, t);
@@ -2392,7 +2392,7 @@ static void gv2(int rc1, int rc2)
 static void gv_dup(void)
 {
     int rc, r, r1;
-    SValue sv;
+    struct SValue sv;
     rc = 0x0001;
     ct_set_t(&sv.type, 3);
     ct_set_ref(&sv.type, ((void*)0));
@@ -2431,8 +2431,8 @@ static int gen_opic_lt(unsigned int a, unsigned int b)
 }
 static void gen_opic(int op)
 {
-    SValue *v1 = vtop - 1;
-    SValue *v2 = vtop;
+    struct SValue *v1 = vtop - 1;
+    struct SValue *v2 = vtop;
     int t1 = ct_t(&v1->type) & 0x000f;
     int t2 = ct_t(&v2->type) & 0x000f;
     int c1 = (v1->r & (0x003f | 0x0100 | 0x0200)) == 0x0030;
@@ -2563,7 +2563,7 @@ static int pointed_size(struct CType *type)
     int align;
     return type_size(pointed_type(type), &align);
 }
-static int is_null_pointer(SValue *p)
+static int is_null_pointer(struct SValue *p)
 {
     if ((p->r & (0x003f | 0x0100 | 0x0200)) != 0x0030)
         return 0;
@@ -2574,7 +2574,7 @@ static int is_integer_btype(int bt)
 {
     return (bt == 1 || bt == 2 || bt == 3);
 }
-static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
+static void check_comparison_pointer_types(struct SValue *p1, struct SValue *p2, int op)
 {
     struct CType *type1, *type2, tmp_type1, tmp_type2;
     int bt1, bt2;
@@ -2981,7 +2981,7 @@ static void vstore(void)
             rc = 0x0001;
             r = gv(rc);
             if ((vtop[-1].r & 0x003f) == 0x0031) {
-                SValue sv;
+                struct SValue sv;
                 t = get_reg(0x0001);
                 ct_set_t(&sv.type, 3);
                 sv_set_r(&sv, 0x0032 | 0x0100);
@@ -3573,7 +3573,7 @@ static void unary(void)
             indir();
             skip(']');
         } else if (tok == '(') {
-            SValue ret;
+            struct SValue ret;
             int nb_args;
             if ((ct_t(&vtop->type) & 0x000f) != 6) {
                 if ((ct_t(&vtop->type) & (0x000f | 0x0040)) == 5) {
@@ -3789,7 +3789,7 @@ static int condition_3way(void)
 static void expr_cond(void)
 {
     int tt, u, r1, r2, rc, t1, t2, bt1, bt2, islv, c;
-    SValue sv;
+    struct SValue sv;
     struct CType type, type1, type2;
     expr_lor();
     if (tok == '?') {
@@ -5977,10 +5977,10 @@ static void gen_modrm(int op_reg, int r, Sym *sym, int c)
         g(0x00 | op_reg | (r & 0x003f));
     }
 }
-static void load(int r, SValue *sv)
+static void load(int r, struct SValue *sv)
 {
     int v, t, ft, fc, fr;
-    SValue v1;
+    struct SValue v1;
     fr = sv_r(sv);
     ft = ct_t(&sv->type) & ~0x0020;
     fc = cv_i(sv_c(sv));
@@ -6037,7 +6037,7 @@ static void load(int r, SValue *sv)
         }
     }
 }
-static void store(int r, SValue *v)
+static void store(int r, struct SValue *v)
 {
     int fr, bt, ft, fc;
     ft = ct_t(&v->type);
