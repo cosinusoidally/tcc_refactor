@@ -99,24 +99,45 @@ typedef struct SValue {
     CValue c;
     struct Sym *sym;
 } SValue;
-struct FuncAttr {
-    unsigned char func_type;
-};
 typedef struct AttributeDef {
-    struct FuncAttr f;
+    unsigned char func_type;
 } AttributeDef;
+static int ad_ft(AttributeDef *ad)
+{
+    return ad->func_type;
+}
+static void ad_set_ft(AttributeDef *ad, int ft)
+{
+    ad->func_type = ft;
+}
 typedef struct Sym {
     int v;
     unsigned short r;
     int c;
     int sym_scope;
     int jnext;
-    struct FuncAttr f;
+    unsigned char func_type;
     CType type;
     struct Sym *next;
     struct Sym *prev;
     struct Sym *prev_tok;
 } Sym;
+static int sym_ft(Sym *s)
+{
+    return s->func_type;
+}
+static void sym_set_ft(Sym *s, int ft)
+{
+    s->func_type = ft;
+}
+static void sym_set_ad_ft(Sym *s, AttributeDef *ad)
+{
+    s->func_type = ad_ft(ad);
+}
+static void ad_set_sym_ft(AttributeDef *ad, Sym *s)
+{
+    ad_set_ft(ad, sym_ft(s));
+}
 typedef struct Section {
     unsigned int data_offset;
     unsigned char *data;
@@ -160,11 +181,6 @@ typedef struct BufferedFile {
     char filename[1024];
     unsigned char buffer[1];
 } BufferedFile;
-typedef struct ExprValue {
-    unsigned int v;
-    Sym *sym;
-    int pcrel;
-} ExprValue;
 struct sym_attr {
     unsigned got_offset;
     unsigned plt_offset;
@@ -1313,7 +1329,7 @@ static int tccgen_compile(TCCState *s1)
     ptrdiff_type.t = 3;
     func_old_type.t = 6;
     func_old_type.ref = sym_push(0x20000000, &int_type, 0, 0);
-    func_old_type.ref->f.func_type = 2;
+    sym_set_ft(func_old_type.ref, 2);
     next();
     decl(0x0030);
     check_vstack();
@@ -2314,9 +2330,9 @@ static int is_compatible_func(CType *type1, CType *type2)
     s2 = type2->ref;
     if (!is_compatible_types(&s1->type, &s2->type))
         return 0;
-    if (s1->f.func_type == 2 || s2->f.func_type == 2)
+    if (sym_ft(s1) == 2 || sym_ft(s2) == 2)
         return 1;
-    if (s1->f.func_type != s2->f.func_type)
+    if (sym_ft(s1) != sym_ft(s2))
         return 0;
     while (s1 != ((void*)0)) {
         if (s2 == ((void*)0))
@@ -2635,8 +2651,8 @@ static void struct_decl(CType *type, int u)
 }
 static void sym_to_attr(AttributeDef *ad, Sym *s)
 {
-    if (s->f.func_type && 0 == ad->f.func_type)
-        ad->f.func_type = s->f.func_type;
+    if (sym_ft(s) && 0 == ad_ft(ad))
+        ad_set_sym_ft(ad, s);
 }
 static int parse_btype(CType *type, AttributeDef *ad)
 {
@@ -2780,9 +2796,9 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
             skip(']');
             mk_pointer(type);
         }
-        ad->f.func_type = l;
+        ad_set_ft(ad, l);
         s = sym_push(0x20000000, type, 0, 0);
-        s->f = ad->f;
+        sym_set_ad_ft(s, ad);
         s->next = first;
         type->t = 6;
         type->ref = s;
@@ -3983,11 +3999,11 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
                     } else {
                         sym = sym_push(v, &type, 0, 0);
                     }
-                    sym->f = ad.f;
+                    sym_set_ad_ft(sym, &ad);
                 } else {
                     r = 0;
                     if ((type.t & 0x000f) == 6) {
-                        type.ref->f = ad.f;
+                        sym_set_ad_ft(type.ref, &ad);
                     } else if (!(type.t & 0x0040)) {
                         r |= lvalue_type(type.t);
                     }
