@@ -77,10 +77,7 @@ typedef struct {
 } Elf32_Phdr;
 typedef struct {
   Elf32_Sword d_tag;
-  union {
-    Elf32_Word d_val;
-    Elf32_Addr d_ptr;
-  } d_un;
+  Elf32_Word d_un;
 } Elf32_Dyn;
 typedef struct TokenSym {
     struct TokenSym *hash_next;
@@ -100,13 +97,12 @@ typedef struct CType {
     int t;
     struct Sym *ref;
 } CType;
-typedef union CValue {
+typedef struct CValue {
     unsigned int i;
     struct {
         int size;
         void *data;
     } str;
-    int tab[12/4];
 } CValue;
 typedef struct SValue {
     CType type;
@@ -123,21 +119,12 @@ typedef struct AttributeDef {
 typedef struct Sym {
     int v;
     unsigned short r;
-    union {
-        struct {
-            int c;
-            union {
-                int sym_scope;
-                int jnext;
-                struct FuncAttr f;
-            };
-        };
-        int *d;
-    };
+    int c;
+    int sym_scope;
+    int jnext;
+    struct FuncAttr f;
     CType type;
-    union {
-        struct Sym *next;
-    };
+    struct Sym *next;
     struct Sym *prev;
     struct Sym *prev_tok;
 } Sym;
@@ -2713,16 +2700,10 @@ static void struct_layout(CType *type, AttributeDef *ad)
     c = 0;
     for (f = type->ref->next; f; f = f->next) {
         size = type_size(&f->type, &align);
-        if (type->ref->type.t == (1 << 20 | 7)) {
-	    offset = 0;
-	    if (size > c)
-	        c = size;
-	} else {
-	    c = (c + align - 1) & -align;
-	    offset = c;
-	    if (size > 0)
-	        c += size;
-	}
+        c = (c + align - 1) & -align;
+        offset = c;
+        if (size > 0)
+            c += size;
 	if (align > maxalign)
 	    maxalign = align;
 	if (f->v & 0x10000000 && (f->type.t & 0x000f) == 7) {
@@ -2768,7 +2749,7 @@ static void struct_decl(CType *type, int u)
         v = tok;
         next();
         if (v < 256)
-            expect("struct/union name");
+            expect("struct name");
         s = struct_find(v);
         if (s && (s->sym_scope == local_scope || tok != '{')) {
             if (u == s->type.t)
@@ -2788,7 +2769,7 @@ do_decl:
     if (tok == '{') {
         next();
         if (s->c != -1)
-            tcc_error("struct/union already defined");
+            tcc_error("struct already defined");
         ps = &s->next;
         while (tok != '}') {
                 if (!parse_btype(&btype, &ad1)) {
@@ -2899,9 +2880,6 @@ static int parse_btype(CType *type, AttributeDef *ad)
             u = type1.t;
             type->ref = type1.ref;
             goto basic_type1;
-            goto basic_type2;
-        case 281:
-            struct_decl(&type1, (1 << 20 | 7));
             goto basic_type2;
         case 274:
         case 275:
@@ -3271,7 +3249,7 @@ static void unary(void)
             test_lvalue();
             gaddrof();
             if ((vtop->type.t & 0x000f) != 7)
-                expect("struct or union");
+                expect("struct");
             next();
             if (tok == 0xb5 || tok == 0xb6)
                 expect("field name");
@@ -4206,10 +4184,7 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
 		    if (no_oblock && len >= n*size1)
 		        break;
 		} else {
-		    if (s->type.t == (1 << 20 | 7))
-		        f = ((void*)0);
-		    else
-		        f = f->next;
+                    f = f->next;
 		    if (no_oblock && f == ((void*)0))
 		        break;
 		}
@@ -5079,7 +5054,7 @@ static void put_dt(Section *dynamic, int dt, Elf32_Addr val)
     Elf32_Dyn *dyn;
     dyn = section_ptr_add(dynamic, sizeof(Elf32_Dyn));
     dyn->d_tag = dt;
-    dyn->d_un.d_val = val;
+    dyn->d_un = val;
 }
 static void tcc_add_runtime(TCCState *s1)
 {
