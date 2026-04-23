@@ -9,6 +9,7 @@ extern FILE *stdout;
 extern FILE *stderr;
 struct TCCState;
 typedef struct TCCState TCCState;
+char *tcc_strdup(char *str);
 typedef uint16_t Elf32_Half;
 typedef uint32_t Elf32_Word;
 typedef int32_t Elf32_Sword;
@@ -164,9 +165,25 @@ static int dllr_level(DLLReference *d)
 {
     return 0;
 }
+static void dllr_set_level(DLLReference *d, int level)
+{
+}
 static char *dllr_name(DLLReference *d)
 {
     return d;
+}
+static void dllr_set_name(DLLReference **pd, char *name)
+{
+    *pd = tcc_strdup(name);
+}
+typedef char FileSpec;
+static char *fs_name(FileSpec *f)
+{
+    return f;
+}
+static void fs_set_name(FileSpec **pf, char *name)
+{
+    *pf = tcc_strdup(name);
 }
 typedef struct BufferedFile {
     uint8_t *buf_ptr;
@@ -198,7 +215,7 @@ struct TCCState {
     Section *symtab;
     struct sym_attr *sym_attrs;
     int nb_sym_attrs;
-    char **files;
+    FileSpec **files;
     int nb_files;
     char *outfile;
 };
@@ -6107,7 +6124,8 @@ static void tcc_add_needed_dll(TCCState *s, char *soname)
         if (!strcmp(soname, dllr_name(dllref)))
             return;
     }
-    dllref = tcc_strdup(soname);
+    dllr_set_name(&dllref, soname);
+    dllr_set_level(dllref, 0);
     dynarray_add(&s->loaded_dlls, &s->nb_loaded_dlls, dllref);
 }
 static void tcc_add_library(TCCState *s, char *libraryname)
@@ -6123,7 +6141,8 @@ static void tcc_add_library(TCCState *s, char *libraryname)
 }
 static void args_parser_add_file(TCCState *s, char* filename)
 {
-    char *f = tcc_strdup(filename);
+    FileSpec *f;
+    fs_set_name(&f, filename);
     dynarray_add(&s->files, &s->nb_files, f);
 }
 static char *take_arg(int argc, char **argv, int *optind,
@@ -6202,9 +6221,9 @@ int main(int argc0, char **argv0)
         tcc_add_crt(s, "crt1.o");
         tcc_add_crt(s, "crti.o");
     }
-    first_file = s->files[0];
+    first_file = fs_name(s->files[0]);
     for (i = 0; i < s->nb_files; ++i)
-        tcc_add_file(s, s->files[i]);
+        tcc_add_file(s, fs_name(s->files[i]));
     if (!s->outfile)
         s->outfile = default_outputfile(s, first_file);
     elf_output_file(s, s->outfile);
