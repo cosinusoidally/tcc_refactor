@@ -452,39 +452,39 @@ static void cstr_set_size_allocated(CString *cstr, int size)
 {
     *(((unsigned int *)cstr) + 2) = size;
 }
-typedef struct CType {
+struct CType {
     int t;
     struct Sym *ref;
-} CType;
-static int ct_t(CType *ct)
+};
+static int ct_t(struct CType *ct)
 {
     return ct->t;
 }
-static void ct_set_t(CType *ct, int t)
+static void ct_set_t(struct CType *ct, int t)
 {
     ct->t = t;
 }
-static void ct_or_t(CType *ct, int t)
+static void ct_or_t(struct CType *ct, int t)
 {
     ct->t |= t;
 }
-static void ct_and_t(CType *ct, int t)
+static void ct_and_t(struct CType *ct, int t)
 {
     ct->t &= t;
 }
-static void ct_clear_t(CType *ct, int t)
+static void ct_clear_t(struct CType *ct, int t)
 {
     ct->t &= ~t;
 }
-static struct Sym *ct_ref(CType *ct)
+static struct Sym *ct_ref(struct CType *ct)
 {
     return ct->ref;
 }
-static void ct_set_ref(CType *ct, struct Sym *ref)
+static void ct_set_ref(struct CType *ct, struct Sym *ref)
 {
     ct->ref = ref;
 }
-static void ct_copy(CType *dst, CType *src)
+static void ct_copy(struct CType *dst, struct CType *src)
 {
     ct_set_t(dst, ct_t(src));
     ct_set_ref(dst, ct_ref(src));
@@ -521,7 +521,7 @@ static void cv_copy(CValue *dst, CValue *src)
     cv_set_str_data(dst, cv_str_data(src));
 }
 typedef struct SValue {
-    CType type;
+    struct CType type;
     unsigned short r;
     CValue c;
     struct Sym *sym;
@@ -558,7 +558,7 @@ typedef struct Sym {
     int sym_scope;
     int jnext;
     unsigned char func_type;
-    CType type;
+    struct CType type;
     struct Sym *next;
     struct Sym *prev;
     struct Sym *prev_tok;
@@ -749,7 +749,7 @@ static void cstr_cat(CString *cstr, char *str, int len);
 static void cstr_reset(CString *cstr);
 static void sym_free(Sym *sym);
 static Sym *sym_push2(Sym **ps, int v, int t, int c);
-static Sym *sym_push(int v, CType *type, int r, int c);
+static Sym *sym_push(int v, struct CType *type, int r, int c);
 static void sym_pop(Sym **ptop, Sym *b, int keep);
 static Sym *struct_find(int v);
 static Sym *sym_find(int v);
@@ -789,13 +789,13 @@ static void **sym_pools;
 static int nb_sym_pools;
 static Sym *global_stack;
 static Sym *local_stack;
-static CType char_pointer_type, func_old_type, int_type, size_type;
+static struct CType char_pointer_type, func_old_type, int_type, size_type;
 static SValue __vstack[1+  256], *vtop, *pvtop;
 static int rsym, anon_sym, ind, loc;
 static int const_wanted;
 static int nocode_wanted;
 static int global_expr;
-static CType func_vt;
+static struct CType func_vt;
 static int func_ind;
 static char *funcname;
 static int tccgen_compile(struct TCCState *s1);
@@ -804,10 +804,10 @@ static void test_lvalue(void);
 static void vpushi(int v);
 static Elf32_Sym *elfsym(Sym *);
 static void update_storage(Sym *sym);
-static Sym *external_global_sym(int v, CType *type, int r);
-static void vset(CType *type, int r, int v);
+static Sym *external_global_sym(int v, struct CType *type, int r);
+static void vset(struct CType *type, int r, int v);
 static void vswap(void);
-static void vpush_global_sym(CType *type, int v);
+static void vpush_global_sym(struct CType *type, int v);
 static void vrote(SValue *e, int n);
 static void vrott(int n);
 static void vrotb(int n);
@@ -821,8 +821,8 @@ static int gv(int rc);
 static void gv2(int rc1, int rc2);
 static void vpop(void);
 static void gen_op(int op);
-static int type_size(CType *type, int *a);
-static void mk_pointer(CType *type);
+static int type_size(struct CType *type, int *a);
+static void mk_pointer(struct CType *type);
 static void vstore(void);
 static void inc(int post, int c);
 static int lvalue_type(int t);
@@ -876,7 +876,7 @@ static void gsym(int t);
 static void load(int r, SValue *sv);
 static void store(int r, SValue *v);
 static void gfunc_call(int nb_args);
-static void gfunc_prolog(CType *func_type);
+static void gfunc_prolog(struct CType *func_type);
 static void gfunc_epilog(void);
 static int gjmp(int t);
 static void gjmp_addr(int a);
@@ -1806,24 +1806,24 @@ static SValue __vstack[1+256], *vtop, *pvtop;
 static int const_wanted;
 static int nocode_wanted;
 static int global_expr;
-static CType func_vt;
+static struct CType func_vt;
 static int func_ind;
 static char *funcname;
-static CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
-static void gen_cast(CType *type);
+static struct CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
+static void gen_cast(struct CType *type);
 static void gen_cast_s(int t);
-static CType *pointed_type(CType *type);
-static int is_compatible_types(CType *type1, CType *type2);
-static int parse_btype(CType *type, AttributeDef *ad);
-static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
-static void init_putv(CType *type, Section *sec, unsigned int c);
-static void decl_initializer(CType *type, Section *sec, unsigned int c, int first);
+static struct CType *pointed_type(struct CType *type);
+static int is_compatible_types(struct CType *type1, struct CType *type2);
+static int parse_btype(struct CType *type, AttributeDef *ad);
+static struct CType *type_decl(struct CType *type, AttributeDef *ad, int *v, int td);
+static void init_putv(struct CType *type, Section *sec, unsigned int c);
+static void decl_initializer(struct CType *type, Section *sec, unsigned int c, int first);
 static void block(int *bsym, int *csym, int is_expr);
-static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
+static void decl_initializer_alloc(struct CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
 static void decl(int l);
 static int decl0(int l, int is_for_loop_init, Sym *);
 static void expr_eq(void);
-static void vpush(CType *type);
+static void vpush(struct CType *type);
 static int gvtst(int inv, int t);
 static void gv_dup(void);
 static void test_lvalue(void)
@@ -1988,7 +1988,7 @@ static Sym *sym_find(int v)
         return ((void*)0);
     return ts_sym_identifier(table_ident[v]);
 }
-static Sym *sym_push(int v, CType *type, int r, int c)
+static Sym *sym_push(int v, struct CType *type, int r, int c)
 {
     Sym *s, **ps;
     TokenSym *ts;
@@ -2051,7 +2051,7 @@ static void sym_pop(Sym **ptop, Sym *b, int keep)
     if (!keep)
 	*ptop = b;
 }
-static void vsetc(CType *type, int r, CValue *vc)
+static void vsetc(struct CType *type, int r, CValue *vc)
 {
     int v;
     if (vtop >= (__vstack + 1) + (256 - 1))
@@ -2088,7 +2088,7 @@ static void vpop(void)
     }
     vtop--;
 }
-static void vpush(CType *type)
+static void vpush(struct CType *type)
 {
     vset(type, 0x0030, 0);
 }
@@ -2104,7 +2104,7 @@ static void vpushs(Elf32_Addr v)
   cv_set_i(&cval, v);
   vsetc(&size_type, 0x0030, &cval);
 }
-static void vset(CType *type, int r, int v)
+static void vset(struct CType *type, int r, int v)
 {
     CValue cval;
     cv_set_i(&cval, v);
@@ -2112,7 +2112,7 @@ static void vset(CType *type, int r, int v)
 }
 static void vseti(int r, int v)
 {
-    CType type;
+    struct CType type;
     ct_set_t(&type, 3);
     ct_set_ref(&type, ((void*)0));
     vset(&type, r, v);
@@ -2150,14 +2150,14 @@ static void vrott(int n)
 {
     vrote(vtop, n);
 }
-static void vpushsym(CType *type, Sym *sym)
+static void vpushsym(struct CType *type, Sym *sym)
 {
     CValue cval;
     cv_set_i(&cval, 0);
     vsetc(type, 0x0030 | 0x0200, &cval);
     vtop->sym = sym;
 }
-static Sym *get_sym_ref(CType *type, Section *sec, unsigned int offset, unsigned int size)
+static Sym *get_sym_ref(struct CType *type, Section *sec, unsigned int offset, unsigned int size)
 {
     int v;
     Sym *sym;
@@ -2168,7 +2168,7 @@ static Sym *get_sym_ref(CType *type, Section *sec, unsigned int offset, unsigned
     put_extern_sym(sym, sec, offset, size);
     return sym;
 }
-static Sym *external_global_sym(int v, CType *type, int r)
+static Sym *external_global_sym(int v, struct CType *type, int r)
 {
     Sym *s;
     s = sym_find(v);
@@ -2183,7 +2183,7 @@ static Sym *external_global_sym(int v, CType *type, int r)
     }
     return s;
 }
-static void patch_type(Sym *sym, CType *type)
+static void patch_type(Sym *sym, struct CType *type)
 {
     if (!(ct_t(type) & 0x00001000)) {
         if (!(ct_t(&sym->type) & 0x00001000))
@@ -2212,13 +2212,13 @@ static void patch_type(Sym *sym, CType *type)
         }
     }
 }
-static void patch_storage(Sym *sym, AttributeDef *ad, CType *type)
+static void patch_storage(Sym *sym, AttributeDef *ad, struct CType *type)
 {
     if (type)
         patch_type(sym, type);
     update_storage(sym);
 }
-static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
+static Sym *external_sym(int v, struct CType *type, int r, AttributeDef *ad)
 {
     Sym *s;
     s = sym_find(v);
@@ -2236,7 +2236,7 @@ static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
     }
     return s;
 }
-static void vpush_global_sym(CType *type, int v)
+static void vpush_global_sym(struct CType *type, int v)
 {
     vpushsym(type, external_global_sym(v, type, 0));
 }
@@ -2254,7 +2254,7 @@ static void save_reg_upstack(int r, int n)
 {
     int l, saved, size, align;
     SValue *p, *p1, sv;
-    CType *type;
+    struct CType *type;
     if ((r &= 0x003f) >= 0x0030)
         return;
     if (nocode_wanted)
@@ -2558,7 +2558,7 @@ static void gen_opic(int op)
             gen_opi(op);
         }
 }
-static int pointed_size(CType *type)
+static int pointed_size(struct CType *type)
 {
     int align;
     return type_size(pointed_type(type), &align);
@@ -2576,7 +2576,7 @@ static int is_integer_btype(int bt)
 }
 static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
 {
-    CType *type1, *type2, tmp_type1, tmp_type2;
+    struct CType *type1, *type2, tmp_type1, tmp_type2;
     int bt1, bt2;
     if (is_null_pointer(p1) || is_null_pointer(p2))
         return;
@@ -2610,7 +2610,7 @@ static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
 }
 static void gen_standard_op(int op, int t)
 {
-    CType type1;
+    struct CType type1;
     if (t & 0x0010) {
         if (op == 0x02)
             op = 0xc9;
@@ -2645,7 +2645,7 @@ static void gen_standard_op(int op, int t)
 static void gen_op(int op)
 {
     int u, t1, t2, bt1, bt2, t;
-    CType type1;
+    struct CType type1;
     t1 = ct_t(&vtop[-1].type);
     t2 = ct_t(&vtop[0].type);
     bt1 = t1 & 0x000f;
@@ -2746,12 +2746,12 @@ static void force_charshort_cast(int t)
 }
 static void gen_cast_s(int t)
 {
-    CType type;
+    struct CType type;
     ct_set_t(&type, t);
     ct_set_ref(&type, ((void*)0));
     gen_cast(&type);
 }
-static void gen_cast(CType *type)
+static void gen_cast(struct CType *type)
 {
     int sbt, dbt, c, p;
     if (vtop->r & 0x0400) {
@@ -2800,7 +2800,7 @@ static void gen_cast(CType *type)
     }
     ct_copy(&vtop->type, type);
 }
-static int type_size(CType *type, int *a)
+static int type_size(struct CType *type, int *a)
 {
     Sym *s;
     int bt;
@@ -2835,18 +2835,18 @@ static int type_size(CType *type, int *a)
         return 1;
     }
 }
-static CType *pointed_type(CType *type)
+static struct CType *pointed_type(struct CType *type)
 {
     return &ct_ref(type)->type;
 }
-static void mk_pointer(CType *type)
+static void mk_pointer(struct CType *type)
 {
     Sym *s;
     s = sym_push(0x20000000, type, 0, -1);
     ct_set_t(type, 5 | (ct_t(type) & (0x00001000 | 0x00002000 | 0x00004000)));
     ct_set_ref(type, s);
 }
-static int is_compatible_func(CType *type1, CType *type2)
+static int is_compatible_func(struct CType *type1, struct CType *type2)
 {
     Sym *s1, *s2;
     s1 = ct_ref(type1);
@@ -2869,7 +2869,7 @@ static int is_compatible_func(CType *type1, CType *type2)
         return 0;
     return 1;
 }
-static int is_compatible_types(CType *type1, CType *type2)
+static int is_compatible_types(struct CType *type1, struct CType *type2)
 {
     int bt1, t1, t2;
     t1 = ct_t(type1) & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
@@ -2894,7 +2894,7 @@ static int is_compatible_types(CType *type1, CType *type2)
     }
 }
 static void type_to_str(char *buf, int buf_size,
-                 CType *type, char *varstr)
+                 struct CType *type, char *varstr)
 {
     (void)type;
     if (varstr)
@@ -2902,9 +2902,9 @@ static void type_to_str(char *buf, int buf_size,
     else
         snprintf(buf, buf_size, "<type>");
 }
-static void gen_assign_cast(CType *dt)
+static void gen_assign_cast(struct CType *dt)
 {
-    CType *st, *type1, *type2;
+    struct CType *st, *type1, *type2;
     char buf1[256], buf2[256];
     int dbt, sbt, ok;
     st = &vtop->type;
@@ -3010,7 +3010,7 @@ static void inc(int post, int c)
     if (post)
         vpop();
 }
-static Sym * find_field (CType *type, int v)
+static Sym * find_field (struct CType *type, int v)
 {
     Sym *s = ct_ref(type);
     v |= 0x20000000;
@@ -3038,7 +3038,7 @@ static void struct_add_offset (Sym *s, int offset)
 	  s->c += offset;
     }
 }
-static void struct_layout(CType *type, AttributeDef *ad)
+static void struct_layout(struct CType *type, AttributeDef *ad)
 {
     int size, align, maxalign, offset, c, a;
     Sym *f;
@@ -3084,12 +3084,12 @@ static void struct_layout(CType *type, AttributeDef *ad)
     c = (c + a - 1) & -a;
     ct_ref(type)->c = c;
 }
-static void struct_decl(CType *type, int u)
+static void struct_decl(struct CType *type, int u)
 {
     int v, align, use_existing;
     Sym *s, *ss, **ps;
     AttributeDef ad, ad1;
-    CType type1, btype;
+    struct CType type1, btype;
     memset(&ad, 0, sizeof ad);
     s = ((void*)0);
     use_existing = 0;
@@ -3177,11 +3177,11 @@ static void sym_to_attr(AttributeDef *ad, Sym *s)
     if (sym_ft(s) && 0 == ad_ft(ad))
         ad_set_sym_ft(ad, s);
 }
-static int parse_btype(CType *type, AttributeDef *ad)
+static int parse_btype(struct CType *type, AttributeDef *ad)
 {
     int t, u, bt, st, type_found, typespec_found, g, done, basic;
     Sym *s;
-    CType type1;
+    struct CType type1;
     memset(ad, 0, sizeof(AttributeDef));
     type_found = 0;
     typespec_found = 0;
@@ -3262,19 +3262,19 @@ static int parse_btype(CType *type, AttributeDef *ad)
     ct_set_t(type, t);
     return type_found;
 }
-static void convert_parameter_type(CType *pt)
+static void convert_parameter_type(struct CType *pt)
 {
     ct_clear_t(pt, 0x0040);
     if ((ct_t(pt) & 0x000f) == 6) {
         mk_pointer(pt);
     }
 }
-static int post_type(CType *type, AttributeDef *ad, int storage, int td)
+static int post_type(struct CType *type, AttributeDef *ad, int storage, int td)
 {
     int n, l;
     Sym **plast, *s, *first;
     AttributeDef ad1;
-    CType pt;
+    struct CType pt;
     if (tok == '(') {
         l = 0;
         next();
@@ -3342,9 +3342,9 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
     }
     return 1;
 }
-static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
+static struct CType *type_decl(struct CType *type, AttributeDef *ad, int *v, int td)
 {
-    CType *post, *ret;
+    struct CType *post, *ret;
     int storage;
     storage = ct_t(type) & (0x00001000 | 0x00002000 | 0x00004000);
     ct_clear_t(type, 0x00001000 | 0x00002000 | 0x00004000);
@@ -3402,7 +3402,7 @@ static void indir(void)
         vtop->r |= lvalue_type(ct_t(&vtop->type));
     }
 }
-static void expr_type(CType *type, void (*expr_fn)(void))
+static void expr_type(struct CType *type, void (*expr_fn)(void))
 {
     nocode_wanted++;
     expr_fn();
@@ -3413,7 +3413,7 @@ static void expr_type(CType *type, void (*expr_fn)(void))
 static void unary(void)
 {
     int n, t, align, size, r, sizeof_caller;
-    CType type;
+    struct CType type;
     Sym *s;
     AttributeDef ad;
     sizeof_caller = in_sizeof;
@@ -3790,7 +3790,7 @@ static void expr_cond(void)
 {
     int tt, u, r1, r2, rc, t1, t2, bt1, bt2, islv, c;
     SValue sv;
-    CType type, type1, type2;
+    struct CType type, type1, type2;
     expr_lor();
     if (tok == '?') {
         next();
@@ -3934,7 +3934,7 @@ static int expr_const(void)
     vpop();
     return c;
 }
-static void gfunc_return(CType *func_type)
+static void gfunc_return(struct CType *func_type)
 {
     if ((ct_t(func_type) & 0x000f) == 7) {
         tcc_error("struct return values are not supported in tcc_27_alt");
@@ -4122,7 +4122,7 @@ static void init_putz(Section *sec, unsigned int c, int size)
         gfunc_call(3);
     }
 }
-static int decl_designator(CType *type, Section *sec, unsigned int c,
+static int decl_designator(struct CType *type, Section *sec, unsigned int c,
                            Sym **cur_field, int al)
 {
     Sym *f;
@@ -4153,11 +4153,11 @@ static int decl_designator(CType *type, Section *sec, unsigned int c,
         al = c - corig + size;
     return al;
 }
-static void init_putv(CType *type, Section *sec, unsigned int c)
+static void init_putv(struct CType *type, Section *sec, unsigned int c)
 {
     int bt;
     void *ptr;
-    CType dtype;
+    struct CType dtype;
     ct_copy(&dtype, type);
     ct_clear_t(&dtype, 0x0100);
     if (sec) {
@@ -4234,7 +4234,7 @@ static void init_putv(CType *type, Section *sec, unsigned int c)
         vpop();
     }
 }
-static int decl_initializer_list(CType *type, Section *sec, unsigned int c,
+static int decl_initializer_list(struct CType *type, Section *sec, unsigned int c,
     Sym **pf, Sym *indexsym, int have_elem, int no_oblock, int n, int size1)
 {
     int len = 0;
@@ -4256,7 +4256,7 @@ static int decl_initializer_list(CType *type, Section *sec, unsigned int c,
     }
     return len;
 }
-static void decl_initializer(CType *type, Section *sec, unsigned int c,
+static void decl_initializer(struct CType *type, Section *sec, unsigned int c,
                              int first)
 {
     int len, n, no_oblock, nb, i;
@@ -4264,7 +4264,7 @@ static void decl_initializer(CType *type, Section *sec, unsigned int c,
     int have_elem;
     Sym *s, *f;
     Sym indexsym;
-    CType *t1;
+    struct CType *t1;
     have_elem = tok == '}' || tok == ',';
     if (!have_elem && tok != '{' &&
 	tok != 0xb9) {
@@ -4358,7 +4358,7 @@ static void decl_initializer(CType *type, Section *sec, unsigned int c,
         init_putv(type, sec, c);
     }
 }
-static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
+static void decl_initializer_alloc(struct CType *type, AttributeDef *ad, int r,
                                    int has_init, int v, int scope)
 {
     int size, align, addr;
@@ -4453,7 +4453,7 @@ static void gen_function(Sym *sym)
 static int decl0(int l, int is_for_loop_init, Sym *func_sym)
 {
     int v, has_init, r;
-    CType type, btype;
+    struct CType type, btype;
     Sym *sym;
     AttributeDef ad;
     while (1) {
@@ -6118,11 +6118,11 @@ static void gfunc_call(int nb_args)
         gadd_sp(args_size);
     vtop--;
 }
-static void gfunc_prolog(CType *func_type)
+static void gfunc_prolog(struct CType *func_type)
 {
     int addr, align, size, param_addr;
     Sym *sym;
-    CType *type;
+    struct CType *type;
     sym = ct_ref(func_type);
     addr = 8;
     loc = 0;
