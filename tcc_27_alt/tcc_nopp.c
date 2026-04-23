@@ -5477,7 +5477,7 @@ static int elf_output_file(TCCState *s1, char *filename)
     Elf32_Sym *sym;
     Section *strsec, *interp, *dynamic, *dynstr;
     file_type = s1->output_type;
-    ret = -1;
+    ret = 0;
     phdr = ((void*)0);
     sec_order = ((void*)0);
     interp = dynamic = dynstr = ((void*)0);
@@ -5546,15 +5546,15 @@ static int elf_output_file(TCCState *s1, char *filename)
             }
         }
         ret = final_sections_reloc(s1);
-        if (ret)
-            goto the_end;
-	tidy_section_headers(s1, sec_order);
-        if (s1->got)
-            fill_local_got_entries(s1);
+        if (!ret) {
+	    tidy_section_headers(s1, sec_order);
+            if (s1->got)
+                fill_local_got_entries(s1);
+        }
     }
-    ret = tcc_write_elf_file(s1, filename, phnum, phdr, file_offset, sec_order);
+    if (!ret)
+        ret = tcc_write_elf_file(s1, filename, phnum, phdr, file_offset, sec_order);
     s1->nb_sections = shnum;
- the_end:
     tcc_free(sec_order);
     tcc_free(phdr);
     return ret;
@@ -5592,7 +5592,7 @@ static int tcc_load_object_file(TCCState *s1,
 {
     Elf32_Ehdr ehdr;
     Elf32_Shdr *shdr, *sh;
-    int size, i, j, offset, offseti, nb_syms, sym_index, ret;
+    int size, i, j, offset, offseti, nb_syms, sym_index, ret, failed;
     unsigned char *strsec, *strtab;
     int *old_to_new_syms;
     char *sh_name, *name;
@@ -5601,11 +5601,9 @@ static int tcc_load_object_file(TCCState *s1,
     Elf32_Rel *rel;
     Section *s;
     lseek(fd, file_offset, 0);
-    if (tcc_object_type(fd, &ehdr) != 1)
-        goto fail1;
-    if (ehdr.e_ident[5] != 1 ||
+    if (tcc_object_type(fd, &ehdr) != 1 ||
+        ehdr.e_ident[5] != 1 ||
         ehdr.e_machine != 3) {
-    fail1:
         tcc_error_noabort("invalid object file");
         return -1;
     }
@@ -5618,14 +5616,15 @@ static int tcc_load_object_file(TCCState *s1,
     symtab = ((void*)0);
     strtab = ((void*)0);
     nb_syms = 0;
+    ret = -1;
+    failed = 0;
     for(i = 1; i < ehdr.e_shnum; i++) {
         sh = &shdr[i];
         if (sh->sh_type == 2) {
             if (symtab) {
                 tcc_error_noabort("object must contain only one symtab");
-            fail:
-                ret = -1;
-                goto the_end;
+                failed = 1;
+                break;
             }
             nb_syms = sh->sh_size / sizeof(Elf32_Sym);
             symtab = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
@@ -5634,7 +5633,7 @@ static int tcc_load_object_file(TCCState *s1,
             strtab = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
         }
     }
-    for(i = 1; i < ehdr.e_shnum; i++) {
+    for(i = 1; !failed && i < ehdr.e_shnum; i++) {
         if (i == ehdr.e_shstrndx)
             continue;
         sh = &shdr[i];
@@ -5650,20 +5649,23 @@ static int tcc_load_object_file(TCCState *s1,
             continue;
         if (sh->sh_addralign < 1)
             sh->sh_addralign = 1;
+        s = ((void*)0);
         for(j = 1; j < s1->nb_sections;j++) {
             s = s1->sections[j];
-            if (!strcmp(s->name, sh_name)) {
-                goto found;
-            }
+            if (!strcmp(s->name, sh_name))
+                break;
+            s = ((void*)0);
         }
-        s = new_section(s1, sh_name, sh->sh_type, sh->sh_flags & ~(1 << 9));
-        s->sh_addralign = sh->sh_addralign;
-        s->sh_entsize = sh->sh_entsize;
-        sm_table[i].new_section = 1;
-    found:
+        if (!s) {
+            s = new_section(s1, sh_name, sh->sh_type, sh->sh_flags & ~(1 << 9));
+            s->sh_addralign = sh->sh_addralign;
+            s->sh_entsize = sh->sh_entsize;
+            sm_table[i].new_section = 1;
+        }
         if (sh->sh_type != s->sh_type) {
             tcc_error_noabort("invalid section type");
-            goto fail;
+            failed = 1;
+            break;
         }
         offset = s->data_offset;
         size = sh->sh_addralign - 1;
@@ -5683,7 +5685,7 @@ static int tcc_load_object_file(TCCState *s1,
             s->data_offset += size;
         }
     }
-    for(i = 1; i < ehdr.e_shnum; i++) {
+    for(i = 1; !failed && i < ehdr.e_shnum; i++) {
         s = sm_table[i].s;
         if (!s || !sm_table[i].new_section)
             continue;
@@ -5697,23 +5699,25 @@ static int tcc_load_object_file(TCCState *s1,
     }
     sm = sm_table;
     old_to_new_syms = tcc_mallocz(nb_syms * sizeof(int));
-    sym = symtab + 1;
-    for(i = 1; i < nb_syms; i++, sym++) {
-        if (sym->st_shndx != 0 &&
-            sym->st_shndx < 0xff00) {
-            sm = &sm_table[sym->st_shndx];
-            if (!sm->s)
-                continue;
-            sym->st_shndx = sm->s->sh_num;
-            sym->st_value += sm->offset;
+    if (!failed && nb_syms) {
+        sym = symtab + 1;
+        for(i = 1; i < nb_syms; i++, sym++) {
+            if (sym->st_shndx != 0 &&
+                sym->st_shndx < 0xff00) {
+                sm = &sm_table[sym->st_shndx];
+                if (!sm->s)
+                    continue;
+                sym->st_shndx = sm->s->sh_num;
+                sym->st_value += sm->offset;
+            }
+            name = (char *) strtab + sym->st_name;
+            sym_index = set_elf_sym(symtab_section, sym->st_value, sym->st_size,
+                                    sym->st_info, sym->st_other,
+                                    sym->st_shndx, name);
+            old_to_new_syms[i] = sym_index;
         }
-        name = (char *) strtab + sym->st_name;
-        sym_index = set_elf_sym(symtab_section, sym->st_value, sym->st_size,
-                                sym->st_info, sym->st_other,
-                                sym->st_shndx, name);
-        old_to_new_syms[i] = sym_index;
     }
-    for(i = 1; i < ehdr.e_shnum; i++) {
+    for(i = 1; !failed && i < ehdr.e_shnum; i++) {
         s = sm_table[i].s;
         if (!s)
             continue;
@@ -5727,14 +5731,15 @@ static int tcc_load_object_file(TCCState *s1,
                 unsigned sym_index;
                 type = ((rel->r_info) & 0xff);
                 sym_index = ((rel->r_info) >> 8);
-                if (sym_index >= nb_syms)
-                    goto invalid_reloc;
-                sym_index = old_to_new_syms[sym_index];
+                if (sym_index < nb_syms)
+                    sym_index = old_to_new_syms[sym_index];
+                else
+                    sym_index = 0;
                 if (!sym_index) {
-                invalid_reloc:
                     tcc_error_noabort("Invalid relocation entry [%2d] '%s' @ %.8x",
                         i, strsec + sh->sh_name, rel->r_offset);
-                    goto fail;
+                    failed = 1;
+                    break;
                 }
                 rel->r_info = (((sym_index) << 8) + ((type) & 0xff));
                 rel->r_offset += offseti;
@@ -5744,8 +5749,8 @@ static int tcc_load_object_file(TCCState *s1,
             break;
         }
     }
-    ret = 0;
- the_end:
+    if (!failed)
+        ret = 0;
     tcc_free(symtab);
     tcc_free(strtab);
     tcc_free(old_to_new_syms);
@@ -6094,65 +6099,88 @@ static int gtst(int inv, int t)
     vtop--;
     return t;
 }
+static void gen_op8(int op, int opc)
+{
+    int r, fr, c;
+    if ((vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030) {
+        vswap();
+        r = gv(0x0001);
+        vswap();
+        c = vtop->c.i;
+        if (c == (char)c) {
+            if (c==1 && opc==0 && op != 0xc3) {
+                o (0x40 | r);
+            } else if (c==1 && opc==5 && op != 0xc5) {
+                o (0x48 | r);
+            } else {
+                o(0x83);
+                o(0xc0 | (opc << 3) | r);
+                g(c);
+            }
+        } else {
+            o(0x81);
+            oad(0xc0 | (opc << 3) | r, c);
+        }
+    } else {
+        gv2(0x0001, 0x0001);
+        r = vtop[-1].r;
+        fr = vtop[0].r;
+        o((opc << 3) | 0x01);
+        o(0xc0 + r + fr * 8);
+    }
+    vtop--;
+    if (op >= 0x92 && op <= 0x9f) {
+        vtop->r = 0x0033;
+        vtop->c.i = op;
+    }
+}
+static void gen_shift_op(int opc)
+{
+    int r, c;
+    opc = 0xc0 | (opc << 3);
+    if ((vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030) {
+        vswap();
+        r = gv(0x0001);
+        vswap();
+        c = vtop->c.i & 0x1f;
+        o(0xc1);
+        o(opc | r);
+        g(c);
+    } else {
+        gv2(0x0001, 0x0010);
+        r = vtop[-1].r;
+        o(0xd3);
+        o(opc | r);
+    }
+    vtop--;
+}
 static void gen_opi(int op)
 {
-    int r, fr, opc, c;
+    int r, fr;
     switch(op) {
     case '+':
     case 0xc3:
-        opc = 0;
-    gen_op8:
-        if ((vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030) {
-            vswap();
-            r = gv(0x0001);
-            vswap();
-            c = vtop->c.i;
-            if (c == (char)c) {
-                if (c==1 && opc==0 && op != 0xc3) {
-                    o (0x40 | r);
-                } else if (c==1 && opc==5 && op != 0xc5) {
-                    o (0x48 | r);
-                } else {
-                    o(0x83);
-                    o(0xc0 | (opc << 3) | r);
-                    g(c);
-                }
-            } else {
-                o(0x81);
-                oad(0xc0 | (opc << 3) | r, c);
-            }
-        } else {
-            gv2(0x0001, 0x0001);
-            r = vtop[-1].r;
-            fr = vtop[0].r;
-            o((opc << 3) | 0x01);
-            o(0xc0 + r + fr * 8);
-        }
-        vtop--;
-        if (op >= 0x92 && op <= 0x9f) {
-            vtop->r = 0x0033;
-            vtop->c.i = op;
-        }
+        gen_op8(op, 0);
         break;
     case '-':
     case 0xc5:
-        opc = 5;
-        goto gen_op8;
+        gen_op8(op, 5);
+        break;
     case 0xc4:
-        opc = 2;
-        goto gen_op8;
+        gen_op8(op, 2);
+        break;
     case 0xc6:
-        opc = 3;
-        goto gen_op8;
+        gen_op8(op, 3);
+        break;
     case '&':
-        opc = 4;
-        goto gen_op8;
+        gen_op8(op, 4);
+        break;
     case '^':
-        opc = 6;
-        goto gen_op8;
+        gen_op8(op, 6);
+        break;
     case '|':
-        opc = 1;
-        goto gen_op8;
+        gen_op8(op, 1);
+        break;
     case '*':
         gv2(0x0001, 0x0001);
         r = vtop[-1].r;
@@ -6162,30 +6190,13 @@ static void gen_opi(int op)
         o(0xc0 + fr + r * 8);
         break;
     case 0x01:
-        opc = 4;
-        goto gen_shift;
+        gen_shift_op(4);
+        break;
     case 0xc9:
-        opc = 5;
-        goto gen_shift;
+        gen_shift_op(5);
+        break;
     case 0x02:
-        opc = 7;
-    gen_shift:
-        opc = 0xc0 | (opc << 3);
-        if ((vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030) {
-            vswap();
-            r = gv(0x0001);
-            vswap();
-            c = vtop->c.i & 0x1f;
-            o(0xc1);
-            o(opc | r);
-            g(c);
-        } else {
-            gv2(0x0001, 0x0010);
-            r = vtop[-1].r;
-            o(0xd3);
-            o(opc | r);
-        }
-        vtop--;
+        gen_shift_op(7);
         break;
     case '/':
     case 0xb0:
@@ -6219,8 +6230,8 @@ static void gen_opi(int op)
         vtop->r = r;
         break;
     default:
-        opc = 7;
-        goto gen_op8;
+        gen_op8(op, 7);
+        break;
     }
 }
 int code_reloc (int reloc_type)
@@ -6756,45 +6767,46 @@ int main(int argc0, char **argv0)
     TCCState *s;
     int ret, opt, n = 0;
     char *first_file;
-redo:
-    s = tcc_new();
-    opt = tcc_parse_args(s, argc0, argv0);
-    if (n == 0) {
-        if (opt == 1)
-            tcc_error("no input files\n");
-        n = s->nb_files;
-        if (n == 0)
-            tcc_error("no input files\n");
-        if (s->output_type == 4) {
-            if (n > 1 && s->outfile)
-                tcc_error("cannot specify output file with -c many files");
+    for (;;) {
+        s = tcc_new();
+        opt = tcc_parse_args(s, argc0, argv0);
+        if (n == 0) {
+            if (opt == 1)
+                tcc_error("no input files\n");
+            n = s->nb_files;
+            if (n == 0)
+                tcc_error("no input files\n");
+            if (s->output_type == 4) {
+                if (n > 1 && s->outfile)
+                    tcc_error("cannot specify output file with -c many files");
+            }
         }
-    }
-    if (s->output_type == 0)
-        s->output_type = 2;
-    tcc_split_path(s, &s->crt_paths, &s->nb_crt_paths, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
-    if (s->output_type == 2 && !s->nostdlib) {
-        tcc_add_crt(s, "crt1.o");
-        tcc_add_crt(s, "crti.o");
-    }
-    for (first_file = ((void*)0), ret = 0;;) {
-        struct filespec *f = s->files[s->nb_files - n];
-        if (!first_file)
-            first_file = f->name;
-        if (tcc_add_file(s, f->name) < 0)
-            ret = 1;
-        if (--n == 0 || ret
-            || s->output_type == 4)
+        if (s->output_type == 0)
+            s->output_type = 2;
+        tcc_split_path(s, &s->crt_paths, &s->nb_crt_paths, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
+        if (s->output_type == 2 && !s->nostdlib) {
+            tcc_add_crt(s, "crt1.o");
+            tcc_add_crt(s, "crti.o");
+        }
+        for (first_file = ((void*)0), ret = 0;;) {
+            struct filespec *f = s->files[s->nb_files - n];
+            if (!first_file)
+                first_file = f->name;
+            if (tcc_add_file(s, f->name) < 0)
+                ret = 1;
+            if (--n == 0 || ret
+                || s->output_type == 4)
+                break;
+        }
+        if (0 == ret) {
+            if (!s->outfile)
+                s->outfile = default_outputfile(s, first_file);
+            if (tcc_output_file(s, s->outfile))
+                ret = 1;
+        }
+        tcc_delete(s);
+        if (ret || !n)
             break;
     }
-    if (0 == ret) {
-        if (!s->outfile)
-            s->outfile = default_outputfile(s, first_file);
-        if (tcc_output_file(s, s->outfile))
-            ret = 1;
-    }
-    tcc_delete(s);
-    if (ret == 0 && n)
-        goto redo;
     return ret;
 }
