@@ -567,11 +567,13 @@ static char *get_tok_str(int v, CValue *cv)
         return "<string>";
         break;
     case 0x9c:
-        v = '<';
-        goto addv;
+        *p++ = '<';
+        *p = '\0';
+        break;
     case 0x9f:
-        v = '>';
-        goto addv;
+        *p++ = '>';
+        *p = '\0';
+        break;
     case 0xc8:
         return strcpy(p, "...");
     case 0x81:
@@ -596,7 +598,6 @@ static char *get_tok_str(int v, CValue *cv)
             sprintf(buf, "<%02x>", v);
             return buf;
         }
-        addv:
             *p++ = v;
             *p = '\0';
         } else if (v < tok_ident) {
@@ -655,14 +656,17 @@ static uint8_t *parse_line_comment(uint8_t *p)
     p++;
     for(;;) {
         c = *p;
-    redo:
         if (c == '\n' || c == (-1)) {
             break;
         } else if (c == '\\') {
             file->buf_ptr = p;
             c = handle_eob();
             p = file->buf_ptr;
-            goto redo;
+            if (c == '\n' || c == (-1))
+                break;
+            if (c == '\\')
+                continue;
+            p++;
         } else {
             p++;
         }
@@ -671,9 +675,10 @@ static uint8_t *parse_line_comment(uint8_t *p)
 }
 static uint8_t *parse_comment(uint8_t *p)
 {
-    int c;
+    int c, done;
     p++;
-    for(;;) {
+    done = 0;
+    while (!done) {
         for(;;) {
             c = *p;
             if (c == '\n' || c == '*' || c == '\\')
@@ -694,19 +699,19 @@ static uint8_t *parse_comment(uint8_t *p)
                 if (c == '*') {
                     p++;
                 } else if (c == '/') {
-                    goto end_of_comment;
+                    done = 1;
+                    break;
                 } else if (c == '\\') {
                     file->buf_ptr = p;
                     c = handle_eob();
                     p = file->buf_ptr;
                     if (c == (-1))
                         tcc_error("unexpected end of file in comment");
-                    goto after_star;
+                    break;
                 } else {
                     break;
                 }
             }
-        after_star: ;
         } else {
             file->buf_ptr = p;
             c = handle_eob();
@@ -718,7 +723,6 @@ static uint8_t *parse_comment(uint8_t *p)
             }
         }
     }
- end_of_comment:
     p++;
     return p;
 }
@@ -741,7 +745,6 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
             c = handle_eob();
             p = file->buf_ptr;
             if (c == (-1)) {
-            unterminated_string:
                 tcc_error("missing terminating %c character", sep);
             } else if (c == '\\') {
                 c = next_src_char(&p);
@@ -755,7 +758,7 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
                     file->line_num++;
                     p++;
                 } else if (c == (-1)) {
-                    goto unterminated_string;
+                    tcc_error("missing terminating %c character", sep);
                 } else {
                     cstr_ccat(str, '\\');
                     cstr_ccat(str, c);
@@ -764,17 +767,18 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
             }
         } else if (c == '\n') {
             file->line_num++;
-            goto add_char;
+            cstr_ccat(str, c);
+            p++;
         } else if (c == '\r') {
             c = next_src_char(&p);
             if (c != '\n') {
                 cstr_ccat(str, '\r');
             } else {
                 file->line_num++;
-                goto add_char;
+                cstr_ccat(str, c);
+                p++;
             }
         } else {
-        add_char:
             cstr_ccat(str, c);
             p++;
         }
@@ -852,7 +856,8 @@ static void parse_escape_string(CString *outstr, uint8_t *buf)
                     }
                 }
                 c = n;
-                goto add_char_nonext;
+                cstr_ccat(outstr, c);
+                continue;
             case 'x':
             case 'u':
             case 'U':
@@ -872,7 +877,8 @@ static void parse_escape_string(CString *outstr, uint8_t *buf)
                     p++;
                 }
                 c = n;
-                goto add_char_nonext;
+                cstr_ccat(outstr, c);
+                continue;
             case 'a':
                 c = '\a';
                 break;
@@ -904,7 +910,6 @@ static void parse_escape_string(CString *outstr, uint8_t *buf)
             }
         }
         p++;
-    add_char_nonext:
         cstr_ccat(outstr, c);
     }
     cstr_ccat(outstr, '\0');
