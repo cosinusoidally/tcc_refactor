@@ -425,8 +425,6 @@ static TokenSym **table_ident;
 static TokenSym *hash_ident[16384];
 static char token_buf[1024 + 1];
 static unsigned char isidnum_table[256 - (-1)];
-static struct TinyAlloc *toksym_alloc;
-static struct TinyAlloc *cstr_alloc;
 static char tcc_keywords[216] =
      "int" "\0"
      "void" "\0"
@@ -498,32 +496,6 @@ static void expect(char *msg)
 {
     tcc_error("%s expected", msg);
 }
-typedef struct TinyAlloc {
-    int dummy;
-} TinyAlloc;
-static TinyAlloc *tal_new(TinyAlloc **pal, unsigned limit, unsigned size)
-{
-    (void)limit;
-    (void)size;
-    if (pal)
-        *pal = ((void*)0);
-    return ((void*)0);
-}
-static void tal_delete(TinyAlloc *al)
-{
-    (void)al;
-}
-static void tal_free_impl(TinyAlloc *al, void *p )
-{
-    (void)al;
-    if (p)
-        tcc_free(p);
-}
-static void *tal_realloc_impl(TinyAlloc **pal, void *p, unsigned size )
-{
-    (void)pal;
-    return tcc_realloc(p, size);
-}
 static void cstr_realloc(CString *cstr, int new_size)
 {
     int size;
@@ -532,7 +504,7 @@ static void cstr_realloc(CString *cstr, int new_size)
         size = 8;
     while (size < new_size)
         size = size * 2;
-    cstr->data = tal_realloc_impl(&cstr_alloc, cstr->data, size);
+        cstr->data = tcc_realloc(cstr->data, size);
     cstr->size_allocated = size;
 }
 static void cstr_ccat(CString *cstr, int ch)
@@ -561,7 +533,7 @@ static void cstr_new(CString *cstr)
 }
 static void cstr_free(CString *cstr)
 {
-    tal_free_impl(cstr_alloc, cstr->data);
+    tcc_free(cstr->data);
     cstr_new(cstr);
 }
 static void cstr_reset(CString *cstr)
@@ -579,7 +551,7 @@ static TokenSym *tok_alloc_new(TokenSym **pts, char *str, int len)
         ptable = tcc_realloc(table_ident, (i + 512) * sizeof(TokenSym *));
         table_ident = ptable;
     }
-    ts = tal_realloc_impl(&toksym_alloc, 0, sizeof(TokenSym) + len);
+    ts = tcc_realloc(0, sizeof(TokenSym) + len);
     table_ident[i] = ts;
     ts->tok = tok_ident++;
     ts->sym_label = ((void*)0);
@@ -1450,8 +1422,6 @@ static void tccpp_new(TCCState *s)
             : 0);
     for(i = 128; i<256; i++)
         set_idnum(i, 2);
-    tal_new(&toksym_alloc, 256, (768 * 1024));
-    tal_new(&cstr_alloc, 1024, (256 * 1024));
     memset(hash_ident, 0, 16384 * sizeof(TokenSym *));
     tok_ident = 256;
     p = tcc_keywords;
@@ -1471,14 +1441,10 @@ static void tccpp_delete(TCCState *s)
     int i, n;
     n = tok_ident - 256;
     for(i = 0; i < n; i++)
-        tal_free_impl(toksym_alloc, table_ident[i]);
+        tcc_free(table_ident[i]);
     tcc_free(table_ident);
     table_ident = ((void*)0);
     cstr_free(&tokcstr);
-    tal_delete(toksym_alloc);
-    toksym_alloc = ((void*)0);
-    tal_delete(cstr_alloc);
-    cstr_alloc = ((void*)0);
 }
 static int rsym, anon_sym, ind, loc;
 static Sym *sym_free_first;
