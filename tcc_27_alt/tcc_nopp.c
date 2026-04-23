@@ -1933,15 +1933,16 @@ static int get_reg(int rc)
     SValue *p;
     for(r=0;r<4;r++) {
         if (reg_classes[r] & rc) {
+            int used = 0;
             if (nocode_wanted)
                 return r;
             for(p=(__vstack + 1);p<=vtop;p++) {
                 if ((p->r & 0x003f) == r)
-                    goto notfound;
+                    used = 1;
             }
-            return r;
+            if (!used)
+                return r;
         }
-    notfound: ;
     }
     for(p=(__vstack + 1);p<=vtop;p++) {
         r = p->r & 0x003f;
@@ -2078,6 +2079,7 @@ static void gen_opic(int op)
     unsigned int l1 = c1 ? v1->c.i : 0;
     unsigned int l2 = c2 ? v2->c.i : 0;
     int shm = 31;
+    int folded = 0;
     if (t1 != 4 && (4 != 8 || t1 != 5))
         l1 = ((uint32_t)l1 |
               (v1->type.t & 0x0010 ? 0 : -(l1 & 0x80000000)));
@@ -2085,6 +2087,7 @@ static void gen_opic(int op)
         l2 = ((uint32_t)l2 |
               (v2->type.t & 0x0010 ? 0 : -(l2 & 0x80000000)));
     if (c1 && c2) {
+        folded = 1;
         switch(op) {
         case '+': l1 += l2; break;
         case '-': l1 -= l2; break;
@@ -2100,7 +2103,8 @@ static void gen_opic(int op)
             if (l2 == 0) {
                 if (const_wanted)
                     tcc_error("division by zero in constant");
-                goto general_case;
+                folded = 0;
+                break;
             }
             switch(op) {
             default: l1 = gen_opic_sdiv(l1, l2); break;
@@ -2127,14 +2131,18 @@ static void gen_opic(int op)
         case 0xa0: l1 = l1 && l2; break;
         case 0xa1: l1 = l1 || l2; break;
         default:
-            goto general_case;
+            folded = 0;
+            break;
         }
-	if (t1 != 4 && (4 != 8 || t1 != 5))
-	    l1 = ((uint32_t)l1 |
-		(v1->type.t & 0x0010 ? 0 : -(l1 & 0x80000000)));
-        v1->c.i = l1;
-        vtop--;
-    } else {
+        if (folded) {
+	    if (t1 != 4 && (4 != 8 || t1 != 5))
+	        l1 = ((uint32_t)l1 |
+		    (v1->type.t & 0x0010 ? 0 : -(l1 & 0x80000000)));
+            v1->c.i = l1;
+            vtop--;
+            return;
+        }
+    }
         if (c1 && (op == '+' || op == '&' || op == '^' ||
                    op == '|' || op == '*')) {
             vswap();
@@ -2179,22 +2187,22 @@ static void gen_opic(int op)
                 else
                     op = 0xc9;
             }
-            goto general_case;
+            gen_opi(op);
         } else if (c2 && (op == '+' || op == '-') &&
                    (((vtop[-1].r & (0x003f | 0x0100 | 0x0200)) == (0x0030 | 0x0200))
                     || (vtop[-1].r & (0x003f | 0x0100)) == 0x0032)) {
             if (op == '-')
                 l2 = -l2;
 	    l2 += vtop[-1].c.i;
-	    if ((int)l2 != l2)
-	        goto general_case;
-            vtop--;
-            vtop->c.i = l2;
-        } else {
-        general_case:
+	    if ((int)l2 == l2) {
+                vtop--;
+                vtop->c.i = l2;
+            } else {
                 gen_opi(op);
+            }
+        } else {
+            gen_opi(op);
         }
-    }
 }
 static int pointed_size(CType *type)
 {
@@ -2228,12 +2236,12 @@ static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
     }
     if (bt1 == 5) {
         type1 = pointed_type(type1);
-    } else if (bt1 != 6)
-        goto invalid_operands;
+    } else if (bt1 != 6) {
+        tcc_error("invalid operands to binary %s", get_tok_str(op, ((void*)0)));
+    }
     if (bt2 == 5) {
         type2 = pointed_type(type2);
     } else if (bt2 != 6) {
-    invalid_operands:
         tcc_error("invalid operands to binary %s", get_tok_str(op, ((void*)0)));
     }
     if ((type1->t & 0x000f) == 0 ||
@@ -2244,20 +2252,51 @@ static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
     tmp_type1.t &= ~(0x0020 | 0x0010 | 0x0100 | 0x0200);
     tmp_type2.t &= ~(0x0020 | 0x0010 | 0x0100 | 0x0200);
     if (!is_compatible_types(&tmp_type1, &tmp_type2) && op == '-')
-        goto invalid_operands;
+        tcc_error("invalid operands to binary %s", get_tok_str(op, ((void*)0)));
+}
+static void gen_standard_op(int op, int t)
+{
+    CType type1;
+    if (t & 0x0010) {
+        if (op == 0x02)
+            op = 0xc9;
+        else if (op == '/')
+            op = 0xb0;
+        else if (op == '%')
+            op = 0xb1;
+        else if (op == 0x9c)
+            op = 0x92;
+        else if (op == 0x9f)
+            op = 0x97;
+        else if (op == 0x9e)
+            op = 0x96;
+        else if (op == 0x9d)
+            op = 0x93;
+    }
+    vswap();
+    type1.t = t;
+    type1.ref = ((void*)0);
+    gen_cast(&type1);
+    vswap();
+    if (op == 0xc9 || op == 0x02 || op == 0x01)
+        type1.t = 3;
+    gen_cast(&type1);
+    gen_opic(op);
+    if (op >= 0x92 && op <= 0x9f) {
+        vtop->type.t = 3;
+    } else {
+        vtop->type.t = t;
+    }
 }
 static void gen_op(int op)
 {
     int u, t1, t2, bt1, bt2, t;
     CType type1;
-redo:
     t1 = vtop[-1].type.t;
     t2 = vtop[0].type.t;
     bt1 = t1 & 0x000f;
     bt2 = t2 & 0x000f;
-    if (bt1 == 7 || bt2 == 7) {
-        tcc_error("operation on a struct");
-    } else if (bt1 == 6 || bt2 == 6) {
+    while (bt1 == 6 || bt2 == 6) {
 	if (bt2 == 6) {
 	    mk_pointer(&vtop->type);
 	    gaddrof();
@@ -2268,14 +2307,20 @@ redo:
 	    gaddrof();
 	    vswap();
 	}
-	goto redo;
+        t1 = vtop[-1].type.t;
+        t2 = vtop[0].type.t;
+        bt1 = t1 & 0x000f;
+        bt2 = t2 & 0x000f;
+    }
+    if (bt1 == 7 || bt2 == 7) {
+        tcc_error("operation on a struct");
     } else if (bt1 == 5 || bt2 == 5) {
         if (op >= 0x92 && op <= 0xa1) {
             check_comparison_pointer_types(vtop - 1, vtop, op);
             t = 3 | 0x0010;
-            goto std_op;
+            gen_standard_op(op, t);
         }
-        if (bt1 == 5 && bt2 == 5) {
+        else if (bt1 == 5 && bt2 == 5) {
             if (op != '-')
                 tcc_error("cannot use pointers here");
             check_comparison_pointer_types(vtop - 1, vtop, op);
@@ -2312,43 +2357,13 @@ redo:
         t = 3;
         if ((t1 & (0x000f | 0x0010 | 0x0080)) == (t | 0x0010))
           t |= 0x0010;
-        goto std_op;
+        gen_standard_op(op, t);
     } else {
         t = 3;
         if ((t1 & (0x000f | 0x0010 | 0x0080)) == (3 | 0x0010) ||
             (t2 & (0x000f | 0x0010 | 0x0080)) == (3 | 0x0010))
             t |= 0x0010;
-    std_op:
-        if (t & 0x0010) {
-            if (op == 0x02)
-                op = 0xc9;
-            else if (op == '/')
-                op = 0xb0;
-            else if (op == '%')
-                op = 0xb1;
-            else if (op == 0x9c)
-                op = 0x92;
-            else if (op == 0x9f)
-                op = 0x97;
-            else if (op == 0x9e)
-                op = 0x96;
-            else if (op == 0x9d)
-                op = 0x93;
-        }
-        vswap();
-        type1.t = t;
-        type1.ref = ((void*)0);
-        gen_cast(&type1);
-        vswap();
-        if (op == 0xc9 || op == 0x02 || op == 0x01)
-            type1.t = 3;
-        gen_cast(&type1);
-        gen_opic(op);
-        if (op >= 0x92 && op <= 0x9f) {
-            vtop->type.t = 3;
-        } else {
-            vtop->type.t = t;
-        }
+        gen_standard_op(op, t);
     }
     if (vtop->r & 0x0100)
         gv(0x0001);
