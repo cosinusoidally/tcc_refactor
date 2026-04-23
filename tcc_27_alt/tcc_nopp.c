@@ -193,11 +193,9 @@ struct TCCState {
     int nb_sym_attrs;
     struct filespec **files;
     int nb_files;
-    int filetype;
     char *outfile;
 };
 struct filespec {
-    char type;
     char name[1];
 };
 static struct TCCState *tcc_state;
@@ -230,7 +228,7 @@ static int tcc_open(TCCState *s1, char *filename);
 static void tcc_close(void);
 static int tcc_add_file_internal(TCCState *s1, char *filename, int flags);
 static int tcc_add_crt(TCCState *s, char *filename);
- int tcc_add_library_err(TCCState *s, char *f);
+static void tcc_add_library(TCCState *s, char *libraryname);
 static int tcc_parse_args(TCCState *s, int argc, char **argv);
 static struct BufferedFile *file;
 static int tok;
@@ -5038,7 +5036,7 @@ static void put_dt(Section *dynamic, int dt, Elf32_Addr val)
 static void tcc_add_runtime(TCCState *s1)
 {
     if (!s1->nostdlib) {
-        tcc_add_library_err(s1, "c");
+        tcc_add_library(s1, "c");
         tcc_add_crt(s1, "crtn.o");
     }
 }
@@ -6600,21 +6598,10 @@ static int tcc_add_file_internal(TCCState *s1, char *filename, int flags)
 }
  int tcc_add_file(TCCState *s, char *filename)
 {
-    int filetype = s->filetype;
     int flags = 0x10;
-    if (filetype == 0) {
-        char *ext = tcc_fileextension(filename);
-        if (ext[0]) {
-            ext++;
-            if (!strcmp(ext, "c") || !strcmp(ext, "i"))
-                filetype = 1;
-            else
-                flags |= 0x40;
-        } else {
-            filetype = 1;
-        }
-        s->filetype = filetype;
-    }
+    char *ext = tcc_fileextension(filename);
+    if (ext[0] && strcmp(ext + 1, "c"))
+        flags |= 0x40;
     return tcc_add_file_internal(s, filename, flags);
 }
 static int tcc_add_library_internal(TCCState *s, char *fmt,
@@ -6636,41 +6623,33 @@ static int tcc_add_crt(TCCState *s, char *filename)
         tcc_error_noabort("file '%s' not found", filename);
     return 0;
 }
-static int tcc_add_needed_dll(TCCState *s, char *soname)
+static void tcc_add_needed_dll(TCCState *s, char *soname)
 {
     int i;
     DLLReference *dllref;
     for(i = 0; i < s->nb_loaded_dlls; i++) {
         dllref = s->loaded_dlls[i];
         if (!strcmp(soname, dllref->name))
-            return 0;
+            return;
     }
     dllref = tcc_mallocz(sizeof(DLLReference) + strlen(soname));
     strcpy(dllref->name, soname);
     dynarray_add(&s->loaded_dlls, &s->nb_loaded_dlls, dllref);
-    return 0;
 }
-int tcc_add_library(TCCState *s, char *libraryname)
+static void tcc_add_library(TCCState *s, char *libraryname)
 {
     if (!strcmp(libraryname, "c"))
-        return tcc_add_needed_dll(s, "libc.so.6");
-    if (!strcmp(libraryname, "m"))
-        return tcc_add_needed_dll(s, "libm.so.6");
-    if (!strcmp(libraryname, "dl"))
-        return tcc_add_needed_dll(s, "libdl.so.2");
-    return tcc_add_needed_dll(s, libraryname);
+        tcc_add_needed_dll(s, "libc.so.6");
+    else if (!strcmp(libraryname, "m"))
+        tcc_add_needed_dll(s, "libm.so.6");
+    else if (!strcmp(libraryname, "dl"))
+        tcc_add_needed_dll(s, "libdl.so.2");
+    else
+        tcc_add_needed_dll(s, libraryname);
 }
- int tcc_add_library_err(TCCState *s, char *libname)
-{
-    int ret = tcc_add_library(s, libname);
-    if (ret < 0)
-        tcc_error_noabort("library '%s' not found", libname);
-    return ret;
-}
-static void args_parser_add_file(TCCState *s, char* filename, int filetype)
+static void args_parser_add_file(TCCState *s, char* filename)
 {
     struct filespec *f = tcc_malloc(sizeof *f + strlen(filename));
-    f->type = filetype;
     strcpy(f->name, filename);
     dynarray_add(&s->files, &s->nb_files, f);
 }
@@ -6690,7 +6669,7 @@ static int tcc_parse_args(TCCState *s, int argc, char **argv)
     while (optind < argc) {
         r = argv[optind++];
         if (r[0] != '-' || r[1] == '\0') {
-            args_parser_add_file(s, r, s->filetype);
+            args_parser_add_file(s, r);
             action = 1;
             continue;
         }
@@ -6703,7 +6682,7 @@ static int tcc_parse_args(TCCState *s, int argc, char **argv)
             s->nostdlib = 1;
         } else if (!strncmp(r, "-l", 2)) {
             optarg = take_arg(argc, argv, &optind, r, 2);
-            args_parser_add_file(s, optarg, 4);
+            tcc_add_library(s, optarg);
         } else if (!strcmp(r, "-o")) {
             optarg = take_arg(argc, argv, &optind, r, 2);
             tcc_free(s->outfile);
@@ -6762,17 +6741,10 @@ redo:
     }
     for (first_file = ((void*)0), ret = 0;;) {
         struct filespec *f = s->files[s->nb_files - n];
-        s->filetype = f->type;
-        if (f->type == 4) {
-            if (tcc_add_library_err(s, f->name) < 0)
-                ret = 1;
-        } else {
-            if (!first_file)
-                first_file = f->name;
-            if (tcc_add_file(s, f->name) < 0)
-                ret = 1;
-        }
-        s->filetype = 0;
+        if (!first_file)
+            first_file = f->name;
+        if (tcc_add_file(s, f->name) < 0)
+            ret = 1;
         if (--n == 0 || ret
             || s->output_type == 4)
             break;
