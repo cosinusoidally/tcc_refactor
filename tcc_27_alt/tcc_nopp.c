@@ -52,10 +52,39 @@ typedef struct {
   unsigned char st_other;
   Elf32_Section st_shndx;
 } Elf32_Sym;
-typedef struct {
-  Elf32_Addr r_offset;
-  Elf32_Word r_info;
-} Elf32_Rel;
+typedef unsigned int Elf32_Rel[2];
+static Elf32_Addr rel_offset(Elf32_Rel *rel)
+{
+    return *(unsigned int *)rel;
+}
+static void rel_set_offset(Elf32_Rel *rel, Elf32_Addr offset)
+{
+    *(unsigned int *)rel = offset;
+}
+static void rel_add_offset(Elf32_Rel *rel, Elf32_Addr offset)
+{
+    rel_set_offset(rel, rel_offset(rel) + offset);
+}
+static Elf32_Word rel_info(Elf32_Rel *rel)
+{
+    return *(((unsigned int *)rel) + 1);
+}
+static void rel_set_info(Elf32_Rel *rel, Elf32_Word info)
+{
+    *(((unsigned int *)rel) + 1) = info;
+}
+static int rel_type(Elf32_Rel *rel)
+{
+    return rel_info(rel) & 0xff;
+}
+static int rel_sym(Elf32_Rel *rel)
+{
+    return rel_info(rel) >> 8;
+}
+static void rel_set_sym_type(Elf32_Rel *rel, int sym, int type)
+{
+    rel_set_info(rel, (((sym) << 8) + ((type) & 0xff)));
+}
 typedef struct {
   Elf32_Word p_type;
   Elf32_Off p_offset;
@@ -3842,14 +3871,14 @@ static void init_putv(CType *type, Section *sec, unsigned int c)
 		rel = (Elf32_Rel*)(ssec->reloc->data + ssec->reloc->data_offset);
 		while (num_relocs--) {
 		    rel--;
-		    if (rel->r_offset >= esym->st_value + size)
+		    if (rel_offset(rel) >= esym->st_value + size)
 		      continue;
-		    if (rel->r_offset < esym->st_value)
+		    if (rel_offset(rel) < esym->st_value)
 		      break;
 		    put_elf_reloca(symtab_section, sec,
-				   c + rel->r_offset - esym->st_value,
-				   ((rel->r_info) & 0xff),
-				   ((rel->r_info) >> 8),
+				   c + rel_offset(rel) - esym->st_value,
+				   rel_type(rel),
+				   rel_sym(rel),
 				   0
 				  );
 		}
@@ -4269,8 +4298,8 @@ static void tccelf_end_file(TCCState *s1)
             Elf32_Rel *rel = (Elf32_Rel*)(sr->data + sr->sh_offset);
             Elf32_Rel *rel_end = (Elf32_Rel*)(sr->data + sr->data_offset);
             for (; rel < rel_end; ++rel) {
-                int n = ((rel->r_info) >> 8) - first_sym;
-                rel->r_info = (((tr[n]) << 8) + ((((rel->r_info) & 0xff)) & 0xff));
+                int n = rel_sym(rel) - first_sym;
+                rel_set_sym_type(rel, tr[n], rel_type(rel));
             }
         }
     }
@@ -4571,8 +4600,8 @@ static void put_elf_reloca(Section *symtab, Section *s, unsigned int offset,
         s->reloc = sr;
     }
     rel = section_ptr_add(sr, sizeof(Elf32_Rel));
-    rel->r_offset = offset;
-    rel->r_info = (((symbol) << 8) + ((type) & 0xff));
+    rel_set_offset(rel, offset);
+    rel_set_sym_type(rel, symbol, type);
     if (addend)
         tcc_error("non-zero addend on REL architecture");
 }
@@ -4636,10 +4665,10 @@ static void sort_syms(TCCState *s1, Section *s)
         sr = s1->sections[i];
         if (sr->sh_type == 9 && sr->link == s) {
             for (rel = (Elf32_Rel *) sr->data + 0; rel < (Elf32_Rel *) (sr->data + sr->data_offset); rel++) {
-                sym_index = ((rel->r_info) >> 8);
-                type = ((rel->r_info) & 0xff);
+                sym_index = rel_sym(rel);
+                type = rel_type(rel);
                 sym_index = old_to_new_syms[sym_index];
-                rel->r_info = (((sym_index) << 8) + ((type) & 0xff));
+                rel_set_sym_type(rel, sym_index, type);
             }
         }
     }
@@ -4676,12 +4705,12 @@ static void relocate_section(TCCState *s1, Section *s)
     unsigned char *ptr;
     Elf32_Addr tgt, addr;
     for (rel = (Elf32_Rel *) sr->data + 0; rel < (Elf32_Rel *) (sr->data + sr->data_offset); rel++) {
-        ptr = s->data + rel->r_offset;
-        sym_index = ((rel->r_info) >> 8);
+        ptr = s->data + rel_offset(rel);
+        sym_index = rel_sym(rel);
         sym = &((Elf32_Sym *)symtab_section->data)[sym_index];
-        type = ((rel->r_info) & 0xff);
+        type = rel_type(rel);
         tgt = sym->st_value;
-        addr = s->sh_addr + rel->r_offset;
+        addr = s->sh_addr + rel_offset(rel);
         relocate(s1, rel, type, ptr, addr, tgt);
     }
     if (sr->sh_flags & (1 << 1))
@@ -4693,7 +4722,7 @@ static void relocate_rel(TCCState *s1, Section *sr)
     Elf32_Rel *rel;
     s = s1->sections[sr->sh_info];
     for (rel = (Elf32_Rel *) sr->data + 0; rel < (Elf32_Rel *) (sr->data + sr->data_offset); rel++)
-        rel->r_offset += s->sh_addr;
+        rel_add_offset(rel, s->sh_addr);
 }
 static void build_got(TCCState *s1)
 {
@@ -4770,9 +4799,9 @@ static void build_got_entries(TCCState *s1)
         if (s->link != symtab_section)
             continue;
         for (rel = (Elf32_Rel *) s->data + 0; rel < (Elf32_Rel *) (s->data + s->data_offset); rel++) {
-            type = ((rel->r_info) & 0xff);
+            type = rel_type(rel);
             gotplt_entry = gotplt_entry_type(type);
-            sym_index = ((rel->r_info) >> 8);
+            sym_index = rel_sym(rel);
             sym = &((Elf32_Sym *)symtab_section->data)[sym_index];
             if (gotplt_entry == 0) {
                 continue;
@@ -4804,7 +4833,7 @@ static void build_got_entries(TCCState *s1)
             attr = put_got_entry(s1, reloc_type, sym->st_size, sym->st_info,
                                  sym_index);
             if (reloc_type == 7)
-                rel->r_info = (((sattr_plt_sym(attr)) << 8) + ((type) & 0xff));
+                rel_set_sym_type(rel, sattr_plt_sym(attr), type);
         }
     }
 }
@@ -4853,14 +4882,14 @@ static void fill_local_got_entries(TCCState *s1)
 {
     Elf32_Rel *rel;
     for (rel = (Elf32_Rel *) s1->got->reloc->data + 0; rel < (Elf32_Rel *) (s1->got->reloc->data + s1->got->reloc->data_offset); rel++) {
-	if (((rel->r_info) & 0xff) == 8) {
-	    int sym_index = ((rel->r_info) >> 8);
+	if (rel_type(rel) == 8) {
+	    int sym_index = rel_sym(rel);
 	    Elf32_Sym *sym = &((Elf32_Sym *) symtab_section->data)[sym_index];
 	    SymAttr *attr = get_sym_attr(s1, sym_index, 0);
 	    unsigned offset = sattr_got_offset(attr);
-	    if (offset != rel->r_offset - s1->got->sh_addr)
+	    if (offset != rel_offset(rel) - s1->got->sh_addr)
 	      tcc_error("huh");
-	    rel->r_info = (((0) << 8) + ((8) & 0xff));
+	    rel_set_sym_type(rel, 0, 8);
 	    write32le(s1->got->data + offset, sym->st_value);
 	}
     }
@@ -5518,20 +5547,20 @@ static int tcc_load_object_file(TCCState *s1,
             for (rel = (Elf32_Rel *) s->data + (offset / sizeof(*rel)); rel < (Elf32_Rel *) (s->data + s->data_offset); rel++) {
                 int type;
                 unsigned sym_index;
-                type = ((rel->r_info) & 0xff);
-                sym_index = ((rel->r_info) >> 8);
+                type = rel_type(rel);
+                sym_index = rel_sym(rel);
                 if (sym_index < nb_syms)
                     sym_index = old_to_new_syms[sym_index];
                 else
                     sym_index = 0;
                 if (!sym_index) {
                     tcc_error("Invalid relocation entry [%2d] '%s' @ %.8x",
-                        i, strsec + sh->sh_name, rel->r_offset);
+                        i, strsec + sh->sh_name, rel_offset(rel));
                     failed = 1;
                     break;
                 }
-                rel->r_info = (((sym_index) << 8) + ((type) & 0xff));
-                rel->r_offset += offseti;
+                rel_set_sym_type(rel, sym_index, type);
+                rel_add_offset(rel, offseti);
             }
         }
     }
@@ -6042,7 +6071,7 @@ static void relocate_plt(TCCState *s1)
 void relocate(TCCState *s1, Elf32_Rel *rel, int type, unsigned char *ptr, Elf32_Addr addr, Elf32_Addr val)
 {
     int sym_index;
-    sym_index = ((rel->r_info) >> 8);
+    sym_index = rel_sym(rel);
     if (type == 1) {
         add32le(ptr, val);
     } else if (type == 2 || type == 4) {
