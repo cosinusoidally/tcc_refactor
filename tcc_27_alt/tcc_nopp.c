@@ -6701,11 +6701,6 @@ static int tcc_parse_args(TCCState *s, int argc, char **argv)
             exit(0);
         } else if (!strcmp(r, "-nostdlib")) {
             s->nostdlib = 1;
-        } else if (!strcmp(r, "-nostdinc")) {
-        } else if (!strncmp(r, "-B", 2)) {
-            (void)take_arg(argc, argv, &optind, r, 2);
-        } else if (!strncmp(r, "-I", 2)) {
-            (void)take_arg(argc, argv, &optind, r, 2);
         } else if (!strncmp(r, "-l", 2)) {
             optarg = take_arg(argc, argv, &optind, r, 2);
             args_parser_add_file(s, optarg, 4);
@@ -6716,9 +6711,6 @@ static int tcc_parse_args(TCCState *s, int argc, char **argv)
         } else if (!strncmp(r, "-o", 2)) {
             tcc_free(s->outfile);
             s->outfile = tcc_strdup(r + 2);
-        } else if (!strcmp(r, "-m32")) {
-        } else if (!strcmp(r, "-m64")) {
-            tcc_error("tcc_27_alt only supports i386");
         } else {
             tcc_error("unsupported option '%s'", r);
         }

@@ -7,7 +7,7 @@ cd "$ROOT"
 ROOTDIR=build/root
 RUN_I386=${RUN_I386:-./scripts/run-i386.sh}
 CC=${CC:-cc}
-TCC="$RUN_I386 $ROOTDIR/tcc -B$ROOTDIR -Iinclude -I."
+TCC="$RUN_I386 $ROOTDIR/tcc"
 OUT=build/check
 mkdir -p "$OUT"
 

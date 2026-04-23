@@ -52,8 +52,7 @@ Linux ELF. The bootstrap compiler is built with the host C compiler using
 ## No-Preprocessor Source
 
 The compiler source used for builds is `tcc_nopp.c`. It contains no
-preprocessor directive lines and is compiled with `-nostdinc` and without
-configuration `-D` flags.
+preprocessor directive lines and is compiled without configuration `-D` flags.
 
 The old split compiler source is intentionally not part of this reduced tree.
 
@@ -86,8 +85,8 @@ builds stage 3, and stage 2 and stage 3 must match byte-for-byte:
 ```text
 host cc -m32 tcc_nopp.c -nostdinc -> build/root/tcc
 stage1 = build/root/tcc
-stage1 tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage2
-stage2 tcc_nopp.c -nostdinc -> build/selfhost/tcc.stage3
+stage1 tcc_nopp.c -> build/selfhost/tcc.stage2
+stage2 tcc_nopp.c -> build/selfhost/tcc.stage3
 cmp stage2 stage3
 ```
 
