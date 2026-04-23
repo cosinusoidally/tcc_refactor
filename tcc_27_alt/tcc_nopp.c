@@ -188,7 +188,6 @@ struct TCCState {
 struct filespec {
     char name[1];
 };
-static struct TCCState *tcc_state;
 static char *pstrcpy(char *buf, int buf_size, char *s);
  char *tcc_basename(char *name);
  char *tcc_fileextension (char *name);
@@ -220,17 +219,6 @@ static int tcc_add_file_internal(TCCState *s1, char *filename, int flags);
 static int tcc_add_crt(TCCState *s, char *filename);
 static void tcc_add_library(TCCState *s, char *libraryname);
 static int tcc_parse_args(TCCState *s, int argc, char **argv);
-static struct BufferedFile *file;
-static int tok;
-static CValue tokc;
-static int pushed_tok, has_pushed_tok;
-static CValue pushed_tokc;
-static int tok_flags;
-static CString tokcstr;
-static int total_lines;
-static int total_bytes;
-static int tok_ident;
-static TokenSym **table_ident;
 static TokenSym *tok_alloc(char *str, int len);
 static char *get_tok_str(int v, CValue *cv);
 static int set_idnum(int c, int val);
