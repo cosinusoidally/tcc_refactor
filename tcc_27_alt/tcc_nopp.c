@@ -373,7 +373,7 @@ static TokenSym **table_ident;
 static TokenSym *hash_ident[16384];
 static char token_buf[1024 + 1];
 static unsigned char isidnum_table[256 - (-1)];
-static char tcc_keywords[211] =
+static char tcc_keywords[148] =
      "int" "\0"
      "void" "\0"
      "char" "\0"
@@ -389,19 +389,10 @@ static char tcc_keywords[211] =
      "continue" "\0"
      "switch" "\0"
      "case" "\0"
-     "long" "\0"
-     "register" "\0"
-     "signed" "\0"
-     "__signed" "\0"
-     "__signed__" "\0"
-     "auto" "\0"
-     "_Bool" "\0"
      "short" "\0"
      "struct" "\0"
-     "union" "\0"
      "typedef" "\0"
      "default" "\0"
-     "enum" "\0"
      "sizeof" "\0"
      "memcpy" "\0"
      "memmove" "\0"
@@ -2528,7 +2519,7 @@ static void vstore(void)
             vswap();
             vtop->type.t = 5;
             gaddrof();
-            vpush_global_sym(&func_old_type, 286);
+            vpush_global_sym(&func_old_type, 277);
             vswap();
             vpushv(vtop - 2);
             vtop->type.t = 5;
@@ -2764,7 +2755,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
             next();
             basic = 1;
             break;
-        case 278:
+        case 271:
             u = 2;
             next();
             basic = 1;
@@ -2774,7 +2765,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
             next();
             basic = 1;
             break;
-        case 279:
+        case 272:
             struct_decl(&type1, 7);
             u = type1.t;
             type->ref = type1.ref;
@@ -2801,7 +2792,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
             t |= g;
             next();
             break;
-        case 281:
+        case 273:
             g = 0x00004000;
             if (t & (0x00001000|0x00002000|0x00004000) & ~g)
                 tcc_error("multiple storage classes");
@@ -3098,7 +3089,7 @@ static void unary(void)
         vpushi(0);
         gen_op('+');
         break;
-    case 284:
+    case 275:
         next();
         in_sizeof++;
         expr_type(&type, unary);
@@ -3127,7 +3118,7 @@ static void unary(void)
     default:
         t = tok;
         next();
-        if (t <= 284)
+        if (t <= 275)
             expect("identifier");
         s = sym_find(t);
         if (!s || (((s)->type.t & (0x000f | (0 | 0x0010))) == (0 | 0x0010))) {
@@ -3781,7 +3772,7 @@ static void block(int *bsym, int *csym, int is_expr)
         if (tok != '}')
             block(bsym, csym, is_expr);
     } else
-    if (tok == 282) {
+    if (tok == 274) {
         next();
         skip(':');
         if (!cur_switch)
@@ -3830,7 +3821,7 @@ static void init_putz(Section *sec, unsigned int c, int size)
 {
     if (sec) {
     } else {
-        vpush_global_sym(&func_old_type, 287);
+        vpush_global_sym(&func_old_type, 278);
         vseti(0x0032, c);
         vpushi(0);
         vpushs(size);
@@ -4190,7 +4181,7 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
             }
             if (l != 0x0030)
                 break;
-            if (tok > 284) {
+            if (tok > 275) {
                 btype.t = 3;
             } else {
                 if (tok != (-1))

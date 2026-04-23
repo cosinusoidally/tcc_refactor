@@ -36,9 +36,9 @@ Wide string/character literals and floating-point types/constants are outside
 the subset. Ordinary byte strings and character constants remain supported.
 Compound literals are outside the subset; casts remain supported.
 64-bit integer types and operations are also outside the subset. The reduced
-dialect uses `int`/`unsigned int` for 32-bit integers; `long`, `long long`,
-explicit `signed`, `register`, `auto`, and `_Bool` spellings are reserved but
-not accepted as type or storage specifiers.
+dialect uses `int`/`unsigned int` for 32-bit integers. Unsupported type and
+storage spellings such as `long`, explicit `signed`, `register`, `auto`, and
+`_Bool` are not treated as keywords.
 
 ## Build
 
