@@ -1,3 +1,6 @@
+# NOTE THIS IS AN AI ASSISTED CODEBASE. INITIAL SCAFFOLDING WAS HUMAN GENERATED
+# A HUMAN SHOULD REVIEW ALL CODE BEFORE USE
+
 # tcc_27_alt
 
 `tcc_27_alt` is a cut-down TinyCC 0.9.27 tree for one target only:
