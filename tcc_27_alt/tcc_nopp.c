@@ -527,6 +527,22 @@ typedef struct SValue {
     CValue c;
     struct Sym *sym;
 } SValue;
+static unsigned short sv_r(SValue *sv)
+{
+    return sv->r;
+}
+static void sv_set_r(SValue *sv, unsigned short r)
+{
+    sv->r = r;
+}
+static CValue *sv_c(SValue *sv)
+{
+    return &sv->c;
+}
+static struct Sym *sv_sym(SValue *sv)
+{
+    return sv->sym;
+}
 typedef unsigned char AttributeDef;
 static int ad_ft(AttributeDef *ad)
 {
@@ -2969,8 +2985,8 @@ static void vstore(void)
                 SValue sv;
                 t = get_reg(0x0001);
                 ct_set_t(&sv.type, 3);
-                sv.r = 0x0032 | 0x0100;
-                cv_set_i(&sv.c, cv_i(&vtop[-1].c));
+                sv_set_r(&sv, 0x0032 | 0x0100);
+                cv_set_i(sv_c(&sv), cv_i(&vtop[-1].c));
                 load(t, &sv);
                 vtop[-1].r = t | 0x0100;
             }
@@ -5966,16 +5982,16 @@ static void load(int r, SValue *sv)
 {
     int v, t, ft, fc, fr;
     SValue v1;
-    fr = sv->r;
+    fr = sv_r(sv);
     ft = ct_t(&sv->type) & ~0x0020;
-    fc = cv_i(&sv->c);
+    fc = cv_i(sv_c(sv));
     ft &= ~(0x0200 | 0x0100);
     v = fr & 0x003f;
     if (fr & 0x0100) {
         if (v == 0x0031) {
             ct_set_t(&v1.type, 3);
-            v1.r = 0x0032 | 0x0100;
-            cv_set_i(&v1.c, fc);
+            sv_set_r(&v1, 0x0032 | 0x0100);
+            cv_set_i(sv_c(&v1), fc);
             fr = r;
             if (!(reg_classes[fr] & 0x0001))
                 fr = get_reg(0x0001);
@@ -5992,15 +6008,15 @@ static void load(int r, SValue *sv)
         } else {
             o(0x8b);
         }
-        gen_modrm(r, fr, sv->sym, fc);
+        gen_modrm(r, fr, sv_sym(sv), fc);
     } else {
         if (v == 0x0030) {
             o(0xb8 + r);
-            gen_addr32(fr, sv->sym, fc);
+            gen_addr32(fr, sv_sym(sv), fc);
         } else if (v == 0x0032) {
             if (fc) {
                 o(0x8d);
-                gen_modrm(r, 0x0032, sv->sym, fc);
+                gen_modrm(r, 0x0032, sv_sym(sv), fc);
             } else {
                 o(0x89);
                 o(0xe8 + r);
@@ -6026,8 +6042,8 @@ static void store(int r, SValue *v)
 {
     int fr, bt, ft, fc;
     ft = ct_t(&v->type);
-    fc = cv_i(&v->c);
-    fr = v->r & 0x003f;
+    fc = cv_i(sv_c(v));
+    fr = sv_r(v) & 0x003f;
     ft &= ~(0x0200 | 0x0100);
     bt = ft & 0x000f;
     if (bt == 2)
@@ -6038,8 +6054,8 @@ static void store(int r, SValue *v)
         o(0x89);
     if (fr == 0x0030 ||
         fr == 0x0032 ||
-        (v->r & 0x0100)) {
-        gen_modrm(r, v->r, v->sym, fc);
+        (sv_r(v) & 0x0100)) {
+        gen_modrm(r, sv_r(v), sv_sym(v), fc);
     } else if (fr != r) {
         o(0xc0 + fr + r * 8);
     }
