@@ -5155,34 +5155,34 @@ static void *load_data(int fd, unsigned int file_offset, unsigned int size)
     read(fd, data, size);
     return data;
 }
-typedef struct SectionMergeInfo {
-    Section *s;
-    unsigned int offset;
-    uint8_t new_section;
-} SectionMergeInfo;
+typedef unsigned int SectionMergeInfo;
+static SectionMergeInfo *smi_at(SectionMergeInfo *table, int index)
+{
+    return table + index * 3;
+}
 static Section *smi_s(SectionMergeInfo *sm)
 {
-    return sm->s;
+    return (Section *)sm[0];
 }
 static void smi_set_s(SectionMergeInfo *sm, Section *s)
 {
-    sm->s = s;
+    sm[0] = (unsigned int)s;
 }
 static unsigned int smi_offset(SectionMergeInfo *sm)
 {
-    return sm->offset;
+    return sm[1];
 }
 static void smi_set_offset(SectionMergeInfo *sm, unsigned int offset)
 {
-    sm->offset = offset;
+    sm[1] = offset;
 }
 static int smi_new_section(SectionMergeInfo *sm)
 {
-    return sm->new_section;
+    return sm[2];
 }
 static void smi_set_new_section(SectionMergeInfo *sm, int val)
 {
-    sm->new_section = val;
+    sm[2] = val;
 }
 static int tcc_object_type(int fd, Elf32_Ehdr *h)
 {
@@ -5215,7 +5215,7 @@ static int tcc_load_object_file(TCCState *s1,
     }
     shdr = load_data(fd, file_offset + ehdr.e_shoff,
                      sizeof(Elf32_Shdr) * ehdr.e_shnum);
-    sm_table = tcc_mallocz(sizeof(SectionMergeInfo) * ehdr.e_shnum);
+    sm_table = tcc_mallocz(sizeof(SectionMergeInfo) * ehdr.e_shnum * 3);
     sh = &shdr[ehdr.e_shstrndx];
     strsec = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
     old_to_new_syms = ((void*)0);
@@ -5234,7 +5234,7 @@ static int tcc_load_object_file(TCCState *s1,
             }
             nb_syms = sh->sh_size / sizeof(Elf32_Sym);
             symtab = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
-            smi_set_s(&sm_table[i], symtab_section);
+            smi_set_s(smi_at(sm_table, i), symtab_section);
             sh = &shdr[sh->sh_link];
             strtab = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
         }
@@ -5266,7 +5266,7 @@ static int tcc_load_object_file(TCCState *s1,
             s = new_section(s1, sh_name, sh->sh_type, sh->sh_flags & ~(1 << 9));
             s->sh_addralign = sh->sh_addralign;
             s->sh_entsize = sh->sh_entsize;
-            smi_set_new_section(&sm_table[i], 1);
+            smi_set_new_section(smi_at(sm_table, i), 1);
         }
         if (sh->sh_type != s->sh_type) {
             tcc_error("invalid section type");
@@ -5279,8 +5279,8 @@ static int tcc_load_object_file(TCCState *s1,
         if (sh->sh_addralign > s->sh_addralign)
             s->sh_addralign = sh->sh_addralign;
         s->data_offset = offset;
-        smi_set_offset(&sm_table[i], offset);
-        smi_set_s(&sm_table[i], s);
+        smi_set_offset(smi_at(sm_table, i), offset);
+        smi_set_s(smi_at(sm_table, i), s);
         size = sh->sh_size;
         if (sh->sh_type != 8) {
             unsigned char *ptr;
@@ -5292,25 +5292,25 @@ static int tcc_load_object_file(TCCState *s1,
         }
     }
     for(i = 1; !failed && i < ehdr.e_shnum; i++) {
-        s = smi_s(&sm_table[i]);
-        if (!s || !smi_new_section(&sm_table[i]))
+        s = smi_s(smi_at(sm_table, i));
+        if (!s || !smi_new_section(smi_at(sm_table, i)))
             continue;
         sh = &shdr[i];
         if (sh->sh_link > 0)
-            s->link = smi_s(&sm_table[sh->sh_link]);
+            s->link = smi_s(smi_at(sm_table, sh->sh_link));
         if (sh->sh_type == 9) {
-            s->sh_info = smi_s(&sm_table[sh->sh_info])->sh_num;
+            s->sh_info = smi_s(smi_at(sm_table, sh->sh_info))->sh_num;
             s1->sections[s->sh_info]->reloc = s;
         }
     }
-    sm = sm_table;
+    sm = smi_at(sm_table, 0);
     old_to_new_syms = tcc_mallocz(nb_syms * sizeof(int));
     if (!failed && nb_syms) {
         sym = symtab + 1;
         for(i = 1; i < nb_syms; i++, sym++) {
             if (sym->st_shndx != 0 &&
                 sym->st_shndx < 0xff00) {
-                sm = &sm_table[sym->st_shndx];
+                sm = smi_at(sm_table, sym->st_shndx);
                 if (!smi_s(sm))
                     continue;
                 sym->st_shndx = smi_s(sm)->sh_num;
@@ -5324,13 +5324,13 @@ static int tcc_load_object_file(TCCState *s1,
         }
     }
     for(i = 1; !failed && i < ehdr.e_shnum; i++) {
-        s = smi_s(&sm_table[i]);
+        s = smi_s(smi_at(sm_table, i));
         if (!s)
             continue;
         sh = &shdr[i];
-        offset = smi_offset(&sm_table[i]);
+        offset = smi_offset(smi_at(sm_table, i));
         if (s->sh_type == 9) {
-            offseti = smi_offset(&sm_table[sh->sh_info]);
+            offseti = smi_offset(smi_at(sm_table, sh->sh_info));
             for (rel = (Elf32_Rel *) s->data + (offset / sizeof(*rel)); rel < (Elf32_Rel *) (s->data + s->data_offset); rel++) {
                 int type;
                 unsigned sym_index;
