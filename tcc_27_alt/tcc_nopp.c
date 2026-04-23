@@ -82,13 +82,6 @@ typedef struct {
     Elf32_Addr d_ptr;
   } d_un;
 } Elf32_Dyn;
-enum {
-    TREG_EAX = 0,
-    TREG_ECX,
-    TREG_EDX,
-    TREG_EBX,
-    TREG_ESP = 4
-};
 typedef struct TokenSym {
     struct TokenSym *hash_next;
     struct Sym *sym_label;
@@ -139,7 +132,6 @@ typedef struct Sym {
                 struct FuncAttr f;
             };
         };
-        int enum_val;
         int *d;
     };
     CType type;
@@ -220,42 +212,6 @@ struct TCCState {
 struct filespec {
     char type;
     char name[1];
-};
-enum tcc_token {
-    TOK_LAST = 256 - 1
-     ,TOK_INT
-     ,TOK_VOID
-     ,TOK_CHAR
-     ,TOK_IF
-     ,TOK_ELSE
-     ,TOK_WHILE
-     ,TOK_BREAK
-     ,TOK_RETURN
-     ,TOK_FOR
-     ,TOK_EXTERN
-     ,TOK_STATIC
-     ,TOK_UNSIGNED
-     ,TOK_GOTO
-     ,TOK_CONTINUE
-     ,TOK_SWITCH
-     ,TOK_CASE
-     ,TOK_LONG
-     ,TOK_REGISTER
-     ,TOK_SIGNED1
-     ,TOK_SIGNED2
-     ,TOK_SIGNED3
-     ,TOK_AUTO
-     ,TOK_BOOL
-     ,TOK_SHORT
-     ,TOK_STRUCT
-     ,TOK_UNION
-     ,TOK_TYPEDEF
-     ,TOK_DEFAULT
-     ,TOK_ENUM
-     ,TOK_SIZEOF
-     ,TOK_memcpy
-     ,TOK_memmove
-     ,TOK_memset
 };
 static struct TCCState *tcc_state;
 static char *pstrcpy(char *buf, int buf_size, char *s);
@@ -416,12 +372,6 @@ static struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc);
 static Elf32_Addr get_elf_sym_addr(TCCState *s, char *name, int err);
 static uint8_t *parse_comment(uint8_t *p);
 static int handle_eob(void);
-enum gotplt_entry {
-    NO_GOTPLT_ENTRY,
-    BUILD_GOT_ONLY,
-    AUTO_GOTPLT_ENTRY,
-    ALWAYS_GOTPLT_ENTRY
-};
 static int code_reloc (int reloc_type);
 static int gotplt_entry_type (int reloc_type);
 static unsigned create_plt_entry(TCCState *s1, unsigned got_offset, struct sym_attr *attr);
@@ -2556,8 +2506,6 @@ static int type_size(CType *type, int *a)
             *a = 4;
             return 4;
         }
-    } else if (((type->t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20)) && type->ref->c == -1) {
-        return -1;
     } else if (bt == 3) {
         *a = 4;
         return 4;
@@ -2671,9 +2619,7 @@ static void gen_assign_cast(CType *dt)
             (type2->t & 0x000f) == 0) {
         } else {
             if (!is_compatible_types(type1, type2)) {
-			if ((type1->t & 0x000f) != (type2->t & 0x000f)
-                    || ((type1->t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20)) || ((type2->t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20))
-                    )
+			if ((type1->t & 0x000f) != (type2->t & 0x000f))
                 ;
 		    }
 	        }
@@ -2720,7 +2666,7 @@ static void vstore(void)
             vswap();
             vtop->type.t = 5;
             gaddrof();
-            vpush_global_sym(&func_old_type, TOK_memmove);
+            vpush_global_sym(&func_old_type, 287);
             vswap();
             vpushv(vtop - 2);
             vtop->type.t = 5;
@@ -2856,19 +2802,17 @@ static void struct_decl(CType *type, int u)
         v = tok;
         next();
         if (v < 256)
-            expect("struct/union/enum name");
+            expect("struct/union name");
         s = struct_find(v);
         if (s && (s->sym_scope == local_scope || tok != '{')) {
             if (u == s->type.t)
-                goto do_decl;
-            if (u == (2 << 20) && ((s->type.t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20)))
                 goto do_decl;
             tcc_error("redefinition of '%s'", get_tok_str(v, ((void*)0)));
         }
     } else {
         v = anon_sym++;
     }
-    type1.t = u == (2 << 20) ? u | 3 | 0x0010 : u;
+    type1.t = u;
     type1.ref = ((void*)0);
     s = sym_push(v | 0x40000000, &type1, 0, -1);
     s->r = 0;
@@ -2878,60 +2822,9 @@ do_decl:
     if (tok == '{') {
         next();
         if (s->c != -1)
-            tcc_error("struct/union/enum already defined");
+            tcc_error("struct/union already defined");
         ps = &s->next;
-        if (u == (2 << 20)) {
-            int ll = 0, pl = 0, nl = 0;
-	    CType t;
-            t.ref = s;
-            t.t = 3|0x00002000|(3 << 20);
-            for(;;) {
-                v = tok;
-                if (v <= TOK_SIZEOF)
-                    expect("identifier");
-                ss = sym_find(v);
-                if (ss && !local_stack)
-                    tcc_error("redefinition of enumerator '%s'",
-                              get_tok_str(v, ((void*)0)));
-                next();
-                if (tok == '=') {
-                    next();
-			    ll = expr_const();
-                }
-                ss = sym_push(v, &t, 0x0030, 0);
-                ss->enum_val = ll;
-                *ps = ss, ps = &ss->next;
-                if (ll < nl)
-                    nl = ll;
-                if (ll > pl)
-                    pl = ll;
-                if (tok != ',')
-                    break;
-                next();
-                ll++;
-                if (tok == '}')
-                    break;
-            }
-            skip('}');
-            t.t = 3;
-            if (nl >= 0) {
-                t.t |= 0x0010;
-            }
-            s->type.t = type->t = t.t | (2 << 20);
-            s->c = 0;
-            for (ss = s->next; ss; ss = ss->next) {
-                ll = ss->enum_val;
-                if (ll == (int)ll)
-                    continue;
-                if (t.t & 0x0010) {
-                    ss->type.t |= 0x0010;
-                    if (ll == (unsigned)ll)
-                        continue;
-                }
-	                ss->type.t = (ss->type.t & ~0x000f) | 3;
-            }
-        } else {
-            while (tok != '}') {
+        while (tok != '}') {
                 if (!parse_btype(&btype, &ad1)) {
 		    skip(';');
 		    continue;
@@ -2977,10 +2870,9 @@ do_decl:
                     skip(',');
                 }
                 skip(';');
-            }
-            skip('}');
-	    struct_layout(type, &ad);
         }
+        skip('}');
+        struct_layout(type, &ad);
     }
 }
 static void sym_to_attr(AttributeDef *ad, Sym *s)
@@ -3001,7 +2893,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
     type->ref = ((void*)0);
     while(1) {
         switch(tok) {
-        case TOK_CHAR:
+        case 258:
             u = 1;
         basic_type:
             next();
@@ -3019,61 +2911,59 @@ static int parse_btype(CType *type, AttributeDef *ad)
                 t = (t & ~0x000f) | u;
             typespec_found = 1;
             break;
-        case TOK_VOID:
+        case 257:
             u = 0;
             goto basic_type;
-        case TOK_SHORT:
+        case 279:
             u = 2;
             goto basic_type;
-        case TOK_INT:
+        case 256:
             u = 3;
             goto basic_type;
-        case TOK_LONG:
+        case 272:
             next();
             typespec_found = 1;
             break;
-        case TOK_BOOL:
+        case 278:
             u = 11;
             goto basic_type;
-        case TOK_ENUM:
-            struct_decl(&type1, (2 << 20));
+        case 280:
+            struct_decl(&type1, 7);
         basic_type2:
             u = type1.t;
             type->ref = type1.ref;
             goto basic_type1;
-        case TOK_STRUCT:
-            struct_decl(&type1, 7);
             goto basic_type2;
-        case TOK_UNION:
+        case 281:
             struct_decl(&type1, (1 << 20 | 7));
             goto basic_type2;
-        case TOK_SIGNED1:
-        case TOK_SIGNED2:
-        case TOK_SIGNED3:
+        case 274:
+        case 275:
+        case 276:
             if ((t & (0x0020|0x0010)) == (0x0020|0x0010))
                 tcc_error("signed and unsigned modifier");
             t |= 0x0020;
             next();
             typespec_found = 1;
             break;
-        case TOK_REGISTER:
-        case TOK_AUTO:
+        case 273:
+        case 277:
             next();
             break;
-        case TOK_UNSIGNED:
+        case 267:
             if ((t & (0x0020|0x0010)) == 0x0020)
                 tcc_error("signed and unsigned modifier");
             t |= 0x0020 | 0x0010;
             next();
             typespec_found = 1;
             break;
-        case TOK_EXTERN:
+        case 265:
             g = 0x00001000;
             goto storage;
-        case TOK_STATIC:
+        case 266:
             g = 0x00002000;
             goto storage;
-        case TOK_TYPEDEF:
+        case 282:
             g = 0x00004000;
             goto storage;
        storage:
@@ -3357,7 +3247,7 @@ static void unary(void)
         vpushi(0);
         gen_op('+');
         break;
-    case TOK_SIZEOF:
+    case 285:
         next();
         in_sizeof++;
         expr_type(&type, unary);
@@ -3386,7 +3276,7 @@ static void unary(void)
     default:
         t = tok;
         next();
-        if (t <= TOK_SIZEOF)
+        if (t <= 285)
             expect("identifier");
         s = sym_find(t);
         if (!s || (((s)->type.t & (0x000f | (0 | 0x0010))) == (0 | 0x0010))) {
@@ -3402,8 +3292,6 @@ static void unary(void)
 	vtop->sym = s;
         if (r & 0x0200) {
             vtop->c.i = 0;
-        } else if (r == 0x0030 && ((s->type.t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (3 << 20))) {
-            vtop->c.i = s->enum_val;
         }
         break;
     }
@@ -3459,7 +3347,7 @@ static void unary(void)
             if ((s->type.t & 0x000f) == 7)
                 tcc_error("struct return values are not supported in tcc_27_alt");
             ret.type = s->type;
-            ret.r = TREG_EAX;
+            ret.r = 0;
             ret.c.i = 0;
             if (tok != ')') {
                 for(;;) {
@@ -3804,7 +3692,7 @@ static int expr_const(void)
 static int is_label(void)
 {
     int last_tok;
-    if (tok <= TOK_SIZEOF)
+    if (tok <= 285)
         return 0;
     last_tok = tok;
     next();
@@ -3880,7 +3768,7 @@ static void block(int *bsym, int *csym, int is_expr)
         vpushi(0);
         vtop->type.t = 0;
     }
-    if (tok == TOK_IF) {
+    if (tok == 259) {
 	int saved_nocode_wanted = nocode_wanted;
         next();
         skip('(');
@@ -3897,7 +3785,7 @@ static void block(int *bsym, int *csym, int is_expr)
 	if (cond != 1)
 	    nocode_wanted = saved_nocode_wanted;
         c = tok;
-        if (c == TOK_ELSE) {
+        if (c == 260) {
             next();
             d = gjmp(0);
             gsym(a);
@@ -3909,7 +3797,7 @@ static void block(int *bsym, int *csym, int is_expr)
 		nocode_wanted = saved_nocode_wanted;
         } else
             gsym(a);
-    } else if (tok == TOK_WHILE) {
+    } else if (tok == 261) {
 	int saved_nocode_wanted;
 	nocode_wanted &= ~0x20000000;
         next();
@@ -3948,7 +3836,7 @@ static void block(int *bsym, int *csym, int is_expr)
         --local_scope;
 	sym_pop(&local_stack, s, is_expr);
         next();
-    } else if (tok == TOK_RETURN) {
+    } else if (tok == 263) {
         next();
         if (tok != ';') {
             gexpr();
@@ -3962,20 +3850,20 @@ static void block(int *bsym, int *csym, int is_expr)
         if (tok != '}' || local_scope != 1)
             rsym = gjmp(rsym);
 	nocode_wanted |= 0x20000000;
-    } else if (tok == TOK_BREAK) {
+    } else if (tok == 262) {
         if (!bsym)
             tcc_error("cannot break");
         *bsym = gjmp(*bsym);
         next();
         skip(';');
 	nocode_wanted |= 0x20000000;
-    } else if (tok == TOK_CONTINUE) {
+    } else if (tok == 269) {
         if (!csym)
             tcc_error("cannot continue");
         *csym = gjmp(*csym);
         next();
         skip(';');
-    } else if (tok == TOK_FOR) {
+    } else if (tok == 264) {
         int e;
 	int saved_nocode_wanted;
 	nocode_wanted &= ~0x20000000;
@@ -4017,7 +3905,7 @@ static void block(int *bsym, int *csym, int is_expr)
         --local_scope;
         sym_pop(&local_stack, s, 0);
     } else
-    if (tok == TOK_SWITCH) {
+    if (tok == 270) {
         struct switch_t *saved, sw;
 	int saved_nocode_wanted = nocode_wanted;
 	SValue switchval;
@@ -4048,7 +3936,7 @@ static void block(int *bsym, int *csym, int is_expr)
         cur_switch = saved;
         gsym(a);
     } else
-    if (tok == TOK_CASE) {
+    if (tok == 271) {
         struct case_t *cr = tcc_malloc(sizeof(struct case_t));
         if (!cur_switch)
             expect("switch");
@@ -4061,7 +3949,7 @@ static void block(int *bsym, int *csym, int is_expr)
         is_expr = 0;
         goto block_after_label;
     } else
-    if (tok == TOK_DEFAULT) {
+    if (tok == 283) {
         next();
         skip(':');
         if (!cur_switch)
@@ -4072,9 +3960,9 @@ static void block(int *bsym, int *csym, int is_expr)
         is_expr = 0;
         goto block_after_label;
     } else
-    if (tok == TOK_GOTO) {
+    if (tok == 268) {
         next();
-        if (tok > TOK_SIZEOF) {
+        if (tok > 285) {
             s = label_find(tok);
             if (!s) {
                 s = label_push(&global_label_stack, tok, 1);
@@ -4150,7 +4038,7 @@ static void init_putz(Section *sec, unsigned long c, int size)
 {
     if (sec) {
     } else {
-        vpush_global_sym(&func_old_type, TOK_memset);
+        vpush_global_sym(&func_old_type, 288);
         vseti(0x0032, c);
         vpushi(0);
         vpushs(size);
@@ -4501,7 +4389,7 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
             }
             if (l != 0x0030)
                 break;
-            if (tok > TOK_SIZEOF) {
+            if (tok > 285) {
                 btype.t = 3;
             } else {
                 if (tok != (-1))
@@ -4514,10 +4402,6 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
                 next();
 	                continue;
 		    }
-            if (((btype.t & (((1 << (6+6)) - 1) << 20 | 0x0080)) == (2 << 20))) {
-                next();
-                continue;
-            }
         }
         while (1) {
             type = btype;
@@ -5189,10 +5073,10 @@ static void build_got_entries(TCCState *s1)
             gotplt_entry = gotplt_entry_type(type);
             sym_index = ((rel->r_info) >> 8);
             sym = &((Elf32_Sym *)symtab_section->data)[sym_index];
-            if (gotplt_entry == NO_GOTPLT_ENTRY) {
+            if (gotplt_entry == 0) {
                 continue;
             }
-            if (gotplt_entry == AUTO_GOTPLT_ENTRY) {
+            if (gotplt_entry == 2) {
                 if (sym->st_shndx == 0) {
                     Elf32_Sym *esym;
 		    int dynindex;
@@ -5215,7 +5099,7 @@ static void build_got_entries(TCCState *s1)
                 reloc_type = 6;
             if (!s1->got)
                 build_got(s1);
-            if (gotplt_entry == BUILD_GOT_ONLY)
+            if (gotplt_entry == 1)
                 continue;
             attr = put_got_entry(s1, reloc_type, sym->st_size, sym->st_info,
                                  sym_index);
@@ -6359,12 +6243,12 @@ static void gen_opi(int op)
         r = vtop[-1].r;
         fr = vtop[0].r;
         vtop--;
-        save_reg(TREG_EDX);
-        save_reg_upstack(TREG_EAX, 1);
+        save_reg(2);
+        save_reg_upstack(0, 1);
         if (op == 0xc2) {
             o(0xf7);
             o(0xe0 + fr);
-            r = TREG_EAX;
+            r = 0;
         } else {
             if (op == 0xb0 || op == 0xb1) {
                 o(0xf7d231);
@@ -6374,9 +6258,9 @@ static void gen_opi(int op)
                 o(0xf8 + fr);
             }
             if (op == '%' || op == 0xb1)
-                r = TREG_EDX;
+                r = 2;
             else
-                r = TREG_EAX;
+                r = 0;
         }
         vtop->r = r;
         break;
@@ -6415,19 +6299,19 @@ int gotplt_entry_type (int reloc_type)
 	case 6:
 	case 7:
 	case 5:
-            return NO_GOTPLT_ENTRY;
+            return 0;
         case 1:
-            return AUTO_GOTPLT_ENTRY;
+            return 2;
 	case 21:
 	case 2:
-            return AUTO_GOTPLT_ENTRY;
+            return 2;
 	case 10:
 	case 9:
-            return BUILD_GOT_ONLY;
+            return 1;
 	case 3:
 	case 43:
 	case 4:
-            return ALWAYS_GOTPLT_ENTRY;
+            return 3;
     }
     tcc_error ("Unknown relocation type: %d", reloc_type);
     return -1;
