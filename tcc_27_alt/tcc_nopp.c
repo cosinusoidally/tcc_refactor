@@ -159,18 +159,14 @@ typedef struct Section {
     struct Section *prev;
     char name[1];
 } Section;
-typedef struct DLLReference {
-    int level;
-    void *handle;
-    char name[1];
-} DLLReference;
+typedef char DLLReference;
 static int dllr_level(DLLReference *d)
 {
-    return d->level;
+    return 0;
 }
 static char *dllr_name(DLLReference *d)
 {
-    return d->name;
+    return d;
 }
 typedef struct BufferedFile {
     uint8_t *buf_ptr;
@@ -202,17 +198,10 @@ struct TCCState {
     Section *symtab;
     struct sym_attr *sym_attrs;
     int nb_sym_attrs;
-    struct filespec **files;
+    char **files;
     int nb_files;
     char *outfile;
 };
-struct filespec {
-    char name[1];
-};
-static char *fs_name(struct filespec *f)
-{
-    return f->name;
-}
 static char *pstrcpy(char *buf, int buf_size, char *s);
  char *tcc_basename(char *name);
  char *tcc_fileextension (char *name);
@@ -6124,8 +6113,7 @@ static void tcc_add_needed_dll(TCCState *s, char *soname)
         if (!strcmp(soname, dllr_name(dllref)))
             return;
     }
-    dllref = tcc_mallocz(sizeof(DLLReference) + strlen(soname));
-    strcpy(dllr_name(dllref), soname);
+    dllref = tcc_strdup(soname);
     dynarray_add(&s->loaded_dlls, &s->nb_loaded_dlls, dllref);
 }
 static void tcc_add_library(TCCState *s, char *libraryname)
@@ -6141,8 +6129,7 @@ static void tcc_add_library(TCCState *s, char *libraryname)
 }
 static void args_parser_add_file(TCCState *s, char* filename)
 {
-    struct filespec *f = tcc_malloc(sizeof *f + strlen(filename));
-    strcpy(fs_name(f), filename);
+    char *f = tcc_strdup(filename);
     dynarray_add(&s->files, &s->nb_files, f);
 }
 static char *take_arg(int argc, char **argv, int *optind,
@@ -6221,9 +6208,9 @@ int main(int argc0, char **argv0)
         tcc_add_crt(s, "crt1.o");
         tcc_add_crt(s, "crti.o");
     }
-    first_file = fs_name(s->files[0]);
+    first_file = s->files[0];
     for (i = 0; i < s->nb_files; ++i)
-        tcc_add_file(s, fs_name(s->files[i]));
+        tcc_add_file(s, s->files[i]);
     if (!s->outfile)
         s->outfile = default_outputfile(s, first_file);
     elf_output_file(s, s->outfile);
