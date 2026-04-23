@@ -3105,23 +3105,12 @@ static void unary(void)
         if (parse_btype(&type, &ad)) {
             type_decl(&type, &ad, &n, 1);
             skip(')');
-            if (tok == '{') {
-                if (global_expr)
-                    r = 0x0030;
-                else
-                    r = 0x0032;
-                if (!(type.t & 0x0040))
-                    r |= lvalue_type(type.t);
-                memset(&ad, 0, sizeof(AttributeDef));
-                decl_initializer_alloc(&type, &ad, r, 1, 0, 0);
-            } else {
-                if (sizeof_caller) {
-                    vpush(&type);
-                    return;
-                }
-                unary();
-                gen_cast(&type);
+            if (sizeof_caller) {
+                vpush(&type);
+                return;
             }
+            unary();
+            gen_cast(&type);
         } else {
             gexpr();
             skip(')');
