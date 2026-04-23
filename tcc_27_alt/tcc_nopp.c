@@ -3888,7 +3888,9 @@ static void block(int *bsym, int *csym, int is_expr)
         dynarray_add(&cur_switch->p, &cur_switch->n, cr);
         skip(':');
         is_expr = 0;
-        goto block_after_label;
+	nocode_wanted &= ~0x20000000;
+        if (tok != '}')
+            block(bsym, csym, is_expr);
     } else
     if (tok == 283) {
         next();
@@ -3899,7 +3901,9 @@ static void block(int *bsym, int *csym, int is_expr)
             tcc_error("too many 'default'");
         cur_switch->def_sym = ind;
         is_expr = 0;
-        goto block_after_label;
+	nocode_wanted &= ~0x20000000;
+        if (tok != '}')
+            block(bsym, csym, is_expr);
     } else
     if (tok == 268) {
         next();
@@ -3934,7 +3938,6 @@ static void block(int *bsym, int *csym, int is_expr)
                 s = label_push(&global_label_stack, b, 0);
             }
             s->jnext = ind;
-        block_after_label:
 	    nocode_wanted &= ~0x20000000;
             if (tok != '}') {
                 if (is_expr)
@@ -4735,54 +4738,60 @@ static int set_elf_sym(Section *s, Elf32_Addr value, unsigned int size,
     sym_vis = ((other) & 0x03);
     if (sym_bind != 0) {
         sym_index = find_elf_sym(s, name);
-        if (!sym_index)
-            goto do_def;
-        esym = &((Elf32_Sym *)s->data)[sym_index];
-        if (esym->st_value == value && esym->st_size == size && esym->st_info == info
-            && esym->st_other == other && esym->st_shndx == shndx)
-            return sym_index;
-        if (esym->st_shndx != 0) {
-            esym_bind = (((unsigned char) (esym->st_info)) >> 4);
-            esym_vis = ((esym->st_other) & 0x03);
-            if (esym_vis == 0) {
-                new_vis = sym_vis;
-            } else if (sym_vis == 0) {
-                new_vis = esym_vis;
+        if (sym_index) {
+            int patch = 0;
+            esym = &((Elf32_Sym *)s->data)[sym_index];
+            if (esym->st_value == value && esym->st_size == size && esym->st_info == info
+                && esym->st_other == other && esym->st_shndx == shndx)
+                return sym_index;
+            if (esym->st_shndx != 0) {
+                esym_bind = (((unsigned char) (esym->st_info)) >> 4);
+                esym_vis = ((esym->st_other) & 0x03);
+                if (esym_vis == 0) {
+                    new_vis = sym_vis;
+                } else if (sym_vis == 0) {
+                    new_vis = esym_vis;
+                } else {
+                    new_vis = (esym_vis < sym_vis) ? esym_vis : sym_vis;
+                }
+                esym->st_other = (esym->st_other & ~((-1) & 0x03))
+                                 | new_vis;
+                other = esym->st_other;
+                if (shndx == 0) {
+                } else if (sym_bind == 1 && esym_bind == 2) {
+                    patch = 1;
+                } else if (sym_bind == 2 && esym_bind == 1) {
+                } else if (sym_bind == 2 && esym_bind == 2) {
+                } else if (sym_vis == 2 || sym_vis == 1) {
+                } else if ((esym->st_shndx == 0xfff2
+                                || esym->st_shndx == bss_section->sh_num)
+                            && (shndx < 0xff00
+                                && shndx != bss_section->sh_num)) {
+                    patch = 1;
+                } else if (shndx == 0xfff2 || shndx == bss_section->sh_num) {
+                } else if (s->sh_flags & 0x40000000) {
+	        } else if (esym->st_other & 0x04) {
+		    patch = 1;
+                } else {
+                    tcc_error_noabort("'%s' defined twice", name);
+                }
             } else {
-                new_vis = (esym_vis < sym_vis) ? esym_vis : sym_vis;
+                patch = 1;
             }
-            esym->st_other = (esym->st_other & ~((-1) & 0x03))
-                             | new_vis;
-            other = esym->st_other;
-            if (shndx == 0) {
-            } else if (sym_bind == 1 && esym_bind == 2) {
-                goto do_patch;
-            } else if (sym_bind == 2 && esym_bind == 1) {
-            } else if (sym_bind == 2 && esym_bind == 2) {
-            } else if (sym_vis == 2 || sym_vis == 1) {
-            } else if ((esym->st_shndx == 0xfff2
-                            || esym->st_shndx == bss_section->sh_num)
-                        && (shndx < 0xff00
-                            && shndx != bss_section->sh_num)) {
-                goto do_patch;
-            } else if (shndx == 0xfff2 || shndx == bss_section->sh_num) {
-            } else if (s->sh_flags & 0x40000000) {
-	    } else if (esym->st_other & 0x04) {
-		goto do_patch;
-            } else {
-                tcc_error_noabort("'%s' defined twice", name);
+            if (patch) {
+                esym->st_info = (((sym_bind) << 4) + ((sym_type) & 0xf));
+                esym->st_shndx = shndx;
+                new_undef_sym = 1;
+                esym->st_value = value;
+                esym->st_size = size;
+                esym->st_other = other;
             }
         } else {
-        do_patch:
-            esym->st_info = (((sym_bind) << 4) + ((sym_type) & 0xf));
-            esym->st_shndx = shndx;
-            new_undef_sym = 1;
-            esym->st_value = value;
-            esym->st_size = size;
-            esym->st_other = other;
+            sym_index = put_elf_sym(s, value, size,
+                                    (((sym_bind) << 4) + ((sym_type) & 0xf)), other,
+                                    shndx, name);
         }
     } else {
-    do_def:
         sym_index = put_elf_sym(s, value, size,
                                 (((sym_bind) << 4) + ((sym_type) & 0xf)), other,
                                 shndx, name);
@@ -4888,20 +4897,17 @@ static void relocate_syms(TCCState *s1, Section *symtab, int do_resolve)
         sh_num = sym->st_shndx;
         if (sh_num == 0) {
             name = (char *) s1->symtab->link->data + sym->st_name;
-            if (do_resolve) {
-            } else if (s1->dynsym && find_elf_sym(s1->dynsym, name))
-                goto found;
-            if (!strcmp(name, "_fp_hw"))
-                goto found;
-            sym_bind = (((unsigned char) (sym->st_info)) >> 4);
-            if (sym_bind == 2)
-                sym->st_value = 0;
-            else
-                tcc_error_noabort("undefined symbol '%s'", name);
+            if (!(!do_resolve && s1->dynsym && find_elf_sym(s1->dynsym, name)) &&
+                strcmp(name, "_fp_hw")) {
+                sym_bind = (((unsigned char) (sym->st_info)) >> 4);
+                if (sym_bind == 2)
+                    sym->st_value = 0;
+                else
+                    tcc_error_noabort("undefined symbol '%s'", name);
+            }
         } else if (sh_num < 0xff00) {
             sym->st_value += s1->sections[sym->st_shndx]->sh_addr;
         }
-    found: ;
     }
 }
 static void relocate_section(TCCState *s1, Section *s)
@@ -5015,6 +5021,7 @@ static void build_got_entries(TCCState *s1)
                 continue;
             }
             if (gotplt_entry == 2) {
+                int use_jmp_slot = 0;
                 if (sym->st_shndx == 0) {
                     Elf32_Sym *esym;
 		    int dynindex;
@@ -5025,16 +5032,14 @@ static void build_got_entries(TCCState *s1)
 			    && (((esym->st_info) & 0xf) == 2
 				|| (((esym->st_info) & 0xf) == 0
 				    && ((sym->st_info) & 0xf) == 2)))
-			    goto jmp_slot;
+			    use_jmp_slot = 1;
 		    }
 	                } else
 	                    continue;
+                reloc_type = use_jmp_slot || code_reloc(type) ? 7 : 6;
+            } else {
+                reloc_type = code_reloc(type) ? 7 : 6;
             }
-            if (code_reloc(type)) {
-            jmp_slot:
-                reloc_type = 7;
-            } else
-                reloc_type = 6;
             if (!s1->got)
                 build_got(s1);
             if (gotplt_entry == 1)
