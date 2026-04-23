@@ -2209,13 +2209,13 @@ static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
     s = sym_find(v);
     if (!s) {
         s = sym_push(v, type, r | 0x0030 | 0x0200, 0);
-        s->type.t |= 0x00001000;
+        ct_or_t(&s->type, 0x00001000);
         s->sym_scope = 0;
     } else {
-        if (s->type.ref == func_old_type.ref) {
-            s->type.ref = type->ref;
+        if (ct_ref(&s->type) == ct_ref(&func_old_type)) {
+            ct_set_ref(&s->type, ct_ref(type));
             s->r = r | 0x0030 | 0x0200;
-            s->type.t |= 0x00001000;
+            ct_or_t(&s->type, 0x00001000);
         }
         patch_storage(s, ad, type);
     }
@@ -2255,7 +2255,8 @@ static void save_reg_upstack(int r, int n)
                     type = &int_type;
                 size = type_size(type, &align);
                 loc = (loc - size) & -align;
-                sv.type.t = type->t;
+                ct_set_t(&sv.type, ct_t(type));
+                ct_set_ref(&sv.type, ct_ref(type));
                 sv.r = 0x0032 | 0x0100;
                 cv_set_i(&sv.c, loc);
                 store(r, &sv);
@@ -2265,7 +2266,7 @@ static void save_reg_upstack(int r, int n)
             if (p->r & 0x0100) {
                 p->r = (p->r & ~(0x003f | 0x8000)) | 0x0031;
             } else {
-                p->r = lvalue_type(p->type.t) | 0x0032;
+                p->r = lvalue_type(ct_t(&p->type)) | 0x0032;
             }
             cv_set_i(&p->c, l);
         }
@@ -2302,8 +2303,8 @@ static void move_reg(int r, int s, int t)
     SValue sv;
     if (r != s) {
         save_reg(r);
-        sv.type.t = t;
-        sv.type.ref = ((void*)0);
+        ct_set_t(&sv.type, t);
+        ct_set_ref(&sv.type, ((void*)0));
         sv.r = s;
         cv_set_i(&sv.c, 0);
         load(r, &sv);
@@ -2318,7 +2319,7 @@ static void gaddrof(void)
 static int gv(int rc)
 {
     int r;
-    if (vtop->type.t & 0x0080) {
+    if (ct_t(&vtop->type) & 0x0080) {
         tcc_error("bit-fields are not supported in tcc_27_alt");
     } else {
         r = vtop->r & 0x003f;
@@ -2330,7 +2331,7 @@ static int gv(int rc)
             r = get_reg(rc);
             if (vtop->r & 0x0100) {
                 int t1, t;
-                t = vtop->type.t;
+                t = ct_t(&vtop->type);
                 t1 = t;
                 if (vtop->r & 0x1000)
                     t = 1;
@@ -2338,9 +2339,9 @@ static int gv(int rc)
                     t = 2;
                 if (vtop->r & 0x4000)
                     t |= 0x0010;
-                vtop->type.t = t;
+                ct_set_t(&vtop->type, t);
                 load(r, vtop);
-                vtop->type.t = t1;
+                ct_set_t(&vtop->type, t1);
             } else {
                 load(r, vtop);
             }
@@ -2378,7 +2379,8 @@ static void gv_dup(void)
     int rc, r, r1;
     SValue sv;
     rc = 0x0001;
-    sv.type.t = 3;
+    ct_set_t(&sv.type, 3);
+    ct_set_ref(&sv.type, ((void*)0));
     r = gv(rc);
     r1 = get_reg(rc);
     sv.r = r;
@@ -2416,8 +2418,8 @@ static void gen_opic(int op)
 {
     SValue *v1 = vtop - 1;
     SValue *v2 = vtop;
-    int t1 = v1->type.t & 0x000f;
-    int t2 = v2->type.t & 0x000f;
+    int t1 = ct_t(&v1->type) & 0x000f;
+    int t2 = ct_t(&v2->type) & 0x000f;
     int c1 = (v1->r & (0x003f | 0x0100 | 0x0200)) == 0x0030;
     int c2 = (v2->r & (0x003f | 0x0100 | 0x0200)) == 0x0030;
     unsigned int l1 = c1 ? cv_i(&v1->c) : 0;
@@ -2426,10 +2428,10 @@ static void gen_opic(int op)
     int folded = 0;
     if (t1 != 4 && (4 != 8 || t1 != 5))
         l1 = ((uint32_t)l1 |
-              (v1->type.t & 0x0010 ? 0 : -(l1 & 0x80000000)));
+              (ct_t(&v1->type) & 0x0010 ? 0 : -(l1 & 0x80000000)));
     if (t2 != 4 && (4 != 8 || t2 != 5))
         l2 = ((uint32_t)l2 |
-              (v2->type.t & 0x0010 ? 0 : -(l2 & 0x80000000)));
+              (ct_t(&v2->type) & 0x0010 ? 0 : -(l2 & 0x80000000)));
     if (c1 && c2) {
         folded = 1;
         if (op == '+') l1 += l2;
@@ -2474,7 +2476,7 @@ static void gen_opic(int op)
         if (folded) {
 	    if (t1 != 4 && (4 != 8 || t1 != 5))
 	        l1 = ((uint32_t)l1 |
-		    (v1->type.t & 0x0010 ? 0 : -(l1 & 0x80000000)));
+		    (ct_t(&v1->type) & 0x0010 ? 0 : -(l1 & 0x80000000)));
             cv_set_i(&v1->c, l1);
             vtop--;
             return;
