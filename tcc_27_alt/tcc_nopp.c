@@ -66,10 +66,15 @@ typedef struct {
   Elf32_Word p_flags;
   Elf32_Word p_align;
 } Elf32_Phdr;
-typedef struct {
-  Elf32_Sword d_tag;
-  Elf32_Word d_un;
-} Elf32_Dyn;
+typedef unsigned int Elf32_Dyn[2];
+static void dyn_set_tag(Elf32_Dyn *dyn, Elf32_Sword tag)
+{
+    *(unsigned int *)dyn = tag;
+}
+static void dyn_set_un(Elf32_Dyn *dyn, Elf32_Word val)
+{
+    *(((unsigned int *)dyn) + 1) = val;
+}
 typedef unsigned char TokenSym;
 static TokenSym **ts_hash_next_ref(TokenSym *ts)
 {
@@ -4807,8 +4812,8 @@ static void put_dt(Section *dynamic, int dt, Elf32_Addr val)
 {
     Elf32_Dyn *dyn;
     dyn = section_ptr_add(dynamic, sizeof(Elf32_Dyn));
-    dyn->d_tag = dt;
-    dyn->d_un = val;
+    dyn_set_tag(dyn, dt);
+    dyn_set_un(dyn, val);
 }
 static void tcc_add_runtime(TCCState *s1)
 {
