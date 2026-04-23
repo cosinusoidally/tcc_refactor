@@ -202,14 +202,59 @@ static void sh_set_entsize(Elf32_Shdr *sh, Elf32_Word entsize)
 {
     *(((unsigned int *)sh) + 9) = entsize;
 }
-typedef struct {
-  Elf32_Word st_name;
-  Elf32_Addr st_value;
-  Elf32_Word st_size;
-  unsigned char st_info;
-  unsigned char st_other;
-  Elf32_Section st_shndx;
-} Elf32_Sym;
+typedef unsigned char Elf32_Sym[16];
+static Elf32_Word esy_name(Elf32_Sym *sym)
+{
+    return *(unsigned int *)sym;
+}
+static void esy_set_name(Elf32_Sym *sym, Elf32_Word name)
+{
+    *(unsigned int *)sym = name;
+}
+static Elf32_Addr esy_value(Elf32_Sym *sym)
+{
+    return *(((unsigned int *)sym) + 1);
+}
+static void esy_set_value(Elf32_Sym *sym, Elf32_Addr value)
+{
+    *(((unsigned int *)sym) + 1) = value;
+}
+static void esy_add_value(Elf32_Sym *sym, Elf32_Addr value)
+{
+    esy_set_value(sym, esy_value(sym) + value);
+}
+static Elf32_Word esy_size(Elf32_Sym *sym)
+{
+    return *(((unsigned int *)sym) + 2);
+}
+static void esy_set_size(Elf32_Sym *sym, Elf32_Word size)
+{
+    *(((unsigned int *)sym) + 2) = size;
+}
+static unsigned char esy_info(Elf32_Sym *sym)
+{
+    return *(((unsigned char *)sym) + 12);
+}
+static void esy_set_info(Elf32_Sym *sym, unsigned char info)
+{
+    *(((unsigned char *)sym) + 12) = info;
+}
+static unsigned char esy_other(Elf32_Sym *sym)
+{
+    return *(((unsigned char *)sym) + 13);
+}
+static void esy_set_other(Elf32_Sym *sym, unsigned char other)
+{
+    *(((unsigned char *)sym) + 13) = other;
+}
+static Elf32_Section esy_shndx(Elf32_Sym *sym)
+{
+    return *(Elf32_Section *)(((unsigned char *)sym) + 14);
+}
+static void esy_set_shndx(Elf32_Sym *sym, Elf32_Section shndx)
+{
+    *(Elf32_Section *)(((unsigned char *)sym) + 14) = shndx;
+}
 typedef unsigned int Elf32_Rel[2];
 static Elf32_Addr rel_offset(Elf32_Rel *rel)
 {
@@ -1780,9 +1825,9 @@ static void update_storage(Sym *sym)
         sym_bind = 0;
     else
         sym_bind = 1;
-    old_sym_bind = (((unsigned char) (esym->st_info)) >> 4);
+    old_sym_bind = (((unsigned char) (esy_info(esym))) >> 4);
     if (sym_bind != old_sym_bind) {
-        esym->st_info = (((sym_bind) << 4) + ((((esym->st_info) & 0xf)) & 0xf));
+        esy_set_info(esym, (((sym_bind) << 4) + ((((esy_info(esym)) & 0xf)) & 0xf)));
     }
 }
 static void put_extern_sym2(Sym *sym, int sh_num,
@@ -1810,9 +1855,9 @@ static void put_extern_sym2(Sym *sym, int sh_num,
         sym->c = put_elf_sym(symtab_section, value, size, info, other, sh_num, name);
     } else {
         esym = elfsym(sym);
-        esym->st_value = value;
-        esym->st_size = size;
-        esym->st_shndx = sh_num;
+        esy_set_value(esym, value);
+        esy_set_size(esym, size);
+        esy_set_shndx(esym, sh_num);
     }
     update_storage(sym);
 }
@@ -4090,19 +4135,19 @@ static void init_putv(CType *type, Section *sec, unsigned int c)
 	    Elf32_Sym *esym;
 	    Elf32_Rel *rel;
 	    esym = elfsym(vtop->sym);
-	    ssec = tcc_state->sections[esym->st_shndx];
-	    memmove (ptr, ssec->data + esym->st_value, size);
+	    ssec = tcc_state->sections[esy_shndx(esym)];
+	    memmove (ptr, ssec->data + esy_value(esym), size);
 	    if (ssec->reloc) {
 		int num_relocs = ssec->reloc->data_offset / sizeof(*rel);
 		rel = (Elf32_Rel*)(ssec->reloc->data + ssec->reloc->data_offset);
 		while (num_relocs--) {
 		    rel--;
-		    if (rel_offset(rel) >= esym->st_value + size)
+		    if (rel_offset(rel) >= esy_value(esym) + size)
 		      continue;
-		    if (rel_offset(rel) < esym->st_value)
+		    if (rel_offset(rel) < esy_value(esym))
 		      break;
 		    put_elf_reloca(symtab_section, sec,
-				   c + rel_offset(rel) - esym->st_value,
+				   c + rel_offset(rel) - esy_value(esym),
 				   rel_type(rel),
 				   rel_sym(rel),
 				   0
@@ -4292,7 +4337,7 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
             sym = sym_find(v);
             if (sym) {
                 patch_storage(sym, ad, type);
-                if (!has_init && sym->c && elfsym(sym)->st_shndx != 0)
+                if (!has_init && sym->c && esy_shndx(elfsym(sym)) != 0)
                     do_alloc = 0;
             }
         }
@@ -4347,7 +4392,7 @@ static void gen_function(Sym *sym)
     cur_text_section->data_offset = ind;
     local_scope = 0;
     sym_pop(&local_stack, ((void*)0), 0);
-    elfsym(sym)->st_size = ind - func_ind;
+    esy_set_size(elfsym(sym), ind - func_ind);
     cur_text_section = ((void*)0);
     funcname = "";
     func_vt.t = 0;
@@ -4512,11 +4557,11 @@ static void tccelf_end_file(TCCState *s1)
     tr = tcc_mallocz(nb_syms * sizeof *tr);
     for (i = 0; i < nb_syms; ++i) {
         Elf32_Sym *sym = (Elf32_Sym*)s->data + first_sym + i;
-        if (sym->st_shndx == 0
-            && (((unsigned char) (sym->st_info)) >> 4) == 0)
-            sym->st_info = (((1) << 4) + ((((sym->st_info) & 0xf)) & 0xf));
-        tr[i] = set_elf_sym(s, sym->st_value, sym->st_size, sym->st_info,
-            sym->st_other, sym->st_shndx, s->link->data + sym->st_name);
+        if (esy_shndx(sym) == 0
+            && (((unsigned char) (esy_info(sym))) >> 4) == 0)
+            esy_set_info(sym, (((1) << 4) + ((((esy_info(sym)) & 0xf)) & 0xf)));
+        tr[i] = set_elf_sym(s, esy_value(sym), esy_size(sym), esy_info(sym),
+            esy_other(sym), esy_shndx(sym), s->link->data + esy_name(sym));
     }
     for (i = 1; i < s1->nb_sections; i++) {
         Section *sr = s1->sections[i];
@@ -4653,8 +4698,8 @@ static void rebuild_hash(Section *s, unsigned int nb_buckets)
     ptr += nb_buckets + 1;
     sym = (Elf32_Sym *)s->data + 1;
     for(sym_index = 1; sym_index < nb_syms; sym_index++) {
-        if ((((unsigned char) (sym->st_info)) >> 4) != 0) {
-            h = elf_hash(strtab + sym->st_name) % nb_buckets;
+        if ((((unsigned char) (esy_info(sym))) >> 4) != 0) {
+            h = elf_hash(strtab + esy_name(sym)) % nb_buckets;
             *ptr = hash[h];
             hash[h] = sym_index;
         } else {
@@ -4676,12 +4721,12 @@ static int put_elf_sym(Section *s, Elf32_Addr value, unsigned int size,
         name_offset = put_elf_str(s->link, name);
     else
         name_offset = 0;
-    sym->st_name = name_offset;
-    sym->st_value = value;
-    sym->st_size = size;
-    sym->st_info = info;
-    sym->st_other = other;
-    sym->st_shndx = shndx;
+    esy_set_name(sym, name_offset);
+    esy_set_value(sym, value);
+    esy_set_size(sym, size);
+    esy_set_info(sym, info);
+    esy_set_other(sym, other);
+    esy_set_shndx(sym, shndx);
     sym_index = sym - (Elf32_Sym *)s->data;
     hs = s->hash;
     if (hs) {
@@ -4719,7 +4764,7 @@ static int find_elf_sym(Section *s, char *name)
     sym_index = ((int *)hs->data)[2 + h];
     while (sym_index != 0) {
         sym = &((Elf32_Sym *)s->data)[sym_index];
-        name1 = (char *) s->link->data + sym->st_name;
+        name1 = (char *) s->link->data + esy_name(sym);
         if (!strcmp(name, name1))
             return sym_index;
         sym_index = ((int *)hs->data)[2 + nbuckets + sym_index];
@@ -4732,12 +4777,12 @@ static Elf32_Addr get_elf_sym_addr(TCCState *s, char *name, int err)
     Elf32_Sym *sym;
     sym_index = find_elf_sym(s->symtab, name);
     sym = &((Elf32_Sym *)s->symtab->data)[sym_index];
-    if (!sym_index || sym->st_shndx == 0) {
+    if (!sym_index || esy_shndx(sym) == 0) {
         if (err)
             tcc_error("%s not defined", name);
         return 0;
     }
-    return sym->st_value;
+    return esy_value(sym);
 }
 static int set_elf_sym(Section *s, Elf32_Addr value, unsigned int size,
                        int info, int other, int shndx, char *name)
@@ -4753,12 +4798,12 @@ static int set_elf_sym(Section *s, Elf32_Addr value, unsigned int size,
         if (sym_index) {
             int patch = 0;
             esym = &((Elf32_Sym *)s->data)[sym_index];
-            if (esym->st_value == value && esym->st_size == size && esym->st_info == info
-                && esym->st_other == other && esym->st_shndx == shndx)
+            if (esy_value(esym) == value && esy_size(esym) == size && esy_info(esym) == info
+                && esy_other(esym) == other && esy_shndx(esym) == shndx)
                 return sym_index;
-            if (esym->st_shndx != 0) {
-                esym_bind = (((unsigned char) (esym->st_info)) >> 4);
-                esym_vis = ((esym->st_other) & 0x03);
+            if (esy_shndx(esym) != 0) {
+                esym_bind = (((unsigned char) (esy_info(esym))) >> 4);
+                esym_vis = ((esy_other(esym)) & 0x03);
                 if (esym_vis == 0) {
                     new_vis = sym_vis;
                 } else if (sym_vis == 0) {
@@ -4766,23 +4811,23 @@ static int set_elf_sym(Section *s, Elf32_Addr value, unsigned int size,
                 } else {
                     new_vis = (esym_vis < sym_vis) ? esym_vis : sym_vis;
                 }
-                esym->st_other = (esym->st_other & ~((-1) & 0x03))
-                                 | new_vis;
-                other = esym->st_other;
+                esy_set_other(esym, (esy_other(esym) & ~((-1) & 0x03))
+                                 | new_vis);
+                other = esy_other(esym);
                 if (shndx == 0) {
                 } else if (sym_bind == 1 && esym_bind == 2) {
                     patch = 1;
                 } else if (sym_bind == 2 && esym_bind == 1) {
                 } else if (sym_bind == 2 && esym_bind == 2) {
                 } else if (sym_vis == 2 || sym_vis == 1) {
-                } else if ((esym->st_shndx == 0xfff2
-                                || esym->st_shndx == bss_section->sh_num)
+                } else if ((esy_shndx(esym) == 0xfff2
+                                || esy_shndx(esym) == bss_section->sh_num)
                             && (shndx < 0xff00
                                 && shndx != bss_section->sh_num)) {
                     patch = 1;
                 } else if (shndx == 0xfff2 || shndx == bss_section->sh_num) {
                 } else if (s->sh_flags & 0x40000000) {
-	        } else if (esym->st_other & 0x04) {
+	        } else if (esy_other(esym) & 0x04) {
 		    patch = 1;
                 } else {
                     tcc_error("'%s' defined twice", name);
@@ -4791,12 +4836,12 @@ static int set_elf_sym(Section *s, Elf32_Addr value, unsigned int size,
                 patch = 1;
             }
             if (patch) {
-                esym->st_info = (((sym_bind) << 4) + ((sym_type) & 0xf));
-                esym->st_shndx = shndx;
+                esy_set_info(esym, (((sym_bind) << 4) + ((sym_type) & 0xf)));
+                esy_set_shndx(esym, shndx);
                 new_undef_sym = 1;
-                esym->st_value = value;
-                esym->st_size = size;
-                esym->st_other = other;
+                esy_set_value(esym, value);
+                esy_set_size(esym, size);
+                esy_set_other(esym, other);
             }
         } else {
             sym_index = put_elf_sym(s, value, size,
@@ -4869,9 +4914,10 @@ static void sort_syms(TCCState *s1, Section *s)
     p = (Elf32_Sym *)s->data;
     q = new_syms;
     for(i = 0; i < nb_syms; i++) {
-        if ((((unsigned char) (p->st_info)) >> 4) == 0) {
+        if ((((unsigned char) (esy_info(p))) >> 4) == 0) {
             old_to_new_syms[i] = q - new_syms;
-            *q++ = *p;
+            memcpy(q, p, sizeof(Elf32_Sym));
+            q++;
         }
         p++;
     }
@@ -4879,9 +4925,10 @@ static void sort_syms(TCCState *s1, Section *s)
         s->sh_info = q - new_syms;
     p = (Elf32_Sym *)s->data;
     for(i = 0; i < nb_syms; i++) {
-        if ((((unsigned char) (p->st_info)) >> 4) != 0) {
+        if ((((unsigned char) (esy_info(p))) >> 4) != 0) {
             old_to_new_syms[i] = q - new_syms;
-            *q++ = *p;
+            memcpy(q, p, sizeof(Elf32_Sym));
+            q++;
         }
         p++;
     }
@@ -4906,19 +4953,19 @@ static void relocate_syms(TCCState *s1, Section *symtab, int do_resolve)
     int sym_bind, sh_num;
     char *name;
     for (sym = (Elf32_Sym *) symtab->data + 1; sym < (Elf32_Sym *) (symtab->data + symtab->data_offset); sym++) {
-        sh_num = sym->st_shndx;
+        sh_num = esy_shndx(sym);
         if (sh_num == 0) {
-            name = (char *) s1->symtab->link->data + sym->st_name;
+            name = (char *) s1->symtab->link->data + esy_name(sym);
             if (!(!do_resolve && s1->dynsym && find_elf_sym(s1->dynsym, name)) &&
                 strcmp(name, "_fp_hw")) {
-                sym_bind = (((unsigned char) (sym->st_info)) >> 4);
+                sym_bind = (((unsigned char) (esy_info(sym))) >> 4);
                 if (sym_bind == 2)
-                    sym->st_value = 0;
+                    esy_set_value(sym, 0);
                 else
                     tcc_error("undefined symbol '%s'", name);
             }
         } else if (sh_num < 0xff00) {
-            sym->st_value += s1->sections[sym->st_shndx]->sh_addr;
+            esy_add_value(sym, s1->sections[esy_shndx(sym)]->sh_addr);
         }
     }
 }
@@ -4935,7 +4982,7 @@ static void relocate_section(TCCState *s1, Section *s)
         sym_index = rel_sym(rel);
         sym = &((Elf32_Sym *)symtab_section->data)[sym_index];
         type = rel_type(rel);
-        tgt = sym->st_value;
+        tgt = esy_value(sym);
         addr = s->sh_addr + rel_offset(rel);
         relocate(s1, rel, type, ptr, addr, tgt);
     }
@@ -4976,15 +5023,15 @@ static SymAttr * put_got_entry(TCCState *s1, int dyn_reloc_type,
     got_offset = s1->got->data_offset;
     section_ptr_add(s1->got, 4);
     sym = &((Elf32_Sym *) symtab_section->data)[sym_index];
-    name = (char *) symtab_section->link->data + sym->st_name;
+    name = (char *) symtab_section->link->data + esy_name(sym);
     if (s1->dynsym) {
-	if ((((unsigned char) (sym->st_info)) >> 4) == 0) {
+	if ((((unsigned char) (esy_info(sym))) >> 4) == 0) {
 	    put_elf_reloc(s1->dynsym, s1->got, got_offset, 8,
 			  sym_index);
 	} else {
 	    if (0 == sattr_dyn_index(attr))
-                sattr_set_dyn_index(attr, set_elf_sym(s1->dynsym, sym->st_value, size,
-					      info, 0, sym->st_shndx, name));
+                sattr_set_dyn_index(attr, set_elf_sym(s1->dynsym, esy_value(sym), size,
+					      info, 0, esy_shndx(sym), name));
 	    put_elf_reloc(s1->dynsym, s1->got, got_offset, dyn_reloc_type,
 			  sattr_dyn_index(attr));
 	}
@@ -5004,7 +5051,7 @@ static SymAttr * put_got_entry(TCCState *s1, int dyn_reloc_type,
             len = sizeof plt_name - 5;
         memcpy(plt_name, name, len);
         strcpy(plt_name + len, "@plt");
-        sattr_set_plt_sym(attr, put_elf_sym(s1->symtab, sattr_plt_offset(attr), sym->st_size,
+        sattr_set_plt_sym(attr, put_elf_sym(s1->symtab, sattr_plt_offset(attr), esy_size(sym),
             (((1) << 4) + ((2) & 0xf)), 0, s1->plt->sh_num, plt_name));
     } else {
         sattr_set_got_offset(attr, got_offset);
@@ -5034,16 +5081,16 @@ static void build_got_entries(TCCState *s1)
             }
             if (gotplt_entry == 2) {
                 int use_jmp_slot = 0;
-                if (sym->st_shndx == 0) {
+                if (esy_shndx(sym) == 0) {
                     Elf32_Sym *esym;
 		    int dynindex;
 		    if (s1->dynsym) {
 			dynindex = sattr_dyn_index(get_sym_attr(s1, sym_index, 0));
 			esym = (Elf32_Sym *)s1->dynsym->data + dynindex;
 			if (dynindex
-			    && (((esym->st_info) & 0xf) == 2
-				|| (((esym->st_info) & 0xf) == 0
-				    && ((sym->st_info) & 0xf) == 2)))
+			    && (((esy_info(esym)) & 0xf) == 2
+				|| (((esy_info(esym)) & 0xf) == 0
+				    && ((esy_info(sym)) & 0xf) == 2)))
 			    use_jmp_slot = 1;
 		    }
 	                } else
@@ -5056,7 +5103,7 @@ static void build_got_entries(TCCState *s1)
                 build_got(s1);
             if (gotplt_entry == 1)
                 continue;
-            attr = put_got_entry(s1, reloc_type, sym->st_size, sym->st_info,
+            attr = put_got_entry(s1, reloc_type, esy_size(sym), esy_info(sym),
                                  sym_index);
             if (reloc_type == 7)
                 rel_set_sym_type(rel, sattr_plt_sym(attr), type);
@@ -5096,10 +5143,10 @@ static void resolve_common_syms(TCCState *s1)
 {
     Elf32_Sym *sym;
     for (sym = (Elf32_Sym *) symtab_section->data + 1; sym < (Elf32_Sym *) (symtab_section->data + symtab_section->data_offset); sym++) {
-        if (sym->st_shndx == 0xfff2) {
-	    sym->st_value = section_add(bss_section, sym->st_size,
-					sym->st_value);
-            sym->st_shndx = bss_section->sh_num;
+        if (esy_shndx(sym) == 0xfff2) {
+	    esy_set_value(sym, section_add(bss_section, esy_size(sym),
+					esy_value(sym)));
+            esy_set_shndx(sym, bss_section->sh_num);
         }
     }
     tcc_add_linker_symbols(s1);
@@ -5116,7 +5163,7 @@ static void fill_local_got_entries(TCCState *s1)
 	    if (offset != rel_offset(rel) - s1->got->sh_addr)
 	      tcc_error("huh");
 	    rel_set_sym_type(rel, 0, 8);
-	    write32le(s1->got->data + offset, sym->st_value);
+	    write32le(s1->got->data + offset, esy_value(sym));
 	}
     }
 }
@@ -5126,12 +5173,12 @@ static void bind_exe_dynsyms(TCCState *s1)
     int dynindex, index;
     Elf32_Sym *sym;
     for (sym = (Elf32_Sym *) symtab_section->data + 1; sym < (Elf32_Sym *) (symtab_section->data + symtab_section->data_offset); sym++) {
-        if (sym->st_shndx == 0) {
-            name = (char *) symtab_section->link->data + sym->st_name;
-            if ((((unsigned char) (sym->st_info)) >> 4) == 2 ||
+        if (esy_shndx(sym) == 0) {
+            name = (char *) symtab_section->link->data + esy_name(sym);
+            if ((((unsigned char) (esy_info(sym))) >> 4) == 2 ||
                 !strcmp(name, "_fp_hw"))
                 continue;
-            dynindex = put_elf_sym(s1->dynsym, 0, sym->st_size,
+            dynindex = put_elf_sym(s1->dynsym, 0, esy_size(sym),
                                    (((1) << 4) + ((2) & 0xf)), 0, 0,
                                    name);
             index = sym - (Elf32_Sym *) symtab_section->data;
@@ -5488,11 +5535,11 @@ static void tidy_section_headers(TCCState *s1, int *sec_order)
 	}
     }
     for (sym = (Elf32_Sym *) symtab_section->data + 1; sym < (Elf32_Sym *) (symtab_section->data + symtab_section->data_offset); sym++)
-	if (sym->st_shndx != 0 && sym->st_shndx < 0xff00)
-	    sym->st_shndx = backmap[sym->st_shndx];
+	if (esy_shndx(sym) != 0 && esy_shndx(sym) < 0xff00)
+	    esy_set_shndx(sym, backmap[esy_shndx(sym)]);
     for (sym = (Elf32_Sym *) s1->dynsym->data + 1; sym < (Elf32_Sym *) (s1->dynsym->data + s1->dynsym->data_offset); sym++)
-        if (sym->st_shndx != 0 && sym->st_shndx < 0xff00)
-            sym->st_shndx = backmap[sym->st_shndx];
+        if (esy_shndx(sym) != 0 && esy_shndx(sym) < 0xff00)
+            esy_set_shndx(sym, backmap[esy_shndx(sym)]);
     for (i = 0; i < s1->nb_sections; i++)
 	sec_order[i] = i;
     tcc_free(s1->sections);
@@ -5568,8 +5615,8 @@ static int elf_output_file(TCCState *s1, char *filename)
             write32le(s1->got->data, dynamic->sh_addr);
             relocate_plt(s1);
             for (sym = (Elf32_Sym *) s1->dynsym->data + 1; sym < (Elf32_Sym *) (s1->dynsym->data + s1->dynsym->data_offset); sym++) {
-                if (sym->st_shndx != 0 && sym->st_shndx < 0xff00) {
-                    sym->st_value += s1->sections[sym->st_shndx]->sh_addr;
+                if (esy_shndx(sym) != 0 && esy_shndx(sym) < 0xff00) {
+                    esy_add_value(sym, s1->sections[esy_shndx(sym)]->sh_addr);
                 }
             }
         }
@@ -5748,18 +5795,18 @@ static int tcc_load_object_file(TCCState *s1,
     if (!failed && nb_syms) {
         sym = symtab + 1;
         for(i = 1; i < nb_syms; i++, sym++) {
-            if (sym->st_shndx != 0 &&
-                sym->st_shndx < 0xff00) {
-                sm = smi_at(sm_table, sym->st_shndx);
+            if (esy_shndx(sym) != 0 &&
+                esy_shndx(sym) < 0xff00) {
+                sm = smi_at(sm_table, esy_shndx(sym));
                 if (!smi_s(sm))
                     continue;
-                sym->st_shndx = smi_s(sm)->sh_num;
-                sym->st_value += smi_offset(sm);
+                esy_set_shndx(sym, smi_s(sm)->sh_num);
+                esy_add_value(sym, smi_offset(sm));
             }
-            name = (char *) strtab + sym->st_name;
-            sym_index = set_elf_sym(symtab_section, sym->st_value, sym->st_size,
-                                    sym->st_info, sym->st_other,
-                                    sym->st_shndx, name);
+            name = (char *) strtab + esy_name(sym);
+            sym_index = set_elf_sym(symtab_section, esy_value(sym), esy_size(sym),
+                                    esy_info(sym), esy_other(sym),
+                                    esy_shndx(sym), name);
             old_to_new_syms[i] = sym_index;
         }
     }
