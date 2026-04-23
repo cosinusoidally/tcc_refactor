@@ -4716,60 +4716,54 @@ static void alloc_sec_names(TCCState *s1, int file_type, Section *strsec)
     }
     strsec->sh_size = strsec->data_offset;
 }
-struct dyn_inf {
-    Section *dynamic;
-    Section *dynstr;
-    unsigned int data_offset;
-    Elf32_Addr rel_addr;
-    Elf32_Addr rel_size;
-};
-static Section *dyni_dynamic(struct dyn_inf *d)
+typedef unsigned int DynInf;
+static Section *dyni_dynamic(DynInf *d)
 {
-    return d->dynamic;
+    return (Section *)d[0];
 }
-static void dyni_set_dynamic(struct dyn_inf *d, Section *s)
+static void dyni_set_dynamic(DynInf *d, Section *s)
 {
-    d->dynamic = s;
+    d[0] = (unsigned int)s;
 }
-static Section *dyni_dynstr(struct dyn_inf *d)
+static Section *dyni_dynstr(DynInf *d)
 {
-    return d->dynstr;
+    return (Section *)d[1];
 }
-static void dyni_set_dynstr(struct dyn_inf *d, Section *s)
+static void dyni_set_dynstr(DynInf *d, Section *s)
 {
-    d->dynstr = s;
+    d[1] = (unsigned int)s;
 }
-static unsigned int dyni_data_offset(struct dyn_inf *d)
+static unsigned int dyni_data_offset(DynInf *d)
 {
-    return d->data_offset;
+    return d[2];
 }
-static void dyni_set_data_offset(struct dyn_inf *d, unsigned int offset)
+static void dyni_set_data_offset(DynInf *d, unsigned int offset)
 {
-    d->data_offset = offset;
+    d[2] = offset;
 }
-static Elf32_Addr dyni_rel_addr(struct dyn_inf *d)
+static Elf32_Addr dyni_rel_addr(DynInf *d)
 {
-    return d->rel_addr;
+    return d[3];
 }
-static void dyni_set_rel_addr(struct dyn_inf *d, Elf32_Addr addr)
+static void dyni_set_rel_addr(DynInf *d, Elf32_Addr addr)
 {
-    d->rel_addr = addr;
+    d[3] = addr;
 }
-static Elf32_Addr dyni_rel_size(struct dyn_inf *d)
+static Elf32_Addr dyni_rel_size(DynInf *d)
 {
-    return d->rel_size;
+    return d[4];
 }
-static void dyni_set_rel_size(struct dyn_inf *d, Elf32_Addr size)
+static void dyni_set_rel_size(DynInf *d, Elf32_Addr size)
 {
-    d->rel_size = size;
+    d[4] = size;
 }
-static void dyni_add_rel_size(struct dyn_inf *d, Elf32_Addr size)
+static void dyni_add_rel_size(DynInf *d, Elf32_Addr size)
 {
-    d->rel_size += size;
+    d[4] += size;
 }
 static int layout_sections(TCCState *s1, Elf32_Phdr *phdr, int phnum,
                            Section *interp, Section* strsec,
-                           struct dyn_inf *dyninf, int *sec_order)
+                           DynInf *dyninf, int *sec_order)
 {
     int i, j, k, sh_order_index, file_offset;
     unsigned int s_align;
@@ -4908,7 +4902,7 @@ static void fill_unloadable_phdr(Elf32_Phdr *phdr, int phnum, Section *interp,
         ph->p_align = dynamic->sh_addralign;
     }
 }
-static void fill_dynamic(TCCState *s1, struct dyn_inf *dyninf)
+static void fill_dynamic(TCCState *s1, DynInf *dyninf)
 {
     Section *dynamic = dyni_dynamic(dyninf);
     put_dt(dynamic, 4, s1->dynsym->hash->sh_addr);
@@ -5069,7 +5063,7 @@ static void tidy_section_headers(TCCState *s1, int *sec_order)
 static int elf_output_file(TCCState *s1, char *filename)
 {
     int i, ret, phnum, shnum, file_type, file_offset, *sec_order;
-    struct dyn_inf dyninf = {0};
+    DynInf dyninf[5] = {0};
     Elf32_Phdr *phdr;
     Elf32_Sym *sym;
     Section *strsec, *interp, *dynamic, *dynstr;
@@ -5109,10 +5103,10 @@ static int elf_output_file(TCCState *s1, char *filename)
             if (dllr_level(dllref) == 0)
                 put_dt(dynamic, 1, put_elf_str(dynstr, dllr_name(dllref)));
         }
-        dyni_set_dynamic(&dyninf, dynamic);
-        dyni_set_dynstr(&dyninf, dynstr);
-        dyni_set_data_offset(&dyninf, dynamic->data_offset);
-        fill_dynamic(s1, &dyninf);
+        dyni_set_dynamic(dyninf, dynamic);
+        dyni_set_dynstr(dyninf, dynstr);
+        dyni_set_data_offset(dyninf, dynamic->data_offset);
+        fill_dynamic(s1, dyninf);
         dynamic->sh_size = dynamic->data_offset;
         dynstr->sh_size = dynstr->data_offset;
     }
@@ -5124,13 +5118,13 @@ static int elf_output_file(TCCState *s1, char *filename)
     shnum = s1->nb_sections;
     sec_order = tcc_malloc(sizeof(int) * shnum);
     sec_order[0] = 0;
-    file_offset = layout_sections(s1, phdr, phnum, interp, strsec, &dyninf,
+    file_offset = layout_sections(s1, phdr, phnum, interp, strsec, dyninf,
                                   sec_order);
     if (file_type != 4) {
         fill_unloadable_phdr(phdr, phnum, interp, dynamic);
         if (dynamic) {
-            dynamic->data_offset = dyni_data_offset(&dyninf);
-            fill_dynamic(s1, &dyninf);
+            dynamic->data_offset = dyni_data_offset(dyninf);
+            fill_dynamic(s1, dyninf);
             write32le(s1->got->data, dynamic->sh_addr);
             relocate_plt(s1);
             for (sym = (Elf32_Sym *) s1->dynsym->data + 1; sym < (Elf32_Sym *) (s1->dynsym->data + s1->dynsym->data_offset); sym++) {
