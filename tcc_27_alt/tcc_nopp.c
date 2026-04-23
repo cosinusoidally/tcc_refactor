@@ -143,6 +143,14 @@ typedef struct DLLReference {
     void *handle;
     char name[1];
 } DLLReference;
+static int dllr_level(DLLReference *d)
+{
+    return d->level;
+}
+static char *dllr_name(DLLReference *d)
+{
+    return d->name;
+}
 typedef struct BufferedFile {
     uint8_t *buf_ptr;
     uint8_t *buf_end;
@@ -185,6 +193,10 @@ struct TCCState {
 struct filespec {
     char name[1];
 };
+static char *fs_name(struct filespec *f)
+{
+    return f->name;
+}
 static char *pstrcpy(char *buf, int buf_size, char *s);
  char *tcc_basename(char *name);
  char *tcc_fileextension (char *name);
@@ -4706,6 +4718,50 @@ struct dyn_inf {
     Elf32_Addr rel_addr;
     Elf32_Addr rel_size;
 };
+static Section *dyni_dynamic(struct dyn_inf *d)
+{
+    return d->dynamic;
+}
+static void dyni_set_dynamic(struct dyn_inf *d, Section *s)
+{
+    d->dynamic = s;
+}
+static Section *dyni_dynstr(struct dyn_inf *d)
+{
+    return d->dynstr;
+}
+static void dyni_set_dynstr(struct dyn_inf *d, Section *s)
+{
+    d->dynstr = s;
+}
+static unsigned int dyni_data_offset(struct dyn_inf *d)
+{
+    return d->data_offset;
+}
+static void dyni_set_data_offset(struct dyn_inf *d, unsigned int offset)
+{
+    d->data_offset = offset;
+}
+static Elf32_Addr dyni_rel_addr(struct dyn_inf *d)
+{
+    return d->rel_addr;
+}
+static void dyni_set_rel_addr(struct dyn_inf *d, Elf32_Addr addr)
+{
+    d->rel_addr = addr;
+}
+static Elf32_Addr dyni_rel_size(struct dyn_inf *d)
+{
+    return d->rel_size;
+}
+static void dyni_set_rel_size(struct dyn_inf *d, Elf32_Addr size)
+{
+    d->rel_size = size;
+}
+static void dyni_add_rel_size(struct dyn_inf *d, Elf32_Addr size)
+{
+    d->rel_size += size;
+}
 static int layout_sections(TCCState *s1, Elf32_Phdr *phdr, int phnum,
                            Section *interp, Section* strsec,
                            struct dyn_inf *dyninf, int *sec_order)
@@ -4724,7 +4780,8 @@ static int layout_sections(TCCState *s1, Elf32_Phdr *phdr, int phnum,
         ph = &phdr[0];
         if (interp)
             ph += 2;
-        dyninf->rel_addr = dyninf->rel_size = 0;
+        dyni_set_rel_addr(dyninf, 0);
+        dyni_set_rel_size(dyninf, 0);
         for(j = 0; j < 2; j++) {
             ph->p_type = 1;
             if (j == 0)
@@ -4775,9 +4832,9 @@ static int layout_sections(TCCState *s1, Elf32_Phdr *phdr, int phnum,
                         ph->p_paddr = ph->p_vaddr;
                     }
                     if (s->sh_type == 9) {
-                        if (dyninf->rel_size == 0)
-                            dyninf->rel_addr = addr;
-                        dyninf->rel_size += s->sh_size;
+                        if (dyni_rel_size(dyninf) == 0)
+                            dyni_set_rel_addr(dyninf, addr);
+                        dyni_add_rel_size(dyninf, s->sh_size);
                     }
                     addr += s->sh_size;
                     if (s->sh_type != 8)
@@ -4848,14 +4905,14 @@ static void fill_unloadable_phdr(Elf32_Phdr *phdr, int phnum, Section *interp,
 }
 static void fill_dynamic(TCCState *s1, struct dyn_inf *dyninf)
 {
-    Section *dynamic = dyninf->dynamic;
+    Section *dynamic = dyni_dynamic(dyninf);
     put_dt(dynamic, 4, s1->dynsym->hash->sh_addr);
-    put_dt(dynamic, 5, dyninf->dynstr->sh_addr);
+    put_dt(dynamic, 5, dyni_dynstr(dyninf)->sh_addr);
     put_dt(dynamic, 6, s1->dynsym->sh_addr);
-    put_dt(dynamic, 10, dyninf->dynstr->data_offset);
+    put_dt(dynamic, 10, dyni_dynstr(dyninf)->data_offset);
     put_dt(dynamic, 11, sizeof(Elf32_Sym));
-    put_dt(dynamic, 17, dyninf->rel_addr);
-    put_dt(dynamic, 18, dyninf->rel_size);
+    put_dt(dynamic, 17, dyni_rel_addr(dyninf));
+    put_dt(dynamic, 18, dyni_rel_size(dyninf));
     put_dt(dynamic, 19, sizeof(Elf32_Rel));
     put_dt(dynamic, 0, 0);
 }
@@ -5044,12 +5101,12 @@ static int elf_output_file(TCCState *s1, char *filename)
     if (dynamic) {
         for(i = 0; i < s1->nb_loaded_dlls; i++) {
             DLLReference *dllref = s1->loaded_dlls[i];
-            if (dllref->level == 0)
-                put_dt(dynamic, 1, put_elf_str(dynstr, dllref->name));
+            if (dllr_level(dllref) == 0)
+                put_dt(dynamic, 1, put_elf_str(dynstr, dllr_name(dllref)));
         }
-        dyninf.dynamic = dynamic;
-        dyninf.dynstr = dynstr;
-        dyninf.data_offset = dynamic->data_offset;
+        dyni_set_dynamic(&dyninf, dynamic);
+        dyni_set_dynstr(&dyninf, dynstr);
+        dyni_set_data_offset(&dyninf, dynamic->data_offset);
         fill_dynamic(s1, &dyninf);
         dynamic->sh_size = dynamic->data_offset;
         dynstr->sh_size = dynstr->data_offset;
@@ -5067,7 +5124,7 @@ static int elf_output_file(TCCState *s1, char *filename)
     if (file_type != 4) {
         fill_unloadable_phdr(phdr, phnum, interp, dynamic);
         if (dynamic) {
-            dynamic->data_offset = dyninf.data_offset;
+            dynamic->data_offset = dyni_data_offset(&dyninf);
             fill_dynamic(s1, &dyninf);
             write32le(s1->got->data, dynamic->sh_addr);
             relocate_plt(s1);
@@ -5104,6 +5161,30 @@ typedef struct SectionMergeInfo {
     unsigned int offset;
     uint8_t new_section;
 } SectionMergeInfo;
+static Section *smi_s(SectionMergeInfo *sm)
+{
+    return sm->s;
+}
+static void smi_set_s(SectionMergeInfo *sm, Section *s)
+{
+    sm->s = s;
+}
+static unsigned int smi_offset(SectionMergeInfo *sm)
+{
+    return sm->offset;
+}
+static void smi_set_offset(SectionMergeInfo *sm, unsigned int offset)
+{
+    sm->offset = offset;
+}
+static int smi_new_section(SectionMergeInfo *sm)
+{
+    return sm->new_section;
+}
+static void smi_set_new_section(SectionMergeInfo *sm, int val)
+{
+    sm->new_section = val;
+}
 static int tcc_object_type(int fd, Elf32_Ehdr *h)
 {
     int size = read(fd, h, sizeof *h);
@@ -5154,7 +5235,7 @@ static int tcc_load_object_file(TCCState *s1,
             }
             nb_syms = sh->sh_size / sizeof(Elf32_Sym);
             symtab = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
-            sm_table[i].s = symtab_section;
+            smi_set_s(&sm_table[i], symtab_section);
             sh = &shdr[sh->sh_link];
             strtab = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
         }
@@ -5186,7 +5267,7 @@ static int tcc_load_object_file(TCCState *s1,
             s = new_section(s1, sh_name, sh->sh_type, sh->sh_flags & ~(1 << 9));
             s->sh_addralign = sh->sh_addralign;
             s->sh_entsize = sh->sh_entsize;
-            sm_table[i].new_section = 1;
+            smi_set_new_section(&sm_table[i], 1);
         }
         if (sh->sh_type != s->sh_type) {
             tcc_error("invalid section type");
@@ -5199,8 +5280,8 @@ static int tcc_load_object_file(TCCState *s1,
         if (sh->sh_addralign > s->sh_addralign)
             s->sh_addralign = sh->sh_addralign;
         s->data_offset = offset;
-        sm_table[i].offset = offset;
-        sm_table[i].s = s;
+        smi_set_offset(&sm_table[i], offset);
+        smi_set_s(&sm_table[i], s);
         size = sh->sh_size;
         if (sh->sh_type != 8) {
             unsigned char *ptr;
@@ -5212,14 +5293,14 @@ static int tcc_load_object_file(TCCState *s1,
         }
     }
     for(i = 1; !failed && i < ehdr.e_shnum; i++) {
-        s = sm_table[i].s;
-        if (!s || !sm_table[i].new_section)
+        s = smi_s(&sm_table[i]);
+        if (!s || !smi_new_section(&sm_table[i]))
             continue;
         sh = &shdr[i];
         if (sh->sh_link > 0)
-            s->link = sm_table[sh->sh_link].s;
+            s->link = smi_s(&sm_table[sh->sh_link]);
         if (sh->sh_type == 9) {
-            s->sh_info = sm_table[sh->sh_info].s->sh_num;
+            s->sh_info = smi_s(&sm_table[sh->sh_info])->sh_num;
             s1->sections[s->sh_info]->reloc = s;
         }
     }
@@ -5231,10 +5312,10 @@ static int tcc_load_object_file(TCCState *s1,
             if (sym->st_shndx != 0 &&
                 sym->st_shndx < 0xff00) {
                 sm = &sm_table[sym->st_shndx];
-                if (!sm->s)
+                if (!smi_s(sm))
                     continue;
-                sym->st_shndx = sm->s->sh_num;
-                sym->st_value += sm->offset;
+                sym->st_shndx = smi_s(sm)->sh_num;
+                sym->st_value += smi_offset(sm);
             }
             name = (char *) strtab + sym->st_name;
             sym_index = set_elf_sym(symtab_section, sym->st_value, sym->st_size,
@@ -5244,13 +5325,13 @@ static int tcc_load_object_file(TCCState *s1,
         }
     }
     for(i = 1; !failed && i < ehdr.e_shnum; i++) {
-        s = sm_table[i].s;
+        s = smi_s(&sm_table[i]);
         if (!s)
             continue;
         sh = &shdr[i];
-        offset = sm_table[i].offset;
+        offset = smi_offset(&sm_table[i]);
         if (s->sh_type == 9) {
-            offseti = sm_table[sh->sh_info].offset;
+            offseti = smi_offset(&sm_table[sh->sh_info]);
             for (rel = (Elf32_Rel *) s->data + (offset / sizeof(*rel)); rel < (Elf32_Rel *) (s->data + s->data_offset); rel++) {
                 int type;
                 unsigned sym_index;
@@ -6024,11 +6105,11 @@ static void tcc_add_needed_dll(TCCState *s, char *soname)
     DLLReference *dllref;
     for(i = 0; i < s->nb_loaded_dlls; i++) {
         dllref = s->loaded_dlls[i];
-        if (!strcmp(soname, dllref->name))
+        if (!strcmp(soname, dllr_name(dllref)))
             return;
     }
     dllref = tcc_mallocz(sizeof(DLLReference) + strlen(soname));
-    strcpy(dllref->name, soname);
+    strcpy(dllr_name(dllref), soname);
     dynarray_add(&s->loaded_dlls, &s->nb_loaded_dlls, dllref);
 }
 static void tcc_add_library(TCCState *s, char *libraryname)
@@ -6045,7 +6126,7 @@ static void tcc_add_library(TCCState *s, char *libraryname)
 static void args_parser_add_file(TCCState *s, char* filename)
 {
     struct filespec *f = tcc_malloc(sizeof *f + strlen(filename));
-    strcpy(f->name, filename);
+    strcpy(fs_name(f), filename);
     dynarray_add(&s->files, &s->nb_files, f);
 }
 static char *take_arg(int argc, char **argv, int *optind,
@@ -6124,9 +6205,9 @@ int main(int argc0, char **argv0)
         tcc_add_crt(s, "crt1.o");
         tcc_add_crt(s, "crti.o");
     }
-    first_file = s->files[0]->name;
+    first_file = fs_name(s->files[0]);
     for (i = 0; i < s->nb_files; ++i)
-        tcc_add_file(s, s->files[i]->name);
+        tcc_add_file(s, fs_name(s->files[i]));
     if (!s->outfile)
         s->outfile = default_outputfile(s, first_file);
     elf_output_file(s, s->outfile);
