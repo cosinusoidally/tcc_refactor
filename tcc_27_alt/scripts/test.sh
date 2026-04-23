@@ -49,10 +49,6 @@ if ./scripts/has-i386-glibc.sh; then
         echo "note: built i386 executable, but this host cannot run it"
     fi
 
-    echo "checking nostdlib executable link"
-    $TCC -nostdlib tests/nostdlib_start.c -o "$OUT/nostdlib"
-    file "$OUT/nostdlib" | grep -q 'ELF 32-bit'
-
     echo "checking linked i386 objects"
     $TCC "$OUT/obj_main.o" "$OUT/obj_helper.o" -o "$OUT/obj-linked-tcc"
     "$CC" -m32 "$OUT/obj_main.o" "$OUT/obj_helper.o" -o "$OUT/obj-linked-gcc"

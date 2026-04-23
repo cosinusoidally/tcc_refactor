@@ -10,6 +10,8 @@ STAGE1ROOT=${STAGE1ROOT:-build/root}
 STAGE1=$STAGE1ROOT/tcc
 STAGE2=$OUT/tcc.stage2
 STAGE3=$OUT/tcc.stage3
+NOSTD_STAGE2=$OUT/tcc.nostdlib.stage2
+NOSTD_STAGE3=$OUT/tcc.nostdlib.stage3
 NOPP=tcc_nopp.c
 mkdir -p "$OUT"
 
@@ -24,6 +26,37 @@ build_tcc()
     compiler=$1
     output=$2
     "$RUN_I386" "$compiler" "$NOPP" -o "$output" -lm -ldl
+}
+
+find_crt_dir()
+{
+    for dir in \
+        /usr/lib/i386-linux-gnu \
+        /lib/i386-linux-gnu \
+        /usr/lib32 \
+        /lib32
+    do
+        if [ -f "$dir/crt1.o" ] && [ -f "$dir/crti.o" ] && [ -f "$dir/crtn.o" ]; then
+            printf '%s\n' "$dir"
+            return 0
+        fi
+    done
+    return 1
+}
+
+build_tcc_nostdlib()
+{
+    compiler=$1
+    output=$2
+    crt_dir=$3
+    "$RUN_I386" "$compiler" \
+        -nostdlib \
+        "$crt_dir/crt1.o" \
+        "$crt_dir/crti.o" \
+        "$NOPP" \
+        "$crt_dir/crtn.o" \
+        -o "$output" \
+        -lc -lm -ldl
 }
 
 echo "checking stage1: $STAGE1"
@@ -49,5 +82,24 @@ file "$OUT/hello" | grep -q 'ELF 32-bit'
 chmod +x "$OUT/hello"
 "$RUN_I386" "$OUT/hello" > "$OUT/hello.stdout"
 grep -q 'hello i386 42' "$OUT/hello.stdout"
+
+CRT_DIR=$(find_crt_dir)
+echo "building nostdlib stage2 with stage1"
+build_tcc_nostdlib "$STAGE1" "$NOSTD_STAGE2" "$CRT_DIR"
+chmod +x "$NOSTD_STAGE2"
+
+echo "building nostdlib stage3 with nostdlib stage2"
+build_tcc_nostdlib "$NOSTD_STAGE2" "$NOSTD_STAGE3" "$CRT_DIR"
+chmod +x "$NOSTD_STAGE3"
+
+echo "comparing nostdlib stage2 and stage3"
+cmp "$NOSTD_STAGE2" "$NOSTD_STAGE3"
+
+echo "checking nostdlib stage3 dynamic output"
+"$RUN_I386" "$NOSTD_STAGE3" tests/hello.c -o "$OUT/hello-nostdlib"
+file "$OUT/hello-nostdlib" | grep -q 'ELF 32-bit'
+chmod +x "$OUT/hello-nostdlib"
+"$RUN_I386" "$OUT/hello-nostdlib" > "$OUT/hello-nostdlib.stdout"
+grep -q 'hello i386 42' "$OUT/hello-nostdlib.stdout"
 
 echo "selfhost complete"
