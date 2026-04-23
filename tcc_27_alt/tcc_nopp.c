@@ -427,28 +427,27 @@ static char *ts_str(TokenSym *ts)
 {
     return (char *)(ts + 20);
 }
-typedef unsigned int CString[3];
-static int cstr_size(CString *cstr)
+static int cstr_size(unsigned int *cstr)
 {
     return *(unsigned int *)cstr;
 }
-static void cstr_set_size(CString *cstr, int size)
+static void cstr_set_size(unsigned int *cstr, int size)
 {
     *(unsigned int *)cstr = size;
 }
-static void *cstr_data(CString *cstr)
+static void *cstr_data(unsigned int *cstr)
 {
     return (void *)*(((unsigned int *)cstr) + 1);
 }
-static void cstr_set_data(CString *cstr, void *data)
+static void cstr_set_data(unsigned int *cstr, void *data)
 {
     *(((unsigned int *)cstr) + 1) = (unsigned int)data;
 }
-static int cstr_size_allocated(CString *cstr)
+static int cstr_size_allocated(unsigned int *cstr)
 {
     return *(((unsigned int *)cstr) + 2);
 }
-static void cstr_set_size_allocated(CString *cstr, int size)
+static void cstr_set_size_allocated(unsigned int *cstr, int size)
 {
     *(((unsigned int *)cstr) + 2) = size;
 }
@@ -489,32 +488,31 @@ static void ct_copy(struct CType *dst, struct CType *src)
     ct_set_t(dst, ct_t(src));
     ct_set_ref(dst, ct_ref(src));
 }
-typedef unsigned int CValue[3];
-static unsigned int cv_i(CValue *cv)
+static unsigned int cv_i(unsigned int *cv)
 {
     return *(unsigned int *)cv;
 }
-static void cv_set_i(CValue *cv, unsigned int v)
+static void cv_set_i(unsigned int *cv, unsigned int v)
 {
     *(unsigned int *)cv = v;
 }
-static int cv_str_size(CValue *cv)
+static int cv_str_size(unsigned int *cv)
 {
     return *(((unsigned int *)cv) + 1);
 }
-static void cv_set_str_size(CValue *cv, int size)
+static void cv_set_str_size(unsigned int *cv, int size)
 {
     *(((unsigned int *)cv) + 1) = size;
 }
-static void *cv_str_data(CValue *cv)
+static void *cv_str_data(unsigned int *cv)
 {
     return (void *)*(((unsigned int *)cv) + 2);
 }
-static void cv_set_str_data(CValue *cv, void *data)
+static void cv_set_str_data(unsigned int *cv, void *data)
 {
     *(((unsigned int *)cv) + 2) = (unsigned int)data;
 }
-static void cv_copy(CValue *dst, CValue *src)
+static void cv_copy(unsigned int *dst, unsigned int *src)
 {
     cv_set_i(dst, cv_i(src));
     cv_set_str_size(dst, cv_str_size(src));
@@ -523,7 +521,7 @@ static void cv_copy(CValue *dst, CValue *src)
 struct SValue {
     struct CType type;
     unsigned short r;
-    CValue c;
+    unsigned int c[3];
     struct Sym *sym;
 };
 static unsigned short sv_r(struct SValue *sv)
@@ -534,9 +532,9 @@ static void sv_set_r(struct SValue *sv, unsigned short r)
 {
     sv->r = r;
 }
-static CValue *sv_c(struct SValue *sv)
+static unsigned int *sv_c(struct SValue *sv)
 {
-    return &sv->c;
+    return sv->c;
 }
 static struct Sym *sv_sym(struct SValue *sv)
 {
@@ -741,9 +739,9 @@ static char *pstrcpy(char *buf, int buf_size, char *s);
  char *tcc_strdup(char *str);
   void tcc_error(char *fmt, ...);
 static void dynarray_add(void *ptab, int *nb_ptr, void *data);
-static void cstr_ccat(CString *cstr, int ch);
-static void cstr_cat(CString *cstr, char *str, int len);
-static void cstr_reset(CString *cstr);
+static void cstr_ccat(unsigned int *cstr, int ch);
+static void cstr_cat(unsigned int *cstr, char *str, int len);
+static void cstr_reset(unsigned int *cstr);
 static void sym_free(struct Sym *sym);
 static struct Sym *sym_push2(struct Sym **ps, int v, int t, int c);
 static struct Sym *sym_push(int v, struct CType *type, int r, int c);
@@ -759,7 +757,7 @@ static void tcc_add_crt(struct TCCState *s, char *filename);
 static void tcc_add_library(struct TCCState *s, char *libraryname);
 static void tcc_parse_args(struct TCCState *s, int argc, char **argv);
 static TokenSym *tok_alloc(char *str, int len);
-static char *get_tok_str(int v, CValue *cv);
+static char *get_tok_str(int v, unsigned int *cv);
 static int set_idnum(int c, int val);
 static void next_nomacro(void);
 static void next(void);
@@ -901,8 +899,8 @@ static void gen_addr32(int r, struct Sym *sym, int c);
 static struct TCCState *tcc_state;
 static BufferedFile *file;
 static int tok;
-static CValue tokc;
-static CString tokcstr;
+static unsigned int tokc[3];
+static unsigned int tokcstr[3];
 static int tok_ident;
 static TokenSym **table_ident;
 static TokenSym *hash_ident[16384];
@@ -961,14 +959,14 @@ static unsigned char tok_two_chars[64] =
 static void skip(int c)
 {
     if (tok != c)
-        tcc_error("'%c' expected (got \"%s\")", c, get_tok_str(tok, &tokc));
+        tcc_error("'%c' expected (got \"%s\")", c, get_tok_str(tok, tokc));
     next();
 }
 static void expect(char *msg)
 {
     tcc_error("%s expected", msg);
 }
-static void cstr_realloc(CString *cstr, int new_size)
+static void cstr_realloc(unsigned int *cstr, int new_size)
 {
     int size;
     size = cstr_size_allocated(cstr);
@@ -979,7 +977,7 @@ static void cstr_realloc(CString *cstr, int new_size)
     cstr_set_data(cstr, tcc_realloc(cstr_data(cstr), size));
     cstr_set_size_allocated(cstr, size);
 }
-static void cstr_ccat(CString *cstr, int ch)
+static void cstr_ccat(unsigned int *cstr, int ch)
 {
     int size;
     size = cstr_size(cstr) + 1;
@@ -988,7 +986,7 @@ static void cstr_ccat(CString *cstr, int ch)
     ((unsigned char *)cstr_data(cstr))[size - 1] = ch;
     cstr_set_size(cstr, size);
 }
-static void cstr_cat(CString *cstr, char *str, int len)
+static void cstr_cat(unsigned int *cstr, char *str, int len)
 {
     int size;
     if (len <= 0)
@@ -999,7 +997,7 @@ static void cstr_cat(CString *cstr, char *str, int len)
     memmove(((unsigned char *)cstr_data(cstr)) + cstr_size(cstr), str, len);
     cstr_set_size(cstr, size);
 }
-static void cstr_reset(CString *cstr)
+static void cstr_reset(unsigned int *cstr)
 {
     cstr_set_size(cstr, 0);
 }
@@ -1046,7 +1044,7 @@ static TokenSym *tok_alloc(char *str, int len)
     }
     return tok_alloc_new(pts, str, len);
 }
-static char *get_tok_str(int v, CValue *cv)
+static char *get_tok_str(int v, unsigned int *cv)
 {
     static char buf[64];
     char *p = buf;
@@ -1220,7 +1218,7 @@ static int set_idnum(int c, int val)
     isidnum_table[c - (-1)] = val;
     return prev;
 }
-static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
+static uint8_t *parse_pp_string(uint8_t *p, int sep, unsigned int *str)
 {
     int c;
     p++;
@@ -1274,7 +1272,7 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
     p++;
     return p;
 }
-static void parse_escape_string(CString *outstr, uint8_t *buf)
+static void parse_escape_string(unsigned int *outstr, uint8_t *buf)
 {
     int c, n;
     uint8_t *p;
@@ -1352,23 +1350,23 @@ static void parse_string(char *s, int len)
         p = tcc_malloc(len + 1);
     memcpy(p, s, len);
     p[len] = 0;
-    cstr_reset(&tokcstr);
-    parse_escape_string(&tokcstr, p);
+    cstr_reset(tokcstr);
+    parse_escape_string(tokcstr, p);
     if (p != buf)
         tcc_free(p);
     if (sep == '\'') {
         int i, n, c;
         tok = 0xb3;
-        n = cstr_size(&tokcstr) - 1;
+        n = cstr_size(tokcstr) - 1;
         if (n < 1)
             tcc_error("empty character constant");
         for (c = i = 0; i < n; ++i) {
-            c = (c << 8) | ((char *)cstr_data(&tokcstr))[i];
+            c = (c << 8) | ((char *)cstr_data(tokcstr))[i];
         }
-        cv_set_i(&tokc, c);
+        cv_set_i(tokc, c);
     } else {
-        cv_set_str_size(&tokc, cstr_size(&tokcstr));
-        cv_set_str_data(&tokc, cstr_data(&tokcstr));
+        cv_set_str_size(tokc, cstr_size(tokcstr));
+        cv_set_str_data(tokc, cstr_data(tokcstr));
         tok = 0xb9;
     }
 }
@@ -1475,7 +1473,7 @@ static void parse_number(char *p)
         }
 	if (ucount)
 	    ++tok;
-        cv_set_i(&tokc, n);
+        cv_set_i(tokc, n);
     }
     if (ch)
         tcc_error("invalid number\n");
@@ -1505,39 +1503,39 @@ static uint8_t *scan_ident_token(uint8_t *p, int c)
             pts = ts_hash_next_ref(ts);
         }
     } else {
-        cstr_reset(&tokcstr);
-        cstr_cat(&tokcstr, (char *) p1, p - p1);
+        cstr_reset(tokcstr);
+        cstr_cat(tokcstr, (char *) p1, p - p1);
         p--;
         c = next_src_char(&p);
         while (isidnum_table[c - (-1)] & (2|4))
         {
-            cstr_ccat(&tokcstr, c);
+            cstr_ccat(tokcstr, c);
             c = next_src_char(&p);
         }
-        ts = tok_alloc(cstr_data(&tokcstr), cstr_size(&tokcstr));
+        ts = tok_alloc(cstr_data(tokcstr), cstr_size(tokcstr));
     }
     tok = ts_tok(ts);
     return p;
 }
 static uint8_t *scan_number_token(uint8_t *p, int t, int c)
 {
-    cstr_reset(&tokcstr);
+    cstr_reset(tokcstr);
     for(;;) {
-        cstr_ccat(&tokcstr, t);
+        cstr_ccat(tokcstr, t);
         if (!((isidnum_table[c - (-1)] & (2|4))
               || c == '.'
               || ((c == '+' || c == '-')
                   && (((t == 'e' || t == 'E')
-                        && !(((char*)cstr_data(&tokcstr))[0] == '0'
-                            && toup(((char*)cstr_data(&tokcstr))[1]) == 'X'))
+                        && !(((char*)cstr_data(tokcstr))[0] == '0'
+                            && toup(((char*)cstr_data(tokcstr))[1]) == 'X'))
                       || t == 'p' || t == 'P'))))
             break;
         t = c;
         c = next_src_char(&p);
     }
-    cstr_ccat(&tokcstr, '\0');
-    cv_set_str_size(&tokc, cstr_size(&tokcstr));
-    cv_set_str_data(&tokc, cstr_data(&tokcstr));
+    cstr_ccat(tokcstr, '\0');
+    cv_set_str_size(tokc, cstr_size(tokcstr));
+    cv_set_str_data(tokc, cstr_data(tokcstr));
     tok = 0xbe;
     return p;
 }
@@ -1612,13 +1610,13 @@ static void next_nomacro1(void)
             }
             break;
         } else if (c == '\'' || c == '\"') {
-            cstr_reset(&tokcstr);
-            cstr_ccat(&tokcstr, c);
-            p = parse_pp_string(p, c, &tokcstr);
-            cstr_ccat(&tokcstr, c);
-            cstr_ccat(&tokcstr, '\0');
-            cv_set_str_size(&tokc, cstr_size(&tokcstr));
-            cv_set_str_data(&tokc, cstr_data(&tokcstr));
+            cstr_reset(tokcstr);
+            cstr_ccat(tokcstr, c);
+            p = parse_pp_string(p, c, tokcstr);
+            cstr_ccat(tokcstr, c);
+            cstr_ccat(tokcstr, '\0');
+            cv_set_str_size(tokc, cstr_size(tokcstr));
+            cv_set_str_data(tokc, cstr_data(tokcstr));
             tok = 0xbf;
             break;
         } else if (c == '<') {
@@ -1760,9 +1758,9 @@ static void next(void)
 {
     next_nomacro();
     if (tok == 0xbe) {
-        parse_number((char *)cv_str_data(&tokc));
+        parse_number((char *)cv_str_data(tokc));
     } else if (tok == 0xbf) {
-        parse_string((char *)cv_str_data(&tokc), cv_str_size(&tokc) - 1);
+        parse_string((char *)cv_str_data(tokc), cv_str_size(tokc) - 1);
     }
 }
 static void tccpp_new(struct TCCState *s)
@@ -2048,7 +2046,7 @@ static void sym_pop(struct Sym **ptop, struct Sym *b, int keep)
     if (!keep)
 	*ptop = b;
 }
-static void vsetc(struct CType *type, int r, CValue *vc)
+static void vsetc(struct CType *type, int r, unsigned int *vc)
 {
     int v;
     if (vtop >= (__vstack + 1) + (256 - 1))
@@ -2091,19 +2089,19 @@ static void vpush(struct CType *type)
 }
 static void vpushi(int v)
 {
-    CValue cval;
+    unsigned int cval[3];
     cv_set_i(&cval, v);
     vsetc(&int_type, 0x0030, &cval);
 }
 static void vpushs(Elf32_Addr v)
 {
-  CValue cval;
+  unsigned int cval[3];
   cv_set_i(&cval, v);
   vsetc(&size_type, 0x0030, &cval);
 }
 static void vset(struct CType *type, int r, int v)
 {
-    CValue cval;
+    unsigned int cval[3];
     cv_set_i(&cval, v);
     vsetc(type, r, &cval);
 }
@@ -2149,7 +2147,7 @@ static void vrott(int n)
 }
 static void vpushsym(struct CType *type, struct Sym *sym)
 {
-    CValue cval;
+    unsigned int cval[3];
     cv_set_i(&cval, 0);
     vsetc(type, 0x0030 | 0x0200, &cval);
     vtop->sym = sym;
@@ -3419,29 +3417,29 @@ static void unary(void)
     if (tok == 0xb5 || tok == 0xb3) {
 	t = 3;
 	ct_set_t(&type, t);
-	vsetc(&type, 0x0030, &tokc);
+	vsetc(&type, 0x0030, tokc);
         next();
     } else if (tok == 0xb6) {
         t = 3 | 0x0010;
 	ct_set_t(&type, t);
-	vsetc(&type, 0x0030, &tokc);
+	vsetc(&type, 0x0030, tokc);
         next();
     } else if (tok == 0xce) {
         t = 3;
 	ct_set_t(&type, t);
-	vsetc(&type, 0x0030, &tokc);
+	vsetc(&type, 0x0030, tokc);
         next();
     } else if (tok == 0xcf) {
         t = 3 | 0x0010;
 	ct_set_t(&type, t);
-	vsetc(&type, 0x0030, &tokc);
+	vsetc(&type, 0x0030, tokc);
         next();
     } else if (tok == 0xb9) {
         t = 1;
         ct_set_t(&type, t);
         mk_pointer(&type);
         ct_or_t(&type, 0x0040);
-        ct_ref(&type)->c = cv_str_size(&tokc);
+        ct_ref(&type)->c = cv_str_size(tokc);
         memset(&ad, 0, sizeof(unsigned char));
         decl_initializer_alloc(&type, &ad, 0x0030, 2, 0, 0);
     } else if (tok == '(') {
@@ -3554,7 +3552,7 @@ static void unary(void)
                 expect("field name");
 	    s = find_field(&vtop->type, tok);
             if (!s)
-                tcc_error("field not found: %s",  get_tok_str(tok & ~0x20000000, &tokc));
+                tcc_error("field not found: %s",  get_tok_str(tok & ~0x20000000, tokc));
             ct_copy(&vtop->type, &char_pointer_type);
             vpushi(s->c);
             gen_op('+');
@@ -4290,17 +4288,17 @@ static void decl_initializer(struct CType *type, struct Section *sec, unsigned i
 	    len = 0;
             while (tok == 0xb9) {
                 int cstr_len, ch;
-                cstr_len = cv_str_size(&tokc);
+                cstr_len = cv_str_size(tokc);
                 cstr_len--;
                 nb = cstr_len;
                 if (n >= 0 && nb > (n - len))
                     nb = n - len;
                 if (sec && size1 == 1) {
                     if (!(nocode_wanted > 0))
-                        memcpy(sec->data + c + len, cv_str_data(&tokc), nb);
+                        memcpy(sec->data + c + len, cv_str_data(tokc), nb);
                 } else {
                     for(i=0;i<nb;i++) {
-                        ch = ((unsigned char *)cv_str_data(&tokc))[i];
+                        ch = ((unsigned char *)cv_str_data(tokc))[i];
 		        vpushi(ch);
                         init_putv(t1, sec, c + (len + i) * size1);
                     }
