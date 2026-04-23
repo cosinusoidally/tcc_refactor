@@ -1052,283 +1052,296 @@ static void parse_number(char *p)
     if (ch)
         tcc_error("invalid number\n");
 }
-static void next_nomacro1(void)
+static uint8_t *scan_ident_token(uint8_t *p, int c)
 {
-    int t, c, len;
     TokenSym *ts;
-    uint8_t *p, *p1;
+    uint8_t *p1;
     unsigned int h;
-    p = file->buf_ptr;
- redo_no_start:
-    c = *p;
-    switch(c) {
-    case ' ':
-    case '\t':
-        p++;
-        while (isidnum_table[*p - (-1)] & 1)
-            ++p;
-        goto redo_no_start;
-    case '\f':
-    case '\v':
-    case '\r':
-        p++;
-        goto redo_no_start;
-    case '\\':
-        file->buf_ptr = p;
-        c = handle_eob();
-        p = file->buf_ptr;
-        if (c != (-1)) {
-            if (c == '\\')
-                p++;
-            goto redo_no_start;
-        }
-        tok = (-1);
-        break;
-    case '\n':
-        file->line_num++;
-        p++;
-        goto redo_no_start;
-    case '#':
-        tcc_error("preprocessor directives are not supported in tcc_27_alt");
-        break;
-    case '$':
-        if (!(isidnum_table[c - (-1)] & 2))
-            goto parse_simple;
-    case 'a': case 'b': case 'c': case 'd':
-    case 'e': case 'f': case 'g': case 'h':
-    case 'i': case 'j': case 'k': case 'l':
-    case 'm': case 'n': case 'o': case 'p':
-    case 'q': case 'r': case 's': case 't':
-    case 'u': case 'v': case 'w': case 'x':
-    case 'y': case 'z':
-    case 'A': case 'B': case 'C': case 'D':
-    case 'E': case 'F': case 'G': case 'H':
-    case 'I': case 'J': case 'K': case 'L':
-    case 'M': case 'N': case 'O': case 'P':
-    case 'Q': case 'R': case 'S': case 'T':
-    case 'U': case 'V': case 'W': case 'X':
-    case 'Y': case 'Z':
-    case '_':
-    parse_ident_fast:
-        p1 = p;
-        h = 1;
+    p1 = p;
+    h = 1;
+    h = ((h) + ((h) << 5) + ((h) >> 27) + (c));
+    while (c = *++p, isidnum_table[c - (-1)] & (2|4))
         h = ((h) + ((h) << 5) + ((h) >> 27) + (c));
-        while (c = *++p, isidnum_table[c - (-1)] & (2|4))
-            h = ((h) + ((h) << 5) + ((h) >> 27) + (c));
-        len = p - p1;
-        if (c != '\\') {
-            TokenSym **pts;
-            h &= (16384 - 1);
-            pts = &hash_ident[h];
-            for(;;) {
-                ts = *pts;
-                if (!ts)
-                    break;
-                if (ts->len == len && !memcmp(ts->str, p1, len))
-                    goto token_found;
-                pts = &(ts->hash_next);
+    if (c != '\\') {
+        TokenSym **pts;
+        h &= (16384 - 1);
+        pts = &hash_ident[h];
+        for(;;) {
+            ts = *pts;
+            if (!ts) {
+                ts = tok_alloc_new(pts, (char *) p1, p - p1);
+                break;
             }
-            ts = tok_alloc_new(pts, (char *) p1, len);
-        token_found: ;
-        } else {
-            cstr_reset(&tokcstr);
-            cstr_cat(&tokcstr, (char *) p1, len);
-            p--;
-            c = next_src_char(&p);
-            while (isidnum_table[c - (-1)] & (2|4))
-            {
-                cstr_ccat(&tokcstr, c);
-                c = next_src_char(&p);
-            }
-            ts = tok_alloc(tokcstr.data, tokcstr.size);
+            if (ts->len == p - p1 && !memcmp(ts->str, p1, p - p1))
+                break;
+            pts = &(ts->hash_next);
         }
-        tok = ts->tok;
-        break;
-    case '0': case '1': case '2': case '3':
-    case '4': case '5': case '6': case '7':
-    case '8': case '9':
+    } else {
+        cstr_reset(&tokcstr);
+        cstr_cat(&tokcstr, (char *) p1, p - p1);
+        p--;
+        c = next_src_char(&p);
+        while (isidnum_table[c - (-1)] & (2|4))
+        {
+            cstr_ccat(&tokcstr, c);
+            c = next_src_char(&p);
+        }
+        ts = tok_alloc(tokcstr.data, tokcstr.size);
+    }
+    tok = ts->tok;
+    return p;
+}
+static uint8_t *scan_number_token(uint8_t *p, int t, int c)
+{
+    cstr_reset(&tokcstr);
+    for(;;) {
+        cstr_ccat(&tokcstr, t);
+        if (!((isidnum_table[c - (-1)] & (2|4))
+              || c == '.'
+              || ((c == '+' || c == '-')
+                  && (((t == 'e' || t == 'E')
+                        && !(((char*)tokcstr.data)[0] == '0'
+                            && toup(((char*)tokcstr.data)[1]) == 'X'))
+                      || t == 'p' || t == 'P'))))
+            break;
         t = c;
         c = next_src_char(&p);
-    parse_num:
-        cstr_reset(&tokcstr);
-        for(;;) {
-            cstr_ccat(&tokcstr, t);
-            if (!((isidnum_table[c - (-1)] & (2|4))
-                  || c == '.'
-                  || ((c == '+' || c == '-')
-                      && (((t == 'e' || t == 'E')
-                            && !(((char*)tokcstr.data)[0] == '0'
-                                && toup(((char*)tokcstr.data)[1]) == 'X'))
-                          || t == 'p' || t == 'P'))))
+    }
+    cstr_ccat(&tokcstr, '\0');
+    tokc.str.size = tokcstr.size;
+    tokc.str.data = tokcstr.data;
+    tok = 0xbe;
+    return p;
+}
+static void next_nomacro1(void)
+{
+    int t, c;
+    uint8_t *p;
+    p = file->buf_ptr;
+    for (;;) {
+        c = *p;
+        switch(c) {
+        case ' ':
+        case '\t':
+            p++;
+            while (isidnum_table[*p - (-1)] & 1)
+                ++p;
+            continue;
+        case '\f':
+        case '\v':
+        case '\r':
+            p++;
+            continue;
+        case '\\':
+            file->buf_ptr = p;
+            c = handle_eob();
+            p = file->buf_ptr;
+            if (c != (-1)) {
+                if (c == '\\')
+                    p++;
+                continue;
+            }
+            tok = (-1);
+            break;
+        case '\n':
+            file->line_num++;
+            p++;
+            continue;
+        case '#':
+            tcc_error("preprocessor directives are not supported in tcc_27_alt");
+            break;
+        case '$':
+            if (!(isidnum_table[c - (-1)] & 2)) {
+                tok = c;
+                p++;
                 break;
+            }
+        case 'a': case 'b': case 'c': case 'd':
+        case 'e': case 'f': case 'g': case 'h':
+        case 'i': case 'j': case 'k': case 'l':
+        case 'm': case 'n': case 'o': case 'p':
+        case 'q': case 'r': case 's': case 't':
+        case 'u': case 'v': case 'w': case 'x':
+        case 'y': case 'z':
+        case 'A': case 'B': case 'C': case 'D':
+        case 'E': case 'F': case 'G': case 'H':
+        case 'I': case 'J': case 'K': case 'L':
+        case 'M': case 'N': case 'O': case 'P':
+        case 'Q': case 'R': case 'S': case 'T':
+        case 'U': case 'V': case 'W': case 'X':
+        case 'Y': case 'Z':
+        case '_':
+            p = scan_ident_token(p, c);
+            break;
+        case '0': case '1': case '2': case '3':
+        case '4': case '5': case '6': case '7':
+        case '8': case '9':
             t = c;
             c = next_src_char(&p);
-        }
-        cstr_ccat(&tokcstr, '\0');
-        tokc.str.size = tokcstr.size;
-        tokc.str.data = tokcstr.data;
-        tok = 0xbe;
-        break;
-    case '.':
-        c = next_src_char(&p);
-        if (isnum(c)) {
-            t = '.';
-            goto parse_num;
-        } else if ((isidnum_table['.' - (-1)] & 2)
-                   && (isidnum_table[c - (-1)] & (2|4))) {
-            *--p = c = '.';
-            goto parse_ident_fast;
-        } else if (c == '.') {
+            p = scan_number_token(p, t, c);
+            break;
+        case '.':
             c = next_src_char(&p);
-            if (c == '.') {
-                p++;
-                tok = 0xc8;
+            if (isnum(c)) {
+                p = scan_number_token(p, '.', c);
+            } else if ((isidnum_table['.' - (-1)] & 2)
+                       && (isidnum_table[c - (-1)] & (2|4))) {
+                p--;
+                p = scan_ident_token(p, '.');
+            } else if (c == '.') {
+                c = next_src_char(&p);
+                if (c == '.') {
+                    p++;
+                    tok = 0xc8;
+                } else {
+                    *--p = '.';
+                    tok = '.';
+                }
             } else {
-                *--p = '.';
                 tok = '.';
             }
-        } else {
-            tok = '.';
-        }
-        break;
-    case '\'':
-    case '\"':
-        cstr_reset(&tokcstr);
-        cstr_ccat(&tokcstr, c);
-        p = parse_pp_string(p, c, &tokcstr);
-        cstr_ccat(&tokcstr, c);
-        cstr_ccat(&tokcstr, '\0');
-        tokc.str.size = tokcstr.size;
-        tokc.str.data = tokcstr.data;
-        tok = 0xbf;
-        break;
-    case '<':
-        c = next_src_char(&p);
-        if (c == '=') {
-            p++;
-            tok = 0x9e;
-        } else if (c == '<') {
+            break;
+        case '\'':
+        case '\"':
+            cstr_reset(&tokcstr);
+            cstr_ccat(&tokcstr, c);
+            p = parse_pp_string(p, c, &tokcstr);
+            cstr_ccat(&tokcstr, c);
+            cstr_ccat(&tokcstr, '\0');
+            tokc.str.size = tokcstr.size;
+            tokc.str.data = tokcstr.data;
+            tok = 0xbf;
+            break;
+        case '<':
             c = next_src_char(&p);
             if (c == '=') {
                 p++;
-                tok = 0x81;
+                tok = 0x9e;
+            } else if (c == '<') {
+                c = next_src_char(&p);
+                if (c == '=') {
+                    p++;
+                    tok = 0x81;
+                } else {
+                    tok = 0x01;
+                }
             } else {
-                tok = 0x01;
+                tok = 0x9c;
             }
-        } else {
-            tok = 0x9c;
-        }
-        break;
-    case '>':
-        c = next_src_char(&p);
-        if (c == '=') {
-            p++;
-            tok = 0x9d;
-        } else if (c == '>') {
+            break;
+        case '>':
             c = next_src_char(&p);
             if (c == '=') {
                 p++;
-                tok = 0x82;
+                tok = 0x9d;
+            } else if (c == '>') {
+                c = next_src_char(&p);
+                if (c == '=') {
+                    p++;
+                    tok = 0x82;
+                } else {
+                    tok = 0x02;
+                }
             } else {
-                tok = 0x02;
+                tok = 0x9f;
             }
-        } else {
-            tok = 0x9f;
+            break;
+        case '&':
+            c = next_src_char(&p);
+            if (c == '&') {
+                p++;
+                tok = 0xa0;
+            } else if (c == '=') {
+                p++;
+                tok = 0xa6;
+            } else {
+                tok = '&';
+            }
+            break;
+        case '|':
+            c = next_src_char(&p);
+            if (c == '|') {
+                p++;
+                tok = 0xa1;
+            } else if (c == '=') {
+                p++;
+                tok = 0xfc;
+            } else {
+                tok = '|';
+            }
+            break;
+        case '+':
+            c = next_src_char(&p);
+            if (c == '+') {
+                p++;
+                tok = 0xa4;
+            } else if (c == '=') {
+                p++;
+                tok = 0xab;
+            } else {
+                tok = '+';
+            }
+            break;
+        case '-':
+            c = next_src_char(&p);
+            if (c == '-') {
+                p++;
+                tok = 0xa2;
+            } else if (c == '=') {
+                p++;
+                tok = 0xad;
+            } else if (c == '>') {
+                p++;
+                tok = 0xc7;
+            } else {
+                tok = '-';
+            }
+            break;
+        case '!': c = next_src_char(&p); if (c == '=') { p++; tok = 0x95; } else { tok = '!'; } break;
+        case '=': c = next_src_char(&p); if (c == '=') { p++; tok = 0x94; } else { tok = '='; } break;
+        case '*': c = next_src_char(&p); if (c == '=') { p++; tok = 0xaa; } else { tok = '*'; } break;
+        case '%': c = next_src_char(&p); if (c == '=') { p++; tok = 0xa5; } else { tok = '%'; } break;
+        case '^': c = next_src_char(&p); if (c == '=') { p++; tok = 0xde; } else { tok = '^'; } break;
+        case '/':
+            c = next_src_char(&p);
+            if (c == '*') {
+                p = parse_comment(p);
+                tok = ' ';
+                continue;
+            } else if (c == '/') {
+                p = parse_line_comment(p);
+                tok = ' ';
+                continue;
+            } else if (c == '=') {
+                p++;
+                tok = 0xaf;
+            } else {
+                tok = '/';
+            }
+            break;
+        case '(':
+        case ')':
+        case '[':
+        case ']':
+        case '{':
+        case '}':
+        case ',':
+        case ';':
+        case ':':
+        case '?':
+        case '~':
+        case '@':
+            tok = c;
+            p++;
+            break;
+        default:
+            if (c >= 0x80 && c <= 0xFF) {
+                p = scan_ident_token(p, c);
+                break;
+            }
+            tcc_error("unrecognized character \\x%02x", c);
+            break;
         }
-        break;
-    case '&':
-        c = next_src_char(&p);
-        if (c == '&') {
-            p++;
-            tok = 0xa0;
-        } else if (c == '=') {
-            p++;
-            tok = 0xa6;
-        } else {
-            tok = '&';
-        }
-        break;
-    case '|':
-        c = next_src_char(&p);
-        if (c == '|') {
-            p++;
-            tok = 0xa1;
-        } else if (c == '=') {
-            p++;
-            tok = 0xfc;
-        } else {
-            tok = '|';
-        }
-        break;
-    case '+':
-        c = next_src_char(&p);
-        if (c == '+') {
-            p++;
-            tok = 0xa4;
-        } else if (c == '=') {
-            p++;
-            tok = 0xab;
-        } else {
-            tok = '+';
-        }
-        break;
-    case '-':
-        c = next_src_char(&p);
-        if (c == '-') {
-            p++;
-            tok = 0xa2;
-        } else if (c == '=') {
-            p++;
-            tok = 0xad;
-        } else if (c == '>') {
-            p++;
-            tok = 0xc7;
-        } else {
-            tok = '-';
-        }
-        break;
-    case '!': c = next_src_char(&p); if (c == '=') { p++; tok = 0x95; } else { tok = '!'; } break;
-    case '=': c = next_src_char(&p); if (c == '=') { p++; tok = 0x94; } else { tok = '='; } break;
-    case '*': c = next_src_char(&p); if (c == '=') { p++; tok = 0xaa; } else { tok = '*'; } break;
-    case '%': c = next_src_char(&p); if (c == '=') { p++; tok = 0xa5; } else { tok = '%'; } break;
-    case '^': c = next_src_char(&p); if (c == '=') { p++; tok = 0xde; } else { tok = '^'; } break;
-    case '/':
-        c = next_src_char(&p);
-        if (c == '*') {
-            p = parse_comment(p);
-            tok = ' ';
-            goto redo_no_start;
-        } else if (c == '/') {
-            p = parse_line_comment(p);
-            tok = ' ';
-            goto redo_no_start;
-        } else if (c == '=') {
-            p++;
-            tok = 0xaf;
-        } else {
-            tok = '/';
-        }
-        break;
-    case '(':
-    case ')':
-    case '[':
-    case ']':
-    case '{':
-    case '}':
-    case ',':
-    case ';':
-    case ':':
-    case '?':
-    case '~':
-    case '@':
-    parse_simple:
-        tok = c;
-        p++;
-        break;
-    default:
-        if (c >= 0x80 && c <= 0xFF)
-	    goto parse_ident_fast;
-        tcc_error("unrecognized character \\x%02x", c);
         break;
     }
     tok_flags = 0;
