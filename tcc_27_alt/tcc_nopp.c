@@ -223,8 +223,6 @@ static char *get_tok_str(int v, CValue *cv);
 static int set_idnum(int c, int val);
 static void next_nomacro(void);
 static void next(void);
-static void preprocess_start(TCCState *s1);
-static void preprocess_end(TCCState *s1);
 static void tccpp_new(TCCState *s);
 static void tccpp_delete(TCCState *s);
 static void skip(int c);
@@ -366,12 +364,9 @@ static void gen_le32(int c);
 static void gen_addr32(int r, Sym *sym, int c);
 static struct TCCState *tcc_state;
 static int nb_states;
-static int tok_flags;
 static struct BufferedFile *file;
 static int tok;
 static CValue tokc;
-static int pushed_tok, has_pushed_tok;
-static CValue pushed_tokc;
 static CString tokcstr;
 static int total_lines;
 static int total_bytes;
@@ -439,7 +434,6 @@ static unsigned char tok_two_chars[64] =
     '#','#', 0xca,
     0
 };
-static void next_nomacro_spc(void);
 static void skip(int c)
 {
     if (tok != c)
@@ -1293,24 +1287,13 @@ static void next_nomacro1(void)
         }
         break;
     }
-    tok_flags = 0;
     file->buf_ptr = p;
-}
-static void next_nomacro_spc(void)
-{
-    if (has_pushed_tok) {
-        tok = pushed_tok;
-        tokc = pushed_tokc;
-        has_pushed_tok = 0;
-    } else {
-        next_nomacro1();
-    }
 }
 static void next_nomacro(void)
 {
-    next_nomacro_spc();
+    next_nomacro1();
     while (tok < 256 && (isidnum_table[tok - (-1)] & 1))
-        next_nomacro_spc();
+        next_nomacro1();
 }
 static void next(void)
 {
@@ -1320,17 +1303,6 @@ static void next(void)
     } else if (tok == 0xbf) {
         parse_string((char *)tokc.str.data, tokc.str.size - 1);
     }
-}
-static void preprocess_start(TCCState *s1)
-{
-    pvtop = vtop = (__vstack + 1) - 1;
-    set_idnum('$', 0);
-    set_idnum('.', 0);
-    tok_flags = 0;
-}
-static void preprocess_end(TCCState *s1)
-{
-    has_pushed_tok = 0;
 }
 static void tccpp_new(TCCState *s)
 {
@@ -6381,8 +6353,7 @@ static void error1(TCCState *s1, char *fmt, va_list ap)
     for (f = file; f && f->filename[0] == ':'; f = f->prev)
      ;
     if (f) {
-        strcat_printf(buf, sizeof(buf), "%s:%d: ",
-            f->filename, f->line_num - !!(tok_flags & 0x0001));
+        strcat_printf(buf, sizeof(buf), "%s:%d: ", f->filename, f->line_num);
     } else {
         strcat_printf(buf, sizeof(buf), "tcc: ");
     }
@@ -6423,7 +6394,6 @@ static void tcc_open_bf(TCCState *s1, char *filename, int initlen)
     bf->fd = -1;
     bf->prev = file;
     file = bf;
-    tok_flags = 0x0001 | 0x0002;
 }
 static void tcc_close(void)
 {
@@ -6451,9 +6421,8 @@ static int tcc_open(TCCState *s1, char *filename)
 static int tcc_compile(TCCState *s1)
 {
     tccelf_begin_file(s1);
-    preprocess_start(s1);
+    pvtop = vtop = (__vstack + 1) - 1;
     tccgen_compile(s1);
-    preprocess_end(s1);
     sym_pop(&global_stack, ((void*)0), 0);
     sym_pop(&local_stack, ((void*)0), 0);
     tccelf_end_file(s1);
