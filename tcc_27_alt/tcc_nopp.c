@@ -3401,33 +3401,33 @@ static void unary(void)
     AttributeDef ad;
     sizeof_caller = in_sizeof;
     in_sizeof = 0;
-    type.ref = ((void*)0);
+    ct_set_ref(&type, ((void*)0));
     if (tok == 0xb5 || tok == 0xb3) {
 	t = 3;
-	type.t = t;
+	ct_set_t(&type, t);
 	vsetc(&type, 0x0030, &tokc);
         next();
     } else if (tok == 0xb6) {
         t = 3 | 0x0010;
-	type.t = t;
+	ct_set_t(&type, t);
 	vsetc(&type, 0x0030, &tokc);
         next();
     } else if (tok == 0xce) {
         t = 3;
-	type.t = t;
+	ct_set_t(&type, t);
 	vsetc(&type, 0x0030, &tokc);
         next();
     } else if (tok == 0xcf) {
         t = 3 | 0x0010;
-	type.t = t;
+	ct_set_t(&type, t);
 	vsetc(&type, 0x0030, &tokc);
         next();
     } else if (tok == 0xb9) {
         t = 1;
-        type.t = t;
+        ct_set_t(&type, t);
         mk_pointer(&type);
-        type.t |= 0x0040;
-        type.ref->c = cv_str_size(&tokc);
+        ct_or_t(&type, 0x0040);
+        ct_ref(&type)->c = cv_str_size(&tokc);
         memset(&ad, 0, sizeof(AttributeDef));
         decl_initializer_alloc(&type, &ad, 0x0030, 2, 0, 0);
     } else if (tok == '(') {
@@ -3452,8 +3452,8 @@ static void unary(void)
     } else if (tok == '&') {
         next();
         unary();
-        if ((vtop->type.t & 0x000f) != 6 &&
-            !(vtop->type.t & 0x0040))
+        if ((ct_t(&vtop->type) & 0x000f) != 6 &&
+            !(ct_t(&vtop->type) & 0x0040))
             test_lvalue();
         mk_pointer(&vtop->type);
         gaddrof();
@@ -3477,7 +3477,7 @@ static void unary(void)
     } else if (tok == '+') {
         next();
         unary();
-        if ((vtop->type.t & 0x000f) == 5)
+        if ((ct_t(&vtop->type) & 0x000f) == 5)
             tcc_error("pointer not accepted for unary plus");
         vpushi(0);
         gen_op('+');
@@ -3490,7 +3490,7 @@ static void unary(void)
         if (size < 0)
             tcc_error("sizeof applied to an incomplete type");
         vpushs(size);
-        vtop->type.t |= 0x0010;
+        ct_or_t(&vtop->type, 0x0010);
     } else if (tok == 0xa4 || tok == 0xa2) {
         t = tok;
         next();
@@ -3499,7 +3499,7 @@ static void unary(void)
     } else if (tok == '-') {
         next();
         unary();
-        t = vtop->type.t & 0x000f;
+        t = ct_t(&vtop->type) & 0x000f;
         vpushi(0);
 	vswap();
 	gen_op('-');
@@ -3509,7 +3509,7 @@ static void unary(void)
         if (t <= 275)
             expect("identifier");
         s = sym_find(t);
-        if (!s || (((s)->type.t & (0x000f | (0 | 0x0010))) == (0 | 0x0010))) {
+        if (!s || (((ct_t(&s->type) & (0x000f | (0 | 0x0010))) == (0 | 0x0010)))) {
             char *name = get_tok_str(t, ((void*)0));
             if (tok != '(')
                 tcc_error("'%s' undeclared", name);
@@ -3533,7 +3533,7 @@ static void unary(void)
                 indir();
             test_lvalue();
             gaddrof();
-            if ((vtop->type.t & 0x000f) != 7)
+            if ((ct_t(&vtop->type) & 0x000f) != 7)
                 expect("struct");
             next();
             if (tok == 0xb5 || tok == 0xb6)
@@ -3541,12 +3541,12 @@ static void unary(void)
 	    s = find_field(&vtop->type, tok);
             if (!s)
                 tcc_error("field not found: %s",  get_tok_str(tok & ~0x20000000, &tokc));
-            vtop->type = char_pointer_type;
+            ct_copy(&vtop->type, &char_pointer_type);
             vpushi(s->c);
             gen_op('+');
-            vtop->type = s->type;
-            if (!(vtop->type.t & 0x0040)) {
-                vtop->r |= lvalue_type(vtop->type.t);
+            ct_copy(&vtop->type, &s->type);
+            if (!(ct_t(&vtop->type) & 0x0040)) {
+                vtop->r |= lvalue_type(ct_t(&vtop->type));
             }
             next();
         } else if (tok == '[') {
@@ -3558,10 +3558,10 @@ static void unary(void)
         } else if (tok == '(') {
             SValue ret;
             int nb_args;
-            if ((vtop->type.t & 0x000f) != 6) {
-                if ((vtop->type.t & (0x000f | 0x0040)) == 5) {
-                    vtop->type = *pointed_type(&vtop->type);
-                    if ((vtop->type.t & 0x000f) != 6)
+            if ((ct_t(&vtop->type) & 0x000f) != 6) {
+                if ((ct_t(&vtop->type) & (0x000f | 0x0040)) == 5) {
+                    ct_copy(&vtop->type, pointed_type(&vtop->type));
+                    if ((ct_t(&vtop->type) & 0x000f) != 6)
                         expect("function pointer");
                 } else {
                     expect("function pointer");
@@ -3569,12 +3569,12 @@ static void unary(void)
             } else {
                 vtop->r &= ~0x0100;
             }
-            s = vtop->type.ref;
+            s = ct_ref(&vtop->type);
             next();
             nb_args = 0;
-            if ((s->type.t & 0x000f) == 7)
+            if ((ct_t(&s->type) & 0x000f) == 7)
                 tcc_error("struct return values are not supported in tcc_27_alt");
-            ret.type = s->type;
+            ct_copy(&ret.type, &s->type);
             ret.r = 0;
             cv_set_i(&ret.c, 0);
             if (tok != ')') {
