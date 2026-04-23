@@ -223,7 +223,6 @@ static int set_idnum(int c, int val);
 static void next_nomacro(void);
 static void next(void);
 static void tccpp_new(TCCState *s);
-static void tccpp_delete(TCCState *s);
 static void skip(int c);
 static  void expect(char *msg);
 static int is_space(int ch) {
@@ -294,7 +293,6 @@ static Section *common_section;
 static Section *cur_text_section;
 static Section *symtab_section;
 static void tccelf_new(TCCState *s);
-static void tccelf_delete(TCCState *s);
 static void tccelf_begin_file(TCCState *s1);
 static void tccelf_end_file(TCCState *s1);
 static Section *new_section(TCCState *s1, char *name, int sh_type, int sh_flags);
@@ -362,7 +360,6 @@ static void g(int c);
 static void gen_le32(int c);
 static void gen_addr32(int r, Sym *sym, int c);
 static struct TCCState *tcc_state;
-static int nb_states;
 static struct BufferedFile *file;
 static int tok;
 static CValue tokc;
@@ -1316,16 +1313,6 @@ static void tccpp_new(TCCState *s)
         tok_alloc(p, r - p - 1);
         p = r;
     }
-}
-static void tccpp_delete(TCCState *s)
-{
-    int i, n;
-    n = tok_ident - 256;
-    for(i = 0; i < n; i++)
-        tcc_free(table_ident[i]);
-    tcc_free(table_ident);
-    table_ident = ((void*)0);
-    cstr_free(&tokcstr);
 }
 static int rsym, anon_sym, ind, loc;
 static Sym *sym_free_first;
@@ -4300,23 +4287,6 @@ static void tccelf_new(TCCState *s)
     s->symtab = symtab_section;
     get_sym_attr(s, 0, 1);
 }
-static void free_section(Section *s)
-{
-    tcc_free(s->data);
-}
-static void tccelf_delete(TCCState *s1)
-{
-    int i;
-    for(i = 1; i < s1->nb_sections; i++)
-        free_section(s1->sections[i]);
-    dynarray_reset(&s1->sections, &s1->nb_sections);
-    for(i = 0; i < s1->nb_priv_sections; i++)
-        free_section(s1->priv_sections[i]);
-    dynarray_reset(&s1->priv_sections, &s1->nb_priv_sections);
-    dynarray_reset(&s1->loaded_dlls, &s1->nb_loaded_dlls);
-    tcc_free(s1->sym_attrs);
-    symtab_section = ((void*)0);
-}
 static void tccelf_begin_file(TCCState *s1)
 {
     Section *s; int i;
@@ -5388,12 +5358,6 @@ static int elf_output_file(TCCState *s1, char *filename)
     tcc_free(phdr);
     return ret;
 }
- int tcc_output_file(TCCState *s, char *filename)
-{
-    int ret;
-        ret = elf_output_file(s, filename);
-    return ret;
-}
 static void *load_data(int fd, unsigned int file_offset, unsigned int size)
 {
     void *data;
@@ -6396,40 +6360,6 @@ static int tcc_compile(TCCState *s1)
     tccelf_end_file(s1);
     return 0;
 }
-static void tcc_cleanup(void)
-{
-    if (((void*)0) == tcc_state)
-        return;
-    while (file)
-        tcc_close();
-    tccpp_delete(tcc_state);
-    tcc_state = ((void*)0);
-    dynarray_reset(&sym_pools, &nb_sym_pools);
-    sym_free_first = ((void*)0);
-}
- TCCState *tcc_new(void)
-{
-    TCCState *s;
-    tcc_cleanup();
-    s = tcc_mallocz(sizeof(TCCState));
-    if (!s)
-        return ((void*)0);
-    tcc_state = s;
-    ++nb_states;
-    tccelf_new(s);
-    tccpp_new(s);
-    return s;
-}
- void tcc_delete(TCCState *s1)
-{
-    tcc_cleanup();
-    tccelf_delete(s1);
-    dynarray_reset(&s1->crt_paths, &s1->nb_crt_paths);
-    tcc_free(s1->outfile);
-    dynarray_reset(&s1->files, &s1->nb_files);
-    tcc_free(s1);
-    --nb_states;
-}
 static int tcc_add_file_internal(TCCState *s1, char *filename, int flags)
 {
     int ret;
@@ -6455,13 +6385,13 @@ static int tcc_add_file_internal(TCCState *s1, char *filename, int flags)
     tcc_close();
     return ret;
 }
- int tcc_add_file(TCCState *s, char *filename)
+static void tcc_add_file(TCCState *s, char *filename)
 {
     int flags = 0x10;
     char *ext = tcc_fileextension(filename);
     if (ext[0] && strcmp(ext + 1, "c"))
         flags |= 0x40;
-    return tcc_add_file_internal(s, filename, flags);
+    tcc_add_file_internal(s, filename, flags);
 }
 static int tcc_add_library_internal(TCCState *s, char *fmt,
     char *filename, int flags, char **paths, int nb_paths)
@@ -6578,7 +6508,10 @@ int main(int argc0, char **argv0)
     TCCState *s;
     int i, opt;
     char *first_file;
-    s = tcc_new();
+    s = tcc_mallocz(sizeof(TCCState));
+    tcc_state = s;
+    tccelf_new(s);
+    tccpp_new(s);
     opt = tcc_parse_args(s, argc0, argv0);
     if (opt == 1 || s->nb_files == 0)
         tcc_error("no input files\n");
@@ -6596,7 +6529,6 @@ int main(int argc0, char **argv0)
         tcc_add_file(s, s->files[i]->name);
     if (!s->outfile)
         s->outfile = default_outputfile(s, first_file);
-    tcc_output_file(s, s->outfile);
-    tcc_delete(s);
+    elf_output_file(s, s->outfile);
     return 0;
 }
