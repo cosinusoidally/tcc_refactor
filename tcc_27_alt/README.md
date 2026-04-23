@@ -42,6 +42,8 @@ Compound literals are outside the subset; casts remain supported.
 dialect uses `int`/`unsigned int` for 32-bit integers. Unsupported type and
 storage spellings such as `long`, explicit `signed`, `register`, `auto`, and
 `_Bool` are not treated as keywords.
+`switch`, `case`, and `default` statement support has been removed; use
+`if`/`else` chains in the reduced dialect.
 
 ## Build
 

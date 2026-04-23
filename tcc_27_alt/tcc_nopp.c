@@ -195,7 +195,6 @@ static char *pstrcpy(char *buf, int buf_size, char *s);
  char *tcc_strdup(char *str);
   void tcc_error(char *fmt, ...);
 static void dynarray_add(void *ptab, int *nb_ptr, void *data);
-static void dynarray_reset(void *pp, int *n);
 static void cstr_ccat(CString *cstr, int ch);
 static void cstr_cat(CString *cstr, char *str, int len);
 static void cstr_reset(CString *cstr);
@@ -333,7 +332,6 @@ static void gfunc_epilog(void);
 static int gjmp(int t);
 static void gjmp_addr(int a);
 static int gtst(int inv, int t);
-static void gtst_addr(int inv, int a);
 static void gen_opi(int op);
 static void o(unsigned int c);
 static uint16_t read16le(unsigned char *p) {
@@ -506,39 +504,29 @@ static char *get_tok_str(int v, CValue *cv)
 {
     static char buf[64];
     char *p = buf;
-    switch(v) {
-    case 0xb5:
-    case 0xb6:
-    case 0xce:
-    case 0xcf:
+    if (v == 0xb5 || v == 0xb6 || v == 0xce || v == 0xcf) {
         sprintf(p, "%u", cv->i);
-        break;
-    case 0xb3:
+    } else if (v == 0xb3) {
         return "<char>";
-        break;
-    case 0xbe:
-    case 0xbf:
+    } else if (v == 0xbe || v == 0xbf) {
         return (char*)cv->str.data;
-    case 0xb9:
+    } else if (v == 0xb9) {
         return "<string>";
-        break;
-    case 0x9c:
+    } else if (v == 0x9c) {
         *p++ = '<';
         *p = '\0';
-        break;
-    case 0x9f:
+    } else if (v == 0x9f) {
         *p++ = '>';
         *p = '\0';
-        break;
-    case 0xc8:
+    } else if (v == 0xc8) {
         return strcpy(p, "...");
-    case 0x81:
+    } else if (v == 0x81) {
         return strcpy(p, "<<=");
-    case 0x82:
+    } else if (v == 0x82) {
         return strcpy(p, ">>=");
-    case (-1):
+    } else if (v == (-1)) {
         return strcpy(p, "<eof>");
-    default:
+    } else {
         if (v < 256) {
             unsigned char *q = tok_two_chars;
             while (*q) {
@@ -563,7 +551,6 @@ static char *get_tok_str(int v, CValue *cv)
         } else {
             return ((void*)0);
         }
-        break;
     }
     return buf;
 }
@@ -753,9 +740,7 @@ static void parse_escape_string(CString *outstr, uint8_t *buf)
         if (c == '\\') {
             p++;
             c = *p;
-            switch(c) {
-            case '0': case '1': case '2': case '3':
-            case '4': case '5': case '6': case '7':
+            if (isoct(c)) {
                 n = c - '0';
                 p++;
                 c = *p;
@@ -771,9 +756,7 @@ static void parse_escape_string(CString *outstr, uint8_t *buf)
                 c = n;
                 cstr_ccat(outstr, c);
                 continue;
-            case 'x':
-            case 'u':
-            case 'U':
+            } else if (c == 'x' || c == 'u' || c == 'U') {
                 p++;
                 n = 0;
                 for(;;) {
@@ -792,34 +775,20 @@ static void parse_escape_string(CString *outstr, uint8_t *buf)
                 c = n;
                 cstr_ccat(outstr, c);
                 continue;
-            case 'a':
+            } else if (c == 'a') {
                 c = '\a';
-                break;
-            case 'b':
+            } else if (c == 'b') {
                 c = '\b';
-                break;
-            case 'f':
+            } else if (c == 'f') {
                 c = '\f';
-                break;
-            case 'n':
+            } else if (c == 'n') {
                 c = '\n';
-                break;
-            case 'r':
+            } else if (c == 'r') {
                 c = '\r';
-                break;
-            case 't':
+            } else if (c == 't') {
                 c = '\t';
-                break;
-            case 'v':
+            } else if (c == 'v') {
                 c = '\v';
-                break;
-            case '\'':
-            case '\"':
-            case '\\':
-            case '?':
-                break;
-            default:
-                break;
             }
         }
         p++;
@@ -1033,19 +1002,15 @@ static void next_nomacro1(void)
     p = file->buf_ptr;
     for (;;) {
         c = *p;
-        switch(c) {
-        case ' ':
-        case '\t':
+        if (c == ' ' || c == '\t') {
             p++;
             while (isidnum_table[*p - (-1)] & 1)
                 ++p;
             continue;
-        case '\f':
-        case '\v':
-        case '\r':
+        } else if (c == '\f' || c == '\v' || c == '\r') {
             p++;
             continue;
-        case '\\':
+        } else if (c == '\\') {
             file->buf_ptr = p;
             c = handle_eob();
             p = file->buf_ptr;
@@ -1056,44 +1021,30 @@ static void next_nomacro1(void)
             }
             tok = (-1);
             break;
-        case '\n':
+        } else if (c == '\n') {
             file->line_num++;
             p++;
             continue;
-        case '#':
+        } else if (c == '#') {
             tcc_error("preprocessor directives are not supported in tcc_27_alt");
             break;
-        case '$':
+        } else if (c == '$') {
             if (!(isidnum_table[c - (-1)] & 2)) {
                 tok = c;
                 p++;
                 break;
             }
-        case 'a': case 'b': case 'c': case 'd':
-        case 'e': case 'f': case 'g': case 'h':
-        case 'i': case 'j': case 'k': case 'l':
-        case 'm': case 'n': case 'o': case 'p':
-        case 'q': case 'r': case 's': case 't':
-        case 'u': case 'v': case 'w': case 'x':
-        case 'y': case 'z':
-        case 'A': case 'B': case 'C': case 'D':
-        case 'E': case 'F': case 'G': case 'H':
-        case 'I': case 'J': case 'K': case 'L':
-        case 'M': case 'N': case 'O': case 'P':
-        case 'Q': case 'R': case 'S': case 'T':
-        case 'U': case 'V': case 'W': case 'X':
-        case 'Y': case 'Z':
-        case '_':
             p = scan_ident_token(p, c);
             break;
-        case '0': case '1': case '2': case '3':
-        case '4': case '5': case '6': case '7':
-        case '8': case '9':
+        } else if (isid(c)) {
+            p = scan_ident_token(p, c);
+            break;
+        } else if (isnum(c)) {
             t = c;
             c = next_src_char(&p);
             p = scan_number_token(p, t, c);
             break;
-        case '.':
+        } else if (c == '.') {
             c = next_src_char(&p);
             if (isnum(c)) {
                 p = scan_number_token(p, '.', c);
@@ -1114,8 +1065,7 @@ static void next_nomacro1(void)
                 tok = '.';
             }
             break;
-        case '\'':
-        case '\"':
+        } else if (c == '\'' || c == '\"') {
             cstr_reset(&tokcstr);
             cstr_ccat(&tokcstr, c);
             p = parse_pp_string(p, c, &tokcstr);
@@ -1125,7 +1075,7 @@ static void next_nomacro1(void)
             tokc.str.data = tokcstr.data;
             tok = 0xbf;
             break;
-        case '<':
+        } else if (c == '<') {
             c = next_src_char(&p);
             if (c == '=') {
                 p++;
@@ -1142,7 +1092,7 @@ static void next_nomacro1(void)
                 tok = 0x9c;
             }
             break;
-        case '>':
+        } else if (c == '>') {
             c = next_src_char(&p);
             if (c == '=') {
                 p++;
@@ -1159,7 +1109,7 @@ static void next_nomacro1(void)
                 tok = 0x9f;
             }
             break;
-        case '&':
+        } else if (c == '&') {
             c = next_src_char(&p);
             if (c == '&') {
                 p++;
@@ -1171,7 +1121,7 @@ static void next_nomacro1(void)
                 tok = '&';
             }
             break;
-        case '|':
+        } else if (c == '|') {
             c = next_src_char(&p);
             if (c == '|') {
                 p++;
@@ -1183,7 +1133,7 @@ static void next_nomacro1(void)
                 tok = '|';
             }
             break;
-        case '+':
+        } else if (c == '+') {
             c = next_src_char(&p);
             if (c == '+') {
                 p++;
@@ -1195,7 +1145,7 @@ static void next_nomacro1(void)
                 tok = '+';
             }
             break;
-        case '-':
+        } else if (c == '-') {
             c = next_src_char(&p);
             if (c == '-') {
                 p++;
@@ -1210,12 +1160,17 @@ static void next_nomacro1(void)
                 tok = '-';
             }
             break;
-        case '!': c = next_src_char(&p); if (c == '=') { p++; tok = 0x95; } else { tok = '!'; } break;
-        case '=': c = next_src_char(&p); if (c == '=') { p++; tok = 0x94; } else { tok = '='; } break;
-        case '*': c = next_src_char(&p); if (c == '=') { p++; tok = 0xaa; } else { tok = '*'; } break;
-        case '%': c = next_src_char(&p); if (c == '=') { p++; tok = 0xa5; } else { tok = '%'; } break;
-        case '^': c = next_src_char(&p); if (c == '=') { p++; tok = 0xde; } else { tok = '^'; } break;
-        case '/':
+        } else if (c == '!') {
+            c = next_src_char(&p); if (c == '=') { p++; tok = 0x95; } else { tok = '!'; } break;
+        } else if (c == '=') {
+            c = next_src_char(&p); if (c == '=') { p++; tok = 0x94; } else { tok = '='; } break;
+        } else if (c == '*') {
+            c = next_src_char(&p); if (c == '=') { p++; tok = 0xaa; } else { tok = '*'; } break;
+        } else if (c == '%') {
+            c = next_src_char(&p); if (c == '=') { p++; tok = 0xa5; } else { tok = '%'; } break;
+        } else if (c == '^') {
+            c = next_src_char(&p); if (c == '=') { p++; tok = 0xde; } else { tok = '^'; } break;
+        } else if (c == '/') {
             c = next_src_char(&p);
             if (c == '*') {
                 p = parse_comment(p);
@@ -1232,22 +1187,13 @@ static void next_nomacro1(void)
                 tok = '/';
             }
             break;
-        case '(':
-        case ')':
-        case '[':
-        case ']':
-        case '{':
-        case '}':
-        case ',':
-        case ';':
-        case ':':
-        case '?':
-        case '~':
-        case '@':
+        } else if (c == '(' || c == ')' || c == '[' || c == ']' ||
+                   c == '{' || c == '}' || c == ',' || c == ';' ||
+                   c == ':' || c == '?' || c == '~' || c == '@') {
             tok = c;
             p++;
             break;
-        default:
+        } else {
             if (c >= 0x80 && c <= 0xFF) {
                 p = scan_ident_token(p, c);
                 break;
@@ -1255,7 +1201,6 @@ static void next_nomacro1(void)
             tcc_error("unrecognized character \\x%02x", c);
             break;
         }
-        break;
     }
     file->buf_ptr = p;
 }
@@ -1316,13 +1261,6 @@ static CType func_vt;
 static int func_ind;
 static char *funcname;
 static CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
-static struct switch_t {
-    struct case_t {
-        int v1, v2;
-	int sym;
-    } **p; int n;
-    int def_sym;
-} *cur_switch;
 static void gen_cast(CType *type);
 static void gen_cast_s(int t);
 static CType *pointed_type(CType *type);
@@ -1960,51 +1898,44 @@ static void gen_opic(int op)
               (v2->type.t & 0x0010 ? 0 : -(l2 & 0x80000000)));
     if (c1 && c2) {
         folded = 1;
-        switch(op) {
-        case '+': l1 += l2; break;
-        case '-': l1 -= l2; break;
-        case '&': l1 &= l2; break;
-        case '^': l1 ^= l2; break;
-        case '|': l1 |= l2; break;
-        case '*': l1 *= l2; break;
-        case 0xb2:
-        case '/':
-        case '%':
-        case 0xb0:
-        case 0xb1:
+        if (op == '+') l1 += l2;
+        else if (op == '-') l1 -= l2;
+        else if (op == '&') l1 &= l2;
+        else if (op == '^') l1 ^= l2;
+        else if (op == '|') l1 |= l2;
+        else if (op == '*') l1 *= l2;
+        else if (op == 0xb2 || op == '/' || op == '%' || op == 0xb0 || op == 0xb1) {
             if (l2 == 0) {
                 if (const_wanted)
                     tcc_error("division by zero in constant");
                 folded = 0;
-                break;
+            } else if (op == '%') {
+                l1 = l1 - l2 * gen_opic_sdiv(l1, l2);
+            } else if (op == 0xb0) {
+                l1 = l1 / l2;
+            } else if (op == 0xb1) {
+                l1 = l1 % l2;
+            } else {
+                l1 = gen_opic_sdiv(l1, l2);
             }
-            switch(op) {
-            default: l1 = gen_opic_sdiv(l1, l2); break;
-            case '%': l1 = l1 - l2 * gen_opic_sdiv(l1, l2); break;
-            case 0xb0: l1 = l1 / l2; break;
-            case 0xb1: l1 = l1 % l2; break;
-            }
-            break;
-        case 0x01: l1 <<= (l2 & shm); break;
-        case 0xc9: l1 >>= (l2 & shm); break;
-        case 0x02:
+        } else if (op == 0x01) l1 <<= (l2 & shm);
+        else if (op == 0xc9) l1 >>= (l2 & shm);
+        else if (op == 0x02) {
             l1 = (l1 >> 31) ? ~(~l1 >> (l2 & shm)) : l1 >> (l2 & shm);
-            break;
-        case 0x92: l1 = l1 < l2; break;
-        case 0x93: l1 = l1 >= l2; break;
-        case 0x94: l1 = l1 == l2; break;
-        case 0x95: l1 = l1 != l2; break;
-        case 0x96: l1 = l1 <= l2; break;
-        case 0x97: l1 = l1 > l2; break;
-        case 0x9c: l1 = gen_opic_lt(l1, l2); break;
-        case 0x9d: l1 = !gen_opic_lt(l1, l2); break;
-        case 0x9e: l1 = !gen_opic_lt(l2, l1); break;
-        case 0x9f: l1 = gen_opic_lt(l2, l1); break;
-        case 0xa0: l1 = l1 && l2; break;
-        case 0xa1: l1 = l1 || l2; break;
-        default:
+        } else if (op == 0x92) l1 = l1 < l2;
+        else if (op == 0x93) l1 = l1 >= l2;
+        else if (op == 0x94) l1 = l1 == l2;
+        else if (op == 0x95) l1 = l1 != l2;
+        else if (op == 0x96) l1 = l1 <= l2;
+        else if (op == 0x97) l1 = l1 > l2;
+        else if (op == 0x9c) l1 = gen_opic_lt(l1, l2);
+        else if (op == 0x9d) l1 = !gen_opic_lt(l1, l2);
+        else if (op == 0x9e) l1 = !gen_opic_lt(l2, l1);
+        else if (op == 0x9f) l1 = gen_opic_lt(l2, l1);
+        else if (op == 0xa0) l1 = l1 && l2;
+        else if (op == 0xa1) l1 = l1 || l2;
+        else {
             folded = 0;
-            break;
         }
         if (folded) {
 	    if (t1 != 4 && (4 != 8 || t1 != 5))
@@ -2435,11 +2366,10 @@ static void gen_assign_cast(CType *dt)
     	    tcc_error("cannot cast from/to void");
     }
     ok = 1;
-    switch(dbt) {
-    case 5:
+    if (dbt == 5) {
         if (is_null_pointer(vtop))
-            break;
-        if (!is_integer_btype(sbt) && sbt != 6) {
+            ;
+        else if (!is_integer_btype(sbt) && sbt != 6) {
             if (sbt != 5) {
                 ok = 0;
             } else {
@@ -2451,17 +2381,11 @@ static void gen_assign_cast(CType *dt)
                 }
             }
         }
-        break;
-    case 1:
-    case 2:
-    case 3:
-    case 4:
+    } else if (dbt == 1 || dbt == 2 || dbt == 3 || dbt == 4) {
         if (sbt == 7)
             ok = is_compatible_types(dt, st);
-        break;
-    case 7:
+    } else if (dbt == 7) {
         ok = is_compatible_types(dt, st);
-        break;
     }
     if (!ok) {
         type_to_str(buf1, sizeof(buf1), st, ((void*)0));
@@ -2716,81 +2640,57 @@ static int parse_btype(CType *type, AttributeDef *ad)
     done = 0;
     while(!done) {
         basic = 0;
-        switch(tok) {
-        case 258:
-            u = 1;
-            next();
-            basic = 1;
-            break;
-        case 257:
-            u = 0;
-            next();
-            basic = 1;
-            break;
-        case 271:
-            u = 2;
-            next();
-            basic = 1;
-            break;
-        case 256:
-            u = 3;
-            next();
-            basic = 1;
-            break;
-        case 272:
+        if (tok == 258) {
+            u = 1; next(); basic = 1;
+        } else if (tok == 257) {
+            u = 0; next(); basic = 1;
+        } else if (tok == 271) {
+            u = 2; next(); basic = 1;
+        } else if (tok == 256) {
+            u = 3; next(); basic = 1;
+        } else if (tok == 272) {
             struct_decl(&type1, 7);
             u = type1.t;
             type->ref = type1.ref;
             basic = 1;
-            break;
-        case 267:
+        } else if (tok == 267) {
             if ((t & (0x0020|0x0010)) == 0x0020)
                 tcc_error("signed and unsigned modifier");
             t |= 0x0020 | 0x0010;
             next();
             typespec_found = 1;
-            break;
-        case 265:
-            g = 0x00001000;
+        } else if (tok == 265 || tok == 266 || tok == 273) {
+            if (tok == 265)
+                g = 0x00001000;
+            else if (tok == 266)
+                g = 0x00002000;
+            else
+                g = 0x00004000;
             if (t & (0x00001000|0x00002000|0x00004000) & ~g)
                 tcc_error("multiple storage classes");
             t |= g;
             next();
-            break;
-        case 266:
-            g = 0x00002000;
-            if (t & (0x00001000|0x00002000|0x00004000) & ~g)
-                tcc_error("multiple storage classes");
-            t |= g;
-            next();
-            break;
-        case 273:
-            g = 0x00004000;
-            if (t & (0x00001000|0x00002000|0x00004000) & ~g)
-                tcc_error("multiple storage classes");
-            t |= g;
-            next();
-            break;
-        default:
+        } else {
             if (typespec_found) {
                 done = 1;
-                break;
+            } else {
+                s = sym_find(tok);
+                if (!s || !(s->type.t & 0x00004000)) {
+                    done = 1;
+                } else {
+                    t &= ~0x000f;
+                    type->t = (s->type.t & ~0x00004000) | t;
+                    type->ref = s->type.ref;
+                    t = type->t;
+                    sym_to_attr(ad, s);
+                    next();
+                    typespec_found = 1;
+                    st = bt = -2;
+                }
             }
-            s = sym_find(tok);
-            if (!s || !(s->type.t & 0x00004000)) {
-                done = 1;
-                break;
-            }
-            t &= ~0x000f;
-            type->t = (s->type.t & ~0x00004000) | t;
-            type->ref = s->type.ref;
-            t = type->t;
-            sym_to_attr(ad, s);
-            next();
-            typespec_found = 1;
-            st = bt = -2;
-            break;
         }
+        if (done)
+            continue;
         if (basic) {
             if (u == 2) {
                 if (st != -1 || (bt != -1 && bt != 3))
@@ -2805,8 +2705,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
                 t = (t & ~0x000f) | u;
             typespec_found = 1;
         }
-        if (!done)
-            type_found = 1;
+        type_found = 1;
     }
     bt = t & 0x000f;
     type->t = t;
@@ -2969,33 +2868,27 @@ static void unary(void)
     sizeof_caller = in_sizeof;
     in_sizeof = 0;
     type.ref = ((void*)0);
-    switch(tok) {
-    case 0xb5:
-    case 0xb3:
+    if (tok == 0xb5 || tok == 0xb3) {
 	t = 3;
 	type.t = t;
 	vsetc(&type, 0x0030, &tokc);
         next();
-        break;
-    case 0xb6:
+    } else if (tok == 0xb6) {
         t = 3 | 0x0010;
 	type.t = t;
 	vsetc(&type, 0x0030, &tokc);
         next();
-        break;
-    case 0xce:
+    } else if (tok == 0xce) {
         t = 3;
 	type.t = t;
 	vsetc(&type, 0x0030, &tokc);
         next();
-        break;
-    case 0xcf:
+    } else if (tok == 0xcf) {
         t = 3 | 0x0010;
 	type.t = t;
 	vsetc(&type, 0x0030, &tokc);
         next();
-        break;
-    case 0xb9:
+    } else if (tok == 0xb9) {
         t = 1;
         type.t = t;
         mk_pointer(&type);
@@ -3003,8 +2896,7 @@ static void unary(void)
         type.ref->c = tokc.str.size;
         memset(&ad, 0, sizeof(AttributeDef));
         decl_initializer_alloc(&type, &ad, 0x0030, 2, 0, 0);
-        break;
-    case '(':
+    } else if (tok == '(') {
         next();
         if (parse_btype(&type, &ad)) {
             type_decl(&type, &ad, &n, 1);
@@ -3019,13 +2911,11 @@ static void unary(void)
             gexpr();
             skip(')');
         }
-        break;
-    case '*':
+    } else if (tok == '*') {
         next();
         unary();
         indir();
-        break;
-    case '&':
+    } else if (tok == '&') {
         next();
         unary();
         if ((vtop->type.t & 0x000f) != 6 &&
@@ -3033,8 +2923,7 @@ static void unary(void)
             test_lvalue();
         mk_pointer(&vtop->type);
         gaddrof();
-        break;
-    case '!':
+    } else if (tok == '!') {
         next();
         unary();
         if ((vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030) {
@@ -3046,22 +2935,19 @@ static void unary(void)
             save_regs(1);
             vseti(0x0034, gvtst(1, 0));
         }
-        break;
-    case '~':
+    } else if (tok == '~') {
         next();
         unary();
         vpushi(-1);
         gen_op('^');
-        break;
-    case '+':
+    } else if (tok == '+') {
         next();
         unary();
         if ((vtop->type.t & 0x000f) == 5)
             tcc_error("pointer not accepted for unary plus");
         vpushi(0);
         gen_op('+');
-        break;
-    case 275:
+    } else if (tok == 275) {
         next();
         in_sizeof++;
         expr_type(&type, unary);
@@ -3071,23 +2957,19 @@ static void unary(void)
             tcc_error("sizeof applied to an incomplete type");
         vpushs(size);
         vtop->type.t |= 0x0010;
-        break;
-    case 0xa4:
-    case 0xa2:
+    } else if (tok == 0xa4 || tok == 0xa2) {
         t = tok;
         next();
         unary();
         inc(0, t);
-        break;
-    case '-':
+    } else if (tok == '-') {
         next();
         unary();
         t = vtop->type.t & 0x000f;
         vpushi(0);
 	vswap();
 	gen_op('-');
-        break;
-    default:
+    } else {
         t = tok;
         next();
         if (t <= 275)
@@ -3107,7 +2989,6 @@ static void unary(void)
         if (r & 0x0200) {
             vtop->c.i = 0;
         }
-        break;
     }
     while (1) {
         if (tok == 0xa4 || tok == 0xa2) {
@@ -3511,54 +3392,6 @@ static void gfunc_return(CType *func_type)
     }
     vtop--;
 }
-static int case_cmp(void *pa, void *pb)
-{
-    int a = (*(struct case_t**) pa)->v1;
-    int b = (*(struct case_t**) pb)->v1;
-    return a < b ? -1 : a > b;
-}
-static void gcase(struct case_t **base, int len, int *bsym)
-{
-    struct case_t *p;
-    int e;
-    gv(0x0001);
-    while (len > 4) {
-        p = base[len/2];
-        vdup();
-        vpushi(p->v2);
-        gen_op(0x9e);
-        e = gtst(1, 0);
-        vdup();
-        vpushi(p->v1);
-        gen_op(0x9d);
-        gtst_addr(0, p->sym);
-        gcase(base, len/2, bsym);
-        if (cur_switch->def_sym)
-            gjmp_addr(cur_switch->def_sym);
-        else
-            *bsym = gjmp(*bsym);
-        gsym(e);
-        e = len/2 + 1;
-        base += e; len -= e;
-    }
-    while (len--) {
-        p = *base++;
-        vdup();
-        vpushi(p->v2);
-        if (p->v1 == p->v2) {
-            gen_op(0x94);
-            gtst_addr(0, p->sym);
-        } else {
-            gen_op(0x9e);
-            e = gtst(1, 0);
-            vdup();
-            vpushi(p->v1);
-            gen_op(0x9d);
-            gtst_addr(0, p->sym);
-            gsym(e);
-        }
-    }
-}
 static void block(int *bsym, int *csym, int is_expr)
 {
     int a, b, c, d, cond;
@@ -3697,65 +3530,6 @@ static void block(int *bsym, int *csym, int is_expr)
         gsym_addr(b, c);
         --local_scope;
         sym_pop(&local_stack, s, 0);
-    } else
-    if (tok == 269) {
-        struct switch_t *saved, sw;
-	int saved_nocode_wanted = nocode_wanted;
-	SValue switchval;
-        next();
-        skip('(');
-        gexpr();
-        skip(')');
-	switchval = *vtop--;
-        a = 0;
-        b = gjmp(0);
-        sw.p = ((void*)0); sw.n = 0; sw.def_sym = 0;
-        saved = cur_switch;
-        cur_switch = &sw;
-        block(&a, csym, 0);
-	nocode_wanted = saved_nocode_wanted;
-        a = gjmp(a);
-        gsym(b);
-        qsort(sw.p, sw.n, sizeof(void*), case_cmp);
-        for (b = 1; b < sw.n; b++)
-            if (sw.p[b - 1]->v2 >= sw.p[b]->v1)
-                tcc_error("duplicate case value");
-        vpushv(&switchval);
-        gcase(sw.p, sw.n, &a);
-        vpop();
-        if (sw.def_sym)
-          gjmp_addr(sw.def_sym);
-        dynarray_reset(&sw.p, &sw.n);
-        cur_switch = saved;
-        gsym(a);
-    } else
-    if (tok == 270) {
-        struct case_t *cr = tcc_malloc(sizeof(struct case_t));
-        if (!cur_switch)
-            expect("switch");
-	nocode_wanted &= ~0x20000000;
-        next();
-        cr->v1 = cr->v2 = expr_const();
-        cr->sym = ind;
-        dynarray_add(&cur_switch->p, &cur_switch->n, cr);
-        skip(':');
-        is_expr = 0;
-	nocode_wanted &= ~0x20000000;
-        if (tok != '}')
-            block(bsym, csym, is_expr);
-    } else
-    if (tok == 274) {
-        next();
-        skip(':');
-        if (!cur_switch)
-            expect("switch");
-        if (cur_switch->def_sym)
-            tcc_error("too many 'default'");
-        cur_switch->def_sym = ind;
-        is_expr = 0;
-	nocode_wanted &= ~0x20000000;
-        if (tok != '}')
-            block(bsym, csym, is_expr);
     } else {
         if (tok != ';') {
             if (is_expr) {
@@ -3772,8 +3546,7 @@ static void block(int *bsym, int *csym, int is_expr)
 static void parse_init_elem(int expr_type)
 {
     int saved_global_expr;
-    switch(expr_type) {
-    case 1:
+    if (expr_type == 1) {
         saved_global_expr = global_expr;
         global_expr = 1;
         expr_const1();
@@ -3783,10 +3556,8 @@ static void parse_init_elem(int expr_type)
 		 || vtop->sym->v < 0x10000000))
             )
             tcc_error("initializer element is not constant");
-        break;
-    case 2:
+    } else if (expr_type == 2) {
         expr_eq();
-        break;
     }
 }
 static void init_putz(Section *sec, unsigned int c, int size)
@@ -3883,35 +3654,26 @@ static void init_putv(CType *type, Section *sec, unsigned int c)
 		}
 	    }
 	} else {
-            switch(bt) {
-	    case 11:
+            if (bt == 11) {
 		vtop->c.i = vtop->c.i != 0;
-	    case 1:
+                *(char *)ptr |= vtop->c.i;
+            } else if (bt == 1) {
 		*(char *)ptr |= vtop->c.i;
-		break;
-	    case 2:
+            } else if (bt == 2) {
 		*(short *)ptr |= vtop->c.i;
-		break;
-	    case 4:
+            } else if (bt == 4) {
 		*(int *)ptr |= vtop->c.i;
-		break;
-	    case 5:
-		{
+            } else if (bt == 5) {
 		    Elf32_Addr val = vtop->c.i;
 		    if (vtop->r & 0x0200)
 		      greloc(sec, vtop->sym, c, 1);
 		    *(Elf32_Addr *)ptr |= val;
-		    break;
-		}
-	    default:
-		{
+            } else {
 		    int val = vtop->c.i;
 		    if (vtop->r & 0x0200)
 		      greloc(sec, vtop->sym, c, 1);
 		    *(int *)ptr |= val;
-		    break;
-		}
-	    }
+            }
 	}
         vtop--;
     } else {
@@ -4320,22 +4082,10 @@ static Section *new_section(TCCState *s1, char *name, int sh_type, int sh_flags)
     strcpy(sec->name, name);
     sec->sh_type = sh_type;
     sec->sh_flags = sh_flags;
-    switch(sh_type) {
-    case 5:
-    case 9:
-    case 4:
-    case 11:
-    case 2:
-    case 6:
-        sec->sh_addralign = 4;
-        break;
-    case 3:
+    if (sh_type == 3)
         sec->sh_addralign = 1;
-        break;
-    default:
+    else
         sec->sh_addralign =  4;
-        break;
-    }
     if (sh_flags & 0x80000000) {
         dynarray_add(&s1->priv_sections, &s1->nb_priv_sections, sec);
     } else {
@@ -5499,8 +5249,7 @@ static int tcc_load_object_file(TCCState *s1,
             continue;
         sh = &shdr[i];
         offset = sm_table[i].offset;
-        switch(s->sh_type) {
-        case 9:
+        if (s->sh_type == 9) {
             offseti = sm_table[sh->sh_info].offset;
             for (rel = (Elf32_Rel *) s->data + (offset / sizeof(*rel)); rel < (Elf32_Rel *) (s->data + s->data_offset); rel++) {
                 int type;
@@ -5520,9 +5269,6 @@ static int tcc_load_object_file(TCCState *s1,
                 rel->r_info = (((sym_index) << 8) + ((type) & 0xff));
                 rel->r_offset += offseti;
             }
-            break;
-        default:
-            break;
         }
     }
     if (!failed)
@@ -5719,25 +5465,18 @@ static void gcall_or_jmp(int is_jmp)
     if (!is_jmp) {
         int rt;
         rt = vtop->type.ref->type.t;
-        switch (rt & 0x000f) {
-            case 1:
-                if (rt & 0x0010) {
-                    o(0xc0b60f);
-                }
-                else {
-                    o(0xc0be0f);
-                }
-                break;
-            case 2:
-                if (rt & 0x0010) {
-                    o(0xc0b70f);
-                }
-                else {
-                    o(0xc0bf0f);
-                }
-                break;
-            default:
-                break;
+        if ((rt & 0x000f) == 1) {
+            if (rt & 0x0010) {
+                o(0xc0b60f);
+            } else {
+                o(0xc0be0f);
+            }
+        } else if ((rt & 0x000f) == 2) {
+            if (rt & 0x0010) {
+                o(0xc0b70f);
+            } else {
+                o(0xc0bf0f);
+            }
         }
     }
 }
@@ -5825,31 +5564,6 @@ static void gjmp_addr(int a)
         oad(0xe9, a - ind - 5);
     }
 }
-static void gtst_addr(int inv, int a)
-{
-    int v = vtop->r & 0x003f;
-    if (v == 0x0033) {
-	inv ^= (vtop--)->c.i;
-	a -= ind + 2;
-	if (a == (char)a) {
-	    g(inv - 32);
-	    g(a);
-	} else {
-	    g(0x0f);
-	    oad(inv - 16, a - 4);
-	}
-    } else if ((v & ~1) == 0x0034) {
-	if ((v & 1) != inv) {
-	    gjmp_addr(a);
-	    gsym(vtop->c.i);
-	} else {
-	    gsym(vtop->c.i);
-	    o(0x05eb);
-	    gjmp_addr(a);
-	}
-	vtop--;
-    }
-}
 static int gtst(int inv, int t)
 {
     int v = vtop->r & 0x003f;
@@ -5933,53 +5647,35 @@ static void gen_shift_op(int opc)
 static void gen_opi(int op)
 {
     int r, fr;
-    switch(op) {
-    case '+':
-    case 0xc3:
+    if (op == '+' || op == 0xc3) {
         gen_op8(op, 0);
-        break;
-    case '-':
-    case 0xc5:
+    } else if (op == '-' || op == 0xc5) {
         gen_op8(op, 5);
-        break;
-    case 0xc4:
+    } else if (op == 0xc4) {
         gen_op8(op, 2);
-        break;
-    case 0xc6:
+    } else if (op == 0xc6) {
         gen_op8(op, 3);
-        break;
-    case '&':
+    } else if (op == '&') {
         gen_op8(op, 4);
-        break;
-    case '^':
+    } else if (op == '^') {
         gen_op8(op, 6);
-        break;
-    case '|':
+    } else if (op == '|') {
         gen_op8(op, 1);
-        break;
-    case '*':
+    } else if (op == '*') {
         gv2(0x0001, 0x0001);
         r = vtop[-1].r;
         fr = vtop[0].r;
         vtop--;
         o(0xaf0f);
         o(0xc0 + fr + r * 8);
-        break;
-    case 0x01:
+    } else if (op == 0x01) {
         gen_shift_op(4);
-        break;
-    case 0xc9:
+    } else if (op == 0xc9) {
         gen_shift_op(5);
-        break;
-    case 0x02:
+    } else if (op == 0x02) {
         gen_shift_op(7);
-        break;
-    case '/':
-    case 0xb0:
-    case 0xb2:
-    case '%':
-    case 0xb1:
-    case 0xc2:
+    } else if (op == '/' || op == 0xb0 || op == 0xb2 ||
+               op == '%' || op == 0xb1 || op == 0xc2) {
         gv2(0x0004, 0x0010);
         r = vtop[-1].r;
         fr = vtop[0].r;
@@ -6004,56 +5700,33 @@ static void gen_opi(int op)
                 r = 0;
         }
         vtop->r = r;
-        break;
-    default:
+    } else {
         gen_op8(op, 7);
-        break;
     }
 }
 int code_reloc (int reloc_type)
 {
-    switch (reloc_type) {
-	case 8:
-	case 20:
-        case 1:
-	case 10:
-	case 9:
-	case 3:
-	case 43:
-	case 6:
-	case 5:
-            return 0;
-	case 21:
-	case 2:
-	case 4:
-	case 7:
-            return 1;
-    }
+    if (reloc_type == 8 || reloc_type == 20 || reloc_type == 1 ||
+        reloc_type == 10 || reloc_type == 9 || reloc_type == 3 ||
+        reloc_type == 43 || reloc_type == 6 || reloc_type == 5)
+        return 0;
+    if (reloc_type == 21 || reloc_type == 2 || reloc_type == 4 ||
+        reloc_type == 7)
+        return 1;
     tcc_error ("Unknown relocation type: %d", reloc_type);
     return -1;
 }
 int gotplt_entry_type (int reloc_type)
 {
-    switch (reloc_type) {
-	case 8:
-	case 20:
-	case 6:
-	case 7:
-	case 5:
-            return 0;
-        case 1:
-            return 2;
-	case 21:
-	case 2:
-            return 2;
-	case 10:
-	case 9:
-            return 1;
-	case 3:
-	case 43:
-	case 4:
-            return 3;
-    }
+    if (reloc_type == 8 || reloc_type == 20 || reloc_type == 6 ||
+        reloc_type == 7 || reloc_type == 5)
+        return 0;
+    if (reloc_type == 1 || reloc_type == 21 || reloc_type == 2)
+        return 2;
+    if (reloc_type == 10 || reloc_type == 9)
+        return 1;
+    if (reloc_type == 3 || reloc_type == 43 || reloc_type == 4)
+        return 3;
     tcc_error ("Unknown relocation type: %d", reloc_type);
     return -1;
 }
@@ -6106,46 +5779,28 @@ void relocate(TCCState *s1, Elf32_Rel *rel, int type, unsigned char *ptr, Elf32_
 {
     int sym_index;
     sym_index = ((rel->r_info) >> 8);
-    switch (type) {
-        case 1:
-            add32le(ptr, val);
-            return;
-        case 2:
-            add32le(ptr, val - addr);
-            return;
-        case 4:
-            add32le(ptr, val - addr);
-            return;
-        case 6:
-        case 7:
-            write32le(ptr, val);
-            return;
-        case 10:
-            add32le(ptr, s1->got->sh_addr - addr);
-            return;
-        case 9:
-            add32le(ptr, val - s1->got->sh_addr);
-            return;
-        case 3:
-        case 43:
-            add32le(ptr, s1->sym_attrs[sym_index].got_offset);
-            return;
-        case 20:
-            tcc_error("16-bit binary output is not supported");
-            write16le(ptr, read16le(ptr) + val);
-            return;
-        case 21:
-            tcc_error("16-bit binary output is not supported");
-            write16le(ptr, read16le(ptr) + val - addr);
-            return;
-        case 8:
-            return;
-        case 5:
-            return;
-        default:
-            fprintf(stderr,"FIXME: handle reloc type %d at %x [%p] to %x\n",
-                type, (unsigned)addr, ptr, (unsigned)val);
-            return;
+    if (type == 1) {
+        add32le(ptr, val);
+    } else if (type == 2 || type == 4) {
+        add32le(ptr, val - addr);
+    } else if (type == 6 || type == 7) {
+        write32le(ptr, val);
+    } else if (type == 10) {
+        add32le(ptr, s1->got->sh_addr - addr);
+    } else if (type == 9) {
+        add32le(ptr, val - s1->got->sh_addr);
+    } else if (type == 3 || type == 43) {
+        add32le(ptr, s1->sym_attrs[sym_index].got_offset);
+    } else if (type == 20) {
+        tcc_error("16-bit binary output is not supported");
+        write16le(ptr, read16le(ptr) + val);
+    } else if (type == 21) {
+        tcc_error("16-bit binary output is not supported");
+        write16le(ptr, read16le(ptr) + val - addr);
+    } else if (type == 8 || type == 5) {
+    } else {
+        fprintf(stderr,"FIXME: handle reloc type %d at %x [%p] to %x\n",
+            type, (unsigned)addr, ptr, (unsigned)val);
     }
 }
 static char *pstrcpy(char *buf, int buf_size, char *s)
@@ -6228,15 +5883,6 @@ static void dynarray_add(void *ptab, int *nb_ptr, void *data)
     }
     pp[nb++] = data;
     *nb_ptr = nb;
-}
-static void dynarray_reset(void *pp, int *n)
-{
-    void **p;
-    for (p = *(void***)pp; *n; ++p, --*n)
-        if (*p)
-            tcc_free(*p);
-    tcc_free(*(void**)pp);
-    *(void**)pp = ((void*)0);
 }
 static void strcat_vprintf(char *buf, int buf_size, char *fmt, va_list ap)
 {
@@ -6335,11 +5981,9 @@ static int tcc_add_file_internal(TCCState *s1, char *filename, int flags)
         fd = file->fd;
         obj_type = tcc_object_type(fd, &ehdr);
         lseek(fd, 0, 0);
-        switch (obj_type) {
-        case 1:
+        if (obj_type == 1) {
             ret = tcc_load_object_file(s1, fd, 0);
-            break;
-        default:
+        } else {
             tcc_error("unrecognized file type");
         }
     } else {

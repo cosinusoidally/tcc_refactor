@@ -38,6 +38,12 @@ do
     file "$obj" | grep -q 'ELF 32-bit'
 done
 
+echo "checking unsupported switch statement"
+if $TCC -c tests/unsupported_switch.c -o "$OUT/unsupported_switch.o" >/dev/null 2>"$OUT/unsupported_switch.err"; then
+    echo "switch statement unexpectedly compiled" >&2
+    exit 1
+fi
+
 if ./scripts/has-i386-glibc.sh; then
     echo "checking dynamic i386 executable link"
     $TCC tests/hello.c -o "$OUT/hello"
