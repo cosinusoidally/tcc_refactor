@@ -4,7 +4,7 @@ typedef unsigned char uint8_t;
 typedef unsigned short int uint16_t;
 typedef unsigned int uint32_t;
 typedef char *va_list;
-typedef struct FILE FILE;
+typedef int FILE;
 extern FILE *stdout;
 extern FILE *stderr;
 struct TCCState;
@@ -183,15 +183,59 @@ static void fs_set_name(FileSpec **pf, char *name)
 {
     *pf = tcc_strdup(name);
 }
-typedef struct BufferedFile {
-    uint8_t *buf_ptr;
-    uint8_t *buf_end;
-    int fd;
-    struct BufferedFile *prev;
-    int line_num;
-    char filename[1024];
-    unsigned char buffer[1];
-} BufferedFile;
+typedef unsigned char BufferedFile;
+static uint8_t *bf_buf_ptr(BufferedFile *bf)
+{
+    return *(uint8_t **)bf;
+}
+static void bf_set_buf_ptr(BufferedFile *bf, uint8_t *p)
+{
+    *(uint8_t **)bf = p;
+}
+static uint8_t *bf_buf_end(BufferedFile *bf)
+{
+    return *(uint8_t **)(bf + 4);
+}
+static void bf_set_buf_end(BufferedFile *bf, uint8_t *p)
+{
+    *(uint8_t **)(bf + 4) = p;
+}
+static int bf_fd(BufferedFile *bf)
+{
+    return *(int *)(bf + 8);
+}
+static void bf_set_fd(BufferedFile *bf, int fd)
+{
+    *(int *)(bf + 8) = fd;
+}
+static BufferedFile *bf_prev(BufferedFile *bf)
+{
+    return *(BufferedFile **)(bf + 12);
+}
+static void bf_set_prev(BufferedFile *bf, BufferedFile *prev)
+{
+    *(BufferedFile **)(bf + 12) = prev;
+}
+static int bf_line_num(BufferedFile *bf)
+{
+    return *(int *)(bf + 16);
+}
+static void bf_set_line_num(BufferedFile *bf, int line_num)
+{
+    *(int *)(bf + 16) = line_num;
+}
+static void bf_inc_line_num(BufferedFile *bf)
+{
+    bf_set_line_num(bf, bf_line_num(bf) + 1);
+}
+static char *bf_filename(BufferedFile *bf)
+{
+    return (char *)(bf + 20);
+}
+static unsigned char *bf_buffer(BufferedFile *bf)
+{
+    return bf + 1044;
+}
 typedef unsigned int SymAttr;
 static SymAttr *sattr_at(SymAttr *tab, int index)
 {
@@ -415,8 +459,8 @@ static void add32le(unsigned char *p, int32_t x) {
 static void g(int c);
 static void gen_le32(int c);
 static void gen_addr32(int r, Sym *sym, int c);
-static struct TCCState *tcc_state;
-static struct BufferedFile *file;
+static TCCState *tcc_state;
+static BufferedFile *file;
 static int tok;
 static CValue tokc;
 static CString tokcstr;
@@ -621,36 +665,36 @@ static int handle_eob(void)
 {
     BufferedFile *bf = file;
     int len;
-    if (bf->buf_ptr >= bf->buf_end) {
-        if (bf->fd >= 0) {
+    if (bf_buf_ptr(bf) >= bf_buf_end(bf)) {
+        if (bf_fd(bf) >= 0) {
             len = 8192;
-            len = read(bf->fd, bf->buffer, len);
+            len = read(bf_fd(bf), bf_buffer(bf), len);
             if (len < 0)
                 len = 0;
         } else {
             len = 0;
         }
-        bf->buf_ptr = bf->buffer;
-        bf->buf_end = bf->buffer + len;
-        *bf->buf_end = '\\';
+        bf_set_buf_ptr(bf, bf_buffer(bf));
+        bf_set_buf_end(bf, bf_buffer(bf) + len);
+        *bf_buf_end(bf) = '\\';
     }
-    if (bf->buf_ptr < bf->buf_end) {
-        return bf->buf_ptr[0];
+    if (bf_buf_ptr(bf) < bf_buf_end(bf)) {
+        return *bf_buf_ptr(bf);
     } else {
-        bf->buf_ptr = bf->buf_end;
+        bf_set_buf_ptr(bf, bf_buf_end(bf));
         return (-1);
     }
 }
 static int next_src_char(uint8_t **pp)
 {
     uint8_t *p = *pp + 1;
-    if (p >= file->buf_end) {
-        file->buf_ptr = p;
+    if (p >= bf_buf_end(file)) {
+        bf_set_buf_ptr(file, p);
         if (handle_eob() == (-1)) {
-            *pp = file->buf_ptr;
+            *pp = bf_buf_ptr(file);
             return (-1);
         }
-        p = file->buf_ptr;
+        p = bf_buf_ptr(file);
     }
     *pp = p;
     return *p;
@@ -664,9 +708,9 @@ static uint8_t *parse_line_comment(uint8_t *p)
         if (c == '\n' || c == (-1)) {
             break;
         } else if (c == '\\') {
-            file->buf_ptr = p;
+            bf_set_buf_ptr(file, p);
             c = handle_eob();
-            p = file->buf_ptr;
+            p = bf_buf_ptr(file);
             if (c == '\n' || c == (-1))
                 break;
             if (c == '\\')
@@ -695,7 +739,7 @@ static uint8_t *parse_comment(uint8_t *p)
             p++;
         }
         if (c == '\n') {
-            file->line_num++;
+            bf_inc_line_num(file);
             p++;
         } else if (c == '*') {
             p++;
@@ -707,9 +751,9 @@ static uint8_t *parse_comment(uint8_t *p)
                     done = 1;
                     break;
                 } else if (c == '\\') {
-                    file->buf_ptr = p;
+                    bf_set_buf_ptr(file, p);
                     c = handle_eob();
-                    p = file->buf_ptr;
+                    p = bf_buf_ptr(file);
                     if (c == (-1))
                         tcc_error("unexpected end of file in comment");
                     break;
@@ -718,9 +762,9 @@ static uint8_t *parse_comment(uint8_t *p)
                 }
             }
         } else {
-            file->buf_ptr = p;
+            bf_set_buf_ptr(file, p);
             c = handle_eob();
-            p = file->buf_ptr;
+            p = bf_buf_ptr(file);
             if (c == (-1)) {
                 tcc_error("unexpected end of file in comment");
             } else if (c == '\\') {
@@ -746,21 +790,21 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
         if (c == sep) {
             break;
         } else if (c == '\\') {
-            file->buf_ptr = p;
+            bf_set_buf_ptr(file, p);
             c = handle_eob();
-            p = file->buf_ptr;
+            p = bf_buf_ptr(file);
             if (c == (-1)) {
                 tcc_error("missing terminating %c character", sep);
             } else if (c == '\\') {
                 c = next_src_char(&p);
                 if (c == '\n') {
-                    file->line_num++;
+                    bf_inc_line_num(file);
                     p++;
                 } else if (c == '\r') {
                     c = next_src_char(&p);
                     if (c != '\n')
                         expect("'\n' after '\r'");
-                    file->line_num++;
+                    bf_inc_line_num(file);
                     p++;
                 } else if (c == (-1)) {
                     tcc_error("missing terminating %c character", sep);
@@ -771,7 +815,7 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
                 }
             }
         } else if (c == '\n') {
-            file->line_num++;
+            bf_inc_line_num(file);
             cstr_ccat(str, c);
             p++;
         } else if (c == '\r') {
@@ -779,7 +823,7 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
             if (c != '\n') {
                 cstr_ccat(str, '\r');
             } else {
-                file->line_num++;
+                bf_inc_line_num(file);
                 cstr_ccat(str, c);
                 p++;
             }
@@ -1062,7 +1106,7 @@ static void next_nomacro1(void)
 {
     int t, c;
     uint8_t *p;
-    p = file->buf_ptr;
+    p = bf_buf_ptr(file);
     for (;;) {
         c = *p;
         if (c == ' ' || c == '\t') {
@@ -1074,9 +1118,9 @@ static void next_nomacro1(void)
             p++;
             continue;
         } else if (c == '\\') {
-            file->buf_ptr = p;
+            bf_set_buf_ptr(file, p);
             c = handle_eob();
-            p = file->buf_ptr;
+            p = bf_buf_ptr(file);
             if (c != (-1)) {
                 if (c == '\\')
                     p++;
@@ -1085,7 +1129,7 @@ static void next_nomacro1(void)
             tok = (-1);
             break;
         } else if (c == '\n') {
-            file->line_num++;
+            bf_inc_line_num(file);
             p++;
             continue;
         } else if (c == '#') {
@@ -1265,7 +1309,7 @@ static void next_nomacro1(void)
             break;
         }
     }
-    file->buf_ptr = p;
+    bf_set_buf_ptr(file, p);
 }
 static void next_nomacro(void)
 {
@@ -6028,10 +6072,10 @@ static void error1(TCCState *s1, char *fmt, va_list ap)
     char buf[2048];
     BufferedFile *f;
     buf[0] = '\0';
-    for (f = file; f && f->filename[0] == ':'; f = f->prev)
+    for (f = file; f && *bf_filename(f) == ':'; f = bf_prev(f))
      ;
     if (f) {
-        strcat_printf(buf, sizeof(buf), "%s:%d: ", f->filename, f->line_num);
+        strcat_printf(buf, sizeof(buf), "%s:%d: ", bf_filename(f), bf_line_num(f));
     } else {
         strcat_printf(buf, sizeof(buf), "tcc: ");
     }
@@ -6053,23 +6097,23 @@ static void error1(TCCState *s1, char *fmt, va_list ap)
 static void tcc_open_bf(TCCState *s1, char *filename)
 {
     BufferedFile *bf;
-    bf = tcc_mallocz(sizeof(BufferedFile) + 8192);
-    bf->buf_ptr = bf->buffer;
-    bf->buf_end = bf->buffer;
-    bf->buf_end[0] = '\\';
-    pstrcpy(bf->filename, sizeof(bf->filename), filename);
-    bf->line_num = 1;
-    bf->fd = -1;
-    bf->prev = file;
+    bf = tcc_mallocz(1045 + 8192);
+    bf_set_buf_ptr(bf, bf_buffer(bf));
+    bf_set_buf_end(bf, bf_buffer(bf));
+    *bf_buf_end(bf) = '\\';
+    pstrcpy(bf_filename(bf), 1024, filename);
+    bf_set_line_num(bf, 1);
+    bf_set_fd(bf, -1);
+    bf_set_prev(bf, file);
     file = bf;
 }
 static void tcc_close(void)
 {
     BufferedFile *bf = file;
-    if (bf->fd > 0) {
-        close(bf->fd);
+    if (bf_fd(bf) > 0) {
+        close(bf_fd(bf));
     }
-    file = bf->prev;
+    file = bf_prev(bf);
     tcc_free(bf);
 }
 static int tcc_open(TCCState *s1, char *filename)
@@ -6082,7 +6126,7 @@ static int tcc_open(TCCState *s1, char *filename)
     if (fd < 0)
         return -1;
     tcc_open_bf(s1, filename);
-    file->fd = fd;
+    bf_set_fd(file, fd);
     return fd;
 }
 static int tcc_compile(TCCState *s1)
@@ -6104,7 +6148,7 @@ static int tcc_add_file_internal(TCCState *s1, char *filename, int flags)
     if (flags & 0x40) {
         Elf32_Ehdr ehdr;
         int fd, obj_type;
-        fd = file->fd;
+        fd = bf_fd(file);
         obj_type = tcc_object_type(fd, &ehdr);
         lseek(fd, 0, 0);
         if (obj_type == 1) {
