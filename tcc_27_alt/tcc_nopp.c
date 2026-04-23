@@ -2550,8 +2550,8 @@ static int is_null_pointer(SValue *p)
 {
     if ((p->r & (0x003f | 0x0100 | 0x0200)) != 0x0030)
         return 0;
-    return ((p->type.t & 0x000f) == 3 && (uint32_t)cv_i(&p->c) == 0) ||
-        ((p->type.t & 0x000f) == 5 && (uint32_t)cv_i(&p->c) == 0);
+    return ((ct_t(&p->type) & 0x000f) == 3 && (uint32_t)cv_i(&p->c) == 0) ||
+        ((ct_t(&p->type) & 0x000f) == 5 && (uint32_t)cv_i(&p->c) == 0);
 }
 static int is_integer_btype(int bt)
 {
@@ -2565,8 +2565,8 @@ static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
         return;
     type1 = &p1->type;
     type2 = &p2->type;
-    bt1 = type1->t & 0x000f;
-    bt2 = type2->t & 0x000f;
+    bt1 = ct_t(type1) & 0x000f;
+    bt2 = ct_t(type2) & 0x000f;
     if ((is_integer_btype(bt1) || is_integer_btype(bt2)) && op != '-') {
         if (op != 0xa1 && op != 0xa0 )
         return;
@@ -2581,13 +2581,13 @@ static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
     } else if (bt2 != 6) {
         tcc_error("invalid operands to binary %s", get_tok_str(op, ((void*)0)));
     }
-    if ((type1->t & 0x000f) == 0 ||
-        (type2->t & 0x000f) == 0)
+    if ((ct_t(type1) & 0x000f) == 0 ||
+        (ct_t(type2) & 0x000f) == 0)
         return;
-    tmp_type1 = *type1;
-    tmp_type2 = *type2;
-    tmp_type1.t &= ~(0x0020 | 0x0010 | 0x0100 | 0x0200);
-    tmp_type2.t &= ~(0x0020 | 0x0010 | 0x0100 | 0x0200);
+    ct_copy(&tmp_type1, type1);
+    ct_copy(&tmp_type2, type2);
+    ct_clear_t(&tmp_type1, 0x0020 | 0x0010 | 0x0100 | 0x0200);
+    ct_clear_t(&tmp_type2, 0x0020 | 0x0010 | 0x0100 | 0x0200);
     if (!is_compatible_types(&tmp_type1, &tmp_type2) && op == '-')
         tcc_error("invalid operands to binary %s", get_tok_str(op, ((void*)0)));
 }
@@ -2611,26 +2611,26 @@ static void gen_standard_op(int op, int t)
             op = 0x93;
     }
     vswap();
-    type1.t = t;
-    type1.ref = ((void*)0);
+    ct_set_t(&type1, t);
+    ct_set_ref(&type1, ((void*)0));
     gen_cast(&type1);
     vswap();
     if (op == 0xc9 || op == 0x02 || op == 0x01)
-        type1.t = 3;
+        ct_set_t(&type1, 3);
     gen_cast(&type1);
     gen_opic(op);
     if (op >= 0x92 && op <= 0x9f) {
-        vtop->type.t = 3;
+        ct_set_t(&vtop->type, 3);
     } else {
-        vtop->type.t = t;
+        ct_set_t(&vtop->type, t);
     }
 }
 static void gen_op(int op)
 {
     int u, t1, t2, bt1, bt2, t;
     CType type1;
-    t1 = vtop[-1].type.t;
-    t2 = vtop[0].type.t;
+    t1 = ct_t(&vtop[-1].type);
+    t2 = ct_t(&vtop[0].type);
     bt1 = t1 & 0x000f;
     bt2 = t2 & 0x000f;
     while (bt1 == 6 || bt2 == 6) {
@@ -2644,8 +2644,8 @@ static void gen_op(int op)
 	    gaddrof();
 	    vswap();
 	}
-        t1 = vtop[-1].type.t;
-        t2 = vtop[0].type.t;
+        t1 = ct_t(&vtop[-1].type);
+        t2 = ct_t(&vtop[0].type);
         bt1 = t1 & 0x000f;
         bt2 = t2 & 0x000f;
     }
@@ -2661,7 +2661,7 @@ static void gen_op(int op)
             if (op != '-')
                 tcc_error("cannot use pointers here");
             check_comparison_pointer_types(vtop - 1, vtop, op);
-            if (vtop[-1].type.t & 0x0400)
+            if (ct_t(&vtop[-1].type) & 0x0400)
                 tcc_error("variable length arrays are not supported in tcc_27_alt");
             vpushi(pointed_size(&vtop[-1].type));
             vrott(3);
@@ -2676,9 +2676,9 @@ static void gen_op(int op)
                 vswap();
                 t = t1, t1 = t2, t2 = t;
             }
-            type1 = vtop[-1].type;
-            type1.t &= ~0x0040;
-            if (vtop[-1].type.t & 0x0400)
+            ct_copy(&type1, &vtop[-1].type);
+            ct_clear_t(&type1, 0x0040);
+            if (ct_t(&vtop[-1].type) & 0x0400)
                 tcc_error("variable length arrays are not supported in tcc_27_alt");
             u = pointed_size(&vtop[-1].type);
             if (u < 0)
@@ -2688,7 +2688,7 @@ static void gen_op(int op)
             {
                 gen_opic(op);
             }
-            vtop->type = type1;
+            ct_copy(&vtop->type, &type1);
         }
     } else if (op == 0xc9 || op == 0x02 || op == 0x01) {
         t = 3;
@@ -2722,7 +2722,7 @@ static void force_charshort_cast(int t)
         bits = 32 - bits;
         vpushi(bits);
         gen_op(0x01);
-        vtop->type.t &= ~0x0010;
+        ct_clear_t(&vtop->type, 0x0010);
         vpushi(bits);
         gen_op(0x02);
     }
@@ -2730,8 +2730,8 @@ static void force_charshort_cast(int t)
 static void gen_cast_s(int t)
 {
     CType type;
-    type.t = t;
-    type.ref = ((void*)0);
+    ct_set_t(&type, t);
+    ct_set_ref(&type, ((void*)0));
     gen_cast(&type);
 }
 static void gen_cast(CType *type)
@@ -2739,10 +2739,10 @@ static void gen_cast(CType *type)
     int sbt, dbt, c, p;
     if (vtop->r & 0x0400) {
         vtop->r &= ~0x0400;
-        force_charshort_cast(vtop->type.t);
+        force_charshort_cast(ct_t(&vtop->type));
     }
-    dbt = type->t & (0x000f | 0x0010);
-    sbt = vtop->type.t & (0x000f | 0x0010);
+    dbt = ct_t(type) & (0x000f | 0x0010);
+    sbt = ct_t(&vtop->type) & (0x000f | 0x0010);
     if (sbt != dbt) {
         c = (vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030;
         p = (vtop->r & (0x003f | 0x0100 | 0x0200)) == (0x0030 | 0x0200);
@@ -2772,30 +2772,30 @@ static void gen_cast(CType *type)
             } else if ((dbt & 0x000f) == 1 ||
                        (dbt & 0x000f) == 2) {
                 if (sbt == 5) {
-                    vtop->type.t = 3;
+                    ct_set_t(&vtop->type, 3);
                 }
                 force_charshort_cast(dbt);
             }
         }
     } else if ((dbt & 0x000f) == 5 && !(vtop->r & 0x0100)) {
         vtop->r = (vtop->r & ~(0x1000 | 0x2000 | 0x4000))
-                  | (lvalue_type(type->ref->type.t) & (0x1000 | 0x2000 | 0x4000));
+                  | (lvalue_type(ct_t(&ct_ref(type)->type)) & (0x1000 | 0x2000 | 0x4000));
     }
-    vtop->type = *type;
+    ct_copy(&vtop->type, type);
 }
 static int type_size(CType *type, int *a)
 {
     Sym *s;
     int bt;
-    bt = type->t & 0x000f;
+    bt = ct_t(type) & 0x000f;
     if (bt == 7) {
-        s = type->ref;
+        s = ct_ref(type);
         *a = s->r;
         return s->c;
     } else if (bt == 5) {
-        if (type->t & 0x0040) {
+        if (ct_t(type) & 0x0040) {
             int ts;
-            s = type->ref;
+            s = ct_ref(type);
             ts = type_size(&s->type, a);
             if (ts < 0 && s->c < 0)
                 ts = -ts;
@@ -2820,20 +2820,20 @@ static int type_size(CType *type, int *a)
 }
 static CType *pointed_type(CType *type)
 {
-    return &type->ref->type;
+    return &ct_ref(type)->type;
 }
 static void mk_pointer(CType *type)
 {
     Sym *s;
     s = sym_push(0x20000000, type, 0, -1);
-    type->t = 5 | (type->t & (0x00001000 | 0x00002000 | 0x00004000));
-    type->ref = s;
+    ct_set_t(type, 5 | (ct_t(type) & (0x00001000 | 0x00002000 | 0x00004000)));
+    ct_set_ref(type, s);
 }
 static int is_compatible_func(CType *type1, CType *type2)
 {
     Sym *s1, *s2;
-    s1 = type1->ref;
-    s2 = type2->ref;
+    s1 = ct_ref(type1);
+    s2 = ct_ref(type2);
     if (!is_compatible_types(&s1->type, &s2->type))
         return 0;
     if (sym_ft(s1) == 2 || sym_ft(s2) == 2)
@@ -2855,8 +2855,8 @@ static int is_compatible_func(CType *type1, CType *type2)
 static int is_compatible_types(CType *type1, CType *type2)
 {
     int bt1, t1, t2;
-    t1 = type1->t & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
-    t2 = type2->t & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
+    t1 = ct_t(type1) & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
+    t2 = ct_t(type2) & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
     if ((t1 & 0x000f) != 1) {
         t1 &= ~0x0020;
         t2 &= ~0x0020;
@@ -2869,7 +2869,7 @@ static int is_compatible_types(CType *type1, CType *type2)
         type2 = pointed_type(type2);
         return is_compatible_types(type1, type2);
     } else if (bt1 == 7) {
-        return (type1->ref == type2->ref);
+        return (ct_ref(type1) == ct_ref(type2));
     } else if (bt1 == 6) {
         return is_compatible_func(type1, type2);
     } else {
@@ -2891,8 +2891,8 @@ static void gen_assign_cast(CType *dt)
     char buf1[256], buf2[256];
     int dbt, sbt, ok;
     st = &vtop->type;
-    dbt = dt->t & 0x000f;
-    sbt = st->t & 0x000f;
+    dbt = ct_t(dt) & 0x000f;
+    sbt = ct_t(st) & 0x000f;
     if (sbt == 0 || dbt == 0) {
 	if (sbt == 0 && dbt == 0)
 	    ;
@@ -2909,8 +2909,8 @@ static void gen_assign_cast(CType *dt)
             } else {
                 type1 = pointed_type(dt);
                 type2 = pointed_type(st);
-                if ((type1->t & 0x000f) != 0 &&
-                    (type2->t & 0x000f) != 0 &&
+                if ((ct_t(type1) & 0x000f) != 0 &&
+                    (ct_t(type2) & 0x000f) != 0 &&
                     !is_compatible_types(type1, type2)) {
                 }
             }
@@ -2931,14 +2931,14 @@ static void gen_assign_cast(CType *dt)
 static void vstore(void)
 {
     int sbt, dbt, ft, r, t, size, align, rc, delayed_cast;
-    ft = vtop[-1].type.t;
-    sbt = vtop->type.t & 0x000f;
+    ft = ct_t(&vtop[-1].type);
+    sbt = ct_t(&vtop->type) & 0x000f;
     dbt = ft & 0x000f;
     if ((((sbt == 3 || sbt == 2) && dbt == 1) ||
          (sbt == 3 && dbt == 2))
-	&& !(vtop->type.t & 0x0080)) {
+	&& !(ct_t(&vtop->type) & 0x0080)) {
         delayed_cast = 0x0400;
-        vtop->type.t = ft & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080)));
+        ct_set_t(&vtop->type, ft & (~((0x00001000 | 0x00002000 | 0x00004000)|(((1 << (6+6)) - 1) << 20 | 0x0080))));
     } else {
         delayed_cast = 0;
         if (!(ft & 0x0080))
@@ -2947,12 +2947,12 @@ static void vstore(void)
     if (sbt == 7) {
             size = type_size(&vtop->type, &align);
             vswap();
-            vtop->type.t = 5;
+            ct_set_t(&vtop->type, 5);
             gaddrof();
             vpush_global_sym(&func_old_type, 277);
             vswap();
             vpushv(vtop - 2);
-            vtop->type.t = 5;
+            ct_set_t(&vtop->type, 5);
             gaddrof();
             vpushi(size);
             gfunc_call(3);
