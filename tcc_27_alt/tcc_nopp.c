@@ -3170,7 +3170,7 @@ static int parse_btype(CType *type, AttributeDef *ad)
     typespec_found = 0;
     t = 3;
     bt = st = -1;
-    type->ref = ((void*)0);
+    ct_set_ref(type, ((void*)0));
     done = 0;
     while(!done) {
         basic = 0;
@@ -3184,8 +3184,8 @@ static int parse_btype(CType *type, AttributeDef *ad)
             u = 3; next(); basic = 1;
         } else if (tok == 272) {
             struct_decl(&type1, 7);
-            u = type1.t;
-            type->ref = type1.ref;
+            u = ct_t(&type1);
+            ct_set_ref(type, ct_ref(&type1));
             basic = 1;
         } else if (tok == 267) {
             if ((t & (0x0020|0x0010)) == 0x0020)
@@ -3209,13 +3209,13 @@ static int parse_btype(CType *type, AttributeDef *ad)
                 done = 1;
             } else {
                 s = sym_find(tok);
-                if (!s || !(s->type.t & 0x00004000)) {
+                if (!s || !(ct_t(&s->type) & 0x00004000)) {
                     done = 1;
                 } else {
                     t &= ~0x000f;
-                    type->t = (s->type.t & ~0x00004000) | t;
-                    type->ref = s->type.ref;
-                    t = type->t;
+                    ct_set_t(type, (ct_t(&s->type) & ~0x00004000) | t);
+                    ct_set_ref(type, ct_ref(&s->type));
+                    t = ct_t(type);
                     sym_to_attr(ad, s);
                     next();
                     typespec_found = 1;
@@ -3242,13 +3242,13 @@ static int parse_btype(CType *type, AttributeDef *ad)
         type_found = 1;
     }
     bt = t & 0x000f;
-    type->t = t;
+    ct_set_t(type, t);
     return type_found;
 }
 static void convert_parameter_type(CType *pt)
 {
-    pt->t &= ~0x0040;
-    if ((pt->t & 0x000f) == 6) {
+    ct_clear_t(pt, 0x0040);
+    if ((ct_t(pt) & 0x000f) == 6) {
         mk_pointer(pt);
     }
 }
@@ -3275,10 +3275,10 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
         plast = &first;
         if (l) {
             for(;;) {
-		                if ((pt.t & 0x000f) == 0 && tok == ')')
+		                if ((ct_t(&pt) & 0x000f) == 0 && tok == ')')
 		                    break;
 		                type_decl(&pt, &ad1, &n, 2 | 1);
-		                if ((pt.t & 0x000f) == 0)
+		                if ((ct_t(&pt) & 0x000f) == 0)
 		                    tcc_error("parameter declared as void");
                 convert_parameter_type(&pt);
                 s = sym_push(n | 0x20000000, &pt, 0, 0);
@@ -3306,8 +3306,8 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
         s = sym_push(0x20000000, type, 0, 0);
         sym_set_ad_ft(s, ad);
         s->next = first;
-        type->t = 6;
-        type->ref = s;
+        ct_set_t(type, 6);
+        ct_set_ref(type, s);
     } else if (tok == '[') {
         next();
         if (tok == ']')
@@ -3317,11 +3317,11 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
             tcc_error("invalid array size");
         skip(']');
         post_type(type, ad, storage, 0);
-        if (type->t == 6)
+        if (ct_t(type) == 6)
             tcc_error("declaration of an array of functions");
         s = sym_push(0x20000000, type, 0, n);
-        type->t = 0x0040 | 5;
-        type->ref = s;
+        ct_set_t(type, 0x0040 | 5);
+        ct_set_ref(type, s);
     }
     return 1;
 }
@@ -3329,8 +3329,8 @@ static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
 {
     CType *post, *ret;
     int storage;
-    storage = type->t & (0x00001000 | 0x00002000 | 0x00004000);
-    type->t &= ~(0x00001000 | 0x00002000 | 0x00004000);
+    storage = ct_t(type) & (0x00001000 | 0x00002000 | 0x00004000);
+    ct_clear_t(type, 0x00001000 | 0x00002000 | 0x00004000);
     post = ret = type;
     while (tok == '*') {
         next();
@@ -3352,7 +3352,7 @@ static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
 	*v = 0;
     }
     post_type(post, ad, storage, 0);
-    type->t |= storage;
+    ct_or_t(type, storage);
     return ret;
 }
 static int lvalue_type(int t)
@@ -3372,24 +3372,24 @@ static int lvalue_type(int t)
 }
 static void indir(void)
 {
-    if ((vtop->type.t & 0x000f) != 5) {
-        if ((vtop->type.t & 0x000f) == 6)
+    if ((ct_t(&vtop->type) & 0x000f) != 5) {
+        if ((ct_t(&vtop->type) & 0x000f) == 6)
             return;
         expect("pointer");
     }
     if (vtop->r & 0x0100)
         gv(0x0001);
-    vtop->type = *pointed_type(&vtop->type);
-    if (!(vtop->type.t & 0x0040) && !(vtop->type.t & 0x0400)
-        && (vtop->type.t & 0x000f) != 6) {
-        vtop->r |= lvalue_type(vtop->type.t);
+    ct_copy(&vtop->type, pointed_type(&vtop->type));
+    if (!(ct_t(&vtop->type) & 0x0040) && !(ct_t(&vtop->type) & 0x0400)
+        && (ct_t(&vtop->type) & 0x000f) != 6) {
+        vtop->r |= lvalue_type(ct_t(&vtop->type));
     }
 }
 static void expr_type(CType *type, void (*expr_fn)(void))
 {
     nocode_wanted++;
     expr_fn();
-    *type = vtop->type;
+    ct_copy(type, &vtop->type);
     vpop();
     nocode_wanted--;
 }
