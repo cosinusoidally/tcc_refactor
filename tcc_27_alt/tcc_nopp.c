@@ -100,16 +100,14 @@ typedef struct SValue {
     CValue c;
     struct Sym *sym;
 } SValue;
-typedef struct AttributeDef {
-    unsigned char func_type;
-} AttributeDef;
+typedef unsigned char AttributeDef;
 static int ad_ft(AttributeDef *ad)
 {
-    return ad->func_type;
+    return *ad;
 }
 static void ad_set_ft(AttributeDef *ad, int ft)
 {
-    ad->func_type = ft;
+    *ad = ft;
 }
 typedef struct Sym {
     int v;
@@ -194,12 +192,43 @@ typedef struct BufferedFile {
     char filename[1024];
     unsigned char buffer[1];
 } BufferedFile;
-struct sym_attr {
-    unsigned got_offset;
-    unsigned plt_offset;
-    int plt_sym;
-    int dyn_index;
-};
+typedef unsigned int SymAttr;
+static SymAttr *sattr_at(SymAttr *tab, int index)
+{
+    return tab + index + index + index + index;
+}
+static unsigned sattr_got_offset(SymAttr *a)
+{
+    return *a;
+}
+static void sattr_set_got_offset(SymAttr *a, unsigned v)
+{
+    *a = v;
+}
+static unsigned sattr_plt_offset(SymAttr *a)
+{
+    return *(a + 1);
+}
+static void sattr_set_plt_offset(SymAttr *a, unsigned v)
+{
+    *(a + 1) = v;
+}
+static int sattr_plt_sym(SymAttr *a)
+{
+    return *(a + 2);
+}
+static void sattr_set_plt_sym(SymAttr *a, int v)
+{
+    *(a + 2) = v;
+}
+static int sattr_dyn_index(SymAttr *a)
+{
+    return *(a + 3);
+}
+static void sattr_set_dyn_index(SymAttr *a, int v)
+{
+    *(a + 3) = v;
+}
 struct TCCState {
     int nostdlib;
     int output_type;
@@ -213,7 +242,7 @@ struct TCCState {
     Section *plt;
     Section *dynsym;
     Section *symtab;
-    struct sym_attr *sym_attrs;
+    SymAttr *sym_attrs;
     int nb_sym_attrs;
     FileSpec **files;
     int nb_files;
@@ -346,13 +375,13 @@ static void relocate_section(TCCState *s1, Section *s);
 static int tcc_object_type(int fd, Elf32_Ehdr *h);
 static int tcc_load_object_file(TCCState *s1, int fd, unsigned int file_offset);
 static void build_got_entries(TCCState *s1);
-static struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc);
+static SymAttr *get_sym_attr(TCCState *s1, int index, int alloc);
 static Elf32_Addr get_elf_sym_addr(TCCState *s, char *name, int err);
 static uint8_t *parse_comment(uint8_t *p);
 static int handle_eob(void);
 static int code_reloc (int reloc_type);
 static int gotplt_entry_type (int reloc_type);
-static unsigned create_plt_entry(TCCState *s1, unsigned got_offset, struct sym_attr *attr);
+static unsigned create_plt_entry(TCCState *s1, unsigned got_offset, SymAttr *attr);
 static void relocate(TCCState *s1, Elf32_Rel *rel, int type, unsigned char *ptr, Elf32_Addr addr, Elf32_Addr val);
 static void relocate_plt(TCCState *s1);
 static int reg_classes[4];
@@ -4414,23 +4443,23 @@ static void put_elf_reloc(Section *symtab, Section *s, unsigned int offset,
 {
     put_elf_reloca(symtab, s, offset, type, symbol, 0);
 }
-static struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc)
+static SymAttr *get_sym_attr(TCCState *s1, int index, int alloc)
 {
     int n;
-    struct sym_attr *tab;
+    SymAttr *tab;
     if (index >= s1->nb_sym_attrs) {
         if (!alloc)
             return s1->sym_attrs;
         n = 1;
         while (index >= n)
             n *= 2;
-        tab = tcc_realloc(s1->sym_attrs, n * sizeof(*s1->sym_attrs));
+        tab = tcc_realloc(s1->sym_attrs, n * 4 * sizeof(*s1->sym_attrs));
         s1->sym_attrs = tab;
-        memset(s1->sym_attrs + s1->nb_sym_attrs, 0,
-               (n - s1->nb_sym_attrs) * sizeof(*s1->sym_attrs));
+        memset(sattr_at(s1->sym_attrs, s1->nb_sym_attrs), 0,
+               (n - s1->nb_sym_attrs) * 4 * sizeof(*s1->sym_attrs));
         s1->nb_sym_attrs = n;
     }
-    return &s1->sym_attrs[index];
+    return sattr_at(s1->sym_attrs, index);
 }
 static void sort_syms(TCCState *s1, Section *s)
 {
@@ -4536,20 +4565,20 @@ static void build_got(TCCState *s1)
                 0, s1->got->sh_num, "_GLOBAL_OFFSET_TABLE_");
     section_ptr_add(s1->got, 3 * 4);
 }
-static struct sym_attr * put_got_entry(TCCState *s1, int dyn_reloc_type,
-                                       unsigned int size,
-                                       int info, int sym_index)
+static SymAttr * put_got_entry(TCCState *s1, int dyn_reloc_type,
+                               unsigned int size,
+                               int info, int sym_index)
 {
     int need_plt_entry;
     char *name;
     Elf32_Sym *sym;
-    struct sym_attr *attr;
+    SymAttr *attr;
     unsigned got_offset;
     char plt_name[100];
     int len;
     need_plt_entry = (dyn_reloc_type == 7);
     attr = get_sym_attr(s1, sym_index, 1);
-    if (need_plt_entry ? attr->plt_offset : attr->got_offset)
+    if (need_plt_entry ? sattr_plt_offset(attr) : sattr_got_offset(attr))
         return attr;
     got_offset = s1->got->data_offset;
     section_ptr_add(s1->got, 4);
@@ -4560,11 +4589,11 @@ static struct sym_attr * put_got_entry(TCCState *s1, int dyn_reloc_type,
 	    put_elf_reloc(s1->dynsym, s1->got, got_offset, 8,
 			  sym_index);
 	} else {
-	    if (0 == attr->dyn_index)
-                attr->dyn_index = set_elf_sym(s1->dynsym, sym->st_value, size,
-					      info, 0, sym->st_shndx, name);
+	    if (0 == sattr_dyn_index(attr))
+                sattr_set_dyn_index(attr, set_elf_sym(s1->dynsym, sym->st_value, size,
+					      info, 0, sym->st_shndx, name));
 	    put_elf_reloc(s1->dynsym, s1->got, got_offset, dyn_reloc_type,
-			  attr->dyn_index);
+			  sattr_dyn_index(attr));
 	}
     } else {
         put_elf_reloc(symtab_section, s1->got, got_offset, dyn_reloc_type,
@@ -4576,16 +4605,16 @@ static struct sym_attr * put_got_entry(TCCState *s1, int dyn_reloc_type,
     			          (1 << 1) | (1 << 2));
     	    s1->plt->sh_entsize = 4;
         }
-        attr->plt_offset = create_plt_entry(s1, got_offset, attr);
+        sattr_set_plt_offset(attr, create_plt_entry(s1, got_offset, attr));
         len = strlen(name);
         if (len > sizeof plt_name - 5)
             len = sizeof plt_name - 5;
         memcpy(plt_name, name, len);
         strcpy(plt_name + len, "@plt");
-        attr->plt_sym = put_elf_sym(s1->symtab, attr->plt_offset, sym->st_size,
-            (((1) << 4) + ((2) & 0xf)), 0, s1->plt->sh_num, plt_name);
+        sattr_set_plt_sym(attr, put_elf_sym(s1->symtab, sattr_plt_offset(attr), sym->st_size,
+            (((1) << 4) + ((2) & 0xf)), 0, s1->plt->sh_num, plt_name));
     } else {
-        attr->got_offset = got_offset;
+        sattr_set_got_offset(attr, got_offset);
     }
     return attr;
 }
@@ -4595,7 +4624,7 @@ static void build_got_entries(TCCState *s1)
     Elf32_Rel *rel;
     Elf32_Sym *sym;
     int i, type, gotplt_entry, reloc_type, sym_index;
-    struct sym_attr *attr;
+    SymAttr *attr;
     for(i = 1; i < s1->nb_sections; i++) {
         s = s1->sections[i];
         if (s->sh_type != 9)
@@ -4616,7 +4645,7 @@ static void build_got_entries(TCCState *s1)
                     Elf32_Sym *esym;
 		    int dynindex;
 		    if (s1->dynsym) {
-			dynindex = get_sym_attr(s1, sym_index, 0)->dyn_index;
+			dynindex = sattr_dyn_index(get_sym_attr(s1, sym_index, 0));
 			esym = (Elf32_Sym *)s1->dynsym->data + dynindex;
 			if (dynindex
 			    && (((esym->st_info) & 0xf) == 2
@@ -4637,7 +4666,7 @@ static void build_got_entries(TCCState *s1)
             attr = put_got_entry(s1, reloc_type, sym->st_size, sym->st_info,
                                  sym_index);
             if (reloc_type == 7)
-                rel->r_info = (((attr->plt_sym) << 8) + ((type) & 0xff));
+                rel->r_info = (((sattr_plt_sym(attr)) << 8) + ((type) & 0xff));
         }
     }
 }
@@ -4689,8 +4718,8 @@ static void fill_local_got_entries(TCCState *s1)
 	if (((rel->r_info) & 0xff) == 8) {
 	    int sym_index = ((rel->r_info) >> 8);
 	    Elf32_Sym *sym = &((Elf32_Sym *) symtab_section->data)[sym_index];
-	    struct sym_attr *attr = get_sym_attr(s1, sym_index, 0);
-	    unsigned offset = attr->got_offset;
+	    SymAttr *attr = get_sym_attr(s1, sym_index, 0);
+	    unsigned offset = sattr_got_offset(attr);
 	    if (offset != rel->r_offset - s1->got->sh_addr)
 	      tcc_error("huh");
 	    rel->r_info = (((0) << 8) + ((8) & 0xff));
@@ -4713,7 +4742,7 @@ static void bind_exe_dynsyms(TCCState *s1)
                                    (((1) << 4) + ((2) & 0xf)), 0, 0,
                                    name);
             index = sym - (Elf32_Sym *) symtab_section->data;
-            get_sym_attr(s1, index, 1)->dyn_index = dynindex;
+            sattr_set_dyn_index(get_sym_attr(s1, index, 1), dynindex);
         }
     }
 }
@@ -4736,47 +4765,47 @@ static void alloc_sec_names(TCCState *s1, int file_type, Section *strsec)
 typedef unsigned int DynInf;
 static Section *dyni_dynamic(DynInf *d)
 {
-    return (Section *)d[0];
+    return (Section *)*d;
 }
 static void dyni_set_dynamic(DynInf *d, Section *s)
 {
-    d[0] = (unsigned int)s;
+    *d = (unsigned int)s;
 }
 static Section *dyni_dynstr(DynInf *d)
 {
-    return (Section *)d[1];
+    return (Section *)*(d + 1);
 }
 static void dyni_set_dynstr(DynInf *d, Section *s)
 {
-    d[1] = (unsigned int)s;
+    *(d + 1) = (unsigned int)s;
 }
 static unsigned int dyni_data_offset(DynInf *d)
 {
-    return d[2];
+    return *(d + 2);
 }
 static void dyni_set_data_offset(DynInf *d, unsigned int offset)
 {
-    d[2] = offset;
+    *(d + 2) = offset;
 }
 static Elf32_Addr dyni_rel_addr(DynInf *d)
 {
-    return d[3];
+    return *(d + 3);
 }
 static void dyni_set_rel_addr(DynInf *d, Elf32_Addr addr)
 {
-    d[3] = addr;
+    *(d + 3) = addr;
 }
 static Elf32_Addr dyni_rel_size(DynInf *d)
 {
-    return d[4];
+    return *(d + 4);
 }
 static void dyni_set_rel_size(DynInf *d, Elf32_Addr size)
 {
-    d[4] = size;
+    *(d + 4) = size;
 }
 static void dyni_add_rel_size(DynInf *d, Elf32_Addr size)
 {
-    d[4] += size;
+    *(d + 4) = *(d + 4) + size;
 }
 static int layout_sections(TCCState *s1, Elf32_Phdr *phdr, int phnum,
                            Section *interp, Section* strsec,
@@ -5175,31 +5204,31 @@ static void *load_data(int fd, unsigned int file_offset, unsigned int size)
 typedef unsigned int SectionMergeInfo;
 static SectionMergeInfo *smi_at(SectionMergeInfo *table, int index)
 {
-    return table + index * 3;
+    return table + index + index + index;
 }
 static Section *smi_s(SectionMergeInfo *sm)
 {
-    return (Section *)sm[0];
+    return (Section *)*sm;
 }
 static void smi_set_s(SectionMergeInfo *sm, Section *s)
 {
-    sm[0] = (unsigned int)s;
+    *sm = (unsigned int)s;
 }
 static unsigned int smi_offset(SectionMergeInfo *sm)
 {
-    return sm[1];
+    return *(sm + 1);
 }
 static void smi_set_offset(SectionMergeInfo *sm, unsigned int offset)
 {
-    sm[1] = offset;
+    *(sm + 1) = offset;
 }
 static int smi_new_section(SectionMergeInfo *sm)
 {
-    return sm[2];
+    return *(sm + 2);
 }
 static void smi_set_new_section(SectionMergeInfo *sm, int val)
 {
-    sm[2] = val;
+    *(sm + 2) = val;
 }
 static int tcc_object_type(int fd, Elf32_Ehdr *h)
 {
@@ -5827,7 +5856,7 @@ int gotplt_entry_type (int reloc_type)
     tcc_error ("Unknown relocation type: %d", reloc_type);
     return -1;
 }
-static unsigned create_plt_entry(TCCState *s1, unsigned got_offset, struct sym_attr *attr)
+static unsigned create_plt_entry(TCCState *s1, unsigned got_offset, SymAttr *attr)
 {
     Section *plt = s1->plt;
     uint8_t *p;
@@ -5887,7 +5916,7 @@ void relocate(TCCState *s1, Elf32_Rel *rel, int type, unsigned char *ptr, Elf32_
     } else if (type == 9) {
         add32le(ptr, val - s1->got->sh_addr);
     } else if (type == 3 || type == 43) {
-        add32le(ptr, s1->sym_attrs[sym_index].got_offset);
+        add32le(ptr, sattr_got_offset(sattr_at(s1->sym_attrs, sym_index)));
     } else if (type == 20) {
         tcc_error("16-bit binary output is not supported");
         write16le(ptr, read16le(ptr) + val);
