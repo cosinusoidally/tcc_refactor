@@ -2668,7 +2668,7 @@ static void gen_op(int op)
             vpushi(pointed_size(&vtop[-1].type));
             vrott(3);
             gen_opic(op);
-            vtop->type.t = ptrdiff_type.t;
+            ct_copy(&vtop->type, &ptrdiff_type);
             vswap();
             gen_op(0xb2);
         } else {
@@ -2968,7 +2968,7 @@ static void vstore(void)
             if ((vtop[-1].r & 0x003f) == 0x0031) {
                 SValue sv;
                 t = get_reg(0x0001);
-                sv.type.t = 3;
+                ct_set_t(&sv.type, 3);
                 sv.r = 0x0032 | 0x0100;
                 cv_set_i(&sv.c, cv_i(&vtop[-1].c));
                 load(t, &sv);
@@ -3793,7 +3793,7 @@ static void expr_cond(void)
             if (c == 0)
                 nocode_wanted++;
             gexpr();
-            type1 = vtop->type;
+            ct_copy(&type1, &vtop->type);
             sv = *vtop;
             vtop--;
             skip(':');
@@ -3808,7 +3808,7 @@ static void expr_cond(void)
             expr_cond();
             if (c == 1)
                 nocode_wanted--;
-            type2 = vtop->type;
+            ct_copy(&type2, &vtop->type);
             t1 = ct_t(&type1);
             bt1 = t1 & 0x000f;
             t2 = ct_t(&type2);
@@ -4116,9 +4116,9 @@ static int decl_designator(CType *type, Section *sec, unsigned int c,
     if (tok == '[' || tok == '.')
         tcc_error("designated initializers are not supported in tcc_27_alt");
     if (cur_field) {
-        if (type->t & 0x0040) {
+        if (ct_t(type) & 0x0040) {
             index = (*cur_field)->c;
-            if (type->ref->c >= 0 && index >= type->ref->c)
+            if (ct_ref(type)->c >= 0 && index >= ct_ref(type)->c)
                 tcc_error("index too large");
             type = pointed_type(type);
             c += index * type_size(type, &align);
