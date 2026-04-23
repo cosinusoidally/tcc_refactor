@@ -78,11 +78,31 @@ typedef struct TokenSym {
     int len;
     char str[1];
 } TokenSym;
-typedef struct CString {
-    int size;
-    void *data;
-    int size_allocated;
-} CString;
+typedef unsigned int CString[3];
+static int cstr_size(CString *cstr)
+{
+    return *(unsigned int *)cstr;
+}
+static void cstr_set_size(CString *cstr, int size)
+{
+    *(unsigned int *)cstr = size;
+}
+static void *cstr_data(CString *cstr)
+{
+    return (void *)*(((unsigned int *)cstr) + 1);
+}
+static void cstr_set_data(CString *cstr, void *data)
+{
+    *(((unsigned int *)cstr) + 1) = (unsigned int)data;
+}
+static int cstr_size_allocated(CString *cstr)
+{
+    return *(((unsigned int *)cstr) + 2);
+}
+static void cstr_set_size_allocated(CString *cstr, int size)
+{
+    *(((unsigned int *)cstr) + 2) = size;
+}
 typedef struct CType {
     int t;
     struct Sym *ref;
@@ -532,37 +552,37 @@ static void expect(char *msg)
 static void cstr_realloc(CString *cstr, int new_size)
 {
     int size;
-    size = cstr->size_allocated;
+    size = cstr_size_allocated(cstr);
     if (size < 8)
         size = 8;
     while (size < new_size)
         size = size * 2;
-        cstr->data = tcc_realloc(cstr->data, size);
-    cstr->size_allocated = size;
+    cstr_set_data(cstr, tcc_realloc(cstr_data(cstr), size));
+    cstr_set_size_allocated(cstr, size);
 }
 static void cstr_ccat(CString *cstr, int ch)
 {
     int size;
-    size = cstr->size + 1;
-    if (size > cstr->size_allocated)
+    size = cstr_size(cstr) + 1;
+    if (size > cstr_size_allocated(cstr))
         cstr_realloc(cstr, size);
-    ((unsigned char *)cstr->data)[size - 1] = ch;
-    cstr->size = size;
+    ((unsigned char *)cstr_data(cstr))[size - 1] = ch;
+    cstr_set_size(cstr, size);
 }
 static void cstr_cat(CString *cstr, char *str, int len)
 {
     int size;
     if (len <= 0)
         len = strlen(str) + 1 + len;
-    size = cstr->size + len;
-    if (size > cstr->size_allocated)
+    size = cstr_size(cstr) + len;
+    if (size > cstr_size_allocated(cstr))
         cstr_realloc(cstr, size);
-    memmove(((unsigned char *)cstr->data) + cstr->size, str, len);
-    cstr->size = size;
+    memmove(((unsigned char *)cstr_data(cstr)) + cstr_size(cstr), str, len);
+    cstr_set_size(cstr, size);
 }
 static void cstr_reset(CString *cstr)
 {
-    cstr->size = 0;
+    cstr_set_size(cstr, 0);
 }
 static TokenSym *tok_alloc_new(TokenSym **pts, char *str, int len)
 {
@@ -920,16 +940,16 @@ static void parse_string(char *s, int len)
     if (sep == '\'') {
         int i, n, c;
         tok = 0xb3;
-        n = tokcstr.size - 1;
+        n = cstr_size(&tokcstr) - 1;
         if (n < 1)
             tcc_error("empty character constant");
         for (c = i = 0; i < n; ++i) {
-            c = (c << 8) | ((char *)tokcstr.data)[i];
+            c = (c << 8) | ((char *)cstr_data(&tokcstr))[i];
         }
         tokc.i = c;
     } else {
-        tokc.str.size = tokcstr.size;
-        tokc.str.data = tokcstr.data;
+        tokc.str.size = cstr_size(&tokcstr);
+        tokc.str.data = cstr_data(&tokcstr);
         tok = 0xb9;
     }
 }
@@ -1075,7 +1095,7 @@ static uint8_t *scan_ident_token(uint8_t *p, int c)
             cstr_ccat(&tokcstr, c);
             c = next_src_char(&p);
         }
-        ts = tok_alloc(tokcstr.data, tokcstr.size);
+        ts = tok_alloc(cstr_data(&tokcstr), cstr_size(&tokcstr));
     }
     tok = ts->tok;
     return p;
@@ -1089,16 +1109,16 @@ static uint8_t *scan_number_token(uint8_t *p, int t, int c)
               || c == '.'
               || ((c == '+' || c == '-')
                   && (((t == 'e' || t == 'E')
-                        && !(((char*)tokcstr.data)[0] == '0'
-                            && toup(((char*)tokcstr.data)[1]) == 'X'))
+                        && !(((char*)cstr_data(&tokcstr))[0] == '0'
+                            && toup(((char*)cstr_data(&tokcstr))[1]) == 'X'))
                       || t == 'p' || t == 'P'))))
             break;
         t = c;
         c = next_src_char(&p);
     }
     cstr_ccat(&tokcstr, '\0');
-    tokc.str.size = tokcstr.size;
-    tokc.str.data = tokcstr.data;
+    tokc.str.size = cstr_size(&tokcstr);
+    tokc.str.data = cstr_data(&tokcstr);
     tok = 0xbe;
     return p;
 }
@@ -1178,8 +1198,8 @@ static void next_nomacro1(void)
             p = parse_pp_string(p, c, &tokcstr);
             cstr_ccat(&tokcstr, c);
             cstr_ccat(&tokcstr, '\0');
-            tokc.str.size = tokcstr.size;
-            tokc.str.data = tokcstr.data;
+            tokc.str.size = cstr_size(&tokcstr);
+            tokc.str.data = cstr_data(&tokcstr);
             tok = 0xbf;
             break;
         } else if (c == '<') {
