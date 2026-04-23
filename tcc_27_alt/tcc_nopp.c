@@ -107,13 +107,37 @@ typedef struct CType {
     int t;
     struct Sym *ref;
 } CType;
-typedef struct CValue {
-    unsigned int i;
-    struct {
-        int size;
-        void *data;
-    } str;
-} CValue;
+typedef unsigned int CValue[3];
+static unsigned int cv_i(CValue *cv)
+{
+    return *(unsigned int *)cv;
+}
+static void cv_set_i(CValue *cv, unsigned int v)
+{
+    *(unsigned int *)cv = v;
+}
+static int cv_str_size(CValue *cv)
+{
+    return *(((unsigned int *)cv) + 1);
+}
+static void cv_set_str_size(CValue *cv, int size)
+{
+    *(((unsigned int *)cv) + 1) = size;
+}
+static void *cv_str_data(CValue *cv)
+{
+    return (void *)*(((unsigned int *)cv) + 2);
+}
+static void cv_set_str_data(CValue *cv, void *data)
+{
+    *(((unsigned int *)cv) + 2) = (unsigned int)data;
+}
+static void cv_copy(CValue *dst, CValue *src)
+{
+    cv_set_i(dst, cv_i(src));
+    cv_set_str_size(dst, cv_str_size(src));
+    cv_set_str_data(dst, cv_str_data(src));
+}
 typedef struct SValue {
     CType type;
     unsigned short r;
@@ -632,11 +656,11 @@ static char *get_tok_str(int v, CValue *cv)
     static char buf[64];
     char *p = buf;
     if (v == 0xb5 || v == 0xb6 || v == 0xce || v == 0xcf) {
-        sprintf(p, "%u", cv->i);
+        sprintf(p, "%u", cv_i(cv));
     } else if (v == 0xb3) {
         return "<char>";
     } else if (v == 0xbe || v == 0xbf) {
-        return (char*)cv->str.data;
+        return (char*)cv_str_data(cv);
     } else if (v == 0xb9) {
         return "<string>";
     } else if (v == 0x9c) {
@@ -946,10 +970,10 @@ static void parse_string(char *s, int len)
         for (c = i = 0; i < n; ++i) {
             c = (c << 8) | ((char *)cstr_data(&tokcstr))[i];
         }
-        tokc.i = c;
+        cv_set_i(&tokc, c);
     } else {
-        tokc.str.size = cstr_size(&tokcstr);
-        tokc.str.data = cstr_data(&tokcstr);
+        cv_set_str_size(&tokc, cstr_size(&tokcstr));
+        cv_set_str_data(&tokc, cstr_data(&tokcstr));
         tok = 0xb9;
     }
 }
@@ -1056,7 +1080,7 @@ static void parse_number(char *p)
         }
 	if (ucount)
 	    ++tok;
-        tokc.i = n;
+        cv_set_i(&tokc, n);
     }
     if (ch)
         tcc_error("invalid number\n");
@@ -1117,8 +1141,8 @@ static uint8_t *scan_number_token(uint8_t *p, int t, int c)
         c = next_src_char(&p);
     }
     cstr_ccat(&tokcstr, '\0');
-    tokc.str.size = cstr_size(&tokcstr);
-    tokc.str.data = cstr_data(&tokcstr);
+    cv_set_str_size(&tokc, cstr_size(&tokcstr));
+    cv_set_str_data(&tokc, cstr_data(&tokcstr));
     tok = 0xbe;
     return p;
 }
@@ -1198,8 +1222,8 @@ static void next_nomacro1(void)
             p = parse_pp_string(p, c, &tokcstr);
             cstr_ccat(&tokcstr, c);
             cstr_ccat(&tokcstr, '\0');
-            tokc.str.size = cstr_size(&tokcstr);
-            tokc.str.data = cstr_data(&tokcstr);
+            cv_set_str_size(&tokc, cstr_size(&tokcstr));
+            cv_set_str_data(&tokc, cstr_data(&tokcstr));
             tok = 0xbf;
             break;
         } else if (c == '<') {
@@ -1341,9 +1365,9 @@ static void next(void)
 {
     next_nomacro();
     if (tok == 0xbe) {
-        parse_number((char *)tokc.str.data);
+        parse_number((char *)cv_str_data(&tokc));
     } else if (tok == 0xbf) {
-        parse_string((char *)tokc.str.data, tokc.str.size - 1);
+        parse_string((char *)cv_str_data(&tokc), cv_str_size(&tokc) - 1);
     }
 }
 static void tccpp_new(TCCState *s)
@@ -1642,7 +1666,7 @@ static void vsetc(CType *type, int r, CValue *vc)
     vtop++;
     vtop->type = *type;
     vtop->r = r;
-    vtop->c = *vc;
+    cv_copy(&vtop->c, vc);
     vtop->sym = ((void*)0);
 }
 static void vswap(void)
@@ -1662,7 +1686,7 @@ static void vpop(void)
     int v;
     v = vtop->r & 0x003f;
     if (v == 0x0034 || v == 0x0035) {
-        gsym(vtop->c.i);
+        gsym(cv_i(&vtop->c));
     }
     vtop--;
 }
@@ -1673,19 +1697,19 @@ static void vpush(CType *type)
 static void vpushi(int v)
 {
     CValue cval;
-    cval.i = v;
+    cv_set_i(&cval, v);
     vsetc(&int_type, 0x0030, &cval);
 }
 static void vpushs(Elf32_Addr v)
 {
   CValue cval;
-  cval.i = v;
+  cv_set_i(&cval, v);
   vsetc(&size_type, 0x0030, &cval);
 }
 static void vset(CType *type, int r, int v)
 {
     CValue cval;
-    cval.i = v;
+    cv_set_i(&cval, v);
     vsetc(type, r, &cval);
 }
 static void vseti(int r, int v)
@@ -1731,7 +1755,7 @@ static void vrott(int n)
 static void vpushsym(CType *type, Sym *sym)
 {
     CValue cval;
-    cval.i = 0;
+    cv_set_i(&cval, 0);
     vsetc(type, 0x0030 | 0x0200, &cval);
     vtop->sym = sym;
 }
@@ -1850,7 +1874,7 @@ static void save_reg_upstack(int r, int n)
                 loc = (loc - size) & -align;
                 sv.type.t = type->t;
                 sv.r = 0x0032 | 0x0100;
-                sv.c.i = loc;
+                cv_set_i(&sv.c, loc);
                 store(r, &sv);
                 l = loc;
                 saved = 1;
@@ -1860,7 +1884,7 @@ static void save_reg_upstack(int r, int n)
             } else {
                 p->r = lvalue_type(p->type.t) | 0x0032;
             }
-            p->c.i = l;
+            cv_set_i(&p->c, l);
         }
     }
 }
@@ -1898,7 +1922,7 @@ static void move_reg(int r, int s, int t)
         sv.type.t = t;
         sv.type.ref = ((void*)0);
         sv.r = s;
-        sv.c.i = 0;
+        cv_set_i(&sv.c, 0);
         load(r, &sv);
     }
 }
@@ -1975,7 +1999,7 @@ static void gv_dup(void)
     r = gv(rc);
     r1 = get_reg(rc);
     sv.r = r;
-    sv.c.i = 0;
+    cv_set_i(&sv.c, 0);
     load(r1, &sv);
     vdup();
     if (r != r1)
@@ -1989,7 +2013,7 @@ static int gvtst(int inv, int t)
         gen_op(0x95);
     }
     if ((vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030) {
-        if ((vtop->c.i != 0) != inv)
+        if ((cv_i(&vtop->c) != 0) != inv)
             t = gjmp(t);
         vtop--;
         return t;
@@ -2013,8 +2037,8 @@ static void gen_opic(int op)
     int t2 = v2->type.t & 0x000f;
     int c1 = (v1->r & (0x003f | 0x0100 | 0x0200)) == 0x0030;
     int c2 = (v2->r & (0x003f | 0x0100 | 0x0200)) == 0x0030;
-    unsigned int l1 = c1 ? v1->c.i : 0;
-    unsigned int l2 = c2 ? v2->c.i : 0;
+    unsigned int l1 = c1 ? cv_i(&v1->c) : 0;
+    unsigned int l2 = c2 ? cv_i(&v2->c) : 0;
     int shm = 31;
     int folded = 0;
     if (t1 != 4 && (4 != 8 || t1 != 5))
@@ -2068,7 +2092,7 @@ static void gen_opic(int op)
 	    if (t1 != 4 && (4 != 8 || t1 != 5))
 	        l1 = ((uint32_t)l1 |
 		    (v1->type.t & 0x0010 ? 0 : -(l1 & 0x80000000)));
-            v1->c.i = l1;
+            cv_set_i(&v1->c, l1);
             vtop--;
             return;
         }
@@ -2090,7 +2114,7 @@ static void gen_opic(int op)
                             (l2 == -1 || (l2 == 0xFFFFFFFF && t2 != 4))) ||
                           (l2 == 1 && (op == '%' || op == 0xb1)))) {
             if (l2 == 1)
-                vtop->c.i = 0;
+                cv_set_i(&vtop->c, 0);
             vswap();
             vtop--;
         } else if (c2 && (((op == '*' || op == '/' || op == 0xb0 ||
@@ -2109,7 +2133,7 @@ static void gen_opic(int op)
                     l2 >>= 1;
                     n++;
                 }
-                vtop->c.i = n;
+                cv_set_i(&vtop->c, n);
                 if (op == '*')
                     op = 0x01;
                 else if (op == 0xb2)
@@ -2123,10 +2147,10 @@ static void gen_opic(int op)
                     || (vtop[-1].r & (0x003f | 0x0100)) == 0x0032)) {
             if (op == '-')
                 l2 = -l2;
-	    l2 += vtop[-1].c.i;
+	    l2 += cv_i(&vtop[-1].c);
 	    if ((int)l2 == l2) {
                 vtop--;
-                vtop->c.i = l2;
+                cv_set_i(&vtop->c, l2);
             } else {
                 gen_opi(op);
             }
@@ -2143,8 +2167,8 @@ static int is_null_pointer(SValue *p)
 {
     if ((p->r & (0x003f | 0x0100 | 0x0200)) != 0x0030)
         return 0;
-    return ((p->type.t & 0x000f) == 3 && (uint32_t)p->c.i == 0) ||
-        ((p->type.t & 0x000f) == 5 && (uint32_t)p->c.i == 0);
+    return ((p->type.t & 0x000f) == 3 && (uint32_t)cv_i(&p->c) == 0) ||
+        ((p->type.t & 0x000f) == 5 && (uint32_t)cv_i(&p->c) == 0);
 }
 static int is_integer_btype(int bt)
 {
@@ -2341,23 +2365,23 @@ static void gen_cast(CType *type)
         p = (vtop->r & (0x003f | 0x0100 | 0x0200)) == (0x0030 | 0x0200);
         if (c) {
             if (sbt & 0x0010)
-                vtop->c.i = (uint32_t)vtop->c.i;
+                cv_set_i(&vtop->c, (uint32_t)cv_i(&vtop->c));
             else
-                vtop->c.i = ((uint32_t)vtop->c.i |
-                              -(vtop->c.i & 0x80000000));
+                cv_set_i(&vtop->c, ((uint32_t)cv_i(&vtop->c) |
+                              -(cv_i(&vtop->c) & 0x80000000)));
             if (dbt == 11)
-                vtop->c.i = (vtop->c.i != 0);
+                cv_set_i(&vtop->c, (cv_i(&vtop->c) != 0));
             else {
                 uint32_t m = ((dbt & 0x000f) == 1 ? 0xff :
                               (dbt & 0x000f) == 2 ? 0xffff :
                               0xffffffff);
-                vtop->c.i &= m;
+                cv_set_i(&vtop->c, cv_i(&vtop->c) & m);
                 if (!(dbt & 0x0010))
-                    vtop->c.i |= -(vtop->c.i & ((m >> 1) + 1));
+                    cv_set_i(&vtop->c, cv_i(&vtop->c) | -(cv_i(&vtop->c) & ((m >> 1) + 1)));
             }
         } else if (p && dbt == 11) {
             vtop->r = 0x0030;
-            vtop->c.i = 1;
+            cv_set_i(&vtop->c, 1);
         } else {
             if (dbt == 11) {
                 vpushi(0);
@@ -2561,7 +2585,7 @@ static void vstore(void)
                 t = get_reg(0x0001);
                 sv.type.t = 3;
                 sv.r = 0x0032 | 0x0100;
-                sv.c.i = vtop[-1].c.i;
+                cv_set_i(&sv.c, cv_i(&vtop[-1].c));
                 load(t, &sv);
                 vtop[-1].r = t | 0x0100;
             }
@@ -3020,7 +3044,7 @@ static void unary(void)
         type.t = t;
         mk_pointer(&type);
         type.t |= 0x0040;
-        type.ref->c = tokc.str.size;
+        type.ref->c = cv_str_size(&tokc);
         memset(&ad, 0, sizeof(AttributeDef));
         decl_initializer_alloc(&type, &ad, 0x0030, 2, 0, 0);
     } else if (tok == '(') {
@@ -3055,9 +3079,9 @@ static void unary(void)
         unary();
         if ((vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030) {
             gen_cast_s(11);
-            vtop->c.i = !vtop->c.i;
+            cv_set_i(&vtop->c, !cv_i(&vtop->c));
         } else if ((vtop->r & 0x003f) == 0x0033)
-            vtop->c.i ^= 1;
+            cv_set_i(&vtop->c, cv_i(&vtop->c) ^ 1);
         else {
             save_regs(1);
             vseti(0x0034, gvtst(1, 0));
@@ -3114,7 +3138,7 @@ static void unary(void)
         vset(&s->type, r, s->c);
 	vtop->sym = s;
         if (r & 0x0200) {
-            vtop->c.i = 0;
+            cv_set_i(&vtop->c, 0);
         }
     }
     while (1) {
@@ -3169,7 +3193,7 @@ static void unary(void)
                 tcc_error("struct return values are not supported in tcc_27_alt");
             ret.type = s->type;
             ret.r = 0;
-            ret.c.i = 0;
+            cv_set_i(&ret.c, 0);
             if (tok != ')') {
                 for(;;) {
                     expr_eq();
@@ -3278,7 +3302,7 @@ static void expr_land(void)
 	for(;;) {
 	    if ((vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030) {
                 gen_cast_s(11);
-		if (vtop->c.i) {
+		if (cv_i(&vtop->c)) {
 		    vpop();
 		} else {
 		    nocode_wanted++;
@@ -3318,7 +3342,7 @@ static void expr_lor(void)
 	for(;;) {
 	    if ((vtop->r & (0x003f | 0x0100 | 0x0200)) == 0x0030) {
                 gen_cast_s(11);
-		if (!vtop->c.i) {
+		if (!cv_i(&vtop->c)) {
 		    vpop();
 		} else {
 		    nocode_wanted++;
@@ -3357,7 +3381,7 @@ static int condition_3way(void)
 	!(vtop->r & 0x0200)) {
 	vdup();
         gen_cast_s(11);
-	c = vtop->c.i;
+	c = cv_i(&vtop->c);
 	vpop();
     }
     return c;
@@ -3506,7 +3530,7 @@ static int expr_const(void)
     expr_const1();
     if ((vtop->r & (0x003f | 0x0100 | 0x0200)) != 0x0030)
         expect("constant expression");
-    c = vtop->c.i;
+    c = cv_i(&vtop->c);
     vpop();
     return c;
 }
@@ -3782,21 +3806,21 @@ static void init_putv(CType *type, Section *sec, unsigned int c)
 	    }
 	} else {
             if (bt == 11) {
-		vtop->c.i = vtop->c.i != 0;
-                *(char *)ptr |= vtop->c.i;
+		cv_set_i(&vtop->c, cv_i(&vtop->c) != 0);
+                *(char *)ptr |= cv_i(&vtop->c);
             } else if (bt == 1) {
-		*(char *)ptr |= vtop->c.i;
+		*(char *)ptr |= cv_i(&vtop->c);
             } else if (bt == 2) {
-		*(short *)ptr |= vtop->c.i;
+		*(short *)ptr |= cv_i(&vtop->c);
             } else if (bt == 4) {
-		*(int *)ptr |= vtop->c.i;
+		*(int *)ptr |= cv_i(&vtop->c);
             } else if (bt == 5) {
-		    Elf32_Addr val = vtop->c.i;
+		    Elf32_Addr val = cv_i(&vtop->c);
 		    if (vtop->r & 0x0200)
 		      greloc(sec, vtop->sym, c, 1);
 		    *(Elf32_Addr *)ptr |= val;
             } else {
-		    int val = vtop->c.i;
+		    int val = cv_i(&vtop->c);
 		    if (vtop->r & 0x0200)
 		      greloc(sec, vtop->sym, c, 1);
 		    *(int *)ptr |= val;
@@ -3869,17 +3893,17 @@ static void decl_initializer(CType *type, Section *sec, unsigned int c,
 	    len = 0;
             while (tok == 0xb9) {
                 int cstr_len, ch;
-                cstr_len = tokc.str.size;
+                cstr_len = cv_str_size(&tokc);
                 cstr_len--;
                 nb = cstr_len;
                 if (n >= 0 && nb > (n - len))
                     nb = n - len;
                 if (sec && size1 == 1) {
                     if (!(nocode_wanted > 0))
-                        memcpy(sec->data + c + len, tokc.str.data, nb);
+                        memcpy(sec->data + c + len, cv_str_data(&tokc), nb);
                 } else {
                     for(i=0;i<nb;i++) {
-                        ch = ((unsigned char *)tokc.str.data)[i];
+                        ch = ((unsigned char *)cv_str_data(&tokc))[i];
 		        vpushi(ch);
                         init_putv(t1, sec, c + (len + i) * size1);
                     }
@@ -5556,14 +5580,14 @@ static void load(int r, SValue *sv)
     SValue v1;
     fr = sv->r;
     ft = sv->type.t & ~0x0020;
-    fc = sv->c.i;
+    fc = cv_i(&sv->c);
     ft &= ~(0x0200 | 0x0100);
     v = fr & 0x003f;
     if (fr & 0x0100) {
         if (v == 0x0031) {
             v1.type.t = 3;
             v1.r = 0x0032 | 0x0100;
-            v1.c.i = fc;
+            cv_set_i(&v1.c, fc);
             fr = r;
             if (!(reg_classes[fr] & 0x0001))
                 fr = get_reg(0x0001);
@@ -5614,7 +5638,7 @@ static void store(int r, SValue *v)
 {
     int fr, bt, ft, fc;
     ft = v->type.t;
-    fc = v->c.i;
+    fc = cv_i(&v->c);
     fr = v->r & 0x003f;
     ft &= ~(0x0200 | 0x0100);
     bt = ft & 0x000f;
@@ -5646,7 +5670,7 @@ static void gcall_or_jmp(int is_jmp)
     int r;
     if ((vtop->r & (0x003f | 0x0100)) == 0x0030 && (vtop->r & 0x0200)) {
         greloc(cur_text_section, vtop->sym, ind + 1, 2);
-        oad(0xe8 + is_jmp, vtop->c.i - 4);
+        oad(0xe8 + is_jmp, cv_i(&vtop->c) - 4);
     } else {
         r = gv(0x0001);
         o(0xff);
@@ -5761,19 +5785,19 @@ static int gtst(int inv, int t)
         ;
     } else if (v == 0x0033) {
         g(0x0f);
-        t = oad((vtop->c.i - 16) ^ inv,t);
+        t = oad((cv_i(&vtop->c) - 16) ^ inv,t);
     } else if (v == 0x0034 || v == 0x0035) {
         if ((v & 1) == inv) {
-            uint32_t n1, n = vtop->c.i;
+            uint32_t n1, n = cv_i(&vtop->c);
             if (n) {
                 while ((n1 = read32le(cur_text_section->data + n)))
                     n = n1;
                 write32le(cur_text_section->data + n, t);
-                t = vtop->c.i;
+                t = cv_i(&vtop->c);
             }
         } else {
             t = gjmp(t);
-            gsym(vtop->c.i);
+            gsym(cv_i(&vtop->c));
         }
     }
     vtop--;
@@ -5786,7 +5810,7 @@ static void gen_op8(int op, int opc)
         vswap();
         r = gv(0x0001);
         vswap();
-        c = vtop->c.i;
+        c = cv_i(&vtop->c);
         if (c == (char)c) {
             if (c==1 && opc==0 && op != 0xc3) {
                 o (0x40 | r);
@@ -5811,7 +5835,7 @@ static void gen_op8(int op, int opc)
     vtop--;
     if (op >= 0x92 && op <= 0x9f) {
         vtop->r = 0x0033;
-        vtop->c.i = op;
+        cv_set_i(&vtop->c, op);
     }
 }
 static void gen_shift_op(int opc)
@@ -5822,7 +5846,7 @@ static void gen_shift_op(int opc)
         vswap();
         r = gv(0x0001);
         vswap();
-        c = vtop->c.i & 0x1f;
+        c = cv_i(&vtop->c) & 0x1f;
         o(0xc1);
         o(opc | r);
         g(c);
