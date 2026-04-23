@@ -16,22 +16,111 @@ typedef int32_t Elf32_Sword;
 typedef uint32_t Elf32_Addr;
 typedef uint32_t Elf32_Off;
 typedef uint16_t Elf32_Section;
-typedef struct {
-  unsigned char e_ident[16];
-  Elf32_Half e_type;
-  Elf32_Half e_machine;
-  Elf32_Word e_version;
-  Elf32_Addr e_entry;
-  Elf32_Off e_phoff;
-  Elf32_Off e_shoff;
-  Elf32_Word e_flags;
-  Elf32_Half e_ehsize;
-  Elf32_Half e_phentsize;
-  Elf32_Half e_phnum;
-  Elf32_Half e_shentsize;
-  Elf32_Half e_shnum;
-  Elf32_Half e_shstrndx;
-} Elf32_Ehdr;
+typedef unsigned char Elf32_Ehdr[52];
+static unsigned char eh_ident(Elf32_Ehdr *eh, int index)
+{
+    return *(((unsigned char *)eh) + index);
+}
+static void eh_set_ident(Elf32_Ehdr *eh, int index, unsigned char value)
+{
+    *(((unsigned char *)eh) + index) = value;
+}
+static Elf32_Half eh_type(Elf32_Ehdr *eh)
+{
+    return *(Elf32_Half *)(((unsigned char *)eh) + 16);
+}
+static void eh_set_type(Elf32_Ehdr *eh, Elf32_Half type)
+{
+    *(Elf32_Half *)(((unsigned char *)eh) + 16) = type;
+}
+static Elf32_Half eh_machine(Elf32_Ehdr *eh)
+{
+    return *(Elf32_Half *)(((unsigned char *)eh) + 18);
+}
+static void eh_set_machine(Elf32_Ehdr *eh, Elf32_Half machine)
+{
+    *(Elf32_Half *)(((unsigned char *)eh) + 18) = machine;
+}
+static Elf32_Word eh_version(Elf32_Ehdr *eh)
+{
+    return *(Elf32_Word *)(((unsigned char *)eh) + 20);
+}
+static void eh_set_version(Elf32_Ehdr *eh, Elf32_Word version)
+{
+    *(Elf32_Word *)(((unsigned char *)eh) + 20) = version;
+}
+static Elf32_Addr eh_entry(Elf32_Ehdr *eh)
+{
+    return *(Elf32_Addr *)(((unsigned char *)eh) + 24);
+}
+static void eh_set_entry(Elf32_Ehdr *eh, Elf32_Addr entry)
+{
+    *(Elf32_Addr *)(((unsigned char *)eh) + 24) = entry;
+}
+static Elf32_Off eh_phoff(Elf32_Ehdr *eh)
+{
+    return *(Elf32_Off *)(((unsigned char *)eh) + 28);
+}
+static void eh_set_phoff(Elf32_Ehdr *eh, Elf32_Off phoff)
+{
+    *(Elf32_Off *)(((unsigned char *)eh) + 28) = phoff;
+}
+static Elf32_Off eh_shoff(Elf32_Ehdr *eh)
+{
+    return *(Elf32_Off *)(((unsigned char *)eh) + 32);
+}
+static void eh_set_shoff(Elf32_Ehdr *eh, Elf32_Off shoff)
+{
+    *(Elf32_Off *)(((unsigned char *)eh) + 32) = shoff;
+}
+static Elf32_Half eh_ehsize(Elf32_Ehdr *eh)
+{
+    return *(Elf32_Half *)(((unsigned char *)eh) + 40);
+}
+static void eh_set_ehsize(Elf32_Ehdr *eh, Elf32_Half ehsize)
+{
+    *(Elf32_Half *)(((unsigned char *)eh) + 40) = ehsize;
+}
+static Elf32_Half eh_phentsize(Elf32_Ehdr *eh)
+{
+    return *(Elf32_Half *)(((unsigned char *)eh) + 42);
+}
+static void eh_set_phentsize(Elf32_Ehdr *eh, Elf32_Half phentsize)
+{
+    *(Elf32_Half *)(((unsigned char *)eh) + 42) = phentsize;
+}
+static Elf32_Half eh_phnum(Elf32_Ehdr *eh)
+{
+    return *(Elf32_Half *)(((unsigned char *)eh) + 44);
+}
+static void eh_set_phnum(Elf32_Ehdr *eh, Elf32_Half phnum)
+{
+    *(Elf32_Half *)(((unsigned char *)eh) + 44) = phnum;
+}
+static Elf32_Half eh_shentsize(Elf32_Ehdr *eh)
+{
+    return *(Elf32_Half *)(((unsigned char *)eh) + 46);
+}
+static void eh_set_shentsize(Elf32_Ehdr *eh, Elf32_Half shentsize)
+{
+    *(Elf32_Half *)(((unsigned char *)eh) + 46) = shentsize;
+}
+static Elf32_Half eh_shnum(Elf32_Ehdr *eh)
+{
+    return *(Elf32_Half *)(((unsigned char *)eh) + 48);
+}
+static void eh_set_shnum(Elf32_Ehdr *eh, Elf32_Half shnum)
+{
+    *(Elf32_Half *)(((unsigned char *)eh) + 48) = shnum;
+}
+static Elf32_Half eh_shstrndx(Elf32_Ehdr *eh)
+{
+    return *(Elf32_Half *)(((unsigned char *)eh) + 50);
+}
+static void eh_set_shstrndx(Elf32_Ehdr *eh, Elf32_Half shstrndx)
+{
+    *(Elf32_Half *)(((unsigned char *)eh) + 50) = shstrndx;
+}
 typedef struct {
   Elf32_Word sh_name;
   Elf32_Word sh_type;
@@ -5227,31 +5316,31 @@ static void tcc_output_elf(TCCState *s1, FILE *f, int phnum, Elf32_Phdr *phdr,
     shnum = s1->nb_sections;
     memset(&ehdr, 0, sizeof(ehdr));
     if (phnum > 0) {
-        ehdr.e_phentsize = sizeof(Elf32_Phdr);
-        ehdr.e_phnum = phnum;
-        ehdr.e_phoff = sizeof(Elf32_Ehdr);
+        eh_set_phentsize(&ehdr, sizeof(Elf32_Phdr));
+        eh_set_phnum(&ehdr, phnum);
+        eh_set_phoff(&ehdr, sizeof(Elf32_Ehdr));
     }
     file_offset = (file_offset + 3) & -4;
-    ehdr.e_ident[0] = 0x7f;
-    ehdr.e_ident[1] = 'E';
-    ehdr.e_ident[2] = 'L';
-    ehdr.e_ident[3] = 'F';
-    ehdr.e_ident[4] = 1;
-    ehdr.e_ident[5] = 1;
-    ehdr.e_ident[6] = 1;
+    eh_set_ident(&ehdr, 0, 0x7f);
+    eh_set_ident(&ehdr, 1, 'E');
+    eh_set_ident(&ehdr, 2, 'L');
+    eh_set_ident(&ehdr, 3, 'F');
+    eh_set_ident(&ehdr, 4, 1);
+    eh_set_ident(&ehdr, 5, 1);
+    eh_set_ident(&ehdr, 6, 1);
     if (file_type == 4) {
-        ehdr.e_type = 1;
+        eh_set_type(&ehdr, 1);
     } else {
-        ehdr.e_type = 2;
-        ehdr.e_entry = get_elf_sym_addr(s1, "_start", 1);
+        eh_set_type(&ehdr, 2);
+        eh_set_entry(&ehdr, get_elf_sym_addr(s1, "_start", 1));
     }
-    ehdr.e_machine = 3;
-    ehdr.e_version = 1;
-    ehdr.e_shoff = file_offset;
-    ehdr.e_ehsize = sizeof(Elf32_Ehdr);
-    ehdr.e_shentsize = sizeof(Elf32_Shdr);
-    ehdr.e_shnum = shnum;
-    ehdr.e_shstrndx = shnum - 1;
+    eh_set_machine(&ehdr, 3);
+    eh_set_version(&ehdr, 1);
+    eh_set_shoff(&ehdr, file_offset);
+    eh_set_ehsize(&ehdr, sizeof(Elf32_Ehdr));
+    eh_set_shentsize(&ehdr, sizeof(Elf32_Shdr));
+    eh_set_shnum(&ehdr, shnum);
+    eh_set_shstrndx(&ehdr, shnum - 1);
     fwrite(&ehdr, 1, sizeof(Elf32_Ehdr), f);
     fwrite(phdr, 1, phnum * sizeof(Elf32_Phdr), f);
     offset = sizeof(Elf32_Ehdr) + phnum * sizeof(Elf32_Phdr);
@@ -5269,7 +5358,7 @@ static void tcc_output_elf(TCCState *s1, FILE *f, int phnum, Elf32_Phdr *phdr,
             offset += size;
         }
     }
-    while (offset < ehdr.e_shoff) {
+    while (offset < eh_shoff(&ehdr)) {
         fputc(0, f);
         offset++;
     }
@@ -5470,7 +5559,7 @@ static int tcc_object_type(int fd, Elf32_Ehdr *h)
 {
     int size = read(fd, h, sizeof *h);
     if (size == sizeof *h && 0 == memcmp(h, "\177ELF", 4)) {
-        if (h->e_type == 1)
+        if (eh_type(h) == 1)
             return 1;
     }
     return 0;
@@ -5490,15 +5579,15 @@ static int tcc_load_object_file(TCCState *s1,
     Section *s;
     lseek(fd, file_offset, 0);
     if (tcc_object_type(fd, &ehdr) != 1 ||
-        ehdr.e_ident[5] != 1 ||
-        ehdr.e_machine != 3) {
+        eh_ident(&ehdr, 5) != 1 ||
+        eh_machine(&ehdr) != 3) {
         tcc_error("invalid object file");
         return -1;
     }
-    shdr = load_data(fd, file_offset + ehdr.e_shoff,
-                     sizeof(Elf32_Shdr) * ehdr.e_shnum);
-    sm_table = tcc_mallocz(sizeof(SectionMergeInfo) * ehdr.e_shnum * 3);
-    sh = &shdr[ehdr.e_shstrndx];
+    shdr = load_data(fd, file_offset + eh_shoff(&ehdr),
+                     sizeof(Elf32_Shdr) * eh_shnum(&ehdr));
+    sm_table = tcc_mallocz(sizeof(SectionMergeInfo) * eh_shnum(&ehdr) * 3);
+    sh = &shdr[eh_shstrndx(&ehdr)];
     strsec = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
     old_to_new_syms = ((void*)0);
     symtab = ((void*)0);
@@ -5506,7 +5595,7 @@ static int tcc_load_object_file(TCCState *s1,
     nb_syms = 0;
     ret = -1;
     failed = 0;
-    for(i = 1; i < ehdr.e_shnum; i++) {
+    for(i = 1; i < eh_shnum(&ehdr); i++) {
         sh = &shdr[i];
         if (sh->sh_type == 2) {
             if (symtab) {
@@ -5521,8 +5610,8 @@ static int tcc_load_object_file(TCCState *s1,
             strtab = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
         }
     }
-    for(i = 1; !failed && i < ehdr.e_shnum; i++) {
-        if (i == ehdr.e_shstrndx)
+    for(i = 1; !failed && i < eh_shnum(&ehdr); i++) {
+        if (i == eh_shstrndx(&ehdr))
             continue;
         sh = &shdr[i];
         sh_name = (char *) strsec + sh->sh_name;
@@ -5573,7 +5662,7 @@ static int tcc_load_object_file(TCCState *s1,
             s->data_offset += size;
         }
     }
-    for(i = 1; !failed && i < ehdr.e_shnum; i++) {
+    for(i = 1; !failed && i < eh_shnum(&ehdr); i++) {
         s = smi_s(smi_at(sm_table, i));
         if (!s || !smi_new_section(smi_at(sm_table, i)))
             continue;
@@ -5605,7 +5694,7 @@ static int tcc_load_object_file(TCCState *s1,
             old_to_new_syms[i] = sym_index;
         }
     }
-    for(i = 1; !failed && i < ehdr.e_shnum; i++) {
+    for(i = 1; !failed && i < eh_shnum(&ehdr); i++) {
         s = smi_s(smi_at(sm_table, i));
         if (!s)
             continue;
