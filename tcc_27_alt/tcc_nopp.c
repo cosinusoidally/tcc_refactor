@@ -209,7 +209,6 @@ static char *pstrcpy(char *buf, int buf_size, char *s);
  void *tcc_mallocz(unsigned int size);
  void *tcc_realloc(void *ptr, unsigned int size);
  char *tcc_strdup(char *str);
- void tcc_memcheck(void);
  void tcc_error_noabort(char *fmt, ...);
   void tcc_error(char *fmt, ...);
 static void dynarray_add(void *ptab, int *nb_ptr, void *data);
@@ -5549,8 +5548,6 @@ static int tcc_object_type(int fd, Elf32_Ehdr *h)
     if (size == sizeof *h && 0 == memcmp(h, "\177ELF", 4)) {
         if (h->e_type == 1)
             return 1;
-        if (h->e_type == 3)
-            return 2;
     }
     return 0;
 }
@@ -6392,9 +6389,6 @@ static char *pstrcpy(char *buf, int buf_size, char *s)
     strcpy(ptr, str);
     return ptr;
 }
- void tcc_memcheck(void)
-{
-}
 static void dynarray_add(void *ptab, int *nb_ptr, void *data)
 {
     int nb, nb_alloc;
@@ -6572,8 +6566,7 @@ static void tcc_cleanup(void)
     tcc_free(s1->outfile);
     dynarray_reset(&s1->files, &s1->nb_files);
     tcc_free(s1);
-    if (0 == --nb_states)
-        tcc_memcheck();
+    --nb_states;
 }
 static int tcc_add_file_internal(TCCState *s1, char *filename, int flags)
 {
@@ -6593,9 +6586,6 @@ static int tcc_add_file_internal(TCCState *s1, char *filename, int flags)
         switch (obj_type) {
         case 1:
             ret = tcc_load_object_file(s1, fd, 0);
-            break;
-        case 2:
-            ret = 0;
             break;
         default:
             tcc_error_noabort("unrecognized file type");
