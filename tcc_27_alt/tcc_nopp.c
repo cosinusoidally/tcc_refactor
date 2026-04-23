@@ -164,6 +164,7 @@ struct sym_attr {
     int dyn_index;
 };
 struct TCCState {
+    int nostdlib;
     int output_type;
     DLLReference **loaded_dlls;
     int nb_loaded_dlls;
@@ -4863,6 +4864,13 @@ static void put_dt(Section *dynamic, int dt, Elf32_Addr val)
     dyn->d_tag = dt;
     dyn->d_un = val;
 }
+static void tcc_add_runtime(TCCState *s1)
+{
+    if (!s1->nostdlib) {
+        tcc_add_library(s1, "c");
+        tcc_add_crt(s1, "crtn.o");
+    }
+}
 static void tcc_add_linker_symbols(TCCState *s1)
 {
     set_elf_sym(symtab_section,
@@ -5259,8 +5267,7 @@ static int elf_output_file(TCCState *s1, char *filename)
     sec_order = ((void*)0);
     interp = dynamic = dynstr = ((void*)0);
     if (file_type != 4) {
-        tcc_add_library(s1, "c");
-        tcc_add_crt(s1, "crtn.o");
+        tcc_add_runtime(s1);
 	resolve_common_syms(s1);
         if (file_type == 2) {
             char *ptr;
@@ -5323,7 +5330,7 @@ static int elf_output_file(TCCState *s1, char *filename)
         ret = final_sections_reloc(s1);
         if (!ret) {
 	    tidy_section_headers(s1, sec_order);
-            if (s1->got)
+            if (s1->got && s1->got->reloc)
                 fill_local_got_entries(s1);
         }
     }
@@ -6421,6 +6428,8 @@ static void tcc_parse_args(TCCState *s, int argc, char **argv)
         } else if (!strcmp(r, "-v")) {
             printf("tcc_27_alt i386 Linux\n");
             exit(0);
+        } else if (!strcmp(r, "-nostdlib")) {
+            s->nostdlib = 1;
         } else if (!strncmp(r, "-l", 2)) {
             optarg = take_arg(argc, argv, &optind, r, 2);
             tcc_add_library(s, optarg);
@@ -6467,7 +6476,7 @@ int main(int argc0, char **argv0)
         s->output_type = 2;
     if (s->output_type == 4 && s->nb_files > 1)
         tcc_error("-c accepts one input file in tcc_27_alt");
-    if (s->output_type == 2) {
+    if (s->output_type == 2 && !s->nostdlib) {
         tcc_add_crt(s, "crt1.o");
         tcc_add_crt(s, "crti.o");
     }
