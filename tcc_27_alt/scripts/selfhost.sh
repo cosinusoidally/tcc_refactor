@@ -12,6 +12,8 @@ STAGE2=$OUT/tcc.stage2
 STAGE3=$OUT/tcc.stage3
 NOSTD_STAGE2=$OUT/tcc.nostdlib.stage2
 NOSTD_STAGE3=$OUT/tcc.nostdlib.stage3
+NOSTD_STAGE2_OBJ=$OUT/tcc.nostdlib.stage2.o
+NOSTD_STAGE3_OBJ=$OUT/tcc.nostdlib.stage3.o
 NOPP=tcc_nopp.c
 mkdir -p "$OUT"
 
@@ -47,13 +49,16 @@ find_crt_dir()
 build_tcc_nostdlib()
 {
     compiler=$1
-    output=$2
-    crt_dir=$3
+    object=$2
+    output=$3
+    crt_dir=$4
+    "$RUN_I386" "$compiler" -c "$NOPP" -o "$object"
+    file "$object" | grep -q 'ELF 32-bit'
     "$RUN_I386" "$compiler" \
         -nostdlib \
         "$crt_dir/crt1.o" \
         "$crt_dir/crti.o" \
-        "$NOPP" \
+        "$object" \
         "$crt_dir/crtn.o" \
         -o "$output" \
         -lc -lm -ldl
@@ -85,11 +90,11 @@ grep -q 'hello i386 42' "$OUT/hello.stdout"
 
 CRT_DIR=$(find_crt_dir)
 echo "building nostdlib stage2 with stage1"
-build_tcc_nostdlib "$STAGE1" "$NOSTD_STAGE2" "$CRT_DIR"
+build_tcc_nostdlib "$STAGE1" "$NOSTD_STAGE2_OBJ" "$NOSTD_STAGE2" "$CRT_DIR"
 chmod +x "$NOSTD_STAGE2"
 
 echo "building nostdlib stage3 with nostdlib stage2"
-build_tcc_nostdlib "$NOSTD_STAGE2" "$NOSTD_STAGE3" "$CRT_DIR"
+build_tcc_nostdlib "$NOSTD_STAGE2" "$NOSTD_STAGE3_OBJ" "$NOSTD_STAGE3" "$CRT_DIR"
 chmod +x "$NOSTD_STAGE3"
 
 echo "comparing nostdlib stage2 and stage3"
