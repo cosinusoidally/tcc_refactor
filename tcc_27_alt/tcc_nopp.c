@@ -121,18 +121,87 @@ static void eh_set_shstrndx(Elf32_Ehdr *eh, Elf32_Half shstrndx)
 {
     *(Elf32_Half *)(((unsigned char *)eh) + 50) = shstrndx;
 }
-typedef struct {
-  Elf32_Word sh_name;
-  Elf32_Word sh_type;
-  Elf32_Word sh_flags;
-  Elf32_Addr sh_addr;
-  Elf32_Off sh_offset;
-  Elf32_Word sh_size;
-  Elf32_Word sh_link;
-  Elf32_Word sh_info;
-  Elf32_Word sh_addralign;
-  Elf32_Word sh_entsize;
-} Elf32_Shdr;
+typedef unsigned int Elf32_Shdr[10];
+static Elf32_Word sh_name(Elf32_Shdr *sh)
+{
+    return *(unsigned int *)sh;
+}
+static void sh_set_name(Elf32_Shdr *sh, Elf32_Word name)
+{
+    *(unsigned int *)sh = name;
+}
+static Elf32_Word sh_type(Elf32_Shdr *sh)
+{
+    return *(((unsigned int *)sh) + 1);
+}
+static void sh_set_type(Elf32_Shdr *sh, Elf32_Word type)
+{
+    *(((unsigned int *)sh) + 1) = type;
+}
+static Elf32_Word sh_flags(Elf32_Shdr *sh)
+{
+    return *(((unsigned int *)sh) + 2);
+}
+static void sh_set_flags(Elf32_Shdr *sh, Elf32_Word flags)
+{
+    *(((unsigned int *)sh) + 2) = flags;
+}
+static Elf32_Addr sh_addr(Elf32_Shdr *sh)
+{
+    return *(((unsigned int *)sh) + 3);
+}
+static void sh_set_addr(Elf32_Shdr *sh, Elf32_Addr addr)
+{
+    *(((unsigned int *)sh) + 3) = addr;
+}
+static Elf32_Off sh_offset(Elf32_Shdr *sh)
+{
+    return *(((unsigned int *)sh) + 4);
+}
+static void sh_set_offset(Elf32_Shdr *sh, Elf32_Off offset)
+{
+    *(((unsigned int *)sh) + 4) = offset;
+}
+static Elf32_Word sh_size(Elf32_Shdr *sh)
+{
+    return *(((unsigned int *)sh) + 5);
+}
+static void sh_set_size(Elf32_Shdr *sh, Elf32_Word size)
+{
+    *(((unsigned int *)sh) + 5) = size;
+}
+static Elf32_Word sh_link(Elf32_Shdr *sh)
+{
+    return *(((unsigned int *)sh) + 6);
+}
+static void sh_set_link(Elf32_Shdr *sh, Elf32_Word link)
+{
+    *(((unsigned int *)sh) + 6) = link;
+}
+static Elf32_Word sh_info(Elf32_Shdr *sh)
+{
+    return *(((unsigned int *)sh) + 7);
+}
+static void sh_set_info(Elf32_Shdr *sh, Elf32_Word info)
+{
+    *(((unsigned int *)sh) + 7) = info;
+}
+static Elf32_Word sh_addralign(Elf32_Shdr *sh)
+{
+    return *(((unsigned int *)sh) + 8);
+}
+static void sh_set_addralign(Elf32_Shdr *sh, Elf32_Word addralign)
+{
+    *(((unsigned int *)sh) + 8) = addralign;
+}
+static Elf32_Word sh_entsize(Elf32_Shdr *sh)
+{
+    return *(((unsigned int *)sh) + 9);
+}
+static void sh_set_entsize(Elf32_Shdr *sh, Elf32_Word entsize)
+{
+    *(((unsigned int *)sh) + 9) = entsize;
+}
 typedef struct {
   Elf32_Word st_name;
   Elf32_Addr st_value;
@@ -5367,17 +5436,17 @@ static void tcc_output_elf(TCCState *s1, FILE *f, int phnum, Elf32_Phdr *phdr,
         memset(sh, 0, sizeof(Elf32_Shdr));
         s = s1->sections[i];
         if (s) {
-            sh->sh_name = s->sh_name;
-            sh->sh_type = s->sh_type;
-            sh->sh_flags = s->sh_flags;
-            sh->sh_entsize = s->sh_entsize;
-            sh->sh_info = s->sh_info;
+            sh_set_name(sh, s->sh_name);
+            sh_set_type(sh, s->sh_type);
+            sh_set_flags(sh, s->sh_flags);
+            sh_set_entsize(sh, s->sh_entsize);
+            sh_set_info(sh, s->sh_info);
             if (s->link)
-                sh->sh_link = s->link->sh_num;
-            sh->sh_addralign = s->sh_addralign;
-            sh->sh_addr = s->sh_addr;
-            sh->sh_offset = s->sh_offset;
-            sh->sh_size = s->sh_size;
+                sh_set_link(sh, s->link->sh_num);
+            sh_set_addralign(sh, s->sh_addralign);
+            sh_set_addr(sh, s->sh_addr);
+            sh_set_offset(sh, s->sh_offset);
+            sh_set_size(sh, s->sh_size);
         }
         fwrite(sh, 1, sizeof(Elf32_Shdr), f);
     }
@@ -5572,7 +5641,7 @@ static int tcc_load_object_file(TCCState *s1,
     int size, i, j, offset, offseti, nb_syms, sym_index, ret, failed;
     unsigned char *strsec, *strtab;
     int *old_to_new_syms;
-    char *sh_name, *name;
+    char *sec_name, *name;
     SectionMergeInfo *sm_table, *sm;
     Elf32_Sym *sym, *symtab;
     Elf32_Rel *rel;
@@ -5588,7 +5657,7 @@ static int tcc_load_object_file(TCCState *s1,
                      sizeof(Elf32_Shdr) * eh_shnum(&ehdr));
     sm_table = tcc_mallocz(sizeof(SectionMergeInfo) * eh_shnum(&ehdr) * 3);
     sh = &shdr[eh_shstrndx(&ehdr)];
-    strsec = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
+    strsec = load_data(fd, file_offset + sh_offset(sh), sh_size(sh));
     old_to_new_syms = ((void*)0);
     symtab = ((void*)0);
     strtab = ((void*)0);
@@ -5597,65 +5666,65 @@ static int tcc_load_object_file(TCCState *s1,
     failed = 0;
     for(i = 1; i < eh_shnum(&ehdr); i++) {
         sh = &shdr[i];
-        if (sh->sh_type == 2) {
+        if (sh_type(sh) == 2) {
             if (symtab) {
                 tcc_error("object must contain only one symtab");
                 failed = 1;
                 break;
             }
-            nb_syms = sh->sh_size / sizeof(Elf32_Sym);
-            symtab = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
+            nb_syms = sh_size(sh) / sizeof(Elf32_Sym);
+            symtab = load_data(fd, file_offset + sh_offset(sh), sh_size(sh));
             smi_set_s(smi_at(sm_table, i), symtab_section);
-            sh = &shdr[sh->sh_link];
-            strtab = load_data(fd, file_offset + sh->sh_offset, sh->sh_size);
+            sh = &shdr[sh_link(sh)];
+            strtab = load_data(fd, file_offset + sh_offset(sh), sh_size(sh));
         }
     }
     for(i = 1; !failed && i < eh_shnum(&ehdr); i++) {
         if (i == eh_shstrndx(&ehdr))
             continue;
         sh = &shdr[i];
-        sh_name = (char *) strsec + sh->sh_name;
-        if (sh->sh_type != 1 &&
-            sh->sh_type != 9 &&
-            sh->sh_type != 8 &&
-            sh->sh_type != 16 &&
-            sh->sh_type != 14 &&
-            sh->sh_type != 15 &&
-	    strcmp(sh_name, ".stabstr")
+        sec_name = (char *) strsec + sh_name(sh);
+        if (sh_type(sh) != 1 &&
+            sh_type(sh) != 9 &&
+            sh_type(sh) != 8 &&
+            sh_type(sh) != 16 &&
+            sh_type(sh) != 14 &&
+            sh_type(sh) != 15 &&
+	    strcmp(sec_name, ".stabstr")
             )
             continue;
-        if (sh->sh_addralign < 1)
-            sh->sh_addralign = 1;
+        if (sh_addralign(sh) < 1)
+            sh_set_addralign(sh, 1);
         s = ((void*)0);
         for(j = 1; j < s1->nb_sections;j++) {
             s = s1->sections[j];
-            if (!strcmp(s->name, sh_name))
+            if (!strcmp(s->name, sec_name))
                 break;
             s = ((void*)0);
         }
         if (!s) {
-            s = new_section(s1, sh_name, sh->sh_type, sh->sh_flags & ~(1 << 9));
-            s->sh_addralign = sh->sh_addralign;
-            s->sh_entsize = sh->sh_entsize;
+            s = new_section(s1, sec_name, sh_type(sh), sh_flags(sh) & ~(1 << 9));
+            s->sh_addralign = sh_addralign(sh);
+            s->sh_entsize = sh_entsize(sh);
             smi_set_new_section(smi_at(sm_table, i), 1);
         }
-        if (sh->sh_type != s->sh_type) {
+        if (sh_type(sh) != s->sh_type) {
             tcc_error("invalid section type");
             failed = 1;
             break;
         }
         offset = s->data_offset;
-        size = sh->sh_addralign - 1;
+        size = sh_addralign(sh) - 1;
         offset = (offset + size) & ~size;
-        if (sh->sh_addralign > s->sh_addralign)
-            s->sh_addralign = sh->sh_addralign;
+        if (sh_addralign(sh) > s->sh_addralign)
+            s->sh_addralign = sh_addralign(sh);
         s->data_offset = offset;
         smi_set_offset(smi_at(sm_table, i), offset);
         smi_set_s(smi_at(sm_table, i), s);
-        size = sh->sh_size;
-        if (sh->sh_type != 8) {
+        size = sh_size(sh);
+        if (sh_type(sh) != 8) {
             unsigned char *ptr;
-            lseek(fd, file_offset + sh->sh_offset, 0);
+            lseek(fd, file_offset + sh_offset(sh), 0);
             ptr = section_ptr_add(s, size);
             read(fd, ptr, size);
         } else {
@@ -5667,10 +5736,10 @@ static int tcc_load_object_file(TCCState *s1,
         if (!s || !smi_new_section(smi_at(sm_table, i)))
             continue;
         sh = &shdr[i];
-        if (sh->sh_link > 0)
-            s->link = smi_s(smi_at(sm_table, sh->sh_link));
-        if (sh->sh_type == 9) {
-            s->sh_info = smi_s(smi_at(sm_table, sh->sh_info))->sh_num;
+        if (sh_link(sh) > 0)
+            s->link = smi_s(smi_at(sm_table, sh_link(sh)));
+        if (sh_type(sh) == 9) {
+            s->sh_info = smi_s(smi_at(sm_table, sh_info(sh)))->sh_num;
             s1->sections[s->sh_info]->reloc = s;
         }
     }
@@ -5701,7 +5770,7 @@ static int tcc_load_object_file(TCCState *s1,
         sh = &shdr[i];
         offset = smi_offset(smi_at(sm_table, i));
         if (s->sh_type == 9) {
-            offseti = smi_offset(smi_at(sm_table, sh->sh_info));
+            offseti = smi_offset(smi_at(sm_table, sh_info(sh)));
             for (rel = (Elf32_Rel *) s->data + (offset / sizeof(*rel)); rel < (Elf32_Rel *) (s->data + s->data_offset); rel++) {
                 int type;
                 unsigned sym_index;
@@ -5713,7 +5782,7 @@ static int tcc_load_object_file(TCCState *s1,
                     sym_index = 0;
                 if (!sym_index) {
                     tcc_error("Invalid relocation entry [%2d] '%s' @ %.8x",
-                        i, strsec + sh->sh_name, rel_offset(rel));
+                        i, strsec + sh_name(sh), rel_offset(rel));
                     failed = 1;
                     break;
                 }
