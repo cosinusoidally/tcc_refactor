@@ -2997,11 +2997,11 @@ static void inc(int post, int c)
 }
 static Sym * find_field (CType *type, int v)
 {
-    Sym *s = type->ref;
+    Sym *s = ct_ref(type);
     v |= 0x20000000;
     while ((s = s->next) != ((void*)0)) {
 	if ((s->v & 0x20000000) &&
-	    (s->type.t & 0x000f) == 7 &&
+	    (ct_t(&s->type) & 0x000f) == 7 &&
 	    (s->v & ~0x20000000) >= 0x10000000) {
 	    Sym *ret = find_field (&s->type, v);
 	    if (ret)
@@ -3016,9 +3016,9 @@ static void struct_add_offset (Sym *s, int offset)
 {
     while ((s = s->next) != ((void*)0)) {
 	if ((s->v & 0x20000000) &&
-	    (s->type.t & 0x000f) == 7 &&
+	    (ct_t(&s->type) & 0x000f) == 7 &&
 	    (s->v & ~0x20000000) >= 0x10000000) {
-	    struct_add_offset(s->type.ref, offset);
+	    struct_add_offset(ct_ref(&s->type), offset);
 	} else
 	  s->c += offset;
     }
@@ -3030,7 +3030,7 @@ static void struct_layout(CType *type, AttributeDef *ad)
     maxalign = 1;
     offset = 0;
     c = 0;
-    for (f = type->ref->next; f; f = f->next) {
+    for (f = ct_ref(type)->next; f; f = f->next) {
         size = type_size(&f->type, &align);
         c = (c + align - 1) & -align;
         offset = c;
@@ -3038,24 +3038,24 @@ static void struct_layout(CType *type, AttributeDef *ad)
             c += size;
 	if (align > maxalign)
 	    maxalign = align;
-	if (f->v & 0x10000000 && (f->type.t & 0x000f) == 7) {
+	if (f->v & 0x10000000 && (ct_t(&f->type) & 0x000f) == 7) {
 	    Sym *ass;
-	    int v2 = f->type.ref->v;
+	    int v2 = ct_ref(&f->type)->v;
 	    if (!(v2 & 0x20000000) &&
 		(v2 & ~0x40000000) < 0x10000000) {
 		Sym **pps;
-		ass = f->type.ref;
-		f->type.ref = sym_push(anon_sym++ | 0x20000000,
-				       &f->type.ref->type, 0,
-				       f->type.ref->c);
-		pps = &f->type.ref->next;
+		ass = ct_ref(&f->type);
+		ct_set_ref(&f->type, sym_push(anon_sym++ | 0x20000000,
+				       &ct_ref(&f->type)->type, 0,
+				       ct_ref(&f->type)->c));
+		pps = &ct_ref(&f->type)->next;
 		while ((ass = ass->next) != ((void*)0)) {
 		    *pps = sym_push(ass->v, &ass->type, 0, ass->c);
 		    pps = &((*pps)->next);
 		}
 		*pps = ((void*)0);
 	    }
-	    struct_add_offset(f->type.ref, offset);
+	    struct_add_offset(ct_ref(&f->type), offset);
 	    f->c = 0;
 	} else {
 	    f->c = offset;
@@ -3065,9 +3065,9 @@ static void struct_layout(CType *type, AttributeDef *ad)
     a = 1;
     if (a < maxalign)
         a = maxalign;
-    type->ref->r = a;
+    ct_ref(type)->r = a;
     c = (c + a - 1) & -a;
-    type->ref->c = c;
+    ct_ref(type)->c = c;
 }
 static void struct_decl(CType *type, int u)
 {
@@ -3085,7 +3085,7 @@ static void struct_decl(CType *type, int u)
         if (v < 256)
             expect("struct name");
         s = struct_find(v);
-        if (s && (s->sym_scope == local_scope || tok != '{') && u != s->type.t) {
+        if (s && (s->sym_scope == local_scope || tok != '{') && u != ct_t(&s->type)) {
             tcc_error("redefinition of '%s'", get_tok_str(v, ((void*)0)));
         }
         if (s && (s->sym_scope == local_scope || tok != '{'))
@@ -3094,13 +3094,13 @@ static void struct_decl(CType *type, int u)
         v = anon_sym++;
     }
     if (!use_existing) {
-        type1.t = u;
-        type1.ref = ((void*)0);
+        ct_set_t(&type1, u);
+        ct_set_ref(&type1, ((void*)0));
         s = sym_push(v | 0x40000000, &type1, 0, -1);
         s->r = 0;
     }
-    type->t = s->type.t;
-    type->ref = s;
+    ct_set_t(type, ct_t(&s->type));
+    ct_set_ref(type, s);
     if (tok == '{') {
         next();
         if (s->c != -1)
@@ -3113,15 +3113,15 @@ static void struct_decl(CType *type, int u)
 		}
                 while (1) {
 	                    v = 0;
-                    type1 = btype;
+                    ct_copy(&type1, &btype);
                     if (tok != ':') {
 			if (tok != ';')
                             type_decl(&type1, &ad1, &v, 2);
                         if (v == 0) {
-                    	    if ((type1.t & 0x000f) != 7)
+                    	    if ((ct_t(&type1) & 0x000f) != 7)
                         	expect("identifier");
                     	    else {
-				int v = btype.ref->v;
+				int v = ct_ref(&btype)->v;
 				if (!(v & 0x20000000) && (v & ~0x40000000) < 0x10000000) {
 				}
                     	    }
@@ -3130,8 +3130,8 @@ static void struct_decl(CType *type, int u)
 				    tcc_error("field '%s' has incomplete type",
                                       get_tok_str(v, ((void*)0)));
                         }
-                        if ((type1.t & 0x000f) == 6 ||
-                            (type1.t & (0x00001000 | 0x00002000 | 0x00004000)))
+                        if ((ct_t(&type1) & 0x000f) == 6 ||
+                            (ct_t(&type1) & (0x00001000 | 0x00002000 | 0x00004000)))
                             tcc_error("invalid type for '%s'",
                                   get_tok_str(v, ((void*)0)));
                     }
@@ -3139,7 +3139,7 @@ static void struct_decl(CType *type, int u)
                         tcc_error("bit-fields are not supported in tcc_27_alt");
                     }
                     if (v == 0 &&
-			((type1.t & 0x000f) == 7)) {
+			((ct_t(&type1) & 0x000f) == 7)) {
 		        v = anon_sym++;
 		    }
                     if (v) {
@@ -3809,38 +3809,38 @@ static void expr_cond(void)
             if (c == 1)
                 nocode_wanted--;
             type2 = vtop->type;
-            t1 = type1.t;
+            t1 = ct_t(&type1);
             bt1 = t1 & 0x000f;
-            t2 = type2.t;
+            t2 = ct_t(&type2);
             bt2 = t2 & 0x000f;
-            type.ref = ((void*)0);
+            ct_set_ref(&type, ((void*)0));
             if (bt1 == 5 || bt2 == 5) {
 		if (is_null_pointer (vtop))
-		  type = type1;
+		  ct_copy(&type, &type1);
 		else if (is_null_pointer (&sv))
-		  type = type2;
+		  ct_copy(&type, &type2);
 		else
-		  type = type1;
+		  ct_copy(&type, &type1);
             } else if (bt1 == 6 || bt2 == 6) {
-                type = bt1 == 6 ? type1 : type2;
+                ct_copy(&type, bt1 == 6 ? &type1 : &type2);
             } else if (bt1 == 7 || bt2 == 7) {
-                type = bt1 == 7 ? type1 : type2;
+                ct_copy(&type, bt1 == 7 ? &type1 : &type2);
             } else if (bt1 == 0 || bt2 == 0) {
-                type.t = 0;
+                ct_set_t(&type, 0);
             } else {
-                type.t = 3;
+                ct_set_t(&type, 3);
                 if ((t1 & (0x000f | 0x0010 | 0x0080)) == (3 | 0x0010) ||
                     (t2 & (0x000f | 0x0010 | 0x0080)) == (3 | 0x0010))
-                    type.t |= 0x0010;
+                    ct_or_t(&type, 0x0010);
             }
-            islv = (vtop->r & 0x0100) && (sv.r & 0x0100) && 7 == (type.t & 0x000f);
+            islv = (vtop->r & 0x0100) && (sv.r & 0x0100) && 7 == (ct_t(&type) & 0x000f);
             islv &= c < 0;
             if (c != 1) {
                 gen_cast(&type);
                 if (islv) {
                     mk_pointer(&vtop->type);
                     gaddrof();
-                } else if (7 == (vtop->type.t & 0x000f))
+                } else if (7 == (ct_t(&vtop->type) & 0x000f))
                     gaddrof();
             }
             rc = 0x0001;
@@ -3856,12 +3856,12 @@ static void expr_cond(void)
                 if (islv) {
                     mk_pointer(&vtop->type);
                     gaddrof();
-                } else if (7 == (vtop->type.t & 0x000f))
+                } else if (7 == (ct_t(&vtop->type) & 0x000f))
                     gaddrof();
             }
             if (c < 0) {
                 r1 = gv(rc);
-                move_reg(r2, r1, type.t);
+                move_reg(r2, r1, ct_t(&type));
                 vtop->r = r2;
                 gsym(tt);
                 if (islv)
@@ -3921,7 +3921,7 @@ static int expr_const(void)
 }
 static void gfunc_return(CType *func_type)
 {
-    if ((func_type->t & 0x000f) == 7) {
+    if ((ct_t(func_type) & 0x000f) == 7) {
         tcc_error("struct return values are not supported in tcc_27_alt");
     } else {
         gv(0x0004);
@@ -3934,7 +3934,7 @@ static void block(int *bsym, int *csym, int is_expr)
     Sym *s;
     if (is_expr) {
         vpushi(0);
-        vtop->type.t = 0;
+        ct_set_t(&vtop->type, 0);
     }
     if (tok == 259) {
 	int saved_nocode_wanted = nocode_wanted;
@@ -4003,7 +4003,7 @@ static void block(int *bsym, int *csym, int is_expr)
         if (tok != ';') {
             gexpr();
             gen_assign_cast(&func_vt);
-            if ((func_vt.t & 0x000f) == 0)
+            if ((ct_t(&func_vt) & 0x000f) == 0)
                 vtop--;
             else
                 gfunc_return(&func_vt);
@@ -4143,16 +4143,16 @@ static void init_putv(CType *type, Section *sec, unsigned int c)
     int bt;
     void *ptr;
     CType dtype;
-    dtype = *type;
-    dtype.t &= ~0x0100;
+    ct_copy(&dtype, type);
+    ct_clear_t(&dtype, 0x0100);
     if (sec) {
 	int size, align;
         gen_assign_cast(&dtype);
-        bt = type->t & 0x000f;
+        bt = ct_t(type) & 0x000f;
         if ((vtop->r & 0x0200)
             && bt != 5
             && bt != 6
-            && (bt != 3 || (type->t & 0x0080))
+            && (bt != 3 || (ct_t(type) & 0x0080))
             && !((vtop->r & 0x0030) && vtop->sym->v >= 0x10000000)
             )
             tcc_error("initializer element is not computable at load time");
@@ -4165,7 +4165,7 @@ static void init_putv(CType *type, Section *sec, unsigned int c)
         ptr = sec->data + c;
 	if ((vtop->r & (0x0200|0x0030)) == (0x0200|0x0030) &&
 	    vtop->sym->v >= 0x10000000 &&
-	    (vtop->type.t & 0x000f) != 5) {
+	    (ct_t(&vtop->type) & 0x000f) != 5) {
 	    Section *ssec;
 	    Elf32_Sym *esym;
 	    Elf32_Rel *rel;
@@ -4226,7 +4226,7 @@ static int decl_initializer_list(CType *type, Section *sec, unsigned int c,
     while (tok != '}' || have_elem) {
         len = decl_designator(type, sec, c, pf, len);
         have_elem = 0;
-        if (type->t & 0x0040) {
+        if (ct_t(type) & 0x0040) {
             ++indexsym->c;
             if (no_oblock && len >= n * size1)
                 break;
@@ -4257,11 +4257,11 @@ static void decl_initializer(CType *type, Section *sec, unsigned int c,
 	have_elem = 1;
     }
     if (have_elem &&
-	!(type->t & 0x0040) &&
+	!(ct_t(type) & 0x0040) &&
 	is_compatible_types(type, &vtop->type)) {
         init_putv(type, sec, c);
-    } else if (type->t & 0x0040) {
-        s = type->ref;
+    } else if (ct_t(type) & 0x0040) {
+        s = ct_ref(type);
         n = s->c;
         t1 = pointed_type(type);
         size1 = type_size(t1, &align1);
@@ -4274,7 +4274,7 @@ static void decl_initializer(CType *type, Section *sec, unsigned int c,
             skip('{');
             no_oblock = 0;
         }
-        if (tok == 0xb9 && (t1->t & 0x000f) == 1) {
+        if (tok == 0xb9 && (ct_t(t1) & 0x000f) == 1) {
 	    len = 0;
             while (tok == 0xb9) {
                 int cstr_len, ch;
@@ -4314,14 +4314,14 @@ static void decl_initializer(CType *type, Section *sec, unsigned int c,
             skip('}');
         if (n < 0)
             s->c = size1 == 1 ? len : ((len + size1 - 1)/size1);
-    } else if ((type->t & 0x000f) == 7) {
+    } else if ((ct_t(type) & 0x000f) == 7) {
 	size1 = 1;
         no_oblock = 1;
         if (first || tok == '{') {
             skip('{');
             no_oblock = 0;
         }
-        s = type->ref;
+        s = ct_ref(type);
         f = s->next;
         n = s->c;
         len = decl_initializer_list(type, sec, c, &f, &indexsym,
@@ -4351,7 +4351,7 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
     Section *sec;
     Sym *sym = ((void*)0);
     int saved_nocode_wanted = nocode_wanted;
-    if (type->t & 0x00002000)
+    if (ct_t(type) & 0x00002000)
         nocode_wanted |= (nocode_wanted > 0) ? 0x40000000 : 0x80000000;
     size = type_size(type, &align);
     if (size < 0)
@@ -4401,7 +4401,7 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
             }
         }
     }
-    if (do_alloc && type->t & 0x0400) {
+    if (do_alloc && ct_t(type) & 0x0400) {
         tcc_error("variable length arrays are not supported in tcc_27_alt");
     } else if (do_alloc && has_init) {
         decl_initializer(type, sec, addr, 1);
@@ -4430,7 +4430,7 @@ static void gen_function(Sym *sym)
     esy_set_size(elfsym(sym), ind - func_ind);
     cur_text_section = ((void*)0);
     funcname = "";
-    func_vt.t = 0;
+    ct_set_t(&func_vt, 0);
     ind = 0;
     nocode_wanted = 0x80000000;
     check_vstack();
@@ -4452,7 +4452,7 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
             if (l != 0x0030)
                 break;
             if (tok > 275) {
-                btype.t = 3;
+                ct_set_t(&btype, 3);
             } else {
                 if (tok != (-1))
                     expect("declaration");
@@ -4460,79 +4460,79 @@ static int decl0(int l, int is_for_loop_init, Sym *func_sym)
             }
         }
         if (tok == ';') {
-		    if ((btype.t & 0x000f) == 7) {
+		    if ((ct_t(&btype) & 0x000f) == 7) {
                 next();
 	                continue;
 		    }
         }
         while (1) {
-            type = btype;
-	    if ((type.t & 0x0040) && type.ref->c < 0) {
-		type.ref = sym_push(0x20000000, &type.ref->type, 0, type.ref->c);
+            ct_copy(&type, &btype);
+	    if ((ct_t(&type) & 0x0040) && ct_ref(&type)->c < 0) {
+		ct_set_ref(&type, sym_push(0x20000000, &ct_ref(&type)->type, 0, ct_ref(&type)->c));
 	    }
             type_decl(&type, &ad, &v, 2);
-            if ((type.t & 0x000f) == 6) {
-                if ((type.t & 0x00002000) && (l == 0x0032)) {
+            if ((ct_t(&type) & 0x000f) == 6) {
+                if ((ct_t(&type) & 0x00002000) && (l == 0x0032)) {
                     tcc_error("function without file scope cannot be static");
                 }
-                sym = type.ref;
+                sym = ct_ref(&type);
             }
             if (tok == '{') {
                 if (l != 0x0030)
                     tcc_error("cannot use local functions");
-                if ((type.t & 0x000f) != 6)
+                if ((ct_t(&type) & 0x000f) != 6)
                     expect("function definition");
-                sym = type.ref;
+                sym = ct_ref(&type);
                 while ((sym = sym->next) != ((void*)0)) {
                     if (!(sym->v & ~0x20000000))
                         expect("identifier");
-		    if (sym->type.t == 0)
-		        sym->type = int_type;
+		    if (ct_t(&sym->type) == 0)
+		        ct_copy(&sym->type, &int_type);
 		}
                 sym = external_global_sym(v, &type, 0);
-                type.t &= ~0x00001000;
+                ct_clear_t(&type, 0x00001000);
                 patch_storage(sym, &ad, &type);
                 cur_text_section = text_section;
                 gen_function(sym);
                 break;
             } else {
-			if (type.t & 0x00004000) {
+			if (ct_t(&type) & 0x00004000) {
                     sym = sym_find(v);
                     if (sym && sym->sym_scope == local_scope) {
                         if (!is_compatible_types(&sym->type, &type)
-                            || !(sym->type.t & 0x00004000))
+                            || !(ct_t(&sym->type) & 0x00004000))
                             tcc_error("incompatible redefinition of '%s'",
                                 get_tok_str(v, ((void*)0)));
-                        sym->type = type;
+                        ct_copy(&sym->type, &type);
                     } else {
                         sym = sym_push(v, &type, 0, 0);
                     }
                     sym_set_ad_ft(sym, &ad);
                 } else {
                     r = 0;
-                    if ((type.t & 0x000f) == 6) {
-                        sym_set_ad_ft(type.ref, &ad);
-                    } else if (!(type.t & 0x0040)) {
-                        r |= lvalue_type(type.t);
+                    if ((ct_t(&type) & 0x000f) == 6) {
+                        sym_set_ad_ft(ct_ref(&type), &ad);
+                    } else if (!(ct_t(&type) & 0x0040)) {
+                        r |= lvalue_type(ct_t(&type));
                     }
                     has_init = (tok == '=');
-                    if (has_init && (type.t & 0x0400))
+                    if (has_init && (ct_t(&type) & 0x0400))
                         tcc_error("variable length array cannot be initialized");
-                    if (((type.t & 0x00001000) && (!has_init || l != 0x0030)) ||
-			((type.t & 0x000f) == 6) ||
-                        ((type.t & 0x0040) && (type.t & 0x00002000) &&
-                         !has_init && l == 0x0030 && type.ref->c < 0)) {
-                        type.t |= 0x00001000;
+                    if (((ct_t(&type) & 0x00001000) && (!has_init || l != 0x0030)) ||
+			((ct_t(&type) & 0x000f) == 6) ||
+                        ((ct_t(&type) & 0x0040) && (ct_t(&type) & 0x00002000) &&
+                         !has_init && l == 0x0030 && ct_ref(&type)->c < 0)) {
+                        ct_or_t(&type, 0x00001000);
                         sym = external_sym(v, &type, r, &ad);
                     } else {
-                        if (type.t & 0x00002000)
+                        if (ct_t(&type) & 0x00002000)
                             r |= 0x0030;
                         else
                             r |= l;
                         if (has_init)
                             next();
                         else if (l == 0x0030)
-                            type.t |= 0x00001000;
+                            ct_or_t(&type, 0x00001000);
                         decl_initializer_alloc(&type, &ad, r, has_init, v, l);
                     }
                 }
@@ -5967,13 +5967,13 @@ static void load(int r, SValue *sv)
     int v, t, ft, fc, fr;
     SValue v1;
     fr = sv->r;
-    ft = sv->type.t & ~0x0020;
+    ft = ct_t(&sv->type) & ~0x0020;
     fc = cv_i(&sv->c);
     ft &= ~(0x0200 | 0x0100);
     v = fr & 0x003f;
     if (fr & 0x0100) {
         if (v == 0x0031) {
-            v1.type.t = 3;
+            ct_set_t(&v1.type, 3);
             v1.r = 0x0032 | 0x0100;
             cv_set_i(&v1.c, fc);
             fr = r;
@@ -6025,7 +6025,7 @@ static void load(int r, SValue *sv)
 static void store(int r, SValue *v)
 {
     int fr, bt, ft, fc;
-    ft = v->type.t;
+    ft = ct_t(&v->type);
     fc = cv_i(&v->c);
     fr = v->r & 0x003f;
     ft &= ~(0x0200 | 0x0100);
@@ -6066,7 +6066,7 @@ static void gcall_or_jmp(int is_jmp)
     }
     if (!is_jmp) {
         int rt;
-        rt = vtop->type.ref->type.t;
+        rt = ct_t(&ct_ref(&vtop->type)->type);
         if ((rt & 0x000f) == 1) {
             if (rt & 0x0010) {
                 o(0xc0b60f);
@@ -6087,7 +6087,7 @@ static void gfunc_call(int nb_args)
     int size, r, args_size, i;
     args_size = 0;
     for(i = 0;i < nb_args; i++) {
-        if ((vtop->type.t & 0x000f) == 7) {
+        if ((ct_t(&vtop->type) & 0x000f) == 7) {
             tcc_error("struct arguments are not supported in tcc_27_alt");
         } else {
             r = gv(0x0001);
@@ -6108,24 +6108,24 @@ static void gfunc_prolog(CType *func_type)
     int addr, align, size, param_addr;
     Sym *sym;
     CType *type;
-    sym = func_type->ref;
+    sym = ct_ref(func_type);
     addr = 8;
     loc = 0;
     ind += (9 + 0);
     func_sub_sp_offset = ind;
-    func_vt = sym->type;
-    if ((func_vt.t & 0x000f) == 7)
+    ct_copy(&func_vt, &sym->type);
+    if ((ct_t(&func_vt) & 0x000f) == 7)
         tcc_error("struct return values are not supported in tcc_27_alt");
     while ((sym = sym->next) != ((void*)0)) {
         type = &sym->type;
-        if ((type->t & 0x000f) == 7)
+        if ((ct_t(type) & 0x000f) == 7)
             tcc_error("struct arguments are not supported in tcc_27_alt");
         size = type_size(type, &align);
         size = (size + 3) & ~3;
         param_addr = addr;
         addr += size;
         sym_push(sym->v & ~0x20000000, type,
-                 0x0032 | lvalue_type(type->t), param_addr);
+                 0x0032 | lvalue_type(ct_t(type)), param_addr);
     }
     func_ret_sub = 0;
 }
