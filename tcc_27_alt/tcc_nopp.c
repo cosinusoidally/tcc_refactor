@@ -4110,6 +4110,28 @@ static void init_putv(CType *type, Section *sec, unsigned int c)
         vpop();
     }
 }
+static int decl_initializer_list(CType *type, Section *sec, unsigned int c,
+    Sym **pf, Sym *indexsym, int have_elem, int no_oblock, int n, int size1)
+{
+    int len = 0;
+    while (tok != '}' || have_elem) {
+        len = decl_designator(type, sec, c, pf, len);
+        have_elem = 0;
+        if (type->t & 0x0040) {
+            ++indexsym->c;
+            if (no_oblock && len >= n * size1)
+                break;
+        } else {
+            *pf = (*pf)->next;
+            if (no_oblock && *pf == ((void*)0))
+                break;
+        }
+        if (tok == '}')
+            break;
+        skip(',');
+    }
+    return len;
+}
 static void decl_initializer(CType *type, Section *sec, unsigned int c,
                              int first)
 {
@@ -4174,24 +4196,8 @@ static void decl_initializer(CType *type, Section *sec, unsigned int c,
         } else {
 	    indexsym.c = 0;
 	    f = &indexsym;
-          do_init_list:
-	    len = 0;
-	    while (tok != '}' || have_elem) {
-			len = decl_designator(type, sec, c, &f, len);
-		have_elem = 0;
-		if (type->t & 0x0040) {
-		    ++indexsym.c;
-		    if (no_oblock && len >= n*size1)
-		        break;
-		} else {
-                    f = f->next;
-		    if (no_oblock && f == ((void*)0))
-		        break;
-		}
-		if (tok == '}')
-		    break;
-		skip(',');
-	    }
+            len = decl_initializer_list(type, sec, c, &f, &indexsym,
+                                        have_elem, no_oblock, n, size1);
         }
 		if (len < n*size1)
 		    init_putz(sec, c + len, n*size1 - len);
@@ -4209,7 +4215,12 @@ static void decl_initializer(CType *type, Section *sec, unsigned int c,
         s = type->ref;
         f = s->next;
         n = s->c;
-	goto do_init_list;
+        len = decl_initializer_list(type, sec, c, &f, &indexsym,
+                                    have_elem, no_oblock, n, size1);
+        if (len < n*size1)
+            init_putz(sec, c + len, n*size1 - len);
+        if (!no_oblock)
+            skip('}');
 	    } else if (tok == '{') {
 	        next();
 	        decl_initializer(type, sec, c, first);
@@ -4227,6 +4238,7 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
                                    int has_init, int v, int scope)
 {
     int size, align, addr;
+    int do_alloc = 1;
     Section *sec;
     Sym *sym = ((void*)0);
     int saved_nocode_wanted = nocode_wanted;
@@ -4252,38 +4264,39 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
             if (sym) {
                 patch_storage(sym, ad, type);
                 if (!has_init && sym->c && elfsym(sym)->st_shndx != 0)
-                    goto no_alloc;
+                    do_alloc = 0;
             }
         }
-        if (has_init)
-            sec = data_section;
-        else
-            sec = bss_section;
-        if (sec) {
-	    addr = section_add(sec, size, align);
-        } else {
-            addr = align;
-	    sec = common_section;
-        }
-        if (v) {
-            if (!sym) {
-                sym = sym_push(v, type, r | 0x0200, 0);
-                patch_storage(sym, ad, ((void*)0));
+        if (do_alloc) {
+            if (has_init)
+                sec = data_section;
+            else
+                sec = bss_section;
+            if (sec) {
+	        addr = section_add(sec, size, align);
+            } else {
+                addr = align;
+	        sec = common_section;
             }
-            sym->sym_scope = 0;
-	    put_extern_sym(sym, sec, addr, size);
-        } else {
-            sym = get_sym_ref(type, sec, addr, size);
-	    vpushsym(type, sym);
-	    vtop->r |= r;
+            if (v) {
+                if (!sym) {
+                    sym = sym_push(v, type, r | 0x0200, 0);
+                    patch_storage(sym, ad, ((void*)0));
+                }
+                sym->sym_scope = 0;
+	        put_extern_sym(sym, sec, addr, size);
+            } else {
+                sym = get_sym_ref(type, sec, addr, size);
+	        vpushsym(type, sym);
+	        vtop->r |= r;
+            }
         }
     }
-    if (type->t & 0x0400) {
+    if (do_alloc && type->t & 0x0400) {
         tcc_error("variable length arrays are not supported in tcc_27_alt");
-    } else if (has_init) {
+    } else if (do_alloc && has_init) {
         decl_initializer(type, sec, addr, 1);
     }
- no_alloc:
     nocode_wanted = saved_nocode_wanted;
 }
 static void gen_function(Sym *sym)
