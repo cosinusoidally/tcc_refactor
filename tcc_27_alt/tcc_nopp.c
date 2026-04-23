@@ -184,16 +184,6 @@ typedef struct BufferedFile {
     char filename[1024];
     unsigned char buffer[1];
 } BufferedFile;
-typedef struct TokenString {
-    int *str;
-    int len;
-    int lastlen;
-    int allocated_len;
-    int save_line_num;
-    struct TokenString *prev;
-    int *prev_ptr;
-    char alloc;
-} TokenString;
 typedef struct ExprValue {
     unsigned int v;
     Sym *sym;
@@ -303,7 +293,8 @@ static int tcc_parse_args(TCCState *s, int argc, char **argv);
 static struct BufferedFile *file;
 static int tok;
 static CValue tokc;
-static int *macro_ptr;
+static int pushed_tok, has_pushed_tok;
+static CValue pushed_tokc;
 static int tok_flags;
 static CString tokcstr;
 static int total_lines;
@@ -312,15 +303,7 @@ static int tok_ident;
 static TokenSym **table_ident;
 static TokenSym *tok_alloc(char *str, int len);
 static char *get_tok_str(int v, CValue *cv);
-static void begin_macro(TokenString *str, int alloc);
-static void end_macro(void);
 static int set_idnum(int c, int val);
-static void tok_str_new(TokenString *s);
-static TokenString *tok_str_alloc(void);
-static void tok_str_free(TokenString *s);
-static void tok_str_free_str(int *str);
-static void tok_str_add(TokenString *s, int t);
-static void tok_str_add_tok(TokenString *s);
 static Sym *label_find(int v);
 static Sym *label_push(Sym **ptop, int v, int flags);
 static void label_pop(Sym **ptop, Sym *slast, int keep);
@@ -482,7 +465,8 @@ static int tok_flags;
 static struct BufferedFile *file;
 static int tok;
 static CValue tokc;
-static int *macro_ptr;
+static int pushed_tok, has_pushed_tok;
+static CValue pushed_tokc;
 static CString tokcstr;
 static int total_lines;
 static int total_bytes;
@@ -490,13 +474,10 @@ static int tok_ident;
 static TokenSym **table_ident;
 static TokenSym *hash_ident[16384];
 static char token_buf[1024 + 1];
-static TokenString tokstr_buf;
 static unsigned char isidnum_table[256 - (-1)];
 static struct TinyAlloc *toksym_alloc;
-static struct TinyAlloc *tokstr_alloc;
 static struct TinyAlloc *cstr_alloc;
-static TokenString *macro_stack;
-static char tcc_keywords[] =
+static char tcc_keywords[216] =
      "int" "\0"
      "void" "\0"
      "char" "\0"
@@ -531,7 +512,7 @@ static char tcc_keywords[] =
      "memmove" "\0"
      "memset" "\0"
 ;
-static unsigned char tok_two_chars[] =
+static unsigned char tok_two_chars[64] =
  {
     '<','=', 0x9e,
     '>','=', 0x9d,
@@ -916,136 +897,6 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
     }
     p++;
     return p;
-}
-static void tok_str_new(TokenString *s)
-{
-    s->str = ((void*)0);
-    s->len = s->lastlen = 0;
-    s->allocated_len = 0;
-}
-static TokenString *tok_str_alloc(void)
-{
-    TokenString *str = tal_realloc_impl(&tokstr_alloc, 0, sizeof *str);
-    tok_str_new(str);
-    return str;
-}
-static void tok_str_free_str(int *str)
-{
-    tal_free_impl(tokstr_alloc, str);
-}
-static void tok_str_free(TokenString *str)
-{
-    tok_str_free_str(str->str);
-    tal_free_impl(tokstr_alloc, str);
-}
-static int *tok_str_realloc(TokenString *s, int new_size)
-{
-    int *str, size;
-    size = s->allocated_len;
-    if (size < 16)
-        size = 16;
-    while (size < new_size)
-        size = size * 2;
-    if (size > s->allocated_len) {
-        str = tal_realloc_impl(&tokstr_alloc, s->str, size * sizeof(int));
-        s->allocated_len = size;
-        s->str = str;
-    }
-    return s->str;
-}
-static void tok_str_add(TokenString *s, int t)
-{
-    int len, *str;
-    len = s->len;
-    str = s->str;
-    if (len >= s->allocated_len)
-        str = tok_str_realloc(s, len + 1);
-    str[len++] = t;
-    s->len = len;
-}
-static void begin_macro(TokenString *str, int alloc)
-{
-    str->alloc = alloc;
-    str->prev = macro_stack;
-    str->prev_ptr = macro_ptr;
-    str->save_line_num = file->line_num;
-    macro_ptr = str->str;
-    macro_stack = str;
-}
-static void end_macro(void)
-{
-    TokenString *str = macro_stack;
-    macro_stack = str->prev;
-    macro_ptr = str->prev_ptr;
-    file->line_num = str->save_line_num;
-    if (str->alloc == 2) {
-        str->alloc = 3;
-    } else {
-        tok_str_free(str);
-    }
-}
-static void tok_str_add2(TokenString *s, int t, CValue *cv)
-{
-    int len, *str;
-    len = s->lastlen = s->len;
-    str = s->str;
-    if (len + 4 >= s->allocated_len)
-        str = tok_str_realloc(s, len + 4 + 1);
-    str[len++] = t;
-    switch(t) {
-    case 0xb5:
-    case 0xb6:
-    case 0xb3:
-    case 0xce:
-    case 0xcf:
-        str[len++] = cv->tab[0];
-        break;
-    case 0xbe:
-    case 0xbf:
-    case 0xb9:
-        {
-            size_t nb_words =
-                1 + (cv->str.size + sizeof(int) - 1) / sizeof(int);
-            if (len + nb_words >= s->allocated_len)
-                str = tok_str_realloc(s, len + nb_words + 1);
-            str[len] = cv->str.size;
-            memcpy(&str[len + 1], cv->str.data, cv->str.size);
-            len += nb_words;
-        }
-        break;
-    default:
-        break;
-    }
-    s->len = len;
-}
-static void tok_str_add_tok(TokenString *s)
-{
-    tok_str_add2(s, tok, &tokc);
-}
-static void TOK_GET(int *t, int **pp, CValue *cv)
-{
-    int *p = *pp;
-    switch(*t = *p++) {
-    case 0xce:
-    case 0xb5:
-    case 0xb3:
-        cv->i = *p++;
-        break;
-    case 0xcf:
-    case 0xb6:
-        cv->i = (unsigned)*p++;
-        break;
-    case 0xb9:
-    case 0xbe:
-    case 0xbf:
-        cv->str.size = *p++;
-        cv->str.data = p;
-        p += (cv->str.size + sizeof(int) - 1) / sizeof(int);
-        break;
-    default:
-        break;
-    }
-    *pp = p;
 }
 static Sym *label_find(int v)
 {
@@ -1596,10 +1447,10 @@ static void next_nomacro1(void)
 }
 static void next_nomacro_spc(void)
 {
-    if (macro_ptr) {
-        tok = *macro_ptr;
-        if (tok)
-            TOK_GET(&tok, &macro_ptr, &tokc);
+    if (has_pushed_tok) {
+        tok = pushed_tok;
+        tokc = pushed_tokc;
+        has_pushed_tok = 0;
     } else {
         next_nomacro1();
     }
@@ -1612,16 +1463,7 @@ static void next_nomacro(void)
 }
 static void next(void)
 {
- redo:
     next_nomacro();
-    if (macro_ptr) {
-        if (tok == 0xcc || tok == 0xcb) {
-            goto redo;
-        } else if (tok == 0) {
-            end_macro();
-            goto redo;
-        }
-    }
     if (tok == 0xbe) {
         parse_number((char *)tokc.str.data);
     } else if (tok == 0xbf) {
@@ -1630,10 +1472,9 @@ static void next(void)
 }
 static void unget_tok(int last_tok)
 {
-    TokenString *str = tok_str_alloc();
-    tok_str_add2(str, tok, &tokc);
-    tok_str_add(str, 0);
-    begin_macro(str, 1);
+    pushed_tok = tok;
+    pushed_tokc = tokc;
+    has_pushed_tok = 1;
     tok = last_tok;
 }
 static void preprocess_start(TCCState *s1)
@@ -1645,9 +1486,7 @@ static void preprocess_start(TCCState *s1)
 }
 static void preprocess_end(TCCState *s1)
 {
-    while (macro_stack)
-        end_macro();
-    macro_ptr = ((void*)0);
+    has_pushed_tok = 0;
 }
 static void tccpp_new(TCCState *s)
 {
@@ -1662,11 +1501,8 @@ static void tccpp_new(TCCState *s)
     for(i = 128; i<256; i++)
         set_idnum(i, 2);
     tal_new(&toksym_alloc, 256, (768 * 1024));
-    tal_new(&tokstr_alloc, 128, (768 * 1024));
     tal_new(&cstr_alloc, 1024, (256 * 1024));
     memset(hash_ident, 0, 16384 * sizeof(TokenSym *));
-    tok_str_new(&tokstr_buf);
-    tok_str_realloc(&tokstr_buf, 256);
     tok_ident = 256;
     p = tcc_keywords;
     while (*p) {
@@ -1689,11 +1525,8 @@ static void tccpp_delete(TCCState *s)
     tcc_free(table_ident);
     table_ident = ((void*)0);
     cstr_free(&tokcstr);
-    tok_str_free_str(tokstr_buf.str);
     tal_delete(toksym_alloc);
     toksym_alloc = ((void*)0);
-    tal_delete(tokstr_alloc);
-    tokstr_alloc = ((void*)0);
     tal_delete(cstr_alloc);
     cstr_alloc = ((void*)0);
 }
@@ -1729,7 +1562,7 @@ static int is_compatible_types(CType *type1, CType *type2);
 static int parse_btype(CType *type, AttributeDef *ad);
 static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
 static void init_putv(CType *type, Section *sec, unsigned long c);
-static void decl_initializer(CType *type, Section *sec, unsigned long c, int first, int size_only);
+static void decl_initializer(CType *type, Section *sec, unsigned long c, int first);
 static void block(int *bsym, int *csym, int is_expr);
 static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
 static void decl(int l);
@@ -1737,7 +1570,6 @@ static int decl0(int l, int is_for_loop_init, Sym *);
 static void expr_eq(void);
 static void vpush(CType *type);
 static int gvtst(int inv, int t);
-static void skip_or_save_block(TokenString **str);
 static void gv_dup(void);
 static void test_lvalue(void)
 {
@@ -3338,12 +3170,11 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
         type->ref = s;
     } else if (tok == '[') {
         next();
-        n = -1;
-        if (tok != ']') {
-            n = expr_const();
-            if (n < 0)
-                tcc_error("invalid array size");
-        }
+        if (tok == ']')
+            tcc_error("array size expected");
+        n = expr_const();
+        if (n < 0)
+            tcc_error("invalid array size");
         skip(']');
         post_type(type, ad, storage, 0);
         if (type->t == 6)
@@ -3454,6 +3285,7 @@ static void unary(void)
         type.t = t;
         mk_pointer(&type);
         type.t |= 0x0040;
+        type.ref->c = tokc.str.size;
         memset(&ad, 0, sizeof(AttributeDef));
         decl_initializer_alloc(&type, &ad, 0x0030, 2, 0, 0);
         break;
@@ -4294,37 +4126,6 @@ static void block(int *bsym, int *csym, int is_expr)
         }
     }
 }
-static void skip_or_save_block(TokenString **str)
-{
-    int braces = tok == '{';
-    int level = 0;
-    if (str)
-      *str = tok_str_alloc();
-    while ((level > 0 || (tok != '}' && tok != ',' && tok != ';' && tok != ')'))) {
-	int t;
-	if (tok == (-1)) {
-	     if (str || level > 0)
-	       tcc_error("unexpected end of file");
-	     else
-	       break;
-	}
-	if (str)
-	  tok_str_add_tok(*str);
-	t = tok;
-	next();
-	if (t == '{' || t == '(') {
-	    level++;
-	} else if (t == '}' || t == ')') {
-	    level--;
-	    if (level == 0 && braces && t == '}')
-	      break;
-	}
-    }
-    if (str) {
-	tok_str_add(*str, -1);
-	tok_str_add(*str, 0);
-    }
-}
 static void parse_init_elem(int expr_type)
 {
     int saved_global_expr;
@@ -4357,7 +4158,7 @@ static void init_putz(Section *sec, unsigned long c, int size)
     }
 }
 static int decl_designator(CType *type, Section *sec, unsigned long c,
-                           Sym **cur_field, int size_only, int al)
+                           Sym **cur_field, int al)
 {
     Sym *f;
     int index, align, size;
@@ -4379,9 +4180,9 @@ static int decl_designator(CType *type, Section *sec, unsigned long c,
             c += f->c;
         }
     }
-    if (!size_only && c - corig > al)
+    if (c - corig > al)
 	init_putz(sec, corig + al, c - corig - al);
-    decl_initializer(type, sec, c, 0, size_only);
+    decl_initializer(type, sec, c, 0);
     size = type_size(type, &align);
     if (c - corig + size > al)
         al = c - corig + size;
@@ -4478,7 +4279,7 @@ static void init_putv(CType *type, Section *sec, unsigned long c)
     }
 }
 static void decl_initializer(CType *type, Section *sec, unsigned long c,
-                             int first, int size_only)
+                             int first)
 {
     int len, n, no_oblock, nb, i;
     int size1, align1;
@@ -4488,8 +4289,7 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
     CType *t1;
     have_elem = tok == '}' || tok == ',';
     if (!have_elem && tok != '{' &&
-	tok != 0xb9 &&
-	!size_only) {
+	tok != 0xb9) {
 	parse_init_elem(!sec ? 2 : 1);
 	have_elem = 1;
     }
@@ -4520,26 +4320,22 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
                 nb = cstr_len;
                 if (n >= 0 && nb > (n - len))
                     nb = n - len;
-                if (!size_only) {
-                    if (sec && size1 == 1) {
-                        if (!(nocode_wanted > 0))
-                            memcpy(sec->data + c + len, tokc.str.data, nb);
-                    } else {
-                        for(i=0;i<nb;i++) {
-                            ch = ((unsigned char *)tokc.str.data)[i];
-			    vpushi(ch);
-                            init_putv(t1, sec, c + (len + i) * size1);
-                        }
+                if (sec && size1 == 1) {
+                    if (!(nocode_wanted > 0))
+                        memcpy(sec->data + c + len, tokc.str.data, nb);
+                } else {
+                    for(i=0;i<nb;i++) {
+                        ch = ((unsigned char *)tokc.str.data)[i];
+		        vpushi(ch);
+                        init_putv(t1, sec, c + (len + i) * size1);
                     }
                 }
                 len += nb;
                 next();
             }
             if (n < 0 || len < n) {
-                if (!size_only) {
-		    vpushi(0);
-                    init_putv(t1, sec, c + (len * size1));
-                }
+		vpushi(0);
+                init_putv(t1, sec, c + (len * size1));
                 len++;
             }
 	    len *= size1;
@@ -4549,7 +4345,7 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
           do_init_list:
 	    len = 0;
 	    while (tok != '}' || have_elem) {
-		len = decl_designator(type, sec, c, &f, size_only, len);
+			len = decl_designator(type, sec, c, &f, len);
 		have_elem = 0;
 		if (type->t & 0x0040) {
 		    ++indexsym.c;
@@ -4568,8 +4364,8 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
 		skip(',');
 	    }
         }
-	if (!size_only && len < n*size1)
-	    init_putz(sec, c + len, n*size1 - len);
+		if (len < n*size1)
+		    init_putz(sec, c + len, n*size1 - len);
         if (!no_oblock)
             skip('}');
         if (n < 0)
@@ -4585,13 +4381,11 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
         f = s->next;
         n = s->c;
 	goto do_init_list;
-    } else if (tok == '{') {
-        next();
-        decl_initializer(type, sec, c, first, size_only);
-        skip('}');
-    } else if (size_only) {
-        skip_or_save_block(((void*)0));
-    } else {
+	    } else if (tok == '{') {
+	        next();
+	        decl_initializer(type, sec, c, first);
+	        skip('}');
+	    } else {
 	if (!have_elem) {
 	    if (tok != 0xb9)
 	      expect("string constant");
@@ -4604,37 +4398,14 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
                                    int has_init, int v, int scope)
 {
     int size, align, addr;
-    TokenString *init_str = ((void*)0);
     Section *sec;
     Sym *sym = ((void*)0);
     int saved_nocode_wanted = nocode_wanted;
     if (type->t & 0x00002000)
         nocode_wanted |= (nocode_wanted > 0) ? 0x40000000 : 0x80000000;
     size = type_size(type, &align);
-    if (size < 0) {
-        if (!has_init)
-            tcc_error("unknown type size");
-        if (has_init == 2) {
-	    init_str = tok_str_alloc();
-            while (tok == 0xb9) {
-                tok_str_add_tok(init_str);
-                next();
-            }
-	    tok_str_add(init_str, -1);
-	    tok_str_add(init_str, 0);
-        } else {
-	    skip_or_save_block(&init_str);
-        }
-        unget_tok(0);
-        begin_macro(init_str, 1);
-        next();
-        decl_initializer(type, ((void*)0), 0, 1, 1);
-        macro_ptr = init_str->str;
-        next();
-        size = type_size(type, &align);
-        if (size < 0)
-            tcc_error("unknown type size");
-    }
+    if (size < 0)
+        tcc_error("unknown type size");
     if ((nocode_wanted > 0))
         size = 0, align = 1;
     if ((r & 0x003f) == 0x0032) {
@@ -4681,13 +4452,9 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
     if (type->t & 0x0400) {
         tcc_error("variable length arrays are not supported in tcc_27_alt");
     } else if (has_init) {
-        decl_initializer(type, sec, addr, 1, 0);
+        decl_initializer(type, sec, addr, 1);
     }
  no_alloc:
-    if (init_str) {
-        end_macro();
-        next();
-    }
     nocode_wanted = saved_nocode_wanted;
 }
 static void gen_function(Sym *sym)
