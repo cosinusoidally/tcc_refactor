@@ -195,7 +195,6 @@ static char *pstrcpy(char *buf, int buf_size, char *s);
  void *tcc_mallocz(unsigned int size);
  void *tcc_realloc(void *ptr, unsigned int size);
  char *tcc_strdup(char *str);
- void tcc_error_noabort(char *fmt, ...);
   void tcc_error(char *fmt, ...);
 static void dynarray_add(void *ptab, int *nb_ptr, void *data);
 static void dynarray_reset(void *pp, int *n);
@@ -4624,7 +4623,7 @@ static int set_elf_sym(Section *s, Elf32_Addr value, unsigned int size,
 	        } else if (esym->st_other & 0x04) {
 		    patch = 1;
                 } else {
-                    tcc_error_noabort("'%s' defined twice", name);
+                    tcc_error("'%s' defined twice", name);
                 }
             } else {
                 patch = 1;
@@ -4754,7 +4753,7 @@ static void relocate_syms(TCCState *s1, Section *symtab, int do_resolve)
                 if (sym_bind == 2)
                     sym->st_value = 0;
                 else
-                    tcc_error_noabort("undefined symbol '%s'", name);
+                    tcc_error("undefined symbol '%s'", name);
             }
         } else if (sh_num < 0xff00) {
             sym->st_value += s1->sections[sym->st_shndx]->sh_addr;
@@ -4953,7 +4952,7 @@ static void fill_local_got_entries(TCCState *s1)
 	    struct sym_attr *attr = get_sym_attr(s1, sym_index, 0);
 	    unsigned offset = attr->got_offset;
 	    if (offset != rel->r_offset - s1->got->sh_addr)
-	      tcc_error_noabort("huh");
+	      tcc_error("huh");
 	    rel->r_info = (((0) << 8) + ((8) & 0xff));
 	    write32le(s1->got->data + offset, sym->st_value);
 	}
@@ -5196,19 +5195,11 @@ static void tcc_output_elf(TCCState *s1, FILE *f, int phnum, Elf32_Phdr *phdr,
     ehdr.e_ident[4] = 1;
     ehdr.e_ident[5] = 1;
     ehdr.e_ident[6] = 1;
-    switch(file_type) {
-    default:
-    case 2:
+    if (file_type == 4) {
+        ehdr.e_type = 1;
+    } else {
         ehdr.e_type = 2;
         ehdr.e_entry = get_elf_sym_addr(s1, "_start", 1);
-        break;
-    case 3:
-        ehdr.e_type = 3;
-        ehdr.e_entry = text_section->sh_addr;
-        break;
-    case 4:
-        ehdr.e_type = 1;
-        break;
     }
     ehdr.e_machine = 3;
     ehdr.e_version = 1;
@@ -5442,7 +5433,7 @@ static int tcc_load_object_file(TCCState *s1,
     if (tcc_object_type(fd, &ehdr) != 1 ||
         ehdr.e_ident[5] != 1 ||
         ehdr.e_machine != 3) {
-        tcc_error_noabort("invalid object file");
+        tcc_error("invalid object file");
         return -1;
     }
     shdr = load_data(fd, file_offset + ehdr.e_shoff,
@@ -5460,7 +5451,7 @@ static int tcc_load_object_file(TCCState *s1,
         sh = &shdr[i];
         if (sh->sh_type == 2) {
             if (symtab) {
-                tcc_error_noabort("object must contain only one symtab");
+                tcc_error("object must contain only one symtab");
                 failed = 1;
                 break;
             }
@@ -5501,7 +5492,7 @@ static int tcc_load_object_file(TCCState *s1,
             sm_table[i].new_section = 1;
         }
         if (sh->sh_type != s->sh_type) {
-            tcc_error_noabort("invalid section type");
+            tcc_error("invalid section type");
             failed = 1;
             break;
         }
@@ -5574,7 +5565,7 @@ static int tcc_load_object_file(TCCState *s1,
                 else
                     sym_index = 0;
                 if (!sym_index) {
-                    tcc_error_noabort("Invalid relocation entry [%2d] '%s' @ %.8x",
+                    tcc_error("Invalid relocation entry [%2d] '%s' @ %.8x",
                         i, strsec + sh->sh_name, rel->r_offset);
                     failed = 1;
                     break;
@@ -6351,15 +6342,6 @@ static void error1(TCCState *s1, char *fmt, va_list ap)
     fprintf(stderr, "%s\n", buf);
     fflush(stderr);
 }
- void tcc_error_noabort(char *fmt, ...)
-{
-    TCCState *s1 = tcc_state;
-    va_list ap;
-    ap = ((char *)&(fmt)) + ((sizeof(fmt)+3)&~3);
-    error1(s1, fmt, ap);
-    ;
-    exit(1);
-}
  void tcc_error(char *fmt, ...)
 {
     TCCState *s1 = tcc_state;
@@ -6452,11 +6434,8 @@ static int tcc_add_file_internal(TCCState *s1, char *filename, int flags)
 {
     int ret;
     ret = tcc_open(s1, filename);
-    if (ret < 0) {
-        if (flags & 0x10)
-            tcc_error_noabort("file '%s' not found", filename);
-        return ret;
-    }
+    if (ret < 0)
+        tcc_error("file '%s' not found", filename);
     if (flags & 0x40) {
         Elf32_Ehdr ehdr;
         int fd, obj_type;
@@ -6468,9 +6447,7 @@ static int tcc_add_file_internal(TCCState *s1, char *filename, int flags)
             ret = tcc_load_object_file(s1, fd, 0);
             break;
         default:
-            tcc_error_noabort("unrecognized file type");
-            ret = -1;
-            break;
+            tcc_error("unrecognized file type");
         }
     } else {
         ret = tcc_compile(s1);
@@ -6493,7 +6470,8 @@ static int tcc_add_library_internal(TCCState *s, char *fmt,
     int i;
     for(i = 0; i < nb_paths; i++) {
         snprintf(buf, sizeof(buf), fmt, paths[i], filename);
-        if (tcc_add_file_internal(s, buf, flags | 0x40) == 0)
+        if (access(buf, 0) == 0 &&
+            tcc_add_file_internal(s, buf, flags | 0x40) == 0)
             return 0;
     }
     return -1;
@@ -6502,7 +6480,7 @@ static int tcc_add_crt(TCCState *s, char *filename)
 {
     if (-1 == tcc_add_library_internal(s, "%s/%s",
         filename, 0, s->crt_paths, s->nb_crt_paths))
-        tcc_error_noabort("file '%s' not found", filename);
+        tcc_error("file '%s' not found", filename);
     return 0;
 }
 static void tcc_add_needed_dll(TCCState *s, char *soname)
@@ -6598,48 +6576,27 @@ static char *default_outputfile(TCCState *s, char *first_file)
 int main(int argc0, char **argv0)
 {
     TCCState *s;
-    int ret, opt, n = 0;
+    int i, opt;
     char *first_file;
-    for (;;) {
-        s = tcc_new();
-        opt = tcc_parse_args(s, argc0, argv0);
-        if (n == 0) {
-            if (opt == 1)
-                tcc_error("no input files\n");
-            n = s->nb_files;
-            if (n == 0)
-                tcc_error("no input files\n");
-            if (s->output_type == 4) {
-                if (n > 1 && s->outfile)
-                    tcc_error("cannot specify output file with -c many files");
-            }
-        }
-        if (s->output_type == 0)
-            s->output_type = 2;
-        tcc_split_path(s, &s->crt_paths, &s->nb_crt_paths, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
-        if (s->output_type == 2 && !s->nostdlib) {
-            tcc_add_crt(s, "crt1.o");
-            tcc_add_crt(s, "crti.o");
-        }
-        for (first_file = ((void*)0), ret = 0;;) {
-            struct filespec *f = s->files[s->nb_files - n];
-            if (!first_file)
-                first_file = f->name;
-            if (tcc_add_file(s, f->name) < 0)
-                ret = 1;
-            if (--n == 0 || ret
-                || s->output_type == 4)
-                break;
-        }
-        if (0 == ret) {
-            if (!s->outfile)
-                s->outfile = default_outputfile(s, first_file);
-            if (tcc_output_file(s, s->outfile))
-                ret = 1;
-        }
-        tcc_delete(s);
-        if (ret || !n)
-            break;
+    s = tcc_new();
+    opt = tcc_parse_args(s, argc0, argv0);
+    if (opt == 1 || s->nb_files == 0)
+        tcc_error("no input files\n");
+    if (s->output_type == 0)
+        s->output_type = 2;
+    if (s->output_type == 4 && s->nb_files > 1)
+        tcc_error("-c accepts one input file in tcc_27_alt");
+    tcc_split_path(s, &s->crt_paths, &s->nb_crt_paths, "/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib32:/lib32");
+    if (s->output_type == 2 && !s->nostdlib) {
+        tcc_add_crt(s, "crt1.o");
+        tcc_add_crt(s, "crti.o");
     }
-    return ret;
+    first_file = s->files[0]->name;
+    for (i = 0; i < s->nb_files; ++i)
+        tcc_add_file(s, s->files[i]->name);
+    if (!s->outfile)
+        s->outfile = default_outputfile(s, first_file);
+    tcc_output_file(s, s->outfile);
+    tcc_delete(s);
+    return 0;
 }
