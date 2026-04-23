@@ -579,7 +579,7 @@ static void ad_set_sym_ft(AttributeDef *ad, struct Sym *s)
 {
     ad_set_ft(ad, sym_ft(s));
 }
-typedef struct Section {
+struct Section {
     unsigned int data_offset;
     unsigned char *data;
     unsigned int data_allocated;
@@ -599,7 +599,7 @@ typedef struct Section {
     struct Section *hash;
     struct Section *prev;
     char name[1];
-} Section;
+};
 typedef char DLLReference;
 static int dllr_level(DLLReference *d)
 {
@@ -720,14 +720,14 @@ struct TCCState {
     int output_type;
     DLLReference **loaded_dlls;
     int nb_loaded_dlls;
-    Section **sections;
+    struct Section **sections;
     int nb_sections;
-    Section **priv_sections;
+    struct Section **priv_sections;
     int nb_priv_sections;
-    Section *got;
-    Section *plt;
-    Section *dynsym;
-    Section *symtab;
+    struct Section *got;
+    struct Section *plt;
+    struct Section *dynsym;
+    struct Section *symtab;
     SymAttr *sym_attrs;
     int nb_sym_attrs;
     FileSpec **files;
@@ -832,32 +832,32 @@ static void expr_prod(void);
 static void expr_sum(void);
 static void gexpr(void);
 static int expr_const(void);
-static Section *text_section, *data_section, *bss_section;
-static Section *common_section;
-static Section *cur_text_section;
-static Section *symtab_section;
+static struct Section *text_section, *data_section, *bss_section;
+static struct Section *common_section;
+static struct Section *cur_text_section;
+static struct Section *symtab_section;
 static void tccelf_new(struct TCCState *s);
 static void tccelf_begin_file(struct TCCState *s1);
 static void tccelf_end_file(struct TCCState *s1);
-static Section *new_section(struct TCCState *s1, char *name, int sh_type, int sh_flags);
-static void section_realloc(Section *sec, unsigned int new_size);
-static size_t section_add(Section *sec, Elf32_Addr size, int align);
-static void *section_ptr_add(Section *sec, Elf32_Addr size);
-static void section_reserve(Section *sec, unsigned int size);
-static Section *new_symtab(struct TCCState *s1, char *symtab_name, int sh_type, int sh_flags, char *strtab_name, char *hash_name, int hash_sh_flags);
+static struct Section *new_section(struct TCCState *s1, char *name, int sh_type, int sh_flags);
+static void section_realloc(struct Section *sec, unsigned int new_size);
+static size_t section_add(struct Section *sec, Elf32_Addr size, int align);
+static void *section_ptr_add(struct Section *sec, Elf32_Addr size);
+static void section_reserve(struct Section *sec, unsigned int size);
+static struct Section *new_symtab(struct TCCState *s1, char *symtab_name, int sh_type, int sh_flags, char *strtab_name, char *hash_name, int hash_sh_flags);
 static void put_extern_sym2(struct Sym *sym, int sh_num, Elf32_Addr value, unsigned int size);
-static void put_extern_sym(struct Sym *sym, Section *section, Elf32_Addr value, unsigned int size);
-static void greloc(Section *s, struct Sym *sym, unsigned int offset, int type);
-static void greloca(Section *s, struct Sym *sym, unsigned int offset, int type, Elf32_Addr addend);
-static int put_elf_str(Section *s, char *sym);
-static int put_elf_sym(Section *s, Elf32_Addr value, unsigned int size, int info, int other, int shndx, char *name);
-static int set_elf_sym(Section *s, Elf32_Addr value, unsigned int size, int info, int other, int shndx, char *name);
-static int find_elf_sym(Section *s, char *name);
-static void put_elf_reloc(Section *symtab, Section *s, unsigned int offset, int type, int symbol);
-static void put_elf_reloca(Section *symtab, Section *s, unsigned int offset, int type, int symbol, Elf32_Addr addend);
+static void put_extern_sym(struct Sym *sym, struct Section *section, Elf32_Addr value, unsigned int size);
+static void greloc(struct Section *s, struct Sym *sym, unsigned int offset, int type);
+static void greloca(struct Section *s, struct Sym *sym, unsigned int offset, int type, Elf32_Addr addend);
+static int put_elf_str(struct Section *s, char *sym);
+static int put_elf_sym(struct Section *s, Elf32_Addr value, unsigned int size, int info, int other, int shndx, char *name);
+static int set_elf_sym(struct Section *s, Elf32_Addr value, unsigned int size, int info, int other, int shndx, char *name);
+static int find_elf_sym(struct Section *s, char *name);
+static void put_elf_reloc(struct Section *symtab, struct Section *s, unsigned int offset, int type, int symbol);
+static void put_elf_reloca(struct Section *symtab, struct Section *s, unsigned int offset, int type, int symbol, Elf32_Addr addend);
 static void resolve_common_syms(struct TCCState *s1);
-static void relocate_syms(struct TCCState *s1, Section *symtab, int do_resolve);
-static void relocate_section(struct TCCState *s1, Section *s);
+static void relocate_syms(struct TCCState *s1, struct Section *symtab, int do_resolve);
+static void relocate_section(struct TCCState *s1, struct Section *s);
 static int tcc_object_type(int fd, Elf32_Ehdr *h);
 static int tcc_load_object_file(struct TCCState *s1, int fd, unsigned int file_offset);
 static void build_got_entries(struct TCCState *s1);
@@ -1816,8 +1816,8 @@ static struct CType *pointed_type(struct CType *type);
 static int is_compatible_types(struct CType *type1, struct CType *type2);
 static int parse_btype(struct CType *type, AttributeDef *ad);
 static struct CType *type_decl(struct CType *type, AttributeDef *ad, int *v, int td);
-static void init_putv(struct CType *type, Section *sec, unsigned int c);
-static void decl_initializer(struct CType *type, Section *sec, unsigned int c, int first);
+static void init_putv(struct CType *type, struct Section *sec, unsigned int c);
+static void decl_initializer(struct CType *type, struct Section *sec, unsigned int c, int first);
 static void block(int *bsym, int *csym, int is_expr);
 static void decl_initializer_alloc(struct CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
 static void decl(int l);
@@ -1909,13 +1909,13 @@ static void put_extern_sym2(struct Sym *sym, int sh_num,
     }
     update_storage(sym);
 }
-static void put_extern_sym(struct Sym *sym, Section *section,
+static void put_extern_sym(struct Sym *sym, struct Section *section,
                            Elf32_Addr value, unsigned int size)
 {
     int sh_num = section ? section->sh_num : 0;
     put_extern_sym2(sym, sh_num, value, size);
 }
-static void greloca(Section *s, struct Sym *sym, unsigned int offset, int type,
+static void greloca(struct Section *s, struct Sym *sym, unsigned int offset, int type,
                      Elf32_Addr addend)
 {
     int c = 0;
@@ -1928,7 +1928,7 @@ static void greloca(Section *s, struct Sym *sym, unsigned int offset, int type,
     }
     put_elf_reloca(symtab_section, s, offset, type, c, addend);
 }
-static void greloc(Section *s, struct Sym *sym, unsigned int offset, int type)
+static void greloc(struct Section *s, struct Sym *sym, unsigned int offset, int type)
 {
     greloca(s, sym, offset, type, 0);
 }
@@ -2157,7 +2157,7 @@ static void vpushsym(struct CType *type, struct Sym *sym)
     vsetc(type, 0x0030 | 0x0200, &cval);
     vtop->sym = sym;
 }
-static struct Sym *get_sym_ref(struct CType *type, Section *sec, unsigned int offset, unsigned int size)
+static struct Sym *get_sym_ref(struct CType *type, struct Section *sec, unsigned int offset, unsigned int size)
 {
     int v;
     struct Sym *sym;
@@ -4111,7 +4111,7 @@ static void parse_init_elem(int expr_type)
         expr_eq();
     }
 }
-static void init_putz(Section *sec, unsigned int c, int size)
+static void init_putz(struct Section *sec, unsigned int c, int size)
 {
     if (sec) {
     } else {
@@ -4122,7 +4122,7 @@ static void init_putz(Section *sec, unsigned int c, int size)
         gfunc_call(3);
     }
 }
-static int decl_designator(struct CType *type, Section *sec, unsigned int c,
+static int decl_designator(struct CType *type, struct Section *sec, unsigned int c,
                            struct Sym **cur_field, int al)
 {
     struct Sym *f;
@@ -4153,7 +4153,7 @@ static int decl_designator(struct CType *type, Section *sec, unsigned int c,
         al = c - corig + size;
     return al;
 }
-static void init_putv(struct CType *type, Section *sec, unsigned int c)
+static void init_putv(struct CType *type, struct Section *sec, unsigned int c)
 {
     int bt;
     void *ptr;
@@ -4181,7 +4181,7 @@ static void init_putv(struct CType *type, Section *sec, unsigned int c)
 	if ((vtop->r & (0x0200|0x0030)) == (0x0200|0x0030) &&
 	    vtop->sym->v >= 0x10000000 &&
 	    (ct_t(&vtop->type) & 0x000f) != 5) {
-	    Section *ssec;
+	    struct Section *ssec;
 	    Elf32_Sym *esym;
 	    Elf32_Rel *rel;
 	    esym = elfsym(vtop->sym);
@@ -4234,7 +4234,7 @@ static void init_putv(struct CType *type, Section *sec, unsigned int c)
         vpop();
     }
 }
-static int decl_initializer_list(struct CType *type, Section *sec, unsigned int c,
+static int decl_initializer_list(struct CType *type, struct Section *sec, unsigned int c,
     struct Sym **pf, struct Sym *indexsym, int have_elem, int no_oblock, int n, int size1)
 {
     int len = 0;
@@ -4256,7 +4256,7 @@ static int decl_initializer_list(struct CType *type, Section *sec, unsigned int 
     }
     return len;
 }
-static void decl_initializer(struct CType *type, Section *sec, unsigned int c,
+static void decl_initializer(struct CType *type, struct Section *sec, unsigned int c,
                              int first)
 {
     int len, n, no_oblock, nb, i;
@@ -4363,7 +4363,7 @@ static void decl_initializer_alloc(struct CType *type, AttributeDef *ad, int r,
 {
     int size, align, addr;
     int do_alloc = 1;
-    Section *sec;
+    struct Section *sec;
     struct Sym *sym = ((void*)0);
     int saved_nocode_wanted = nocode_wanted;
     if (ct_t(type) & 0x00002000)
@@ -4567,10 +4567,10 @@ static void decl(int l)
 {
     decl0(l, 0, ((void*)0));
 }
-static Section *text_section, *data_section, *bss_section;
-static Section *common_section;
-static Section *cur_text_section;
-static Section *symtab_section;
+static struct Section *text_section, *data_section, *bss_section;
+static struct Section *common_section;
+static struct Section *cur_text_section;
+static struct Section *symtab_section;
 static int new_undef_sym = 0;
 static void tccelf_new(struct TCCState *s)
 {
@@ -4588,7 +4588,7 @@ static void tccelf_new(struct TCCState *s)
 }
 static void tccelf_begin_file(struct TCCState *s1)
 {
-    Section *s; int i;
+    struct Section *s; int i;
     for (i = 1; i < s1->nb_sections; i++) {
         s = s1->sections[i];
         s->sh_offset = s->data_offset;
@@ -4597,7 +4597,7 @@ static void tccelf_begin_file(struct TCCState *s1)
 }
 static void tccelf_end_file(struct TCCState *s1)
 {
-    Section *s = s1->symtab;
+    struct Section *s = s1->symtab;
     int first_sym, nb_syms, *tr, i;
     first_sym = s->sh_offset / sizeof (Elf32_Sym);
     nb_syms = s->data_offset / sizeof (Elf32_Sym) - first_sym;
@@ -4614,7 +4614,7 @@ static void tccelf_end_file(struct TCCState *s1)
             esy_other(sym), esy_shndx(sym), s->link->data + esy_name(sym));
     }
     for (i = 1; i < s1->nb_sections; i++) {
-        Section *sr = s1->sections[i];
+        struct Section *sr = s1->sections[i];
         if (sr->sh_type == 9 && sr->link == s) {
             Elf32_Rel *rel = (Elf32_Rel*)(sr->data + sr->sh_offset);
             Elf32_Rel *rel_end = (Elf32_Rel*)(sr->data + sr->data_offset);
@@ -4626,10 +4626,10 @@ static void tccelf_end_file(struct TCCState *s1)
     }
     tcc_free(tr);
 }
-static Section *new_section(struct TCCState *s1, char *name, int sh_type, int sh_flags)
+static struct Section *new_section(struct TCCState *s1, char *name, int sh_type, int sh_flags)
 {
-    Section *sec;
-    sec = tcc_mallocz(sizeof(Section) + strlen(name));
+    struct Section *sec;
+    sec = tcc_mallocz(sizeof(struct Section) + strlen(name));
     strcpy(sec->name, name);
     sec->sh_type = sh_type;
     sec->sh_flags = sh_flags;
@@ -4645,12 +4645,12 @@ static Section *new_section(struct TCCState *s1, char *name, int sh_type, int sh
     }
     return sec;
 }
-static Section *new_symtab(struct TCCState *s1,
+static struct Section *new_symtab(struct TCCState *s1,
                            char *symtab_name, int sh_type, int sh_flags,
                            char *strtab_name,
                            char *hash_name, int hash_sh_flags)
 {
-    Section *symtab, *strtab, *hash;
+    struct Section *symtab, *strtab, *hash;
     int *ptr, nb_buckets;
     symtab = new_section(s1, symtab_name, sh_type, sh_flags);
     symtab->sh_entsize = sizeof(Elf32_Sym);
@@ -4669,7 +4669,7 @@ static Section *new_symtab(struct TCCState *s1,
     memset(ptr + 2, 0, (nb_buckets + 1) * sizeof(int));
     return symtab;
 }
-static void section_realloc(Section *sec, unsigned int new_size)
+static void section_realloc(struct Section *sec, unsigned int new_size)
 {
     unsigned int size;
     unsigned char *data;
@@ -4683,7 +4683,7 @@ static void section_realloc(Section *sec, unsigned int new_size)
     sec->data = data;
     sec->data_allocated = size;
 }
-static size_t section_add(Section *sec, Elf32_Addr size, int align)
+static size_t section_add(struct Section *sec, Elf32_Addr size, int align)
 {
     size_t offset, offset1;
     offset = (sec->data_offset + align - 1) & -align;
@@ -4695,19 +4695,19 @@ static size_t section_add(Section *sec, Elf32_Addr size, int align)
         sec->sh_addralign = align;
     return offset;
 }
-static void *section_ptr_add(Section *sec, Elf32_Addr size)
+static void *section_ptr_add(struct Section *sec, Elf32_Addr size)
 {
     size_t offset = section_add(sec, size, 1);
     return sec->data + offset;
 }
-static void section_reserve(Section *sec, unsigned int size)
+static void section_reserve(struct Section *sec, unsigned int size)
 {
     if (size > sec->data_allocated)
         section_realloc(sec, size);
     if (size > sec->data_offset)
         sec->data_offset = size;
 }
-static int put_elf_str(Section *s, char *sym)
+static int put_elf_str(struct Section *s, char *sym)
 {
     int offset, len;
     char *ptr;
@@ -4729,7 +4729,7 @@ static unsigned int elf_hash(unsigned char *name)
     }
     return h;
 }
-static void rebuild_hash(Section *s, unsigned int nb_buckets)
+static void rebuild_hash(struct Section *s, unsigned int nb_buckets)
 {
     Elf32_Sym *sym;
     int *ptr, *hash, nb_syms, sym_index, h;
@@ -4759,13 +4759,13 @@ static void rebuild_hash(Section *s, unsigned int nb_buckets)
         sym++;
     }
 }
-static int put_elf_sym(Section *s, Elf32_Addr value, unsigned int size,
+static int put_elf_sym(struct Section *s, Elf32_Addr value, unsigned int size,
     int info, int other, int shndx, char *name)
 {
     int name_offset, sym_index;
     int nbuckets, h;
     Elf32_Sym *sym;
-    Section *hs;
+    struct Section *hs;
     sym = section_ptr_add(s, sizeof(Elf32_Sym));
     if (name && name[0])
         name_offset = put_elf_str(s->link, name);
@@ -4800,10 +4800,10 @@ static int put_elf_sym(Section *s, Elf32_Addr value, unsigned int size,
     }
     return sym_index;
 }
-static int find_elf_sym(Section *s, char *name)
+static int find_elf_sym(struct Section *s, char *name)
 {
     Elf32_Sym *sym;
-    Section *hs;
+    struct Section *hs;
     int nbuckets, sym_index, h;
     char *name1;
     hs = s->hash;
@@ -4834,7 +4834,7 @@ static Elf32_Addr get_elf_sym_addr(struct TCCState *s, char *name, int err)
     }
     return esy_value(sym);
 }
-static int set_elf_sym(Section *s, Elf32_Addr value, unsigned int size,
+static int set_elf_sym(struct Section *s, Elf32_Addr value, unsigned int size,
                        int info, int other, int shndx, char *name)
 {
     Elf32_Sym *esym;
@@ -4905,11 +4905,11 @@ static int set_elf_sym(Section *s, Elf32_Addr value, unsigned int size,
     }
     return sym_index;
 }
-static void put_elf_reloca(Section *symtab, Section *s, unsigned int offset,
+static void put_elf_reloca(struct Section *symtab, struct Section *s, unsigned int offset,
                             int type, int symbol, Elf32_Addr addend)
 {
     char buf[256];
-    Section *sr;
+    struct Section *sr;
     Elf32_Rel *rel;
     sr = s->reloc;
     if (!sr) {
@@ -4926,7 +4926,7 @@ static void put_elf_reloca(Section *symtab, Section *s, unsigned int offset,
     if (addend)
         tcc_error("non-zero addend on REL architecture");
 }
-static void put_elf_reloc(Section *symtab, Section *s, unsigned int offset,
+static void put_elf_reloc(struct Section *symtab, struct Section *s, unsigned int offset,
                            int type, int symbol)
 {
     put_elf_reloca(symtab, s, offset, type, symbol, 0);
@@ -4949,14 +4949,14 @@ static SymAttr *get_sym_attr(struct TCCState *s1, int index, int alloc)
     }
     return sattr_at(s1->sym_attrs, index);
 }
-static void sort_syms(struct TCCState *s1, Section *s)
+static void sort_syms(struct TCCState *s1, struct Section *s)
 {
     int *old_to_new_syms;
     Elf32_Sym *new_syms;
     int nb_syms, i;
     Elf32_Sym *p, *q;
     Elf32_Rel *rel;
-    Section *sr;
+    struct Section *sr;
     int type, sym_index;
     nb_syms = s->data_offset / sizeof(Elf32_Sym);
     new_syms = tcc_malloc(nb_syms * sizeof(Elf32_Sym));
@@ -4997,7 +4997,7 @@ static void sort_syms(struct TCCState *s1, Section *s)
     }
     tcc_free(old_to_new_syms);
 }
-static void relocate_syms(struct TCCState *s1, Section *symtab, int do_resolve)
+static void relocate_syms(struct TCCState *s1, struct Section *symtab, int do_resolve)
 {
     Elf32_Sym *sym;
     int sym_bind, sh_num;
@@ -5019,9 +5019,9 @@ static void relocate_syms(struct TCCState *s1, Section *symtab, int do_resolve)
         }
     }
 }
-static void relocate_section(struct TCCState *s1, Section *s)
+static void relocate_section(struct TCCState *s1, struct Section *s)
 {
-    Section *sr = s->reloc;
+    struct Section *sr = s->reloc;
     Elf32_Rel *rel;
     Elf32_Sym *sym;
     int type, sym_index;
@@ -5039,9 +5039,9 @@ static void relocate_section(struct TCCState *s1, Section *s)
     if (sr->sh_flags & (1 << 1))
         sr->link = s1->dynsym;
 }
-static void relocate_rel(struct TCCState *s1, Section *sr)
+static void relocate_rel(struct TCCState *s1, struct Section *sr)
 {
-    Section *s;
+    struct Section *s;
     Elf32_Rel *rel;
     s = s1->sections[sr->sh_info];
     for (rel = (Elf32_Rel *) sr->data + 0; rel < (Elf32_Rel *) (sr->data + sr->data_offset); rel++)
@@ -5110,7 +5110,7 @@ static SymAttr * put_got_entry(struct TCCState *s1, int dyn_reloc_type,
 }
 static void build_got_entries(struct TCCState *s1)
 {
-    Section *s;
+    struct Section *s;
     Elf32_Rel *rel;
     Elf32_Sym *sym;
     int i, type, gotplt_entry, reloc_type, sym_index;
@@ -5160,7 +5160,7 @@ static void build_got_entries(struct TCCState *s1)
         }
     }
 }
-static void put_dt(Section *dynamic, int dt, Elf32_Addr val)
+static void put_dt(struct Section *dynamic, int dt, Elf32_Addr val)
 {
     Elf32_Dyn *dyn;
     dyn = section_ptr_add(dynamic, sizeof(Elf32_Dyn));
@@ -5236,10 +5236,10 @@ static void bind_exe_dynsyms(struct TCCState *s1)
         }
     }
 }
-static void alloc_sec_names(struct TCCState *s1, int file_type, Section *strsec)
+static void alloc_sec_names(struct TCCState *s1, int file_type, struct Section *strsec)
 {
     int i;
-    Section *s;
+    struct Section *s;
     for(i = 1; i < s1->nb_sections; i++) {
         s = s1->sections[i];
         if (file_type == 4 ||
@@ -5253,19 +5253,19 @@ static void alloc_sec_names(struct TCCState *s1, int file_type, Section *strsec)
     strsec->sh_size = strsec->data_offset;
 }
 typedef unsigned int DynInf;
-static Section *dyni_dynamic(DynInf *d)
+static struct Section *dyni_dynamic(DynInf *d)
 {
-    return (Section *)*d;
+    return (struct Section *)*d;
 }
-static void dyni_set_dynamic(DynInf *d, Section *s)
+static void dyni_set_dynamic(DynInf *d, struct Section *s)
 {
     *d = (unsigned int)s;
 }
-static Section *dyni_dynstr(DynInf *d)
+static struct Section *dyni_dynstr(DynInf *d)
 {
-    return (Section *)*(d + 1);
+    return (struct Section *)*(d + 1);
 }
-static void dyni_set_dynstr(DynInf *d, Section *s)
+static void dyni_set_dynstr(DynInf *d, struct Section *s)
 {
     *(d + 1) = (unsigned int)s;
 }
@@ -5298,7 +5298,7 @@ static void dyni_add_rel_size(DynInf *d, Elf32_Addr size)
     *(d + 4) = *(d + 4) + size;
 }
 static int layout_sections(struct TCCState *s1, Elf32_Phdr *phdr, int phnum,
-                           Section *interp, Section* strsec,
+                           struct Section *interp, struct Section* strsec,
                            DynInf *dyninf, int *sec_order)
 {
     int i, j, k, sh_order_index, file_offset;
@@ -5306,7 +5306,7 @@ static int layout_sections(struct TCCState *s1, Elf32_Phdr *phdr, int phnum,
     int tmp;
     Elf32_Addr addr;
     Elf32_Phdr *ph;
-    Section *s;
+    struct Section *s;
     sh_order_index = 1;
     file_offset = sizeof(Elf32_Ehdr) + phnum * sizeof(Elf32_Phdr);
     s_align = 0x1000;
@@ -5403,8 +5403,8 @@ static int layout_sections(struct TCCState *s1, Elf32_Phdr *phdr, int phnum,
     }
     return file_offset;
 }
-static void fill_unloadable_phdr(Elf32_Phdr *phdr, int phnum, Section *interp,
-                                 Section *dynamic)
+static void fill_unloadable_phdr(Elf32_Phdr *phdr, int phnum, struct Section *interp,
+                                 struct Section *dynamic)
 {
     Elf32_Phdr *ph;
     if (interp) {
@@ -5441,7 +5441,7 @@ static void fill_unloadable_phdr(Elf32_Phdr *phdr, int phnum, Section *interp,
 }
 static void fill_dynamic(struct TCCState *s1, DynInf *dyninf)
 {
-    Section *dynamic = dyni_dynamic(dyninf);
+    struct Section *dynamic = dyni_dynamic(dyninf);
     put_dt(dynamic, 4, s1->dynsym->hash->sh_addr);
     put_dt(dynamic, 5, dyni_dynstr(dyninf)->sh_addr);
     put_dt(dynamic, 6, s1->dynsym->sh_addr);
@@ -5455,7 +5455,7 @@ static void fill_dynamic(struct TCCState *s1, DynInf *dyninf)
 static int final_sections_reloc(struct TCCState *s1)
 {
     int i;
-    Section *s;
+    struct Section *s;
     relocate_syms(s1, s1->symtab, 0);
     for(i = 1; i < s1->nb_sections; i++) {
         s = s1->sections[i];
@@ -5475,7 +5475,7 @@ static void tcc_output_elf(struct TCCState *s1, FILE *f, int phnum, Elf32_Phdr *
                            int file_offset, int *sec_order)
 {
     int i, shnum, offset, size, file_type;
-    Section *s;
+    struct Section *s;
     Elf32_Ehdr ehdr;
     Elf32_Shdr shdr, *sh;
     file_type = s1->output_type;
@@ -5561,7 +5561,7 @@ static int tcc_write_elf_file(struct TCCState *s1, char *filename, int phnum,
 static void tidy_section_headers(struct TCCState *s1, int *sec_order)
 {
     int i, nnew, l, *backmap;
-    Section **snew, *s;
+    struct Section **snew, *s;
     Elf32_Sym *sym;
     snew = tcc_malloc(s1->nb_sections * sizeof(snew[0]));
     backmap = tcc_malloc(s1->nb_sections * sizeof(backmap[0]));
@@ -5603,7 +5603,7 @@ static int elf_output_file(struct TCCState *s1, char *filename)
     DynInf dyninf[5] = {0};
     Elf32_Phdr *phdr;
     Elf32_Sym *sym;
-    Section *strsec, *interp, *dynamic, *dynstr;
+    struct Section *strsec, *interp, *dynamic, *dynstr;
     file_type = s1->output_type;
     ret = 0;
     phdr = ((void*)0);
@@ -5697,11 +5697,11 @@ static SectionMergeInfo *smi_at(SectionMergeInfo *table, int index)
 {
     return table + index + index + index;
 }
-static Section *smi_s(SectionMergeInfo *sm)
+static struct Section *smi_s(SectionMergeInfo *sm)
 {
-    return (Section *)*sm;
+    return (struct Section *)*sm;
 }
-static void smi_set_s(SectionMergeInfo *sm, Section *s)
+static void smi_set_s(SectionMergeInfo *sm, struct Section *s)
 {
     *sm = (unsigned int)s;
 }
@@ -5742,7 +5742,7 @@ static int tcc_load_object_file(struct TCCState *s1,
     SectionMergeInfo *sm_table, *sm;
     Elf32_Sym *sym, *symtab;
     Elf32_Rel *rel;
-    Section *s;
+    struct Section *s;
     lseek(fd, file_offset, 0);
     if (tcc_object_type(fd, &ehdr) != 1 ||
         eh_ident(&ehdr, 5) != 1 ||
@@ -6349,7 +6349,7 @@ int gotplt_entry_type (int reloc_type)
 }
 static unsigned create_plt_entry(struct TCCState *s1, unsigned got_offset, SymAttr *attr)
 {
-    Section *plt = s1->plt;
+    struct Section *plt = s1->plt;
     uint8_t *p;
     int modrm;
     unsigned plt_offset, relofs;
