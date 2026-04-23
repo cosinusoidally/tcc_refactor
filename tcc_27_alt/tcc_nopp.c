@@ -2047,7 +2047,7 @@ static void vsetc(CType *type, int r, CValue *vc)
             gv(0x0001);
     }
     vtop++;
-    vtop->type = *type;
+    ct_copy(&vtop->type, type);
     vtop->r = r;
     cv_copy(&vtop->c, vc);
     vtop->sym = ((void*)0);
@@ -2098,8 +2098,8 @@ static void vset(CType *type, int r, int v)
 static void vseti(int r, int v)
 {
     CType type;
-    type.t = 3;
-    type.ref = ((void*)0);
+    ct_set_t(&type, 3);
+    ct_set_ref(&type, ((void*)0));
     vset(&type, r, v);
 }
 static void vpushv(SValue *v)
@@ -2147,8 +2147,8 @@ static Sym *get_sym_ref(CType *type, Section *sec, unsigned int offset, unsigned
     int v;
     Sym *sym;
     v = anon_sym++;
-    sym = global_identifier_push(v, type->t | 0x00002000, 0);
-    sym->type.ref = type->ref;
+    sym = global_identifier_push(v, ct_t(type) | 0x00002000, 0);
+    ct_set_ref(&sym->type, ct_ref(type));
     sym->r = 0x0030 | 0x0200;
     put_extern_sym(sym, sec, offset, size);
     return sym;
@@ -2158,41 +2158,41 @@ static Sym *external_global_sym(int v, CType *type, int r)
     Sym *s;
     s = sym_find(v);
     if (!s) {
-        s = global_identifier_push(v, type->t | 0x00001000, 0);
-        s->type.ref = type->ref;
+        s = global_identifier_push(v, ct_t(type) | 0x00001000, 0);
+        ct_set_ref(&s->type, ct_ref(type));
         s->r = r | 0x0030 | 0x0200;
-    } else if ((((s)->type.t & (0x000f | (0 | 0x0010))) == (0 | 0x0010))) {
-        s->type.t = type->t | (s->type.t & 0x00001000);
-        s->type.ref = type->ref;
+    } else if ((((ct_t(&s->type)) & (0x000f | (0 | 0x0010))) == (0 | 0x0010))) {
+        ct_set_t(&s->type, ct_t(type) | (ct_t(&s->type) & 0x00001000));
+        ct_set_ref(&s->type, ct_ref(type));
         update_storage(s);
     }
     return s;
 }
 static void patch_type(Sym *sym, CType *type)
 {
-    if (!(type->t & 0x00001000)) {
-        if (!(sym->type.t & 0x00001000))
+    if (!(ct_t(type) & 0x00001000)) {
+        if (!(ct_t(&sym->type) & 0x00001000))
             tcc_error("redefinition of '%s'", get_tok_str(sym->v, ((void*)0)));
-        sym->type.t &= ~0x00001000;
+        ct_clear_t(&sym->type, 0x00001000);
     }
-    if ((((sym)->type.t & (0x000f | (0 | 0x0010))) == (0 | 0x0010))) {
-        sym->type.t = type->t & (sym->type.t | ~0x00002000);
-        sym->type.ref = type->ref;
+    if ((((ct_t(&sym->type)) & (0x000f | (0 | 0x0010))) == (0 | 0x0010))) {
+        ct_set_t(&sym->type, ct_t(type) & (ct_t(&sym->type) | ~0x00002000));
+        ct_set_ref(&sym->type, ct_ref(type));
     }
     if (!is_compatible_types(&sym->type, type)) {
         tcc_error("incompatible types for redefinition of '%s'",
                   get_tok_str(sym->v, ((void*)0)));
-    } else if ((sym->type.t & 0x000f) == 6) {
-        int static_proto = sym->type.t & 0x00002000;
-        if (0 == (type->t & 0x00001000)) {
-            sym->type.t = (type->t & ~0x00002000) | static_proto;
-            sym->type.ref = type->ref;
+    } else if ((ct_t(&sym->type) & 0x000f) == 6) {
+        int static_proto = ct_t(&sym->type) & 0x00002000;
+        if (0 == (ct_t(type) & 0x00001000)) {
+            ct_set_t(&sym->type, (ct_t(type) & ~0x00002000) | static_proto);
+            ct_set_ref(&sym->type, ct_ref(type));
         }
     } else {
-        if ((sym->type.t & 0x0040) && type->ref->c >= 0) {
-            if (sym->type.ref->c < 0)
-                sym->type.ref->c = type->ref->c;
-            else if (sym->type.ref->c != type->ref->c)
+        if ((ct_t(&sym->type) & 0x0040) && ct_ref(type)->c >= 0) {
+            if (ct_ref(&sym->type)->c < 0)
+                ct_ref(&sym->type)->c = ct_ref(type)->c;
+            else if (ct_ref(&sym->type)->c != ct_ref(type)->c)
                 tcc_error("conflicting type for '%s'", get_tok_str(sym->v, ((void*)0)));
         }
     }
