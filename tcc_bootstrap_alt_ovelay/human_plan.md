@@ -141,6 +141,8 @@ i686 Mozilla Spidermonkey 45 jsshell binary. You will also have mawk if useful.
 For auxiliary test scripts and debugging prefer JS/AWK (and EcmaScript 5.1) to
 things like python. Ideally never use python.
 
+Do not make any changes to `tcc_bootstrap_alt` and do not modify `human_plan.md`
+
 Track your work in a `TICKETS.md` file where you create an entry for each task
 mark it as in progress/done (move the completed tasks to the bottom of the file)
 . Make sure you mark the start/end time/date for each task. Also give each
