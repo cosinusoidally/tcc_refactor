@@ -33,3 +33,9 @@
 - For the current refactor pass, `tcc_23_alt` can be treated as i386-only.
   The compatibility work is therefore allowed to collapse target-selection
   preprocessor branches down to their i386 paths instead of preserving ARM/C67.
+- The next passing milestone script is
+  `tcc_bootstrap_alt_overlay/mk_tcc3_tcc23_alt`.
+- That script currently proves:
+  `gcc -m32` can build a temporary `tcc_3/a.out`,
+  `tcc_3` can JIT-run `tcc_23_alt` to compile `libtcc1.o` and `tcc.o`,
+  and those objects can be linked into a runnable `tcc_23/a.out`.
