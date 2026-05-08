@@ -1,5 +1,12 @@
 ## In Progress
 
+### Ticket 3
+Status: in progress
+Task: Isolate and backport the `tcc_23_alt` fix for non-deterministic `tcc_24` output hashes.
+Start: 2026-05-08 11:47:29Z
+End:
+Notes: Initial comparison against `tcc_24` points at `tccelf.c` symbol/visibility handling as a plausible root cause. Need to reproduce the nondeterminism in the alt workspace with repeated `tcc_24` builds, then narrow the minimal backport.
+
 ### Ticket 2
 Status: done
 Task: Create the initial Phase 1 alternate workspace path with `tcc_23_alt` and `_alt` bootstrap entrypoints.
