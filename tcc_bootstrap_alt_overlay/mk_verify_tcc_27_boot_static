@@ -1,0 +1,22 @@
+#!/bin/sh
+set -eu
+
+overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+fixture="$overlay_dir/sum_tcc_27_boot_static"
+repo_dir=${1:-"$overlay_dir/../../tcc_bootstrap_alt"}
+target="$repo_dir/artifacts/tcc_27_boot_static.exe"
+
+if [ ! -f "$target" ]; then
+    echo "missing static artifact: $target" >&2
+    exit 1
+fi
+
+if [ ! -f "$fixture" ]; then
+    echo "missing checksum fixture: $fixture" >&2
+    exit 1
+fi
+
+(
+    cd -- "$repo_dir/artifacts"
+    sha256sum -c "$fixture"
+)
