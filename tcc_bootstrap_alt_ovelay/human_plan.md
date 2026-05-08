@@ -1,6 +1,6 @@
 # tcc_bootstrap_alt_ovelay plan
 
-Aim of the game here is to provide an "overlay" of source code, scripts in
+Aim of the game here is to provide an "overlay" of source code / scripts in
 this directory that allows us to construct an alternative bootstrap path
 for tcc_bootstrap_alt (which will be in `../../tcc_bootstrap_alt` relative to
 this directory). You must not modify anything in the `tcc_bootstrap_alt` repo
