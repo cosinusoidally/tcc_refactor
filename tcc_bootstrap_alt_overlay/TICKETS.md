@@ -1,11 +1,18 @@
 ## In Progress
 
 ### Ticket 3
-Status: in progress
+Status: done
 Task: Isolate and backport the `tcc_23_alt` fix for non-deterministic `tcc_24` output hashes.
 Start: 2026-05-08 11:47:29Z
+End: 2026-05-08 14:58:00Z
+Notes: Reproduced the drift with repeated `otccelf` rebuilds and narrowed it to `tcc_23/tcc.o`, with `tcc_24/tcc.o` only changing downstream. The root cause was non-deterministic i386 `long double` constant emission in `tcc.c`: one path copied raw `vtop->c.tab` bytes into `.data`, and another stored `long double` initializers without clearing the destination first. Fixed both sites in `tcc_23_alt/tcc.c`. Verified three consecutive `otccelf` rebuilds now produce identical `tcc_23/tcc.o` and `tcc_24/tcc.o` hashes, and reran `mk_otccelf_alt` successfully with the workspace `sum` check passing.
+
+### Ticket 4
+Status: in progress
+Task: Revalidate the seeded/static `_alt` lane after the deterministic `tcc_23_alt` fix, then continue the next Phase 1 bootstrap reduction step.
+Start: 2026-05-08 14:58:00Z
 End:
-Notes: Initial comparison against `tcc_24` points at `tccelf.c` symbol/visibility handling as a plausible root cause. Need to reproduce the nondeterminism in the alt workspace with repeated `tcc_24` builds, then narrow the minimal backport.
+Notes: `mk_from_bootstrap_seed_alt` was restarted after the `tcc_23_alt` fix, but the full wrapped bootstrap is substantially slower than the `otccelf` lane and was not allowed to finish in this slice.
 
 ### Ticket 2
 Status: done

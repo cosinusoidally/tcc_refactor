@@ -4774,10 +4774,15 @@ int gv(int rc)
             data_section->data_offset = offset;
             /* XXX: not portable yet */
             ptr = section_ptr_add(data_section, size);
-            size = size >> 2;
-            for(i=0;i<size;i++)
-                ptr[i] = vtop->c.tab[i];
-            sym = get_sym_ref(&vtop->type, data_section, offset, size << 2);
+            if ((vtop->type.t & VT_BTYPE) == VT_LDOUBLE) {
+                memset(ptr, 0, LDOUBLE_SIZE);
+                *(long double *)ptr = vtop->c.ld;
+            } else {
+                int n = size >> 2;
+                for(i=0;i<n;i++)
+                    ptr[i] = vtop->c.tab[i];
+            }
+            sym = get_sym_ref(&vtop->type, data_section, offset, size);
             vtop->r |= VT_LVAL | VT_SYM;
             vtop->sym = sym;
             vtop->c.ul = 0;
@@ -8344,6 +8349,7 @@ static void init_putv(CType *type, Section *sec, unsigned long c,
             *(double *)ptr = vtop->c.d;
             break;
         case VT_LDOUBLE:
+            memset(ptr, 0, LDOUBLE_SIZE);
             *(long double *)ptr = vtop->c.ld;
             break;
         case VT_LLONG:

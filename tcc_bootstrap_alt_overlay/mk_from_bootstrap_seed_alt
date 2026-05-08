@@ -8,7 +8,7 @@ workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
 (
     cd "$workspace_dir"
     ./mk_really_clean >/dev/null 2>&1 || true
-    ./mk_seeds
+    bash ./mk_seeds
 )
 
 (
