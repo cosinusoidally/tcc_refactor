@@ -1,4 +1,4 @@
-# tcc_bootstrap_alt_ovelay plan
+# tcc_bootstrap_alt_overlay plan
 
 Aim of the game here is to provide an "overlay" of source code / scripts in
 this directory that allows us to construct an alternative bootstrap path
@@ -26,8 +26,8 @@ but we will likely need an intermediate steps like:
 
 To test you will need to create alt versions of `mk_from_bootstrap_seed` and
 `mk_otccelf` (call these `mk_from_bootstrap_seed_alt` and `mk_otccelf_alt`).
-These will live in `tcc_bootstrap_alt_ovelay` and will be called from
-`tcc_bootstrap_alt_ovelay`. Other important things to note are:
+These will live in `tcc_bootstrap_alt_overlay` and will be called from
+`tcc_bootstrap_alt_overlay`. Other important things to note are:
 
 * `mk_otccelf` is a version that dynamically links to `glibc` it is useful for
   quick development, but everything must also pass with `mk_from_bootstrap_seed`
@@ -50,7 +50,7 @@ These will live in `tcc_bootstrap_alt_ovelay` and will be called from
 
 This will be done incrementally. Commit frequently, and only passing code.
 
-We will start by creating a `tcc_23_alt` tree in `tcc_bootstrap_alt_ovelay`.
+We will start by creating a `tcc_23_alt` tree in `tcc_bootstrap_alt_overlay`.
 Initially it will be a straight copy of `tcc_23` from `tcc_bootstrap_alt`.
 
 Do the following:
