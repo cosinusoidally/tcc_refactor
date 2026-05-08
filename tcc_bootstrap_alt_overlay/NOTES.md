@@ -15,12 +15,18 @@
   workspace `tcc_23/` replaced by overlay `tcc_23_alt/`.
 - `mk_from_bootstrap_seed_alt` and `mk_otccelf_alt` are implemented in terms of
   that throwaway workspace. They do not modify the upstream checkout.
-- The seeded/static alt workspace path now runs only the seed bootstrap
-  (`kaem-optional-seed` and `mescc-tools-mini-kaem`) before switching to the
-  direct `tcc_3 -> tcc_23 -> tcc_24 -> tcc_26 -> tcc_27` climb.
-- The `otccelf` alt workspace path now runs `alt_kaem.x86` only for the
-  `tcc_js` leg before switching to the same direct `tcc_3` climb. It no longer
-  calls `otccelf/mk_elf_loader`.
+- The earlier host-linked `mk_tcc3_chain_workspace_alt` approach was the wrong
+  architecture for Phase 1 and has been removed.
+- The current Phase 1 direction is a workspace-local kaem path:
+  `phase1_kaem.x86` -> `phase1_after.kaem` -> `tcc_js/build_phase1.kaem`
+  -> `tcc_23/build_phase1.kaem` -> later stage scripts.
+- `mk_prepare_workspace_alt` now removes `tcc_10` from `_alt_work` entirely and
+  injects overlay-local replacement files, including `phase1_support/`.
+- `tcc_js/build_phase1.kaem` now builds local `tcc_boot.o`, copies it into
+  `tcc_23/tcc_boot.o`, and then builds `loader_cc_x86.exe` and
+  `elf_loader_cc_x86.exe`.
+- `mk_from_bootstrap_seed_alt` and `mk_otccelf_alt` both now invoke the new
+  kaem path instead of any host-built `gcc`/glibc `tcc_3` helper.
 - The dedicated Phase 1 `tcc_3 -> tcc_23_alt` probe is
   `tcc_bootstrap_alt_overlay/mk_tcc3_tcc23_alt_probe`.
 - That probe currently works by:
@@ -43,15 +49,6 @@
 - That script currently proves the `tcc_3`-bootstrapped `tcc_23/a.out`
   can compile `tcc_24/tcc.o` and `tcc_24/libtcc1.o`, and that those objects
   link into a runnable `tcc_24/a.out`.
-- The main Phase 1 replacement runner is
-  `tcc_bootstrap_alt_overlay/mk_tcc3_chain_workspace_alt`.
-- That runner now builds temporary `tcc_3/a.out`, then host-links runnable
-  `tcc_23`, `tcc_24`, `tcc_26`, and `tcc_27` binaries under glibc, and ends
-  with `tcc_27/tcc.o` and `tcc_27/libtcc1.o` matching `sum`.
-- When invoked with `--static`, the same runner also rebuilds
-  `artifacts/tcc_27_boot_static.exe`, and the result still matches
-  `sum_tcc_27_boot_static`.
-- Current caveat: the static leg prints
-  `libc_boot4_new.o: error: '_sys_call3' defined twice`
-  even though the command exits successfully and the final static artifact is
-  still bit-identical to the frozen fixture.
+- The current blocker is no longer seed/tool generation. The new path reaches
+  the intended `tcc_3 -> tcc_23_alt` boundary and then fails inside
+  `tcc_23/build_phase1.kaem` with `invalid option -- '%s'`.
