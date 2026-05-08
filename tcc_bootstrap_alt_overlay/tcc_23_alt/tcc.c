@@ -32,7 +32,6 @@
 #include <stdarg.h>
 #include <string.h>
 #include <errno.h>
-#include <math.h>
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
@@ -50,6 +49,10 @@
 
 #include "elf.h"
 #include "stab.h"
+
+/* Phase 1 bootstrap avoids <math.h> so loader_cc_x86 does not need to parse
+   the system header's decimal float constants with its broken strtod stub. */
+extern double ldexp(double __x, int __exp);
 
 #ifndef O_BINARY
 #define O_BINARY 0
@@ -5419,7 +5422,7 @@ void gen_opif(int op)
         case '-': f1 -= f2; break;
         case '*': f1 *= f2; break;
         case '/': 
-            if (f2 == 0.0) {
+            if (f2 == 0) {
                 if (const_wanted)
                     error("division by zero in constant");
                 goto general_case;
@@ -10631,16 +10634,19 @@ int main(int argc, char **argv)
     tcc_free(files);
 
     if (do_bench) {
-        double total_time;
-        total_time = (double)(getclock_us() - start_time) / 1000000.0;
-        if (total_time < 0.001)
-            total_time = 0.001;
+        int total_us, mb10;
+
+        total_us = getclock_us() - start_time;
+        if (total_us < 1000)
+            total_us = 1000;
         if (total_bytes < 1)
             total_bytes = 1;
-        printf("%d idents, %d lines, %d bytes, %0.3f s, %d lines/s, %0.1f MB/s\n", 
+        mb10 = (total_bytes * 10) / total_us;
+        printf("%d idents, %d lines, %d bytes, %d.%03d s, %d lines/s, %d.%01d MB/s\n",
                tok_ident - TOK_IDENT, total_lines, total_bytes,
-               total_time, (int)(total_lines / total_time), 
-               total_bytes / total_time / 1000000.0); 
+               total_us / 1000000, (total_us / 1000) % 1000,
+               (total_lines * 1000000) / total_us,
+               mb10 / 10, mb10 % 10);
     }
 
     if (s->output_type == TCC_OUTPUT_MEMORY) {

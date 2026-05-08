@@ -49,6 +49,30 @@
 - That script currently proves the `tcc_3`-bootstrapped `tcc_23/a.out`
   can compile `tcc_24/tcc.o` and `tcc_24/libtcc1.o`, and that those objects
   link into a runnable `tcc_24/a.out`.
-- The current blocker is no longer seed/tool generation. The new path reaches
-  the intended `tcc_3 -> tcc_23_alt` boundary and then fails inside
-  `tcc_23/build_phase1.kaem` with `invalid option -- '%s'`.
+- The earlier `invalid option -- '%s'` failure was a command-shape bug in
+  `tcc_23/build_phase1.kaem`; that is fixed.
+- `loader_cc_x86.exe ... tcc.c -h` returning status `1` is not by itself a
+  bootstrap failure. The host-linked control path
+  `../tcc_3/a.out tcc.c -h` prints help text and also exits with status `1`.
+- The reduced `mk_3`-style suffix without the two `-DNO_LONG_LONG`
+  `tcc_3/tcc.c` stages was a regression for the loader path. It caused
+  `tcc_2` to fail while compiling `tcc_3` with `integer constant overflow`.
+- Restoring the original loader staging (`-DNO_LONG_LONG`, `-DNO_LONG_LONG`,
+  then three plain `tcc_3/tcc.c` stages before `tcc_23`) gets the in-memory
+  bootstrap back to the actual `tcc_23` source.
+- The next real blocker was the loader runtime's broken decimal-float parsing.
+  `tcc_23_alt/tcc.c` previously pulled in `<math.h>`, which caused the loader
+  path to spam `strtod_tramp called` on glibc math constants and abort before
+  getting through `tcc.c`.
+- The current Phase 1 `tcc_23_alt/tcc.c` now avoids `<math.h>`, declares
+  `ldexp()` directly, and removes the `do_bench` decimal-float literals so the
+  source only retains the existing special `4294967296.0` literal.
+- Those changes move the short `mk_otccelf_alt` lane materially forward: the
+  loader path now gets through `tcc.c`, `i386-gen.c`, `i386-asm.c`, and
+  `tccasm.c`, then aborts immediately after opening `tccelf.c`.
+- `tcc_23_alt/tccelf.c` has now been flattened to the i386/Linux path, and
+  `tcc_23_alt/elf.h` no longer includes glibc `inttypes.h`/`stdint.h`; the
+  abort point is still the `tccelf.c` entry.
+- The current blocker is therefore narrower than before: the `tcc_3 ->
+  tcc_23_alt` handoff now consistently fails at or immediately after entering
+  `tccelf.c`, with `cdrun` reporting only `Subprocess error / ABORTING HARD`.

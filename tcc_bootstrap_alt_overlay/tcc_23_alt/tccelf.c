@@ -595,12 +595,10 @@ static void put32(unsigned char *p, uint32_t val)
     p[3] = val >> 24;
 }
 
-#if defined(TCC_TARGET_I386) || defined(TCC_TARGET_ARM)
 static uint32_t get32(unsigned char *p)
 {
     return p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24);
 }
-#endif
 
 static void build_got(TCCState *s1)
 {
@@ -812,7 +810,6 @@ static void tcc_add_runtime(TCCState *s1)
 {
     char buf[1024];
 
-#ifdef CONFIG_TCC_BCHECK
     if (do_bounds_check) {
         unsigned long *ptr;
         Section *init_section;
@@ -828,7 +825,6 @@ static void tcc_add_runtime(TCCState *s1)
         /* add bound check code */
         snprintf(buf, sizeof(buf), "%s/%s", tcc_lib_path, "bcheck.o");
         tcc_add_file(s1, buf);
-#ifdef TCC_TARGET_I386
         if (s1->output_type != TCC_OUTPUT_MEMORY) {
             /* add 'call __bound_init()' in .init section */
             init_section = find_section(s1, ".init");
@@ -839,9 +835,7 @@ static void tcc_add_runtime(TCCState *s1)
             put_elf_reloc(symtab_section, init_section, 
                           init_section->data_offset - 4, R_386_PC32, sym_index);
         }
-#endif
     }
-#endif
     /* add libc */
     if (!s1->nostdlib) {
         tcc_add_library(s1, "c");
@@ -916,11 +910,7 @@ static void tcc_add_linker_symbols(TCCState *s1)
 }
 
 /* name of ELF interpreter */
-#ifdef __FreeBSD__
-static char elf_interp[] = "/usr/libexec/ld-elf.so.1";
-#else
 static char elf_interp[] = "/lib/ld-linux.so.2";
-#endif
 
 static void tcc_output_binary(TCCState *s1, FILE *f,
                               const int *section_order)
@@ -1467,11 +1457,6 @@ int tcc_output_file(TCCState *s1, const char *filename)
 */
     f = fopen(filename, "wb");
 
-#ifdef TCC_TARGET_COFF
-    if (s1->output_format == TCC_OUTPUT_FORMAT_COFF) {
-        tcc_output_coff(s1, f);
-    } else
-#endif
     if (s1->output_format == TCC_OUTPUT_FORMAT_ELF) {
         sort_syms(s1, symtab_section);
         
@@ -1486,12 +1471,6 @@ int tcc_output_file(TCCState *s1, const char *filename)
         ehdr.e_ident[4] = ELFCLASS32;
         ehdr.e_ident[5] = ELFDATA2LSB;
         ehdr.e_ident[6] = EV_CURRENT;
-#ifdef __FreeBSD__
-        ehdr.e_ident[EI_OSABI] = ELFOSABI_FREEBSD;
-#endif
-#ifdef TCC_TARGET_ARM
-        ehdr.e_ident[EI_OSABI] = ELFOSABI_ARM;
-#endif
         switch(file_type) {
         default:
         case TCC_OUTPUT_EXE:

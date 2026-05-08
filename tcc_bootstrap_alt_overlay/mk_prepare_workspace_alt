@@ -18,6 +18,8 @@ cp -a "$overlay_dir/tcc_js_build_phase1.kaem" "$workspace_dir/tcc_js/build_phase
 cp -a "$overlay_dir/tcc_26_run_26_phase1.kaem" "$workspace_dir/tcc_26/run_26_phase1.kaem"
 cp -a "$overlay_dir/phase1_after.kaem" "$workspace_dir/phase1_after.kaem"
 cp -a "$overlay_dir/phase1_kaem.x86" "$workspace_dir/phase1_kaem.x86"
+cp -a "$overlay_dir/phase1_probe_after.kaem" "$workspace_dir/phase1_probe_after.kaem"
+cp -a "$overlay_dir/phase1_probe_kaem.x86" "$workspace_dir/phase1_probe_kaem.x86"
 (
     cd "$workspace_dir"
     ./mk_really_clean >/dev/null 2>&1 || true
