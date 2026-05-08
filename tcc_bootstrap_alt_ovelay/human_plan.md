@@ -68,7 +68,7 @@ Next you will notice that there is a non-deterministic compilation issue with
 tcc_23_alt. Each time it builds tcc_24 the hashes are different. I think
 this is due to some bug in tcc_23 where some data is not being correctly
 initialised. This issue is fixed in tcc_24, so you should be able to back port
-it.
+it. This is the first issue to fix.
 
 Next fix tcc_23_alt so it can be compiled by tcc_3. You will likely need to
 remove some preprocessor usage from tcc_23_alt. You should then eliminate the
