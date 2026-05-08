@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root="$overlay_dir/.."
+workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
+
+(
+    cd "$workspace_dir"
+    ./mk_really_clean >/dev/null 2>&1 || true
+    ./mk_seeds
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir' && ./kaem.x86"
+)
+
+(
+    cd "$workspace_dir"
+    sha256sum -c sum
+)
+
+"$overlay_dir/mk_verify_tcc_27_boot_static" "$workspace_dir"

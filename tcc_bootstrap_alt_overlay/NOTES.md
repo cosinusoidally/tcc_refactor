@@ -10,3 +10,15 @@
 - Re-running the final static stage with
   `scripts/run-i386.sh /bin/sh -c 'cd /home/foo/src/gpt/tcc_bootstrap_alt && ./x86/bin/cdrun ./tcc_27/ ../x86/artifact/kaem-0 ./run_27_static.kaem'`
   reproduced the same checksum.
+- The simplest non-invasive overlay mechanism for Phase 1 is a throwaway copy of
+  `../../tcc_bootstrap_alt` under `tcc_bootstrap_alt_overlay/_alt_work/`, with
+  workspace `tcc_23/` replaced by overlay `tcc_23_alt/`.
+- `mk_from_bootstrap_seed_alt` and `mk_otccelf_alt` are implemented in terms of
+  that throwaway workspace. They do not modify the upstream checkout.
+- The seeded/static alt workspace path was validated by running the copied
+  workspace through `./kaem.x86`, then checking:
+  `sha256sum -c sum`
+  and
+  `./mk_verify_tcc_27_boot_static <workspace>`.
+- The `otccelf` alt workspace path also needs the wrapper for
+  `otccelf/mk_elf_loader`, because that script executes generated 32-bit tools.
