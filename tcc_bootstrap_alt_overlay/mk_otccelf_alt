@@ -18,7 +18,7 @@ workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
 
 (
     cd "$repo_root"
-    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/otccelf' && ./mk_elf_loader"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir' && '$overlay_dir/mk_tcc3_chain_workspace_alt'"
 )
 
 (

@@ -15,11 +15,11 @@ End: 2026-05-08 15:11:00Z
 Notes: Reran `mk_from_bootstrap_seed_alt` to completion after the `tcc_23_alt` determinism fixes. The workspace `sha256sum -c sum` check passed, and `mk_verify_tcc_27_boot_static` confirmed the rebuilt `artifacts/tcc_27_boot_static.exe` still matches the overlay checksum fixture.
 
 ### Ticket 5
-Status: in progress
+Status: done
 Task: Make `tcc_23_alt` buildable by `tcc_3` and start removing `tcc_10` from the alternate bootstrap chain.
 Start: 2026-05-08 15:11:00Z
-End:
-Notes: Added `mk_tcc3_tcc23_alt_probe` as the dedicated Phase 1 entrypoint for the `tcc_3 -> tcc_23_alt` jump and flattened the initial i386-only preprocessor branches in `tcc_23_alt` and `tccelf.c`. The probe now succeeds: `tcc_3` can JIT-run `tcc_23_alt` help text. Added `mk_tcc3_tcc23_alt` for the first passing milestone: build temporary `tcc_3/a.out` with `gcc -m32`, use it to JIT `tcc_23_alt` and compile `libtcc1.o` and `tcc.o`, link those into `tcc_23/a.out`, and verify the resulting `tcc_23` binary runs under `scripts/run-i386.sh`. Extended the same direct path one step further to a runnable `tcc_24`, and captured that in `mk_tcc3_tcc24_alt`. Next step is to keep extending the `tcc_3` path beyond `tcc_24` until it can replace the corresponding section of the main alternate scripts.
+End: 2026-05-08 17:42:00Z
+Notes: Added `mk_tcc3_tcc23_alt_probe` as the dedicated Phase 1 entrypoint for the `tcc_3 -> tcc_23_alt` jump and flattened the initial i386-only preprocessor branches in `tcc_23_alt` and `tccelf.c`. The probe now succeeds: `tcc_3` can JIT-run `tcc_23_alt` help text. Added `mk_tcc3_tcc23_alt` for the first passing milestone: build temporary `tcc_3/a.out` with `gcc -m32`, use it to JIT `tcc_23_alt` and compile `libtcc1.o` and `tcc.o`, link those into `tcc_23/a.out`, and verify the resulting `tcc_23` binary runs under `scripts/run-i386.sh`. Extended the same direct path one step further to a runnable `tcc_24`, then added `mk_tcc3_chain_workspace_alt` to carry the glibc-linked compiler chain through `tcc_26` and `tcc_27` without any `tcc_10` compiler step. `mk_otccelf_alt` now runs `alt_kaem.x86` only for the `tcc_js` leg and then switches to the direct `tcc_3 -> tcc_23 -> tcc_24 -> tcc_26 -> tcc_27` climb; `mk_from_bootstrap_seed_alt` now runs only the seed and mescc bootstrap phases before the same direct climb with static output enabled. Wrapped smoke tests of both main `_alt` entrypoints now pass, with `sha256sum -c sum` succeeding in both lanes and `mk_verify_tcc_27_boot_static` succeeding in the seeded/static lane. The remaining caveat is that the static leg still prints `libc_boot4_new.o: error: '_sys_call3' defined twice` even though the command returns success and the final static artifact checksum still matches the frozen overlay fixture.
 
 ### Ticket 2
 Status: done

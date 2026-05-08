@@ -1,0 +1,65 @@
+#!/bin/sh
+set -eu
+
+build_static=0
+
+if [ "$#" -gt 1 ]; then
+    echo "usage: $0 [--static]" >&2
+    exit 2
+fi
+
+if [ "$#" -eq 1 ]; then
+    if [ "$1" = "--static" ]; then
+        build_static=1
+    else
+        echo "usage: $0 [--static]" >&2
+        exit 2
+    fi
+fi
+
+cd tcc_3
+gcc -m32 -D__thread=__threadp tcc.c -I ../woody/usr/include/ -ldl -o a.out
+cd ..
+
+cd tcc_23
+rm -f libtcc1.o tcc.o a.out
+../tcc_3/a.out tcc.c -c libtcc1.c -o libtcc1.o
+../tcc_3/a.out tcc.c -I ../woody/usr/include/ -I . -c tcc.c -o tcc.o
+gcc -m32 libtcc1.o tcc.o -ldl -o a.out
+cd ..
+
+cd tcc_24
+rm -f libtcc1.o tcc.o a.out
+../tcc_23/a.out -I ../woody/usr/include/ -I . -c tcc.c -o tcc.o
+../tcc_23/a.out -c libtcc1.c -o libtcc1.o
+gcc -m32 libtcc1.o tcc.o -ldl -o a.out
+cd ..
+
+cd tcc_26
+rm -f libtcc1.o tcc.o a.out
+../tcc_24/a.out -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE -o tcc.o
+../tcc_24/a.out -c ../tcc_24/libtcc1.c -o libtcc1.o
+gcc -m32 libtcc1.o tcc.o -ldl -o a.out
+./a.out -c ./lib/libtcc1.c -o libtcc1.o
+./a.out -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE -o tcc.o
+cd ..
+
+cd tcc_27
+rm -f a.out libc_boot4.o libc_boot4_new.o libc_static.o libtcc1.o libtcc1_new.o tcc.o tcc_new.o
+../tcc_26/a.out -I ../woody/usr/include/ -I ../tcc_26/include -c tcc.c -DONE_SOURCE -o tcc.o
+../tcc_26/a.out -c ../tcc_26/lib/libtcc1.c -o libtcc1.o
+gcc -m32 libtcc1.o tcc.o -ldl -o a.out
+./a.out -c ./lib/libtcc1.c -o libtcc1.o
+./a.out -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE -o tcc.o
+
+if [ "$build_static" -eq 1 ]; then
+    ./a.out -c libc_boot4.c -o libc_boot4.o
+    ./a.out -c ./lib/libtcc1.c -o libtcc1_new.o
+    ./a.out -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE -o tcc_new.o
+    ./a.out -c libc_boot4.c -o libc_boot4_new.o
+    ./a.out -c libc_static.c -o libc_static.o
+    chmod +x a.out
+    rm -f ../artifacts/tcc_27_boot_static.exe
+    ./a.out -nostdlib -static libc_static.o libc_boot4_new.o libtcc1_new.o tcc.o -o ../artifacts/tcc_27_boot_static.exe
+    chmod +x ../artifacts/tcc_27_boot_static.exe
+fi

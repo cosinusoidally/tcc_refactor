@@ -15,13 +15,12 @@
   workspace `tcc_23/` replaced by overlay `tcc_23_alt/`.
 - `mk_from_bootstrap_seed_alt` and `mk_otccelf_alt` are implemented in terms of
   that throwaway workspace. They do not modify the upstream checkout.
-- The seeded/static alt workspace path was validated by running the copied
-  workspace through `./kaem.x86`, then checking:
-  `sha256sum -c sum`
-  and
-  `./mk_verify_tcc_27_boot_static <workspace>`.
-- The `otccelf` alt workspace path also needs the wrapper for
-  `otccelf/mk_elf_loader`, because that script executes generated 32-bit tools.
+- The seeded/static alt workspace path now runs only the seed bootstrap
+  (`kaem-optional-seed` and `mescc-tools-mini-kaem`) before switching to the
+  direct `tcc_3 -> tcc_23 -> tcc_24 -> tcc_26 -> tcc_27` climb.
+- The `otccelf` alt workspace path now runs `alt_kaem.x86` only for the
+  `tcc_js` leg before switching to the same direct `tcc_3` climb. It no longer
+  calls `otccelf/mk_elf_loader`.
 - The dedicated Phase 1 `tcc_3 -> tcc_23_alt` probe is
   `tcc_bootstrap_alt_overlay/mk_tcc3_tcc23_alt_probe`.
 - That probe currently works by:
@@ -44,3 +43,15 @@
 - That script currently proves the `tcc_3`-bootstrapped `tcc_23/a.out`
   can compile `tcc_24/tcc.o` and `tcc_24/libtcc1.o`, and that those objects
   link into a runnable `tcc_24/a.out`.
+- The main Phase 1 replacement runner is
+  `tcc_bootstrap_alt_overlay/mk_tcc3_chain_workspace_alt`.
+- That runner now builds temporary `tcc_3/a.out`, then host-links runnable
+  `tcc_23`, `tcc_24`, `tcc_26`, and `tcc_27` binaries under glibc, and ends
+  with `tcc_27/tcc.o` and `tcc_27/libtcc1.o` matching `sum`.
+- When invoked with `--static`, the same runner also rebuilds
+  `artifacts/tcc_27_boot_static.exe`, and the result still matches
+  `sum_tcc_27_boot_static`.
+- Current caveat: the static leg prints
+  `libc_boot4_new.o: error: '_sys_call3' defined twice`
+  even though the command exits successfully and the final static artifact is
+  still bit-identical to the frozen fixture.
