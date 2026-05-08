@@ -120,10 +120,26 @@ tcc_js->1_7->3_alt->23_alt->27
 The next step should be to port `tcc_3_alt` to the dialect of C that is
 supported by `tcc_js` this should eliminate `tcc_1_7`.
 
+## Phase 7
+
+Port `tcc_3_alt` to the `tcc_js` subset of JS. This should allow it to be used
+as an alternative to `tcc_js` (and should also allow it to be run in a JS vm)
+
+## Important notes
 
 Important note, within Codex 32 bit code execution may be blocked by the sandbox
 . You will need to use `../scripts/run-i386.sh` to run 32 bit code (which can
 then be whitelisted once by me.
+
+You will notice that the build process uses `kaem` scripts. This is a trivial
+command interpreter. You must retain this ability, and the ability to run
+the entire bootstrap via `x86/artifact/kaem-optional-seed` (which is called
+in `mk_from_bootstrap_seed`).
+
+In your path you will have nodejs `node`. You will also have `js` which is the
+i686 Mozilla Spidermonkey 45 jsshell binary. You will also have mawk if useful.
+For auxillary test scripts and debugging prefer JS/AWK (and EcmaScript 5.1) to
+things like python. Ideally never use python.
 
 Track your work in a `TICKETS.md` file where you create an entry for each task
 mark it as in progress/done (move the completed tasks to the bottom of the file)
