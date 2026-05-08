@@ -172,3 +172,5 @@ ticket a number.
 Keep useful notes about the bootstrap chain (and tcc itself) in `NOTES.md` keep
 this up to date as you go along. This should include enough info to bring a
 human up to speed if they were to eventually take over the refactor.
+
+If you are using any novel debugging techniques then also document your methods.
