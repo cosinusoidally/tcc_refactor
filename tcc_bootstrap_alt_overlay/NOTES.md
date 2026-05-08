@@ -39,3 +39,8 @@
   `gcc -m32` can build a temporary `tcc_3/a.out`,
   `tcc_3` can JIT-run `tcc_23_alt` to compile `libtcc1.o` and `tcc.o`,
   and those objects can be linked into a runnable `tcc_23/a.out`.
+- The next extension script is
+  `tcc_bootstrap_alt_overlay/mk_tcc3_tcc24_alt`.
+- That script currently proves the `tcc_3`-bootstrapped `tcc_23/a.out`
+  can compile `tcc_24/tcc.o` and `tcc_24/libtcc1.o`, and that those objects
+  link into a runnable `tcc_24/a.out`.
