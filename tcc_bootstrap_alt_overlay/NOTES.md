@@ -22,3 +22,14 @@
   `./mk_verify_tcc_27_boot_static <workspace>`.
 - The `otccelf` alt workspace path also needs the wrapper for
   `otccelf/mk_elf_loader`, because that script executes generated 32-bit tools.
+- The dedicated Phase 1 `tcc_3 -> tcc_23_alt` probe is
+  `tcc_bootstrap_alt_overlay/mk_tcc3_tcc23_alt_probe`.
+- That probe currently works by:
+  `mk_prepare_workspace_alt`
+  then building `tcc_3/a.out` in the throwaway workspace with
+  `gcc -m32 -D__thread=__threadp`
+  then JIT-running `../tcc_3/a.out tcc.c -h` inside workspace `tcc_23/`
+  through `scripts/run-i386.sh`.
+- For the current refactor pass, `tcc_23_alt` can be treated as i386-only.
+  The compatibility work is therefore allowed to collapse target-selection
+  preprocessor branches down to their i386 paths instead of preserving ARM/C67.

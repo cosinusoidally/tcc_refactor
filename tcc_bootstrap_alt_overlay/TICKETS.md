@@ -19,7 +19,7 @@ Status: in progress
 Task: Make `tcc_23_alt` buildable by `tcc_3` and start removing `tcc_10` from the alternate bootstrap chain.
 Start: 2026-05-08 15:11:00Z
 End:
-Notes: Next step is to reproduce the current `tcc_3 -> tcc_23_alt` failure in the overlay workspace, identify the preprocessor or dialect features blocking `tcc_3`, and backport the smallest source changes needed to get `tcc_23_alt` building.
+Notes: Added `mk_tcc3_tcc23_alt_probe` as the dedicated failing Phase 1 entrypoint for the `tcc_3 -> tcc_23_alt` jump. It prepares the overlay workspace, builds a temporary `tcc_3/a.out` with `gcc -m32`, then JIT-runs `tcc_23_alt` under `scripts/run-i386.sh`. Current progress is to flatten i386-only preprocessor branches in `tcc_23_alt` instead of preserving multi-target dispatch. The latest repro moved from `tcc.c` into `tccelf.c`, which confirms the current blockers are still preprocessor/target-selection related rather than broader parser issues.
 
 ### Ticket 2
 Status: done

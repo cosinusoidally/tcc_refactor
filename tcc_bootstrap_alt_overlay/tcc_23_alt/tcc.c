@@ -2379,23 +2379,16 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
             len += nb_words;
         }
         break;
-    case TOK_CDOUBLE:
-    case TOK_CLLONG:
-    case TOK_CULLONG:
-#if LDOUBLE_SIZE == 8
-    case TOK_CLDOUBLE:
-#endif
-        str[len++] = cv->tab[0];
-        str[len++] = cv->tab[1];
-        break;
-#if LDOUBLE_SIZE == 12
     case TOK_CLDOUBLE:
         str[len++] = cv->tab[0];
         str[len++] = cv->tab[1];
         str[len++] = cv->tab[2];
-#elif LDOUBLE_SIZE != 8
-#error add long double size support
-#endif
+        break;
+    case TOK_CDOUBLE:
+    case TOK_CLLONG:
+    case TOK_CULLONG:
+        str[len++] = cv->tab[0];
+        str[len++] = cv->tab[1];
         break;
     default:
         break;
@@ -2417,18 +2410,10 @@ static void tok_str_add_tok(TokenString *s)
     tok_str_add2(s, tok, &tokc);
 }
 
-#if LDOUBLE_SIZE == 12
 #define LDOUBLE_GET(p, cv)                      \
         cv.tab[0] = p[0];                       \
         cv.tab[1] = p[1];                       \
         cv.tab[2] = p[2];
-#elif LDOUBLE_SIZE == 8
-#define LDOUBLE_GET(p, cv)                      \
-        cv.tab[0] = p[0];                       \
-        cv.tab[1] = p[1];
-#else
-#error add long double size support
-#endif
 
 
 /* get a token from an integer array and increment pointer
@@ -5263,16 +5248,7 @@ void gen_opl(int op)
             if (a == 0) {
                 b = gtst(0, 0);
             } else {
-#if defined(TCC_TARGET_I386)
                 b = psym(0x850f, 0);
-#elif defined(TCC_TARGET_ARM)
-		b = ind;
-		o(0x1A000000 | encbranch(ind, 0, 1));
-#elif defined(TCC_TARGET_C67)
-                error("not implemented");
-#else
-#error not supported
-#endif
             }
         }
         /* compare low. Always unsigned */
