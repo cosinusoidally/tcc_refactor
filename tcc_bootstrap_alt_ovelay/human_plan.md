@@ -12,14 +12,14 @@ path is currently:
 ```
 tcc_js->1_7->1_8->1_9->2m->2->3->10->23->24->26->27
 ```
-Our ultimate aim is to arrive at:
+Our ultimate aim is to arrive at a shorter bootstrap path such as:
 
 ```
 1_7_alt->10_alt->27
 ```
 (where 1_7_alt will also be valid JS, if function was defined as int and
 var was defined as int)
-but we will likely need an intermediate step of:
+but we will likely need an intermediate steps like:
 ```
 1_7_alt->10_alt->23_alt->27
 ```
@@ -124,6 +124,27 @@ supported by `tcc_js` this should eliminate `tcc_1_7`.
 
 Port `tcc_3_alt` to the `tcc_js` subset of JS. This should allow it to be used
 as an alternative to `tcc_js` (and should also allow it to be run in a JS vm)
+
+After this the bootstrap path will look like:
+
+```
+3_alt->23_alt->27
+```
+
+Note at this point `tcc_3_alt` will need to be buildable by `cc_x86`, `nodejs`,
+`js` (spidermonkey`), `gcc, and `tcc_27`. In fact `tcc_3_alt`
+
+## Phase 8
+
+Ultimate aim should be to eliminate `tcc_23_alt` and go straight from
+`tcc_3_alt`to `tcc_27`.
+
+Possible we might need to do this in a layered form with individual tests for
+features as I think this might be a complex task. When I say layered I mean
+maybe `tcc_3_alt` is built with stubs for a particular feature, and then it
+is rebuild again with itself with to enable the additional features. The tests
+should probably derive from the `tcc_27` codebase so we can bring online the
+required features in order.
 
 ## Important notes
 
