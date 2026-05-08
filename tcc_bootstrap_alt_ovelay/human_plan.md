@@ -1,3 +1,5 @@
+# tcc_bootstrap_alt_ovelay plan
+
 Aim of the game here is to provide an "overlay" of source code, scripts in
 this directory that allows us to construct an alternative bootstrap path
 for tcc_bootstrap_alt (which will be in `../../tcc_bootstrap_alt` relative to
@@ -42,7 +44,9 @@ These will live in `tcc_bootstrap_alt_ovelay` and will be called from
 * there are several scripts to clean out binary artifacts. `mk_really_clean`
   will clean everything. You should create an equivalent for the overlay.
 
-## Detailed plan
+# Detailed plan
+
+## Phase 1
 
 This will be done incrementally. Commit frequently, and only passing code.
 
