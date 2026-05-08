@@ -168,3 +168,7 @@ Track your work in a `TICKETS.md` file where you create an entry for each task
 mark it as in progress/done (move the completed tasks to the bottom of the file)
 . Make sure you mark the start/end time/date for each task. Also give each
 ticket a number.
+
+Keep useful notes about the bootstrap chain (and tcc itself) in `NOTES.md` keep
+this up to date as you go along. This should include enough info to bring a
+human up to speed if they were to eventually take over the refactor.
