@@ -59,6 +59,30 @@ Do the following:
 * make sure the tcc_27 builds are still bit identical and match the existing
   hashes.
 
+Next you will notice that there is a non-deterministic compilation issue with
+tcc_23_alt. Each time it builds tcc_24 the hashes are different. I think
+this is due to some bug in tcc_23 where some data is not being correctly
+initialised. This issue is fixed in tcc_24, so you should be able to back port
+it.
+
+Next fix tcc_23_alt so it can be compiled by tcc_3. You will likely need to
+remove some preprocessor usage from tcc_23_alt. You should then eliminate the
+use of tcc_10.
+
+Next back port ELF output to tcc_3 from tcc_10. Create a tcc_3_alt source tree
+for this and wire that into the `_alt` build paths.
+
+At evey stage you must retain the ability to compile C code with gcc and a
+stock tcc_27. For testing create yourself a glibc linked tcc_27 binary by
+linking `tcc_27/tcc.o` and `tcc_27/libtcc1.o` into a tcc_27_glibc.exe binary,
+you can generate that binary once (via a checked in script, and place it in
+`../../tcc_bin`). For gcc you must use `-m32`.
+
 Important note, within Codex 32 bit code execution may be blocked by the sandbox
 . You will need to use `../scripts/run-i386.sh` to run 32 bit code (which can
 then be whitelisted once by me.
+
+Track your work in a `TICKETS.md` file where you create an entry for each task
+mark it as in progress/done (move the completed tasks to the bottom of the file)
+. Make sure you mark the start/end time/date for each task. Also give each
+ticket a number.
