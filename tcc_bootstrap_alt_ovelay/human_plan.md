@@ -77,7 +77,7 @@ use of tcc_10.
 Next back port ELF output to tcc_3 from tcc_10. Create a tcc_3_alt source tree
 for this and wire that into the `_alt` build paths.
 
-At evey stage you must retain the ability to compile C code with gcc and a
+At every stage you must retain the ability to compile C code with gcc and a
 stock tcc_27. For testing create yourself a glibc linked tcc_27 binary by
 linking `tcc_27/tcc.o` and `tcc_27/libtcc1.o` into a tcc_27_glibc.exe binary,
 you can generate that binary once (via a checked in script, and place it in
@@ -138,7 +138,7 @@ in `mk_from_bootstrap_seed`).
 
 In your path you will have nodejs `node`. You will also have `js` which is the
 i686 Mozilla Spidermonkey 45 jsshell binary. You will also have mawk if useful.
-For auxillary test scripts and debugging prefer JS/AWK (and EcmaScript 5.1) to
+For auxiliary test scripts and debugging prefer JS/AWK (and EcmaScript 5.1) to
 things like python. Ideally never use python.
 
 Track your work in a `TICKETS.md` file where you create an entry for each task
