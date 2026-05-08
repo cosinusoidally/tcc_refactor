@@ -15,6 +15,8 @@ Our ultimate aim is to arrive at:
 ```
 1_7_alt->10_alt->27
 ```
+(where 1_7_alt will also be valid JS, if function was defined as int and
+var was defined as int)
 but we will likely need an intermediate step of:
 ```
 1_7_alt->10_alt->23_alt->27
@@ -39,7 +41,6 @@ These will live in `tcc_bootstrap_alt_ovelay` and will be called from
   file if you can
 * there are several scripts to clean out binary artifacts. `mk_really_clean`
   will clean everything. You should create an equivalent for the overlay.
-
 
 ## Detailed plan
 
@@ -77,6 +78,44 @@ stock tcc_27. For testing create yourself a glibc linked tcc_27 binary by
 linking `tcc_27/tcc.o` and `tcc_27/libtcc1.o` into a tcc_27_glibc.exe binary,
 you can generate that binary once (via a checked in script, and place it in
 `../../tcc_bin`). For gcc you must use `-m32`.
+
+At this stage the bootstrap chain should look like:
+
+```
+tcc_js->1_7->1_8->1_9->2m->2->3_alt->23_alt->24->26->27
+```
+and `3_alt` will be emitting elf object code files rather than running code
+from memory.
+
+## Phase 2
+
+Eliminate `tcc_24`. This will require backporting features from `tcc_24` to
+`tcc_23_alt` until it is capable of compiling `tcc_26`.
+
+## Phase 3
+
+Eliminate `tcc_26` by backporting features from `tcc_26` until it is capable
+of compiling `tcc_27`.
+
+## Phase 4
+
+Eliminate `tcc_2`. This will mean `tcc_3_alt` will have to be able to be built
+in an integer only mode.
+
+## Phase 5
+
+Port `tcc_3_alt` to the dialect of C that is implemented by `tcc_1_7`
+
+## Phase 6
+
+At this point the bootstrap chain should look like this:
+```
+tcc_js->1_7->3_alt->23_alt->27
+```
+
+The next step should be to port `tcc_3_alt` to the dialect of C that is
+supported by `tcc_js` this should eliminate `tcc_1_7`.
+
 
 Important note, within Codex 32 bit code execution may be blocked by the sandbox
 . You will need to use `../scripts/run-i386.sh` to run 32 bit code (which can
