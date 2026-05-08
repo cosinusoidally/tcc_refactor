@@ -8,11 +8,18 @@ End: 2026-05-08 14:58:00Z
 Notes: Reproduced the drift with repeated `otccelf` rebuilds and narrowed it to `tcc_23/tcc.o`, with `tcc_24/tcc.o` only changing downstream. The root cause was non-deterministic i386 `long double` constant emission in `tcc.c`: one path copied raw `vtop->c.tab` bytes into `.data`, and another stored `long double` initializers without clearing the destination first. Fixed both sites in `tcc_23_alt/tcc.c`. Verified three consecutive `otccelf` rebuilds now produce identical `tcc_23/tcc.o` and `tcc_24/tcc.o` hashes, and reran `mk_otccelf_alt` successfully with the workspace `sum` check passing.
 
 ### Ticket 4
-Status: in progress
+Status: done
 Task: Revalidate the seeded/static `_alt` lane after the deterministic `tcc_23_alt` fix, then continue the next Phase 1 bootstrap reduction step.
 Start: 2026-05-08 14:58:00Z
+End: 2026-05-08 15:11:00Z
+Notes: Reran `mk_from_bootstrap_seed_alt` to completion after the `tcc_23_alt` determinism fixes. The workspace `sha256sum -c sum` check passed, and `mk_verify_tcc_27_boot_static` confirmed the rebuilt `artifacts/tcc_27_boot_static.exe` still matches the overlay checksum fixture.
+
+### Ticket 5
+Status: in progress
+Task: Make `tcc_23_alt` buildable by `tcc_3` and start removing `tcc_10` from the alternate bootstrap chain.
+Start: 2026-05-08 15:11:00Z
 End:
-Notes: `mk_from_bootstrap_seed_alt` was restarted after the `tcc_23_alt` fix, but the full wrapped bootstrap is substantially slower than the `otccelf` lane and was not allowed to finish in this slice.
+Notes: Next step is to reproduce the current `tcc_3 -> tcc_23_alt` failure in the overlay workspace, identify the preprocessor or dialect features blocking `tcc_3`, and backport the smallest source changes needed to get `tcc_23_alt` building.
 
 ### Ticket 2
 Status: done
