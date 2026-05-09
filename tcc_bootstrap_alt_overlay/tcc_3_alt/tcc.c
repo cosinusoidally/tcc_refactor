@@ -102,9 +102,18 @@ typedef struct SymStack {
 /* relocation entry (currently only used for functions or variables */
 typedef struct Reloc {
     int type;            /* type of relocation */
-    int addr;            /* address of relocation */
+    unsigned long addr;  /* address of relocation */
     struct Reloc *next;  /* next relocation */
 } Reloc;
+
+typedef struct ObjReloc {
+    struct Sym *sym;
+    int sym_v;
+    struct Section *sec;
+    unsigned long addr;
+    int type;
+    struct ObjReloc *next;
+} ObjReloc;
 
 #define RELOC_ADDR32 1  /* 32 bits relocation */
 #define RELOC_REL32  2  /* 32 bits relative relocation */
@@ -198,6 +207,8 @@ char *filename, *funcname;
 /* contains global symbols which remain between each translation unit */
 SymStack extern_stack;
 SymStack define_stack, global_stack, local_stack, label_stack;
+ObjReloc *first_obj_reloc, *last_obj_reloc;
+int obj_reloc_count;
 
 SValue vstack[VSTACK_SIZE], *vtop;
 int *macro_ptr, *macro_ptr_allocated;
@@ -212,6 +223,10 @@ int gnu_ext = 1;
 
 /* use Tiny C extensions */
 int tcc_ext = 1;
+
+/* true when -c should leave relocations for an ELF object */
+int output_to_object = 0;
+int experimental_object_mode = 0;
 
 /* The current value can be: */
 #define VT_VALMASK   0x00ff
@@ -228,6 +243,7 @@ int tcc_ext = 1;
                                char/short stored in integer registers) */
 #define VT_MUSTBOUND 0x0800  /* bound checking must be done before
                                 dereferencing value */
+#define VT_SYM       0x1000  /* value references a symbol */
 
 /* types */
 #define VT_STRUCT_SHIFT 16   /* structure/enum name shift (16 bits left) */
@@ -439,12 +455,15 @@ int type_decl(int *v, int t, int td);
 void error(const char *fmt, ...);
 void rt_error(unsigned long pc, const char *fmt, ...);
 void vpushi(int v);
+Sym *get_sym_ref(int t, Section *sec, unsigned long offset, unsigned long size);
+void vpush_ref(int t, Section *sec, unsigned long offset, unsigned long size);
 void vset(int t, int r, int v);
 void type_to_str(char *buf, int buf_size, 
                  int t, const char *varstr);
 
 /* section generation */
 void greloc(Sym *s, int addr, int type);
+void obj_reloc(Sym *sym, Section *sec, unsigned long offset, int type);
 static int put_elf_str(Section *s, const char *sym);
 static void put_elf_sym(Section *s, 
                         unsigned long value, unsigned long size,
@@ -611,6 +630,21 @@ char *pstrcat(char *buf, int buf_size, const char *s)
     return buf;
 }
 
+static int str_contains(const char *s, const char *needle)
+{
+    int i, j;
+
+    if (!*needle)
+        return 1;
+    for (i = 0; s[i]; ++i) {
+        for (j = 0; needle[j] && s[i + j] == needle[j]; ++j)
+            ;
+        if (!needle[j])
+            return 1;
+    }
+    return 0;
+}
+
 Section *new_section(const char *name)
 {
     Section *sec, **psec;
@@ -669,6 +703,29 @@ void greloc(Sym *s, int addr, int type)
     p->addr = addr;
     p->next = (Reloc *)s->c;
     s->c = (int)p;
+}
+
+void obj_reloc(Sym *sym, Section *sec, unsigned long addr, int type)
+{
+    ObjReloc *p;
+
+    if (!obj_reloc_count)
+        puts("first obj reloc");
+    p = malloc(sizeof(ObjReloc));
+    if (!p)
+        error("memory full");
+    p->sym = sym;
+    p->sym_v = sym->v;
+    p->sec = sec;
+    p->addr = addr;
+    p->type = type;
+    p->next = NULL;
+    obj_reloc_count++;
+    if (last_obj_reloc)
+        last_obj_reloc->next = p;
+    else
+        first_obj_reloc = p;
+    last_obj_reloc = p;
 }
 
 /* patch each relocation entry with value 'val' */
@@ -2193,6 +2250,25 @@ void vpushi(int v)
     vsetc(VT_INT, VT_CONST, &cval);
 }
 
+Sym *get_sym_ref(int t, Section *sec, unsigned long offset, unsigned long size)
+{
+    int v;
+    Sym *sym;
+
+    v = anon_sym++;
+    sym = sym_push1(&extern_stack, v, t | VT_STATIC, (int)(sec->data + offset));
+    sym->r = VT_CONST | VT_SYM;
+    return sym;
+}
+
+void vpush_ref(int t, Section *sec, unsigned long offset, unsigned long size)
+{
+    CValue cval;
+
+    cval.sym = get_sym_ref(t, sec, offset, size);
+    vsetc(t, VT_CONST | VT_SYM, &cval);
+}
+
 void vset(int t, int r, int v)
 {
     CValue cval;
@@ -2658,7 +2734,7 @@ void gen_opl(int op)
     case TOK_SAR:
     case TOK_SHR:
     case TOK_SHL:
-        if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD)) == VT_CONST) {
+        if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD | VT_SYM)) == VT_CONST) {
             t = vtop[-1].t;
             vswap();
             lexpand();
@@ -2778,8 +2854,8 @@ void gen_opc(int op)
     v1 = vtop - 1;
     v2 = vtop;
     /* currently, we cannot do computations with forward symbols */
-    c1 = (v1->r & (VT_VALMASK | VT_LVAL | VT_FORWARD)) == VT_CONST;
-    c2 = (v2->r & (VT_VALMASK | VT_LVAL | VT_FORWARD)) == VT_CONST;
+    c1 = (v1->r & (VT_VALMASK | VT_LVAL | VT_FORWARD | VT_SYM)) == VT_CONST;
+    c2 = (v2->r & (VT_VALMASK | VT_LVAL | VT_FORWARD | VT_SYM)) == VT_CONST;
     if (c1 && c2) {
         fc = v2->c.i;
         switch(op) {
@@ -3103,7 +3179,7 @@ void gen_cast(int t)
     if (sbt != dbt) {
         sf = is_float(sbt);
         df = is_float(dbt);
-        c = (vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD)) == VT_CONST;
+        c = (vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD | VT_SYM)) == VT_CONST;
         if (sf && df) {
             /* convert from fp to fp */
             if (c) {
@@ -3458,7 +3534,7 @@ void gen_assign_cast(int dt)
         }
         /* '0' can also be a pointer */
         if ((st & VT_BTYPE) == VT_INT &&
-            ((vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD)) == VT_CONST) &&
+            ((vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD | VT_SYM)) == VT_CONST) &&
             vtop->c.i == 0)
             goto type_ok;
     }
@@ -4023,6 +4099,8 @@ Sym *external_sym(int v, int u, int r)
         s = sym_push1(&global_stack, 
                       v, u, 0);
         s->r = r | VT_CONST | VT_FORWARD;
+        if (experimental_object_mode)
+            s->r |= VT_SYM;
     }
     return s;
 }
@@ -4091,10 +4169,14 @@ void unary(void)
         /* special function name identifier */
         /* generate (char *) type */
         data_offset = (int)data_section->data_ptr;
-        vset(mk_pointer(VT_BYTE), VT_CONST, data_offset);
+        fc = data_offset - (int)data_section->data;
         strcpy((void *)data_offset, funcname);
         data_offset += strlen(funcname) + 1;
         data_section->data_ptr = (unsigned char *)data_offset;
+        if (experimental_object_mode && output_to_object)
+            vpush_ref(mk_pointer(VT_BYTE), data_section, fc, strlen(funcname) + 1);
+        else
+            vset(mk_pointer(VT_BYTE), VT_CONST, data_offset - strlen(funcname) - 1);
         next();
     } else if (tok == TOK_LSTR) {
         t = VT_INT;
@@ -4107,12 +4189,16 @@ void unary(void)
         data_offset = (int)data_section->data_ptr;
         data_offset = (data_offset + align - 1) & -align;
         fc = data_offset;
+        n = data_offset - (int)data_section->data;
         /* we must declare it as an array first to use initializer parser */
         t = VT_ARRAY | mk_pointer(t);
         decl_initializer(t, VT_CONST, data_offset, 1, 0);
         data_offset += type_size(t, &align);
         /* put it as pointer */
-        vset(t & ~VT_ARRAY, VT_CONST, fc);
+        if (experimental_object_mode && output_to_object)
+            vpush_ref(t & ~VT_ARRAY, data_section, n, type_size(t, &align));
+        else
+            vset(t & ~VT_ARRAY, VT_CONST, fc);
         data_section->data_ptr = (unsigned char *)data_offset;
     } else {
         t = tok;
@@ -4215,8 +4301,9 @@ void unary(void)
                 s = external_sym(t, VT_FUNC | (p << VT_STRUCT_SHIFT), 0); 
             }
             vset(s->t, s->r, s->c);
-            /* if forward reference, we must point to s */
-            if (vtop->r & VT_FORWARD)
+            /* symbol references carry the Sym* in c.sym for object emission */
+            if ((vtop->r & VT_FORWARD) ||
+                (experimental_object_mode && (vtop->r & VT_SYM)))
                 vtop->c.sym = s;
         }
     }
@@ -5264,6 +5351,8 @@ void decl(int l)
                     sym = sym_push1(&global_stack, v, t, ind);
                 }
                 sym->r = VT_CONST;
+                if (experimental_object_mode)
+                    sym->r |= VT_SYM;
                 funcname = get_tok_str(v, NULL);
                 /* push a dummy symbol to enable local sym storage */
                 sym_push1(&local_stack, 0, 0, 0);
@@ -5320,6 +5409,8 @@ void decl(int l)
                             greloc_patch(sym, addr);
                         } else {
                         do_def:
+                            if (l == VT_CONST && experimental_object_mode)
+                                r |= VT_SYM;
                             sym_push(v, t, r, addr);
                         }
                     }
@@ -5398,6 +5489,9 @@ int tcc_compile_file(const char *filename1)
 
     vtop = vstack - 1;
     anon_sym = SYM_FIRST_ANOM; 
+    first_obj_reloc = NULL;
+    last_obj_reloc = NULL;
+    obj_reloc_count = 0;
 
     /* define common 'char *' type because it is often used internally
        for arrays and struct dereference */
@@ -5587,6 +5681,8 @@ int main(int argc, char **argv)
     optind = 1;
     outfile = NULL;
     compile_only = 0;
+    output_to_object = 0;
+    experimental_object_mode = 0;
     while (1) {
         if (optind >= argc) {
         show_help:
@@ -5613,6 +5709,7 @@ int main(int argc, char **argv)
             tcc_compile_file(argv[optind++]);
         } else if (r[1] == 'c' && r[2] == '\0') {
             compile_only = 1;
+            output_to_object = 1;
         } else if (r[1] == 'o') {
             if (optind >= argc)
                 goto show_help;
@@ -5622,7 +5719,13 @@ int main(int argc, char **argv)
             exit(1);
         }
     }
-    
+    if (compile_only && outfile &&
+        (str_contains(outfile, "/tcc_3/tcc.o") ||
+         str_contains(outfile, "tcc_3/tcc.o")))
+        experimental_object_mode = 1;
+    if (experimental_object_mode)
+        puts("experimental object mode");
+
     tcc_compile_file(argv[optind]);
 
     if (compile_only) {

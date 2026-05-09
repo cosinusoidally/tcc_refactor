@@ -1,0 +1,10 @@
+# build elf version of tcc_10 using materialized tcc_3_alt object
+
+../x86/bin/elf_loader_cc_x86.exe -l ../tcc_3/tcc.o -o tcc.o -c tcc.c
+
+# build libc_boot.o
+
+../x86/bin/elf_loader_cc_x86.exe -l ../tcc_3/tcc.o -o libc_boot.o -c libc_boot.c
+
+# run elf version of tcc_10
+../x86/bin/elf_loader_cc_x86.exe dummy -o tcc_new.o -c tcc.c

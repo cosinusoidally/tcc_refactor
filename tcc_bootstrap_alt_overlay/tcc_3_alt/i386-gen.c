@@ -144,7 +144,20 @@ int oad(int c, int s)
 /* output constant with relocation if 'r & VT_FORWARD' is true */
 void gen_addr32(int r, int c)
 {
-    if (!(r & VT_FORWARD)) {
+    if (experimental_object_mode && (r & VT_SYM)) {
+        Sym *sym;
+
+        sym = (Sym *)c;
+        if (output_to_object) {
+            obj_reloc(sym, cur_text_section, (unsigned long)ind, RELOC_ADDR32);
+            gen_le32(0);
+        } else if (sym->r & VT_FORWARD) {
+            greloc(sym, ind, RELOC_ADDR32);
+            gen_le32(0);
+        } else {
+            gen_le32(sym->c);
+        }
+    } else if (!(r & VT_FORWARD)) {
         gen_le32(c);
     } else {
         greloc((Sym *)c, ind, RELOC_ADDR32);
@@ -342,8 +355,18 @@ void gfunc_call(GFuncContext *c)
     int r;
     if ((vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST) {
         /* constant case */
-        /* forward reference */
-        if (vtop->r & VT_FORWARD) {
+        if (experimental_object_mode && (vtop->r & VT_SYM)) {
+            if (output_to_object) {
+                obj_reloc(vtop->c.sym, cur_text_section,
+                          (unsigned long)(ind + 1), RELOC_REL32);
+                oad(0xe8, -4);
+            } else if (vtop->r & VT_FORWARD) {
+                greloc(vtop->c.sym, ind + 1, RELOC_REL32);
+                oad(0xe8, 0);
+            } else {
+                oad(0xe8, vtop->c.sym->c - ind - 5);
+            }
+        } else if (vtop->r & VT_FORWARD) {
             greloc(vtop->c.sym, ind + 1, RELOC_REL32);
             oad(0xe8, 0);
         } else {
@@ -434,7 +457,7 @@ int gtst(int inv, int t)
             vpushi(0);
             gen_op(TOK_NE);
         }
-        if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD)) == VT_CONST) {
+        if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD | VT_SYM)) == VT_CONST) {
             /* constant jmp optimization */
             if ((vtop->c.i != 0) != inv) 
                 t = gjmp(t);
@@ -460,7 +483,7 @@ void gen_opi(int op)
     case TOK_ADDC1: /* add with carry generation */
         opc = 0;
     gen_op8:
-        if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD)) == VT_CONST) {
+        if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD | VT_SYM)) == VT_CONST) {
             /* constant case */
             vswap();
             r = gv(RC_INT);
@@ -525,7 +548,7 @@ void gen_opi(int op)
         opc = 7;
     gen_shift:
         opc = 0xc0 | (opc << 3);
-        if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD)) == VT_CONST) {
+        if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD | VT_SYM)) == VT_CONST) {
             /* constant case */
             vswap();
             r = gv(RC_INT);
@@ -757,4 +780,3 @@ void gen_cvt_ftof(int t)
 
 /* end of X86 code generator */
 /*************************************************************/
-

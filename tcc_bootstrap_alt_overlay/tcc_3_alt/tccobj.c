@@ -39,6 +39,77 @@ typedef struct ObjRel {
     int info;
 } ObjRel;
 
+static Section *section_for_addr(unsigned long addr, unsigned long *poff);
+
+static const char *obj_sym_name(Sym *sym)
+{
+    const char *name;
+    char *buf;
+    unsigned int v;
+    int i, j;
+    char digits[16];
+
+    name = get_tok_str(sym->v, NULL);
+    if (name)
+        return name;
+
+    buf = malloc(32);
+    if (!buf)
+        error("memory full");
+    buf[0] = '.';
+    buf[1] = 'L';
+    buf[2] = '.';
+    v = (unsigned int)sym->v;
+    i = 0;
+    do {
+        digits[i++] = '0' + (v % 10);
+        v = v / 10;
+    } while (v);
+    for (j = 0; j < i; j++)
+        buf[3 + j] = digits[i - j - 1];
+    buf[3 + i] = '\0';
+    return buf;
+}
+
+static int obj_sym_info(Sym *sym)
+{
+    int type;
+
+    if ((sym->t & VT_BTYPE) == VT_FUNC)
+        type = STT_FUNC;
+    else
+        type = STT_OBJECT;
+    return ELF32_ST_INFO(STB_GLOBAL, type);
+}
+
+static Section *obj_symbol_section(Sym *sym, unsigned long *poff)
+{
+    Section *sec;
+    unsigned long raw;
+
+    raw = (unsigned long)sym->c;
+    sec = section_for_addr(raw, poff);
+    if (sec)
+        return sec;
+
+    if ((sym->t & VT_BTYPE) == VT_FUNC) {
+        if (raw <= (unsigned long)section_output_size(text_section)) {
+            *poff = raw;
+            return text_section;
+        }
+    } else {
+        if (raw <= (unsigned long)section_output_size(data_section)) {
+            *poff = raw;
+            return data_section;
+        }
+        if (raw <= bss_section->data_offset) {
+            *poff = raw;
+            return bss_section;
+        }
+    }
+    return NULL;
+}
+
 static int section_output_size(Section *sec)
 {
     return section_data_offset(sec);
@@ -47,18 +118,24 @@ static int section_output_size(Section *sec)
 static Section *section_for_addr(unsigned long addr, unsigned long *poff)
 {
     Section *sec;
+    unsigned int addr32, start32, end32;
     int size;
+
+    addr32 = (unsigned int)addr;
 
     for (sec = first_section; sec; sec = sec->next) {
         size = section_output_size(sec);
-        if (addr >= (unsigned long)sec->data &&
-            addr < (unsigned long)sec->data + size) {
-            *poff = addr - (unsigned long)sec->data;
+        start32 = (unsigned int)sec->data;
+        end32 = start32 + size;
+        if (addr32 >= start32 && addr32 < end32) {
+            *poff = addr32 - start32;
             return sec;
         }
     }
     return NULL;
 }
+
+static int sym_used_in_obj(Sym *sym);
 
 static int count_obj_syms(void)
 {
@@ -66,24 +143,36 @@ static int count_obj_syms(void)
     int n;
 
     n = 0;
-    for (s = extern_stack.top; s; s = s->prev)
+    for (s = extern_stack.top; s; s = s->prev) {
+        if (experimental_object_mode &&
+            (s->r & VT_FORWARD) && !sym_used_in_obj(s))
+            continue;
         n++;
+    }
     return n;
 }
 
 static int count_obj_relocs(void)
 {
     Sym *s;
-    Reloc *p;
+    Reloc *rp;
+    ObjReloc *p;
     int n;
 
-    n = 0;
-    for (s = extern_stack.top; s; s = s->prev) {
-        if (!(s->r & VT_FORWARD))
-            continue;
-        for (p = (Reloc *)s->c; p; p = p->next)
-            n++;
+    if (!first_obj_reloc) {
+        n = 0;
+        for (s = extern_stack.top; s; s = s->prev) {
+            if (!(s->r & VT_FORWARD))
+                continue;
+            for (rp = (Reloc *)s->c; rp; rp = rp->next)
+                n++;
+        }
+        return n;
     }
+
+    n = 0;
+    for (p = first_obj_reloc; p; p = p->next)
+        n++;
     return n;
 }
 
@@ -92,6 +181,23 @@ static int map_reloc_type(int type)
     if (type == RELOC_REL32)
         return R_386_PC32;
     return R_386_32;
+}
+
+static int sym_used_in_obj(Sym *sym)
+{
+    Reloc *rp;
+    ObjReloc *p;
+
+    if (first_obj_reloc) {
+        for (p = first_obj_reloc; p; p = p->next) {
+            if (p->sym == sym || p->sym_v == sym->v)
+                return 1;
+        }
+    }
+
+    for (rp = (Reloc *)sym->c; rp; rp = rp->next)
+        return 1;
+    return 0;
 }
 
 static void fill_obj_syms(ObjSym *osyms, int *pnsyms)
@@ -105,34 +211,55 @@ static void fill_obj_syms(ObjSym *osyms, int *pnsyms)
         unsigned long off;
         Section *sec;
 
+        if (experimental_object_mode &&
+            (s->r & VT_FORWARD) && !sym_used_in_obj(s))
+            continue;
+
         os = &osyms[n];
         memset(os, 0, sizeof(*os));
         os->sym = s;
-        os->name = get_tok_str(s->v, NULL);
+        if (experimental_object_mode)
+            os->name = obj_sym_name(s);
+        else
+            os->name = get_tok_str(s->v, NULL);
         os->index = n + 1;
         if (s->r & VT_FORWARD) {
             os->shndx = SHN_UNDEF;
-            os->info = ELF32_ST_INFO(STB_GLOBAL, STT_NOTYPE);
+            if (experimental_object_mode)
+                os->info = obj_sym_info(s);
+            else
+                os->info = ELF32_ST_INFO(STB_GLOBAL, STT_NOTYPE);
             os->value = 0;
         } else {
-            sec = section_for_addr((unsigned long)s->c, &off);
+            if (experimental_object_mode)
+                sec = obj_symbol_section(s, &off);
+            else
+                sec = section_for_addr((unsigned long)s->c, &off);
             os->sec = sec;
             os->value = off;
-            os->shndx = sec ? sec->sh_num : SHN_ABS;
-            os->info = ELF32_ST_INFO(STB_GLOBAL,
-                                     (s->t & VT_FUNC) ? STT_FUNC : STT_OBJECT);
+            if (sec)
+                os->shndx = sec->sh_num;
+            else if (experimental_object_mode)
+                os->shndx = SHN_UNDEF;
+            else
+                os->shndx = SHN_ABS;
+            if (experimental_object_mode)
+                os->info = obj_sym_info(s);
+            else
+                os->info = ELF32_ST_INFO(STB_GLOBAL,
+                                         (s->t & VT_FUNC) ? STT_FUNC : STT_OBJECT);
         }
         n++;
     }
     *pnsyms = n;
 }
 
-static int find_obj_sym_index(ObjSym *osyms, int nsyms, Sym *sym)
+static int find_obj_sym_index(ObjSym *osyms, int nsyms, Sym *sym, int sym_v)
 {
     int i;
 
     for (i = 0; i < nsyms; i++) {
-        if (osyms[i].sym == sym)
+        if (osyms[i].sym == sym || osyms[i].sym->v == sym_v)
             return osyms[i].index;
     }
     return 0;
@@ -141,29 +268,53 @@ static int find_obj_sym_index(ObjSym *osyms, int nsyms, Sym *sym)
 static void fill_obj_relocs(ObjRel *orels, int *pnrels, ObjSym *osyms, int nsyms)
 {
     Sym *s;
-    Reloc *p;
+    Reloc *rp;
+    ObjReloc *p;
     int n;
 
-    n = 0;
-    for (s = extern_stack.top; s; s = s->prev) {
-        int sym_index;
+    if (!first_obj_reloc) {
+        n = 0;
+        for (s = extern_stack.top; s; s = s->prev) {
+            int sym_index;
 
-        if (!(s->r & VT_FORWARD))
-            continue;
-        sym_index = find_obj_sym_index(osyms, nsyms, s);
-        for (p = (Reloc *)s->c; p; p = p->next) {
-            unsigned long off;
-            Section *sec;
-            ObjRel *or;
-
-            sec = section_for_addr((unsigned long)p->addr, &off);
-            if (!sec)
+            if (!(s->r & VT_FORWARD))
                 continue;
-            or = &orels[n++];
-            or->sec = sec;
-            or->offset = off;
-            or->info = ELF32_R_INFO(sym_index, map_reloc_type(p->type));
+            sym_index = find_obj_sym_index(osyms, nsyms, s, s->v);
+            for (rp = (Reloc *)s->c; rp; rp = rp->next) {
+                unsigned long off;
+                Section *sec;
+                ObjRel *or;
+
+                sec = section_for_addr((unsigned long)rp->addr, &off);
+                if (!sec)
+                    continue;
+                or = &orels[n++];
+                or->sec = sec;
+                or->offset = off;
+                or->info = ELF32_R_INFO(sym_index, map_reloc_type(rp->type));
+            }
         }
+        *pnrels = n;
+        return;
+    }
+
+    n = 0;
+    for (p = first_obj_reloc; p; p = p->next) {
+        int sym_index;
+        unsigned long off;
+        ObjRel *or;
+        Section *sec;
+
+        sym_index = find_obj_sym_index(osyms, nsyms, p->sym, p->sym_v);
+        if (!sym_index)
+            continue;
+        sec = section_for_addr(p->addr, &off);
+        if (!sec)
+            continue;
+        or = &orels[n++];
+        or->sec = sec;
+        or->offset = off;
+        or->info = ELF32_R_INFO(sym_index, map_reloc_type(p->type));
     }
     *pnrels = n;
 }
@@ -210,6 +361,10 @@ int tcc_output_file(TCCState *s1, const char *filename)
     memset(&strtab, 0, sizeof(strtab));
     memset(&ehdr, 0, sizeof(ehdr));
     memset(shdr, 0, sizeof(shdr));
+    if (experimental_object_mode) {
+        puts("writing experimental object");
+        printf("obj reloc count %d\n", obj_reloc_count);
+    }
 
     shstr.data = malloc(4096);
     strtab.data = malloc(65536);
