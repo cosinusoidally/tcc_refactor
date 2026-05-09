@@ -40,6 +40,7 @@ typedef struct ObjRel {
 } ObjRel;
 
 static Section *section_for_addr(unsigned long addr, unsigned long *poff);
+static int section_output_size(Section *sec);
 
 static const char *obj_sym_name(Sym *sym)
 {
@@ -92,6 +93,9 @@ static Section *obj_symbol_section(Sym *sym, unsigned long *poff)
     if (sec)
         return sec;
 
+    if (!(sym->r & VT_SYM))
+        return NULL;
+
     if ((sym->t & VT_BTYPE) == VT_FUNC) {
         if (raw <= (unsigned long)section_output_size(text_section)) {
             *poff = raw;
@@ -136,6 +140,7 @@ static Section *section_for_addr(unsigned long addr, unsigned long *poff)
 }
 
 static int sym_used_in_obj(Sym *sym);
+static int obj_emit_sym(Sym *sym);
 
 static int count_obj_syms(void)
 {
@@ -144,8 +149,7 @@ static int count_obj_syms(void)
 
     n = 0;
     for (s = extern_stack.top; s; s = s->prev) {
-        if (experimental_object_mode &&
-            (s->r & VT_FORWARD) && !sym_used_in_obj(s))
+        if (experimental_object_mode && !obj_emit_sym(s))
             continue;
         n++;
     }
@@ -188,16 +192,27 @@ static int sym_used_in_obj(Sym *sym)
     Reloc *rp;
     ObjReloc *p;
 
-    if (first_obj_reloc) {
+    if (experimental_object_mode) {
         for (p = first_obj_reloc; p; p = p->next) {
             if (p->sym == sym || p->sym_v == sym->v)
                 return 1;
         }
+        return 0;
     }
 
     for (rp = (Reloc *)sym->c; rp; rp = rp->next)
         return 1;
     return 0;
+}
+
+static int obj_emit_sym(Sym *sym)
+{
+    unsigned long off;
+
+    if (sym->r & VT_FORWARD)
+        return sym_used_in_obj(sym);
+
+    return obj_symbol_section(sym, &off) != NULL;
 }
 
 static void fill_obj_syms(ObjSym *osyms, int *pnsyms)
@@ -211,8 +226,7 @@ static void fill_obj_syms(ObjSym *osyms, int *pnsyms)
         unsigned long off;
         Section *sec;
 
-        if (experimental_object_mode &&
-            (s->r & VT_FORWARD) && !sym_used_in_obj(s))
+        if (experimental_object_mode && !obj_emit_sym(s))
             continue;
 
         os = &osyms[n];

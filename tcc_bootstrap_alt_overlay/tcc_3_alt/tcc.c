@@ -5527,6 +5527,7 @@ void define_symbol(const char *sym)
     CValue cval;
     const char *p;
     char buf[256];
+    int value;
 
     p = strchr(sym, '=');
     if (!p) {
@@ -5546,7 +5547,12 @@ void define_symbol(const char *sym)
     len = 0;
     if (isnum(*p)) {
         /* integer case */
-        cval.i = atoi(p);
+        value = 0;
+        while (isnum(*p)) {
+            value = value * 10 + (*p - '0');
+            p++;
+        }
+        cval.i = value;
         tok_add2(&str, &len, TOK_CINT, &cval);
     } else {
         /* string case */
