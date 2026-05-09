@@ -69,10 +69,18 @@
   source only retains the existing special `4294967296.0` literal.
 - Those changes move the short `mk_otccelf_alt` lane materially forward: the
   loader path now gets through `tcc.c`, `i386-gen.c`, `i386-asm.c`, and
-  `tccasm.c`, then aborts immediately after opening `tccelf.c`.
+  `tccasm.c`, then enters `tccelf.c`.
 - `tcc_23_alt/tccelf.c` has now been flattened to the i386/Linux path, and
-  `tcc_23_alt/elf.h` no longer includes glibc `inttypes.h`/`stdint.h`; the
-  abort point is still the `tccelf.c` entry.
-- The current blocker is therefore narrower than before: the `tcc_3 ->
-  tcc_23_alt` handoff now consistently fails at or immediately after entering
-  `tccelf.c`, with `cdrun` reporting only `Subprocess error / ABORTING HARD`.
+  `tcc_23_alt/elf.h` no longer includes glibc `inttypes.h`/`stdint.h`.
+- The first concrete `tccelf.c` incompatibility is in
+  `tcc_load_object_file()`, at the top of the symbol-resolution loop:
+  the direct `sym->st_shndx` tests plus `sm = &sm_table[sym->st_shndx]`
+  prevent the loader-driven `tcc_3` path from getting through the file.
+- Rewriting that loop in `_alt_work` to use an explicit `shndx` temporary and
+  `sm = sm_table + shndx` moves the compile past `tccelf.c`; a bogus include
+  marker after `#include "tccelf.c"` then fires, which did not happen before.
+- With that temporary loop simplification in place, the loader-driven compile
+  can also be shown to reach the `tcc_output_file()` call site in `main()`.
+- The current blocker is now later than `tccelf.c`, somewhere in the remaining
+  tail of `tcc.c` between the end of `#include "tccelf.c"` and the final
+  object-output path.

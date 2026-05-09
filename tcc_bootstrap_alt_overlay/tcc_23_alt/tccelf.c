@@ -1719,28 +1719,32 @@ static int tcc_load_object_file(TCCState *s1,
 
     sym = symtab + 1;
     for(i = 1; i < nb_syms; i++, sym++) {
-        if (sym->st_shndx != SHN_UNDEF &&
-            sym->st_shndx < SHN_LORESERVE) {
-            sm = &sm_table[sym->st_shndx];
-            if (sm->link_once) {
-                /* if a symbol is in a link once section, we use the
-                   already defined symbol. It is very important to get
-                   correct relocations */
-                if (ELF32_ST_BIND(sym->st_info) != STB_LOCAL) {
-                    name = strtab + sym->st_name;
-                    sym_index = find_elf_sym(symtab_section, name);
-                    if (sym_index)
-                        old_to_new_syms[i] = sym_index;
+        int shndx;
+
+        shndx = sym->st_shndx;
+        if (shndx != SHN_UNDEF) {
+            if (shndx < SHN_LORESERVE) {
+                sm = sm_table + shndx;
+                if (sm->link_once) {
+                    /* if a symbol is in a link once section, we use the
+                       already defined symbol. It is very important to get
+                       correct relocations */
+                    if (ELF32_ST_BIND(sym->st_info) != STB_LOCAL) {
+                        name = strtab + sym->st_name;
+                        sym_index = find_elf_sym(symtab_section, name);
+                        if (sym_index)
+                            old_to_new_syms[i] = sym_index;
+                    }
+                    continue;
                 }
-                continue;
+                /* if no corresponding section added, no need to add symbol */
+                if (!sm->s)
+                    continue;
+                /* convert section number */
+                sym->st_shndx = sm->s->sh_num;
+                /* offset value */
+                sym->st_value += sm->offset;
             }
-            /* if no corresponding section added, no need to add symbol */
-            if (!sm->s)
-                continue;
-            /* convert section number */
-            sym->st_shndx = sm->s->sh_num;
-            /* offset value */
-            sym->st_value += sm->offset;
         }
         /* add symbol */
         name = strtab + sym->st_name;
