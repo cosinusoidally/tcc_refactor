@@ -17,6 +17,44 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
+#ifdef TCC3_OBJ_INPUT
+typedef struct __FILE FILE;
+typedef int size_t;
+typedef int va_list;
+void *malloc();
+void *realloc();
+void *calloc();
+void free();
+void *mmap();
+FILE *fopen();
+int fclose();
+int printf();
+int fprintf();
+int sprintf();
+int snprintf();
+int vsnprintf();
+int vfprintf();
+int fputs();
+int fputc();
+int puts();
+int getc_unlocked();
+void exit();
+char *strcpy();
+char *strcat();
+char *strdup();
+char *strchr();
+char *strrchr();
+int strcmp();
+int strlen();
+void *memcpy();
+void *memset();
+int memcmp();
+void *dlsym();
+double strtod();
+double strtof();
+long double strtold();
+double ldexp();
+#else
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -26,6 +64,7 @@
 #include <sys/ucontext.h>
 #include <sys/mman.h>
 #include <malloc.h>
+#endif
 #include "elf.h"
 #include "stab.h"
 #include "libtcc.h"
@@ -170,12 +209,26 @@ typedef struct AttributeDef {
 
 typedef struct {
     FILE *file;
+#ifdef TCC3_OBJ_INPUT
+    int fd;
+    char *buf_ptr;
+    char *buf_end;
+#endif
     char *filename;
     int line_num;
 } IncludeFile;
 
 /* parser */
 FILE *file;
+#ifdef TCC3_OBJ_INPUT
+int file_fd;
+char file_buf[4096];
+char *file_buf_ptr;
+char *file_buf_end;
+int open();
+int read();
+int close();
+#endif
 int line_num;
 int ch, ch1, tok, tok1;
 CValue tokc, tok1c;
@@ -1043,10 +1096,19 @@ int handle_eof(void)
     if (include_stack_ptr == include_stack)
         return -1;
     /* pop include stack */
+#ifdef TCC3_OBJ_INPUT
+    close(file_fd);
+#else
     fclose(file);
+#endif
     free(filename);
     include_stack_ptr--;
     file = include_stack_ptr->file;
+#ifdef TCC3_OBJ_INPUT
+    file_fd = include_stack_ptr->fd;
+    file_buf_ptr = include_stack_ptr->buf_ptr;
+    file_buf_end = include_stack_ptr->buf_end;
+#endif
     filename = include_stack_ptr->filename;
     line_num = include_stack_ptr->line_num;
     return 0;
@@ -1057,7 +1119,24 @@ static inline void inp(void)
 {
  redo:
     /* faster than fgetc */
+#ifdef TCC3_OBJ_INPUT
+    if (file_buf_ptr < file_buf_end) {
+        ch1 = *(unsigned char *)file_buf_ptr++;
+    } else {
+        int n;
+
+        n = read(file_fd, file_buf, sizeof(file_buf));
+        if (n <= 0)
+            ch1 = -1;
+        else {
+            file_buf_ptr = file_buf + 1;
+            file_buf_end = file_buf + n;
+            ch1 = *(unsigned char *)file_buf;
+        }
+    }
+#else
     ch1 = getc_unlocked(file);
+#endif
     if (ch1 == -1) {
         if (handle_eof() < 0)
             return;
@@ -1277,6 +1356,9 @@ void preprocess(void)
     char buf[1024], *q, *p;
     char buf1[1024];
     FILE *f;
+#ifdef TCC3_OBJ_INPUT
+    int fd;
+#endif
     Sym **ps, *first, *s;
 
     cinp();
@@ -1369,18 +1451,32 @@ void preprocess(void)
             memcpy(buf1, filename, size);
             buf1[size] = '\0';
             pstrcat(buf1, sizeof(buf1), buf);
+            #ifdef TCC3_OBJ_INPUT
+            fd = open(buf1, 0, 0);
+            f = (FILE *)fd;
+            if (fd >= 0)
+                goto found;
+            #else
             f = fopen(buf1, "r");
             if (f)
                 goto found;
+            #endif
         }
         /* now search in standard include path */
         for(i=nb_include_paths - 1;i>=0;i--) {
             strcpy(buf1, include_paths[i]);
             strcat(buf1, "/");
             strcat(buf1, buf);
+            #ifdef TCC3_OBJ_INPUT
+            fd = open(buf1, 0, 0);
+            f = (FILE *)fd;
+            if (fd >= 0)
+                goto found;
+            #else
             f = fopen(buf1, "r");
             if (f)
                 goto found;
+            #endif
         }
         error("include file '%s' not found", buf1);
         f = NULL;
@@ -1388,10 +1484,20 @@ void preprocess(void)
         /* push current file in stack */
         /* XXX: fix current line init */
         include_stack_ptr->file = file;
+#ifdef TCC3_OBJ_INPUT
+        include_stack_ptr->fd = file_fd;
+        include_stack_ptr->buf_ptr = file_buf_ptr;
+        include_stack_ptr->buf_end = file_buf_end;
+#endif
         include_stack_ptr->filename = filename;
         include_stack_ptr->line_num = line_num;
         include_stack_ptr++;
         file = f;
+#ifdef TCC3_OBJ_INPUT
+        file_fd = fd;
+        file_buf_ptr = file_buf;
+        file_buf_end = file_buf;
+#endif
         filename = strdup(buf1);
         line_num = 1;
     } else if (tok == TOK_IFNDEF) {
@@ -5452,6 +5558,9 @@ void resolve_global_syms(void)
                 if (!(s->r & VT_FORWARD)) {
                     /* s is not forward, so we can relocate all symbols */
                     greloc_patch(ext_sym, s->c);
+                    ext_sym->c = s->c;
+                    ext_sym->t = s->t;
+                    ext_sym->r = s->r;
                 } else {
                     /* the two symbols are forward: merge them */
                     p = (Reloc **)&ext_sym->c;
@@ -5476,14 +5585,28 @@ int tcc_compile_file(const char *filename1)
 {
     Sym *define_start;
     char buf[512];
+#ifdef TCC3_OBJ_INPUT
+    int fd;
+#endif
     
     line_num = 1;
     funcname = "";
     filename = (char *)filename1;
 
+#ifdef TCC3_OBJ_INPUT
+    fd = open(filename, 0, 0);
+    if (fd < 0)
+#else
     file = fopen(filename, "r");
     if (!file)
+#endif
         error("file '%s' not found", filename);
+#ifdef TCC3_OBJ_INPUT
+    file = NULL;
+    file_fd = fd;
+    file_buf_ptr = file_buf;
+    file_buf_end = file_buf;
+#endif
     include_stack_ptr = include_stack;
     ifdef_stack_ptr = ifdef_stack;
 
@@ -5504,7 +5627,11 @@ int tcc_compile_file(const char *filename1)
     decl(VT_CONST);
     if (tok != -1)
         expect("declaration");
+#ifdef TCC3_OBJ_INPUT
+    close(file_fd);
+#else
     fclose(file);
+#endif
 
     /* reset define stack, but leave -Dsymbols (may be incorrect if
        they are undefined) */
