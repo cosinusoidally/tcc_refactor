@@ -15,6 +15,17 @@
   workspace `tcc_23/` replaced by overlay `tcc_23_alt/`.
 - `mk_from_bootstrap_seed_alt` and `mk_otccelf_alt` are implemented in terms of
   that throwaway workspace. They do not modify the upstream checkout.
+- The main `_alt` entrypoints are again the full upstream bootstrap chain with
+  only `tcc_23/` overlaid:
+  `mk_otccelf_alt` runs `alt_kaem.x86` then `otccelf/mk_elf_loader`,
+  and `mk_from_bootstrap_seed_alt` runs the copied workspace `kaem.x86`.
+- On the current branch tip, both restored full-chain entrypoints are passing
+  again:
+  `mk_otccelf_alt` passes `sha256sum -c sum`,
+  and `mk_from_bootstrap_seed_alt` passes both
+  `sha256sum -c sum`
+  and
+  `mk_verify_tcc_27_boot_static`.
 - The earlier host-linked `mk_tcc3_chain_workspace_alt` approach was the wrong
   architecture for Phase 1 and has been removed.
 - The current Phase 1 direction is a workspace-local kaem path:
@@ -84,3 +95,11 @@
 - The current blocker is now later than `tccelf.c`, somewhere in the remaining
   tail of `tcc.c` between the end of `#include "tccelf.c"` and the final
   object-output path.
+- The next debugging direction is no longer to replace `tcc_10` immediately.
+  The full `tcc_10 -> ... -> tcc_27` chain stays as the acceptance path while
+  ELF object creation is backported into `tcc_3` as a sidecar effort.
+- For that sidecar work, the overlay now includes host-build helpers:
+  `mk_gcc_tcc3_host_alt` builds a GCC-linked `tcc_3`,
+  `mk_gcc_tcc10_host_alt` builds a GCC-linked `tcc_10`,
+  and `tcc_10_host_strtod.c` provides the host-side `strtod` shim needed to
+  compile `tcc_10` outside the bootstrap chain.
