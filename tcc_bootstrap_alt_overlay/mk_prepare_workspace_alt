@@ -9,6 +9,7 @@ workspace_dir="$workspace_root/tcc_bootstrap_alt"
 rm -rf "$workspace_root"
 mkdir -p "$workspace_root"
 cp -a "$upstream_dir" "$workspace_dir"
+rm -rf "$workspace_dir/tcc_10"
 rm -rf "$workspace_dir/tcc_23"
 cp -a "$overlay_dir/tcc_23_alt" "$workspace_dir/tcc_23"
 (
