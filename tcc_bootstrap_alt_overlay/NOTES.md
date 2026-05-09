@@ -17,8 +17,11 @@
   that throwaway workspace. They do not modify the upstream checkout.
 - The main `_alt` entrypoints are again the full upstream bootstrap chain with
   only `tcc_23/` overlaid:
-  `mk_otccelf_alt` runs `alt_kaem.x86` then `otccelf/mk_elf_loader`,
-  and `mk_from_bootstrap_seed_alt` runs the copied workspace `kaem.x86`.
+  `mk_otccelf_alt` runs
+  `x86/artifact/kaem-optional-seed ./alt_kaem.x86`
+  then `otccelf/mk_elf_loader`,
+  and `mk_from_bootstrap_seed_alt` runs the copied workspace
+  `x86/artifact/kaem-optional-seed`.
 - On the current branch tip, both restored full-chain entrypoints are passing
   again:
   `mk_otccelf_alt` passes `sha256sum -c sum`,
