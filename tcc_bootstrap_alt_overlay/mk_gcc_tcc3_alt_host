@@ -2,13 +2,14 @@
 set -eu
 
 overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-out_dir="$overlay_dir/_alt_work/host_debug"
+workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
+out_dir="$workspace_dir/host_debug"
 
 mkdir -p "$out_dir"
 
 (
     cd "$overlay_dir/tcc_3_alt"
-    gcc -m32 -D__thread=__threadp tcc.c -I ../../tcc_bootstrap_alt/woody/usr/include/ -ldl -o "$out_dir/tcc3_alt_host.exe"
+    gcc -m32 -D__thread=__threadp tcc.c -I "$workspace_dir/woody/usr/include/" -ldl -o "$out_dir/tcc3_alt_host.exe"
 )
 
 echo "$out_dir/tcc3_alt_host.exe"

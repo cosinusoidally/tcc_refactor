@@ -5537,7 +5537,7 @@ void help(void)
 {
     printf("tcc version 0.9.3 - Tiny C Compiler - Copyright (C) 2001, 2002 Fabrice Bellard\n" 
            "usage: tcc [-Idir] [-Dsym[=val]] [-Usym] [-llib] [-g] [-b]\n"
-           "           [-i infile] infile [infile_args...]\n"
+           "           [-c] [-o outfile] [-i infile] infile [infile_args...]\n"
            "\n"
            "-Idir        : add include path 'dir'\n"
            "-Dsym[=val]  : define 'sym' with value 'val'\n"
@@ -5545,6 +5545,8 @@ void help(void)
            "-llib        : link with dynamic library 'lib'\n"
            "-g           : generate runtime debug info\n"
            "-b           : compile with built-in memory and bounds checker (implies -g)\n"
+           "-c           : compile only - generate an ELF object file\n"
+           "-o outfile   : set output file name\n"
            "-i infile    : compile infile\n"
            );
 }
@@ -5552,7 +5554,7 @@ void help(void)
 int main(int argc, char **argv)
 {
     char *p, *r, *outfile;
-    int optind;
+    int optind, compile_only;
 
     include_paths[0] = "../woody/usr/include/";
     include_paths[1] = "../tcc_3";
@@ -5584,6 +5586,7 @@ int main(int argc, char **argv)
 
     optind = 1;
     outfile = NULL;
+    compile_only = 0;
     while (1) {
         if (optind >= argc) {
         show_help:
@@ -5608,8 +5611,9 @@ int main(int argc, char **argv)
             if (optind >= argc)
                 goto show_help;
             tcc_compile_file(argv[optind++]);
+        } else if (r[1] == 'c' && r[2] == '\0') {
+            compile_only = 1;
         } else if (r[1] == 'o') {
-            /* currently, only for testing, so not documented */
             if (optind >= argc)
                 goto show_help;
             outfile = argv[optind++];
@@ -5620,6 +5624,13 @@ int main(int argc, char **argv)
     }
     
     tcc_compile_file(argv[optind]);
+
+    if (compile_only) {
+        if (!outfile)
+            error("outfile required with -c");
+        build_exe(outfile);
+        return 0;
+    }
 
     resolve_extern_syms();
 
