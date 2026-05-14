@@ -1,0 +1,13 @@
+#ifndef _SIGNAL_H
+#define _SIGNAL_H
+
+typedef int sig_atomic_t;
+typedef void (*__sighandler_t)(int);
+
+#define SIG_DFL ((__sighandler_t)0)
+#define SIG_IGN ((__sighandler_t)1)
+#define SIG_ERR ((__sighandler_t)-1)
+
+__sighandler_t signal(int sig, __sighandler_t handler);
+
+#endif

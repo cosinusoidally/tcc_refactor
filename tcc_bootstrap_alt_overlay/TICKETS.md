@@ -34,6 +34,14 @@ Task: Keep the full `_alt` bootstrap chain passing while backporting ELF object 
 Start: 2026-05-09 08:54:00Z
 End:
 Notes: Restored `mk_prepare_workspace_alt`, `mk_otccelf_alt`, and `mk_from_bootstrap_seed_alt` to the last known-good full-chain behavior, then later reintroduced `tcc_3_alt` into the live workspace swap while keeping both entrypoints green. `mk_prepare_workspace_alt` now overlays `tcc_3_alt`, `tcc_23_alt`, and a narrow `tcc_10_alt` compatibility layer into `_alt_work`; `mk_otccelf_alt` now invokes `otccelf/mk_elf_loader` through `bash` because that helper uses `pushd`. Revalidated both entrypoints on 2026-05-14 after these compatibility changes: `mk_otccelf_alt` passes `sha256sum -c sum`, and `mk_from_bootstrap_seed_alt` passes both `sha256sum -c sum` and `mk_verify_tcc_27_boot_static`. Added host-build helpers `mk_gcc_tcc3_host_alt` and `mk_gcc_tcc10_host_alt` plus `tcc_10_host_strtod.c`; these build GCC-linked debug executables for `tcc_3` and `tcc_10` inside the ignored `_alt_work/host_debug/` area without changing the accepted bootstrap chain. The current sidecar object path is still in progress: the improved writer is only enabled for the real `tcc_3/tcc.o` handoff, while generic `-c` output still falls back to the older writer and emits a much noisier undefined-symbol surface. The next task is to finish the `tcc_3.o` handoff so `tcc_3_alt` can be loaded from an ELF object and drive the `tcc_23_alt` build, then replace the current JIT-only `tcc_3_alt` role in the accepted Phase 1 chain.
+Update 2026-05-14: Added a set of bootstrap-local headers under `tcc_3_alt/`
+for sidecar object-handoff debugging and narrowed
+`tcc_10_libc_boot_tcc3_getc.c` to the missing loader-side support routines.
+Those headers must not perturb the accepted `_alt` chain, so
+`mk_prepare_workspace_alt` now removes them from `_alt_work/.../tcc_3` after
+copying the overlay. Revalidated both accepted entrypoints after that split:
+`mk_otccelf_alt` passes `sha256sum -c sum`, and `mk_from_bootstrap_seed_alt`
+passes `sha256sum -c sum` plus `mk_verify_tcc_27_boot_static`.
 
 ### Ticket 2
 Status: done

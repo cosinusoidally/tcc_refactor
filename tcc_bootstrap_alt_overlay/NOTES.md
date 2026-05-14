@@ -132,3 +132,20 @@
 - That means the remaining Phase 1 work should stay focused on the real
   `tcc_3.o` -> loader -> `tcc_23_alt` handoff path, not on making the generic
   fallback writer produce tidy host-side objects yet.
+- There is now a deliberate split between the live `_alt` bootstrap path and
+  the sidecar object-handoff experiments for `tcc_3_alt`.
+- The overlay keeps a set of minimal local headers under `tcc_3_alt/` for the
+  object-loaded `tcc_3.o` probes, because that path was falling into glibc's
+  header surface too early.
+- Those headers are not part of the accepted bootstrap path. To keep the live
+  chain stable, `mk_prepare_workspace_alt` removes them from
+  `_alt_work/.../tcc_3` after overlaying `tcc_3_alt`.
+- `tcc_10_libc_boot_tcc3_getc.c` is likewise sidecar-only support. It has been
+  narrowed to the remaining loader-visible helpers needed by the object-loaded
+  `tcc_3.o` experiments rather than acting as a broad libc replacement.
+- After introducing that split, both accepted entrypoints were revalidated on
+  2026-05-14:
+  `mk_otccelf_alt` passes the workspace `sum` check,
+  and
+  `mk_from_bootstrap_seed_alt` passes both the workspace `sum` check and
+  `mk_verify_tcc_27_boot_static`.
