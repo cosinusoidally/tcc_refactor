@@ -106,3 +106,29 @@
   `mk_gcc_tcc10_host_alt` builds a GCC-linked `tcc_10`,
   and `tcc_10_host_strtod.c` provides the host-side `strtod` shim needed to
   compile `tcc_10` outside the bootstrap chain.
+- On the current local Phase 1 branch state, `mk_prepare_workspace_alt`
+  overlays all of:
+  `tcc_3_alt -> _alt_work/.../tcc_3`,
+  `tcc_10_alt -> _alt_work/.../tcc_10`,
+  and
+  `tcc_23_alt -> _alt_work/.../tcc_23`.
+- `tcc_10_alt` is intentionally narrow. It currently only carries
+  Phase 1 compatibility edits needed for `tcc_3_alt` to compile the live
+  `tcc_10` stage:
+  a fallback `#define CONFIG_TCC_PREFIX "/usr"`
+  and a temporary `sig_error()` simplification on i386.
+- As of 2026-05-14, both accepted `_alt` entrypoints still pass with those
+  overlays in place:
+  `mk_otccelf_alt` passes the workspace `sum` check,
+  and
+  `mk_from_bootstrap_seed_alt` passes both the workspace `sum` check and
+  `mk_verify_tcc_27_boot_static`.
+- The host-side control comparison also clarified the current object-writer
+  split in `tcc_3_alt`:
+  the newer experimental writer is only enabled for the true `tcc_3/tcc.o`
+  handoff path,
+  while generic `-c` outputs still use the older writer and therefore emit
+  large numbers of unused undefined externs from headers.
+- That means the remaining Phase 1 work should stay focused on the real
+  `tcc_3.o` -> loader -> `tcc_23_alt` handoff path, not on making the generic
+  fallback writer produce tidy host-side objects yet.
