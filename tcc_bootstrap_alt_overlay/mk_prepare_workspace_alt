@@ -16,11 +16,14 @@ rm -f "$workspace_dir/tcc_3/stdlib.h" \
       "$workspace_dir/tcc_3/string.h" \
       "$workspace_dir/tcc_3/math.h" \
       "$workspace_dir/tcc_3/unistd.h" \
+      "$workspace_dir/tcc_3/fcntl.h" \
       "$workspace_dir/tcc_3/malloc.h" \
       "$workspace_dir/tcc_3/dlfcn.h" \
       "$workspace_dir/tcc_3/features.h" \
       "$workspace_dir/tcc_3/errno.h" \
-      "$workspace_dir/tcc_3/signal.h"
+      "$workspace_dir/tcc_3/signal.h" \
+      "$workspace_dir/tcc_3/setjmp.h" \
+      "$workspace_dir/tcc_3/time.h"
 rm -rf "$workspace_dir/tcc_3/sys"
 if [ -d "$overlay_dir/tcc_10_alt" ]; then
     cp -a "$overlay_dir/tcc_10_alt/." "$workspace_dir/tcc_10/"

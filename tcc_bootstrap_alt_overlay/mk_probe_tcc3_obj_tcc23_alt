@@ -1,0 +1,38 @@
+#!/bin/sh
+set -eu
+
+overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root="$overlay_dir/.."
+workspace_dir=$("$overlay_dir/mk_prepare_tcc3_obj_workspace_alt")
+support_obj="$workspace_dir/host_debug/tcc3_loader_support.o"
+
+mkdir -p "$workspace_dir/host_debug"
+cp -f "$overlay_dir/tcc3_obj_probe_kaem.x86" "$workspace_dir/tcc3_obj_probe_kaem.x86"
+cp -f "$overlay_dir/tcc3_obj_probe_after.kaem" "$workspace_dir/tcc3_obj_probe_after.kaem"
+cp -f "$overlay_dir/tcc_10_build_tcc3.kaem" "$workspace_dir/tcc_10_build_tcc3.kaem"
+
+(
+    cd "$workspace_dir"
+    ./mk_really_clean >/dev/null 2>&1 || true
+    bash ./mk_seeds
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir' && ./tcc3_obj_probe_kaem.x86"
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_10' && ../x86/bin/elf_loader_cc_x86.exe -l ../tcc_10/libc_boot.o -l ../tcc_10/tcc.o -o '$support_obj' -c libc_boot_tcc3_getc.c"
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_10' && ../x86/bin/cdrun . ../x86/artifact/kaem-0 ../tcc_10_build_tcc3.kaem"
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_23' && ../x86/bin/elf_loader_cc_x86.exe -l '$support_obj' -l ../tcc_10/libc_boot.o -l ../tcc_3/tcc.o -o tcc_obj_from_tcc3.o -c tcc.c"
+)
