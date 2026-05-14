@@ -74,13 +74,18 @@ static const char *obj_sym_name(Sym *sym)
 
 static int obj_sym_info(Sym *sym)
 {
+    int bind;
     int type;
 
     if ((sym->t & VT_BTYPE) == VT_FUNC)
         type = STT_FUNC;
     else
         type = STT_OBJECT;
-    return ELF32_ST_INFO(STB_GLOBAL, type);
+    if ((sym->t & VT_STATIC) || sym->v >= SYM_FIRST_ANOM)
+        bind = STB_LOCAL;
+    else
+        bind = STB_GLOBAL;
+    return ELF32_ST_INFO(bind, type);
 }
 
 static Section *obj_symbol_section(Sym *sym, unsigned long *poff)
@@ -141,6 +146,19 @@ static Section *section_for_addr(unsigned long addr, unsigned long *poff)
 
 static int sym_used_in_obj(Sym *sym);
 static int obj_emit_sym(Sym *sym);
+static int obj_global_sym_candidate(Sym *sym);
+static void obj_add_sym(ObjSym *osyms, int *pnsyms, Sym *s);
+
+static int obj_global_sym_candidate(Sym *sym)
+{
+    if (!(sym->r & VT_SYM))
+        return 0;
+    if (sym->v >= SYM_FIRST_ANOM)
+        return 1;
+    if (sym->t & VT_STATIC)
+        return 1;
+    return 0;
+}
 
 static int count_obj_syms(void)
 {
@@ -152,6 +170,15 @@ static int count_obj_syms(void)
         if (experimental_object_mode && !obj_emit_sym(s))
             continue;
         n++;
+    }
+    if (experimental_object_mode) {
+        for (s = global_stack.top; s; s = s->prev) {
+            if (!obj_global_sym_candidate(s))
+                continue;
+            if (!obj_emit_sym(s))
+                continue;
+            n++;
+        }
     }
     return n;
 }
@@ -221,51 +248,74 @@ static void fill_obj_syms(ObjSym *osyms, int *pnsyms)
     int n;
 
     n = 0;
+    if (experimental_object_mode) {
+        for (s = global_stack.top; s; s = s->prev) {
+            if (!obj_global_sym_candidate(s))
+                continue;
+            if (!obj_emit_sym(s))
+                continue;
+            obj_add_sym(osyms, &n, s);
+        }
+        for (s = extern_stack.top; s; s = s->prev) {
+            if (!obj_emit_sym(s))
+                continue;
+            if (ELF32_ST_BIND(obj_sym_info(s)) != STB_LOCAL)
+                continue;
+            obj_add_sym(osyms, &n, s);
+        }
+    }
     for (s = extern_stack.top; s; s = s->prev) {
-        ObjSym *os;
-        unsigned long off;
-        Section *sec;
-
         if (experimental_object_mode && !obj_emit_sym(s))
             continue;
-
-        os = &osyms[n];
-        memset(os, 0, sizeof(*os));
-        os->sym = s;
-        if (experimental_object_mode)
-            os->name = obj_sym_name(s);
-        else
-            os->name = get_tok_str(s->v, NULL);
-        os->index = n + 1;
-        if (s->r & VT_FORWARD) {
-            os->shndx = SHN_UNDEF;
-            if (experimental_object_mode)
-                os->info = obj_sym_info(s);
-            else
-                os->info = ELF32_ST_INFO(STB_GLOBAL, STT_NOTYPE);
-            os->value = 0;
-        } else {
-            if (experimental_object_mode)
-                sec = obj_symbol_section(s, &off);
-            else
-                sec = section_for_addr((unsigned long)s->c, &off);
-            os->sec = sec;
-            os->value = off;
-            if (sec)
-                os->shndx = sec->sh_num;
-            else if (experimental_object_mode)
-                os->shndx = SHN_UNDEF;
-            else
-                os->shndx = SHN_ABS;
-            if (experimental_object_mode)
-                os->info = obj_sym_info(s);
-            else
-                os->info = ELF32_ST_INFO(STB_GLOBAL,
-                                         (s->t & VT_FUNC) ? STT_FUNC : STT_OBJECT);
-        }
-        n++;
+        if (experimental_object_mode &&
+            ELF32_ST_BIND(obj_sym_info(s)) == STB_LOCAL)
+            continue;
+        obj_add_sym(osyms, &n, s);
     }
     *pnsyms = n;
+}
+
+static void obj_add_sym(ObjSym *osyms, int *pnsyms, Sym *s)
+{
+    ObjSym *os;
+    unsigned long off;
+    Section *sec;
+
+    os = &osyms[*pnsyms];
+    memset(os, 0, sizeof(*os));
+    os->sym = s;
+    if (experimental_object_mode)
+        os->name = obj_sym_name(s);
+    else
+        os->name = get_tok_str(s->v, NULL);
+    os->index = *pnsyms + 1;
+    if (s->r & VT_FORWARD) {
+        os->shndx = SHN_UNDEF;
+        if (experimental_object_mode)
+            os->info = obj_sym_info(s);
+        else
+            os->info = ELF32_ST_INFO(STB_GLOBAL, STT_NOTYPE);
+        os->value = 0;
+    } else {
+        if (experimental_object_mode)
+            sec = obj_symbol_section(s, &off);
+        else
+            sec = section_for_addr((unsigned long)s->c, &off);
+        os->sec = sec;
+        os->value = off;
+        if (sec)
+            os->shndx = sec->sh_num;
+        else if (experimental_object_mode)
+            os->shndx = SHN_UNDEF;
+        else
+            os->shndx = SHN_ABS;
+        if (experimental_object_mode)
+            os->info = obj_sym_info(s);
+        else
+            os->info = ELF32_ST_INFO(STB_GLOBAL,
+                                     (s->t & VT_FUNC) ? STT_FUNC : STT_OBJECT);
+    }
+    (*pnsyms)++;
 }
 
 static int find_obj_sym_index(ObjSym *osyms, int nsyms, Sym *sym, int sym_v)
@@ -370,6 +420,7 @@ int tcc_output_file(TCCState *s1, const char *filename)
     int have_rel_text, have_rel_data;
     int text_size, data_size, bss_size;
     int symtab_size;
+    int local_syms;
 
     memset(&shstr, 0, sizeof(shstr));
     memset(&strtab, 0, sizeof(strtab));
@@ -399,6 +450,13 @@ int tcc_output_file(TCCState *s1, const char *filename)
 
     fill_obj_syms(osyms, &nsyms);
     fill_obj_relocs(orels, &nrels, osyms, nsyms);
+    local_syms = 0;
+    if (experimental_object_mode) {
+        for (i = 0; i < nsyms; i++) {
+            if (ELF32_ST_BIND(osyms[i].info) == STB_LOCAL)
+                local_syms++;
+        }
+    }
 
     have_rel_text = 0;
     have_rel_data = 0;
@@ -437,7 +495,7 @@ int tcc_output_file(TCCState *s1, const char *filename)
     shdr[SEC_SYMTAB].sh_addralign = 4;
     shdr[SEC_SYMTAB].sh_entsize = sizeof(Elf32_Sym);
     shdr[SEC_SYMTAB].sh_link = SEC_STRTAB;
-    shdr[SEC_SYMTAB].sh_info = 1;
+    shdr[SEC_SYMTAB].sh_info = experimental_object_mode ? (local_syms + 1) : 1;
     shdr[SEC_SYMTAB].sh_size = symtab_size;
 
     shdr[SEC_STRTAB].sh_name = put_elf_str(&shstr, ".strtab");

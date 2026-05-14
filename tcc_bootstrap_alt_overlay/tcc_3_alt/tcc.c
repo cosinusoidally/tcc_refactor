@@ -5104,6 +5104,13 @@ void init_putv(int t, int r, int c,
         /* XXX: not portable */
         gen_assign_cast(t);
         bt = t & VT_BTYPE;
+        if ((vtop->r & VT_SYM) &&
+            (bt == VT_BYTE ||
+             bt == VT_SHORT ||
+             bt == VT_DOUBLE ||
+             bt == VT_LDOUBLE ||
+             bt == VT_LLONG))
+            error("initializer element is not computable at load time");
         switch(bt) {
         case VT_BYTE:
             *(char *)c = vtop->c.i;
@@ -5121,7 +5128,12 @@ void init_putv(int t, int r, int c,
             *(long long *)c = vtop->c.ll;
             break;
         default:
-            *(int *)c = vtop->c.i;
+            if (vtop->r & VT_SYM) {
+                obj_reloc(vtop->c.sym, data_section, (unsigned long)((char *)c - (char *)data_section->data), RELOC_ADDR32);
+                *(int *)c = 0;
+            } else {
+                *(int *)c = vtop->c.i;
+            }
             break;
         }
         vtop--;
