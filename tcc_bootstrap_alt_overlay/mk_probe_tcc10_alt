@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+
+overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root="$overlay_dir/.."
+workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
+
+cp -f "$overlay_dir/after_tcc10.kaem" "$workspace_dir/after_tcc10.kaem"
+cp -f "$overlay_dir/tcc10_alt_probe_kaem.x86" \
+    "$workspace_dir/tcc10_alt_probe_kaem.x86"
+
+(
+    cd "$workspace_dir"
+    ./mk_really_clean >/dev/null 2>&1 || true
+    bash ./mk_seeds
+)
+
+(
+    cd "$repo_root"
+    /home/foo/src/gpt/tcc_refactor/scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir' && ./tcc10_alt_probe_kaem.x86"
+)
+
+(
+    cd "$workspace_dir"
+    test -s tcc_10/tcc.o
+    test -s tcc_10/tcc_new.o
+    test -f tcc_10/libc_boot.o
+    diff -u -s tcc_10/tcc.o tcc_10/tcc_new.o
+)

@@ -106,23 +106,32 @@
   `mk_gcc_tcc10_host_alt` builds a GCC-linked `tcc_10`,
   and `tcc_10_host_strtod.c` provides the host-side `strtod` shim needed to
   compile `tcc_10` outside the bootstrap chain.
-- On the current local Phase 1 branch state, `mk_prepare_workspace_alt`
-  overlays all of:
-  `tcc_3_alt -> _alt_work/.../tcc_3`,
-  `tcc_10_alt -> _alt_work/.../tcc_10`,
+- On the current accepted Phase 1 path, `mk_prepare_workspace_alt`
+  overlays only:
+  `tcc_10_alt -> _alt_work/.../tcc_10`
   and
   `tcc_23_alt -> _alt_work/.../tcc_23`.
+  Upstream `tcc_3` stays live in `_alt_work/.../tcc_3`.
 - `tcc_10_alt` is intentionally narrow. It currently only carries
-  Phase 1 compatibility edits needed for `tcc_3_alt` to compile the live
-  `tcc_10` stage:
+  Phase 1 compatibility edits needed for the accepted
+  `tcc_2 -> ... -> tcc_10_alt` bootstrap stage:
   a fallback `#define CONFIG_TCC_PREFIX "/usr"`
   and a temporary `sig_error()` simplification on i386.
-- As of 2026-05-14, both accepted `_alt` entrypoints still pass with those
+- As of 2026-05-15, both accepted `_alt` entrypoints still pass with those
   overlays in place:
   `mk_otccelf_alt` passes the workspace `sum` check,
   and
   `mk_from_bootstrap_seed_alt` passes both the workspace `sum` check and
   `mk_verify_tcc_27_boot_static`.
+- The accepted path no longer depends on `tcc_3_alt`. That source tree remains
+  in the overlay only as sidecar research from the earlier object-emission
+  attempt.
+- The new narrowed helper `mk_probe_tcc10_alt` runs the seeded path only
+  through `tcc_10_alt` and verifies the meaningful acceptance criteria there:
+  `tcc_10/tcc.o`, `tcc_10/tcc_new.o`, and `tcc_10/libc_boot.o` are produced,
+  and `tcc_10/tcc.o` matches `tcc_10/tcc_new.o`.
+- `sum_tcc_10` is not used by that probe. The current upstream in-tree hash is
+  stale, so it is not a reliable acceptance signal for the overlay work.
 - The host-side control comparison also clarified the current object-writer
   split in `tcc_3_alt`:
   the newer experimental writer is only enabled for the true `tcc_3/tcc.o`
@@ -137,9 +146,9 @@
 - The overlay keeps a set of minimal local headers under `tcc_3_alt/` for the
   object-loaded `tcc_3.o` probes, because that path was falling into glibc's
   header surface too early.
-- Those headers are not part of the accepted bootstrap path. To keep the live
-  chain stable, `mk_prepare_workspace_alt` removes them from
-  `_alt_work/.../tcc_3` after overlaying `tcc_3_alt`.
+- Those headers are not part of the accepted bootstrap path. They are only
+  reinstated by the sidecar `mk_prepare_tcc3_obj_workspace_alt` helper for the
+  old object-handoff experiments.
 - `tcc_10_libc_boot_tcc3_getc.c` is likewise sidecar-only support. It has been
   narrowed to the remaining loader-visible helpers needed by the object-loaded
   `tcc_3.o` experiments rather than acting as a broad libc replacement.
