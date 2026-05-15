@@ -922,7 +922,7 @@ static void put_extern_sym(Sym *sym, Section *section,
         else
             sym_bind = STB_GLOBAL;
         
-        name = get_tok_str(sym->v, NULL);
+        name = get_tok_str(sym->v, &tokc);
 #ifdef CONFIG_TCC_BCHECK
         if (do_bounds_check) {
             /* if bound checking is activated, we change some function
@@ -1802,7 +1802,7 @@ void parse_define(void)
     }
     tok_str_add(&str, 0);
 #ifdef PP_DEBUG
-    printf("define %s %d: ", get_tok_str(v, NULL), t);
+    printf("define %s %d: ", get_tok_str(v, &tokc), t);
     tok_print(str.str);
 #endif
     s = sym_push1(&define_stack, v, t, (int)str.str);
@@ -2323,7 +2323,7 @@ void parse_number(void)
         }
         
         /* XXX: not exactly ANSI compliant */
-        if ((n & 0xffffffff00000000LL) != 0) {
+        if ((n >> 32) != 0) {
             if ((n >> 63) != 0)
                 tok = TOK_CULLONG;
             else
@@ -2709,7 +2709,7 @@ void macro_subst(TokenString *tok_str,
                         break;
                     if (!sa)
                         error("macro '%s' used with too many args",
-                              get_tok_str(s->v, 0));
+                              get_tok_str(s->v, &tokc));
                     tok_str_new(&str);
                     parlevel = 0;
                     /* NOTE: non zero sa->t indicates VA_ARGS */
@@ -2741,7 +2741,7 @@ void macro_subst(TokenString *tok_str,
                 }
                 if (sa) {
                     error("macro '%s' used with too few args",
-                          get_tok_str(s->v, 0));
+                          get_tok_str(s->v, &tokc));
                 }
 
                 /* now subst each arg */
@@ -4245,7 +4245,7 @@ void type_to_str(char *buf, int buf_size,
         if (v >= SYM_FIRST_ANOM)
             pstrcat(buf, buf_size, "<anonymous>");
         else
-            pstrcat(buf, buf_size, get_tok_str(v, NULL));
+            pstrcat(buf, buf_size, get_tok_str(v, &tokc));
         break;
     case VT_FUNC:
         s = sym_find((unsigned)t >> VT_STRUCT_SHIFT);
@@ -4494,7 +4494,7 @@ void parse_attribute(AttributeDef *ad)
             ad->func_call = FUNC_STDCALL;
             break;
         default:
-            warning("'%s' attribute ignored", get_tok_str(t, NULL));
+            warning("'%s' attribute ignored", get_tok_str(t, &tokc));
             /* skip parameters */
             /* XXX: skip parenthesis too */
             if (tok == '(') {
@@ -4575,7 +4575,7 @@ int struct_decl(int u)
                         if ((t & VT_BTYPE) == VT_FUNC ||
                             (t & (VT_TYPEDEF | VT_STATIC | VT_EXTERN)))
                             error("invalid type for '%s'", 
-                                  get_tok_str(v, NULL));
+                                  get_tok_str(v, &tokc));
                     } else {
                         t = b;
                     }
@@ -4585,10 +4585,10 @@ int struct_decl(int u)
                         /* XXX: handle v = 0 case for messages */
                         if (bit_size < 0)
                             error("negative width in bit-field '%s'", 
-                                  get_tok_str(v, NULL));
+                                  get_tok_str(v, &tokc));
                         if (v && bit_size == 0)
                             error("zero width for bit-field '%s'", 
-                                  get_tok_str(v, NULL));
+                                  get_tok_str(v, &tokc));
                     }
                     size = type_size(t, &align);
                     lbit_pos = 0;
@@ -4601,7 +4601,7 @@ int struct_decl(int u)
                         bsize = size * 8;
                         if (bit_size > bsize) {
                             error("width of '%s' exceeds its type",
-                                  get_tok_str(v, NULL));
+                                  get_tok_str(v, &tokc));
                         } else if (bit_size == bsize) {
                             /* no need for bit fields */
                             bit_pos = 0;
@@ -4643,7 +4643,7 @@ int struct_decl(int u)
                         }
 #if 0
                         printf("add field %s offset=%d", 
-                               get_tok_str(v, NULL), offset);
+                               get_tok_str(v, &tokc), offset);
                         if (t & VT_BITFIELD) {
                             printf(" pos=%d size=%d", 
                                    (t >> VT_STRUCT_SHIFT) & 0x3f,
@@ -5157,7 +5157,7 @@ void unary(void)
             s = sym_find(t);
             if (!s) {
                 if (tok != '(')
-                    error("'%s' undeclared", get_tok_str(t, NULL));
+                    error("'%s' undeclared", get_tok_str(t, &tokc));
                 /* for simple function calls, we tolerate undeclared
                    external reference to int() function */
                 s = external_sym(t, func_old_type, 0); 
@@ -6235,9 +6235,9 @@ void decl_initializer_alloc(int t, AttributeDef *ad, int r, int has_init,
                     goto do_def;
                 if (!is_compatible_types(sym->t, t))
                     error("incompatible types for redefinition of '%s'", 
-                          get_tok_str(v, NULL));
+                          get_tok_str(v, &tokc));
                 if (!(sym->t & VT_EXTERN))
-                    error("redefinition of '%s'", get_tok_str(v, NULL));
+                    error("redefinition of '%s'", get_tok_str(v, &tokc));
                 sym->t &= ~VT_EXTERN;
             } else {
             do_def:
@@ -6297,7 +6297,7 @@ void add_var_ref(int t)
 {
     printf("%s:%d: &%s\n", 
            file->filename, file->line_num,
-           get_tok_str(t, NULL));
+           get_tok_str(t, &tokc));
 }
 
 /* first pass on a function with heuristic to extract variable usage
@@ -6381,7 +6381,7 @@ void decl(int l)
 #if 0
             {
                 char buf[500];
-                type_to_str(buf, sizeof(buf), t, get_tok_str(v, NULL));
+                type_to_str(buf, sizeof(buf), t, get_tok_str(v, &tokc));
                 printf("type = '%s'\n", buf);
             }
 #endif
@@ -6433,7 +6433,7 @@ void decl(int l)
                 if (!cur_text_section)
                     cur_text_section = text_section;
                 ind = cur_text_section->data_offset;
-                funcname = get_tok_str(v, NULL);
+                funcname = get_tok_str(v, &tokc);
                 sym = sym_find(v);
                 if (sym) {
                     /* if symbol is already defined, then put complete type */
