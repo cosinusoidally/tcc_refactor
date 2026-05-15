@@ -61,6 +61,7 @@
 #define IFDEF_STACK_SIZE    64
 #define VSTACK_SIZE         64
 #define STRING_MAX_SIZE     1024
+#define STRING_MAX_SIZE1    1025
 
 #define TOK_HASH_SIZE       2048 /* must be a power of two */
 #define TOK_ALLOC_INCR      512  /* must be a power of two */
@@ -187,14 +188,16 @@ typedef struct AttributeDef {
 #define TYPE_DIRECT    2 /* type with variable */
 
 #define IO_BUF_SIZE 8192
+#define IO_BUF_SIZE1 8193
+#define TCC_FILENAME_MAX 1024
 
 typedef struct BufferedFile {
     unsigned char *buf_ptr;
     unsigned char *buf_end;
     int fd;
     int line_num;    /* current line number - here to simply code */
-    char filename[1024];    /* current filename - here to simplify code */
-    unsigned char buffer[IO_BUF_SIZE + 1]; /* extra size for CH_EOB char */
+    char *filename;    /* current filename - here to simplify code */
+    char *buffer; /* extra size for CH_EOB char */
 } BufferedFile;
 
 #define CH_EOB   0       /* end of buffer or '\0' char in file */
@@ -272,7 +275,7 @@ int last_line_num, last_ind, func_ind; /* debug last line number and pc */
 int tok_ident;
 TokenSym **table_ident;
 TokenSym *hash_ident[TOK_HASH_SIZE];
-char token_buf[STRING_MAX_SIZE + 1];
+char token_buf[STRING_MAX_SIZE1];
 char *funcname;
 SymStack define_stack, global_stack, local_stack, label_stack;
 
@@ -299,10 +302,10 @@ int total_lines;
 int total_bytes;
 
 /* use GNU C extensions */
-int gnu_ext = 1;
+int gnu_ext = 0;
 
 /* use Tiny C extensions */
-int tcc_ext = 1;
+int tcc_ext = 0;
 
 /* if true, static linking is performed */
 int static_link = 0;
@@ -1179,7 +1182,7 @@ static void add_char(CString *cstr, int c)
 /* XXX: float tokens */
 char *get_tok_str(int v, CValue *cv)
 {
-    static char buf[STRING_MAX_SIZE + 1];
+    static char buf[STRING_MAX_SIZE1];
     static CString cstr_buf;
     CString *cstr;
     unsigned char *q;
@@ -1388,11 +1391,20 @@ BufferedFile *tcc_open(const char *filename)
         close(fd);
         return NULL;
     }
+    bf->filename = tcc_malloc(TCC_FILENAME_MAX);
+    bf->buffer = tcc_malloc(IO_BUF_SIZE1);
+    if (!bf->filename || !bf->buffer) {
+        tcc_free(bf->filename);
+        tcc_free(bf->buffer);
+        tcc_free(bf);
+        close(fd);
+        return NULL;
+    }
     bf->fd = fd;
-    bf->buf_ptr = bf->buffer;
-    bf->buf_end = bf->buffer;
+    bf->buf_ptr = (unsigned char *)bf->buffer;
+    bf->buf_end = (unsigned char *)bf->buffer;
     bf->buffer[0] = CH_EOB; /* put eob symbol */
-    pstrcpy(bf->filename, sizeof(bf->filename), filename);
+    pstrcpy(bf->filename, TCC_FILENAME_MAX, filename);
     bf->line_num = 1;
     //    printf("opening '%s'\n", filename);
     return bf;
@@ -1402,6 +1414,8 @@ void tcc_close(BufferedFile *bf)
 {
     total_lines += bf->line_num;
     close(bf->fd);
+    tcc_free(bf->filename);
+    tcc_free(bf->buffer);
     tcc_free(bf);
 }
 
@@ -1422,8 +1436,8 @@ int tcc_getc_slow(BufferedFile *bf)
             len = 0;
         }
         total_bytes += len;
-        bf->buf_ptr = bf->buffer;
-        bf->buf_end = bf->buffer + len;
+        bf->buf_ptr = (unsigned char *)bf->buffer;
+        bf->buf_end = (unsigned char *)bf->buffer + len;
         *bf->buf_end = CH_EOB;
     }
     if (bf->buf_ptr < bf->buf_end) {
@@ -1980,7 +1994,7 @@ void preprocess(void)
         if (tok != TOK_LINEFEED) {
             if (tok != TOK_STR)
                 error("#line");
-            pstrcpy(file->filename, sizeof(file->filename), 
+            pstrcpy(file->filename, TCC_FILENAME_MAX, 
                     (char *)tokc.cstr->data);
         }
         /* NOTE: we do it there to avoid problems with linefeed */
@@ -3966,25 +3980,22 @@ void gen_cast(int t)
         } else if (df) {
             /* convert int to fp */
             if (c) {
-                switch(sbt) {
-                case VT_LLONG | VT_UNSIGNED:
-                case VT_LLONG:
+                if (sbt == (VT_LLONG | VT_UNSIGNED) ||
+                    sbt == VT_LLONG) {
                     /* XXX: add const cases for long long */
                     goto do_itof;
-                case VT_INT | VT_UNSIGNED:
+                } else if (sbt == (VT_INT | VT_UNSIGNED)) {
                     switch(dbt) {
                     case VT_FLOAT: vtop->c.f = (float)vtop->c.ui; break;
                     case VT_DOUBLE: vtop->c.d = (double)vtop->c.ui; break;
                     case VT_LDOUBLE: vtop->c.ld = (long double)vtop->c.ui; break;
                     }
-                    break;
-                default:
+                } else {
                     switch(dbt) {
                     case VT_FLOAT: vtop->c.f = (float)vtop->c.i; break;
                     case VT_DOUBLE: vtop->c.d = (double)vtop->c.i; break;
                     case VT_LDOUBLE: vtop->c.ld = (long double)vtop->c.i; break;
                     }
-                    break;
                 }
             } else {
             do_itof:
@@ -3998,26 +4009,23 @@ void gen_cast(int t)
                 dbt != VT_LLONG)
                 dbt = VT_INT;
             if (c) {
-                switch(dbt) {
-                case VT_LLONG | VT_UNSIGNED:
-                case VT_LLONG:
+                if (dbt == (VT_LLONG | VT_UNSIGNED) ||
+                    dbt == VT_LLONG) {
                     /* XXX: add const cases for long long */
                     goto do_ftoi;
-                case VT_INT | VT_UNSIGNED:
+                } else if (dbt == (VT_INT | VT_UNSIGNED)) {
                     switch(sbt) {
                     case VT_FLOAT: vtop->c.ui = (unsigned int)vtop->c.d; break;
                     case VT_DOUBLE: vtop->c.ui = (unsigned int)vtop->c.d; break;
                     case VT_LDOUBLE: vtop->c.ui = (unsigned int)vtop->c.d; break;
                     }
-                    break;
-                default:
+                } else {
                     /* int case */
                     switch(sbt) {
                     case VT_FLOAT: vtop->c.i = (int)vtop->c.d; break;
                     case VT_DOUBLE: vtop->c.i = (int)vtop->c.d; break;
                     case VT_LDOUBLE: vtop->c.i = (int)vtop->c.d; break;
                     }
-                    break;
                 }
             } else {
             do_ftoi:
@@ -6586,13 +6594,16 @@ static int tcc_compile(TCCState *s)
 int tcc_compile_string(TCCState *s, const char *str)
 {
     BufferedFile bf1, *bf = &bf1;
+    char filename[TCC_FILENAME_MAX];
     int ret;
 
     /* init file structure */
     bf->fd = -1;
+    bf->filename = filename;
+    bf->buffer = NULL;
     bf->buf_ptr = (char *)str;
-    bf->buf_end = (char *)str + strlen(bf->buffer);
-    pstrcpy(bf->filename, sizeof(bf->filename), "<string>");
+    bf->buf_end = (char *)str + strlen(str);
+    pstrcpy(bf->filename, TCC_FILENAME_MAX, "<string>");
     bf->line_num = 1;
     file = bf;
     
@@ -6606,7 +6617,11 @@ int tcc_compile_string(TCCState *s, const char *str)
 void tcc_define_symbol(TCCState *s, const char *sym, const char *value)
 {
     BufferedFile bf1, *bf = &bf1;
+    char filename[TCC_FILENAME_MAX];
+    char buffer[IO_BUF_SIZE1];
 
+    bf->filename = filename;
+    bf->buffer = buffer;
     pstrcpy(bf->buffer, IO_BUF_SIZE, sym);
     pstrcat(bf->buffer, IO_BUF_SIZE, " ");
     /* default value */
@@ -6616,8 +6631,8 @@ void tcc_define_symbol(TCCState *s, const char *sym, const char *value)
 
     /* init file structure */
     bf->fd = -1;
-    bf->buf_ptr = bf->buffer;
-    bf->buf_end = bf->buffer + strlen(bf->buffer);
+    bf->buf_ptr = (unsigned char *)bf->buffer;
+    bf->buf_end = (unsigned char *)bf->buffer + strlen(bf->buffer);
     bf->filename[0] = '\0';
     bf->line_num = 1;
     file = bf;
@@ -6877,6 +6892,8 @@ TCCState *tcc_new(void)
     if (!s)
         return NULL;
     s->output_type = TCC_OUTPUT_MEMORY;
+    gnu_ext = 1;
+    tcc_ext = 1;
     
     /* default include paths */
     tcc_add_sysinclude_path(s, "../woody/usr/include/");
