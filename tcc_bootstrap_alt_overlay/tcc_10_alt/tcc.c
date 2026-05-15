@@ -926,7 +926,7 @@ static void put_extern_sym(Sym *sym, Section *section,
             sym_bind = STB_GLOBAL;
         
         name = get_tok_str(sym->v, &tokc);
-#ifdef CONFIG_TCC_BCHECK
+#if 0 /* Phase 1 bootstrap: bounds checking disabled */
         if (do_bounds_check) {
             /* if bound checking is activated, we change some function
                names by adding the "__bound" prefix */
@@ -3056,7 +3056,7 @@ void gaddrof(void)
         vtop->r = (vtop->r & ~(VT_VALMASK | VT_LVAL_TYPE)) | VT_LOCAL | VT_LVAL;
 }
 
-#ifdef CONFIG_TCC_BCHECK
+#if 0 /* Phase 1 bootstrap: bounds checking disabled */
 /* generate lvalue bound code */
 void gbound(void)
 {
@@ -3126,7 +3126,7 @@ int gv(int rc)
             vtop->r |= VT_LVAL | VT_SYM;
             vtop->c.sym = sym;
         }
-#ifdef CONFIG_TCC_BCHECK
+#if 0 /* Phase 1 bootstrap: bounds checking disabled */
         if (vtop->r & VT_MUSTBOUND) 
             gbound();
 #endif
@@ -3772,7 +3772,7 @@ void gen_op(int op)
             /* XXX: cast to int ? (long long case) */
             vpushi(pointed_size(vtop[-1].t));
             gen_op('*');
-#ifdef CONFIG_TCC_BCHECK
+#if 0 /* Phase 1 bootstrap: bounds checking disabled */
             /* if evaluating constant expression, no code should be
                generated, so no bound check */
             if (do_bounds_check && !const_wanted) {
@@ -4384,7 +4384,7 @@ void vstore(void)
         /* store result */
         vstore();
     } else {
-#ifdef CONFIG_TCC_BCHECK
+#if 0 /* Phase 1 bootstrap: bounds checking disabled */
         /* bound check case */
         if (vtop[-1].r & VT_MUSTBOUND) {
             vswap();
@@ -6866,7 +6866,7 @@ int tcc_run(TCCState *s1, int argc, char **argv)
 #endif
     }
 
-#ifdef CONFIG_TCC_BCHECK
+#if 0 /* Phase 1 bootstrap: bounds checking disabled */
     if (do_bounds_check) {
         void (*bound_init)(void);
         void **bound_error_func;
@@ -6892,6 +6892,7 @@ TCCState *tcc_new(void)
     if (!s)
         return NULL;
     s->output_type = TCC_OUTPUT_MEMORY;
+    init_reg_classes();
     gnu_ext = 1;
     tcc_ext = 1;
     
@@ -7106,7 +7107,7 @@ int tcc_set_output_type(TCCState *s, int output_type)
     s->output_type = output_type;
 
     /* if bound checking, then add corresponding sections */
-#ifdef CONFIG_TCC_BCHECK
+#if 0 /* Phase 1 bootstrap: bounds checking disabled */
     if (do_bounds_check) {
         /* define symbol */
         tcc_define_symbol(s, "__BOUNDS_CHECKING_ON", NULL);
@@ -7162,7 +7163,7 @@ void help(void)
            "  -Usym       undefine 'sym'\n"
            "C compiler options:\n"
            "  -g          generate runtime debug info\n"
-#ifdef CONFIG_TCC_BCHECK
+#if 0 /* Phase 1 bootstrap: bounds checking disabled */
            "  -b          compile with built-in memory and bounds checker (implies -g)\n"
 #endif
            "Linker options:\n"
@@ -7228,7 +7229,7 @@ int main(int argc, char **argv)
         } else if (!strcmp(r + 1, "bench")) {
             do_bench = 1;
         } else 
-#ifdef CONFIG_TCC_BCHECK
+#if 0 /* Phase 1 bootstrap: bounds checking disabled */
         if (r[1] == 'b') {
             do_bounds_check = 1;
             do_debug = 1;
@@ -7299,4 +7300,4 @@ int main(int argc, char **argv)
 #endif
 
 unsigned short __tcc_fpu_control = 0x137f;
-unsigned short __tcc_int_fpu_control = 0x137f | 0x0c;
+unsigned short __tcc_int_fpu_control = 0x137f;
