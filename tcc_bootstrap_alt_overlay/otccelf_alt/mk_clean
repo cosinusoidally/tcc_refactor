@@ -1,0 +1,4 @@
+rm -f ./*.exe
+rm -rf ./artifacts
+mkdir artifacts
+touch artifacts/placeholder

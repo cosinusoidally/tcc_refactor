@@ -6,8 +6,8 @@ pushd .
 cd ../tcc_23/
 rm ./*.o
 
-../otccelf/artifacts/elf_loader_otcc.exe -l ../tcc_10/libtcc1.o -l ../tcc_10/libc_boot.o -l ../tcc_10/tcc.o -o tcc.o -c tcc.c
-../otccelf/artifacts/elf_loader_otcc.exe -l ../tcc_10/libtcc1.o -l ../tcc_10/libc_boot.o -l ../tcc_10/tcc.o -o libtcc1_min.o -c libtcc1_min.c
+../otccelf/artifacts/elf_loader_otcc.exe -l ../tcc_10/libc_boot.o -l ../tcc_10/tcc.o -o tcc.o -c tcc.c
+../otccelf/artifacts/elf_loader_otcc.exe -l ../tcc_10/libc_boot.o -l ../tcc_10/tcc.o -o libtcc1_min.o -c libtcc1_min.c
 
 ../otccelf/artifacts/elf_loader_otcc.exe -l libtcc1_min.o -l tcc.o -c libtcc1.c
 ../otccelf/artifacts/elf_loader_otcc.exe -l libtcc1_min.o -l tcc.o -I ../woody/usr/include/ -I . -c tcc.c
