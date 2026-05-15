@@ -148,6 +148,7 @@ static int sym_used_in_obj(Sym *sym);
 static int obj_emit_sym(Sym *sym);
 static int obj_global_sym_candidate(Sym *sym);
 static void obj_add_sym(ObjSym *osyms, int *pnsyms, Sym *s);
+static int obj_sym_already_added(ObjSym *osyms, int nsyms, Sym *sym, int sym_v);
 
 static int obj_global_sym_candidate(Sym *sym)
 {
@@ -163,9 +164,24 @@ static int obj_global_sym_candidate(Sym *sym)
 static int count_obj_syms(void)
 {
     Sym *s;
+    ObjReloc *p;
     int n;
 
     n = 0;
+    if (experimental_object_mode && first_obj_reloc) {
+        for (p = first_obj_reloc; p; p = p->next) {
+            ObjReloc *q;
+
+            if (!p->sym || !obj_emit_sym(p->sym))
+                continue;
+            for (q = first_obj_reloc; q != p; q = q->next) {
+                if (q->sym == p->sym || q->sym_v == p->sym_v)
+                    break;
+            }
+            if (q == p)
+                n++;
+        }
+    }
     for (s = extern_stack.top; s; s = s->prev) {
         if (experimental_object_mode && !obj_emit_sym(s))
             continue;
@@ -245,14 +261,26 @@ static int obj_emit_sym(Sym *sym)
 static void fill_obj_syms(ObjSym *osyms, int *pnsyms)
 {
     Sym *s;
+    ObjReloc *p;
     int n;
 
     n = 0;
     if (experimental_object_mode) {
+        if (first_obj_reloc) {
+            for (p = first_obj_reloc; p; p = p->next) {
+                if (!p->sym || !obj_emit_sym(p->sym))
+                    continue;
+                if (obj_sym_already_added(osyms, n, p->sym, p->sym_v))
+                    continue;
+                obj_add_sym(osyms, &n, p->sym);
+            }
+        }
         for (s = global_stack.top; s; s = s->prev) {
             if (!obj_global_sym_candidate(s))
                 continue;
             if (!obj_emit_sym(s))
+                continue;
+            if (obj_sym_already_added(osyms, n, s, s->v))
                 continue;
             obj_add_sym(osyms, &n, s);
         }
@@ -260,6 +288,8 @@ static void fill_obj_syms(ObjSym *osyms, int *pnsyms)
             if (!obj_emit_sym(s))
                 continue;
             if (ELF32_ST_BIND(obj_sym_info(s)) != STB_LOCAL)
+                continue;
+            if (obj_sym_already_added(osyms, n, s, s->v))
                 continue;
             obj_add_sym(osyms, &n, s);
         }
@@ -270,9 +300,23 @@ static void fill_obj_syms(ObjSym *osyms, int *pnsyms)
         if (experimental_object_mode &&
             ELF32_ST_BIND(obj_sym_info(s)) == STB_LOCAL)
             continue;
+        if (experimental_object_mode &&
+            obj_sym_already_added(osyms, n, s, s->v))
+            continue;
         obj_add_sym(osyms, &n, s);
     }
     *pnsyms = n;
+}
+
+static int obj_sym_already_added(ObjSym *osyms, int nsyms, Sym *sym, int sym_v)
+{
+    int i;
+
+    for (i = 0; i < nsyms; i++) {
+        if (osyms[i].sym == sym || osyms[i].sym->v == sym_v)
+            return 1;
+    }
+    return 0;
 }
 
 static void obj_add_sym(ObjSym *osyms, int *pnsyms, Sym *s)
