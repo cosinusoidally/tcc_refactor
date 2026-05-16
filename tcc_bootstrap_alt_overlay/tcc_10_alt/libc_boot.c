@@ -18,17 +18,17 @@ char* int2str(int x, int base, int signed_p)
 
         p = p + 32;
         unsigned i;
+        unsigned ux;
         int sign_p = 0;
         char* table = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-        if(signed_p && (10 == base) && (0 != (x & 0x80000000)))
-        {
-                /* Truncate to 31bits */
-                i = -x & 0x7FFFFFFF;
-                if(0 == i) return "-2147483648";
+        ux = (unsigned)x;
+        if (signed_p && (10 == base) && (x < 0)) {
+                i = 0u - ux;
                 sign_p = 1;
-        } /* Truncate to 32bits */
-        else i = x & (0x7FFFFFFF | (1 << 31));
+        } else {
+                i = ux;
+        }
 
         do
         {
@@ -327,6 +327,313 @@ union tcc_dw_value {
   tcc_dw_ulong ul;
 };
 
+static unsigned char tcc_bit_mask_table[8] = {
+  0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80
+};
+
+static unsigned char tcc_shift_left_byte(unsigned char value, int carry_in,
+                                         int *carry_out)
+{
+  unsigned char result;
+
+  result = 0;
+  *carry_out = (value & 0x80) != 0;
+  if (value & 0x01)
+    result = result | 0x02;
+  if (value & 0x02)
+    result = result | 0x04;
+  if (value & 0x04)
+    result = result | 0x08;
+  if (value & 0x08)
+    result = result | 0x10;
+  if (value & 0x10)
+    result = result | 0x20;
+  if (value & 0x20)
+    result = result | 0x40;
+  if (value & 0x40)
+    result = result | 0x80;
+  if (carry_in)
+    result = result | 0x01;
+  return result;
+}
+
+static unsigned char tcc_shift_right_byte(unsigned char value, int carry_in,
+                                          int *carry_out)
+{
+  unsigned char result;
+
+  result = 0;
+  *carry_out = (value & 0x01) != 0;
+  if (value & 0x02)
+    result = result | 0x01;
+  if (value & 0x04)
+    result = result | 0x02;
+  if (value & 0x08)
+    result = result | 0x04;
+  if (value & 0x10)
+    result = result | 0x08;
+  if (value & 0x20)
+    result = result | 0x10;
+  if (value & 0x40)
+    result = result | 0x20;
+  if (value & 0x80)
+    result = result | 0x40;
+  if (carry_in)
+    result = result | 0x80;
+  return result;
+}
+
+static void tcc_shift_left_u64_bytes(unsigned char *bytes)
+{
+  int carry;
+  unsigned int result;
+  unsigned int value;
+  int next_carry;
+
+  carry = 0;
+  {
+    value = bytes[0];
+    next_carry = (value & 0x80) != 0;
+    result = 0;
+    if (value & 0x01)
+      result = result | 0x02;
+    if (value & 0x02)
+      result = result | 0x04;
+    if (value & 0x04)
+      result = result | 0x08;
+    if (value & 0x08)
+      result = result | 0x10;
+    if (value & 0x10)
+      result = result | 0x20;
+    if (value & 0x20)
+      result = result | 0x40;
+    if (value & 0x40)
+      result = result | 0x80;
+    if (carry)
+      result = result | 0x01;
+    bytes[0] = result;
+    carry = next_carry;
+  }
+  value = bytes[1];
+  next_carry = (value & 0x80) != 0;
+  result = 0;
+  if (value & 0x01) result = result | 0x02;
+  if (value & 0x02) result = result | 0x04;
+  if (value & 0x04) result = result | 0x08;
+  if (value & 0x08) result = result | 0x10;
+  if (value & 0x10) result = result | 0x20;
+  if (value & 0x20) result = result | 0x40;
+  if (value & 0x40) result = result | 0x80;
+  if (carry) result = result | 0x01;
+  bytes[1] = result;
+  carry = next_carry;
+
+  value = bytes[2];
+  next_carry = (value & 0x80) != 0;
+  result = 0;
+  if (value & 0x01) result = result | 0x02;
+  if (value & 0x02) result = result | 0x04;
+  if (value & 0x04) result = result | 0x08;
+  if (value & 0x08) result = result | 0x10;
+  if (value & 0x10) result = result | 0x20;
+  if (value & 0x20) result = result | 0x40;
+  if (value & 0x40) result = result | 0x80;
+  if (carry) result = result | 0x01;
+  bytes[2] = result;
+  carry = next_carry;
+
+  value = bytes[3];
+  next_carry = (value & 0x80) != 0;
+  result = 0;
+  if (value & 0x01) result = result | 0x02;
+  if (value & 0x02) result = result | 0x04;
+  if (value & 0x04) result = result | 0x08;
+  if (value & 0x08) result = result | 0x10;
+  if (value & 0x10) result = result | 0x20;
+  if (value & 0x20) result = result | 0x40;
+  if (value & 0x40) result = result | 0x80;
+  if (carry) result = result | 0x01;
+  bytes[3] = result;
+  carry = next_carry;
+
+  value = bytes[4];
+  next_carry = (value & 0x80) != 0;
+  result = 0;
+  if (value & 0x01) result = result | 0x02;
+  if (value & 0x02) result = result | 0x04;
+  if (value & 0x04) result = result | 0x08;
+  if (value & 0x08) result = result | 0x10;
+  if (value & 0x10) result = result | 0x20;
+  if (value & 0x20) result = result | 0x40;
+  if (value & 0x40) result = result | 0x80;
+  if (carry) result = result | 0x01;
+  bytes[4] = result;
+  carry = next_carry;
+
+  value = bytes[5];
+  next_carry = (value & 0x80) != 0;
+  result = 0;
+  if (value & 0x01) result = result | 0x02;
+  if (value & 0x02) result = result | 0x04;
+  if (value & 0x04) result = result | 0x08;
+  if (value & 0x08) result = result | 0x10;
+  if (value & 0x10) result = result | 0x20;
+  if (value & 0x20) result = result | 0x40;
+  if (value & 0x40) result = result | 0x80;
+  if (carry) result = result | 0x01;
+  bytes[5] = result;
+  carry = next_carry;
+
+  value = bytes[6];
+  next_carry = (value & 0x80) != 0;
+  result = 0;
+  if (value & 0x01) result = result | 0x02;
+  if (value & 0x02) result = result | 0x04;
+  if (value & 0x04) result = result | 0x08;
+  if (value & 0x08) result = result | 0x10;
+  if (value & 0x10) result = result | 0x20;
+  if (value & 0x20) result = result | 0x40;
+  if (value & 0x40) result = result | 0x80;
+  if (carry) result = result | 0x01;
+  bytes[6] = result;
+  carry = next_carry;
+
+  value = bytes[7];
+  next_carry = (value & 0x80) != 0;
+  result = 0;
+  if (value & 0x01) result = result | 0x02;
+  if (value & 0x02) result = result | 0x04;
+  if (value & 0x04) result = result | 0x08;
+  if (value & 0x08) result = result | 0x10;
+  if (value & 0x10) result = result | 0x20;
+  if (value & 0x20) result = result | 0x40;
+  if (value & 0x40) result = result | 0x80;
+  if (carry) result = result | 0x01;
+  bytes[7] = result;
+  carry = next_carry;
+}
+
+static void tcc_shift_right_u64_bytes(unsigned char *bytes, int arithmetic)
+{
+  int carry;
+  unsigned int result;
+  unsigned int value;
+  int next_carry;
+
+  carry = arithmetic && (bytes[7] & 0x80);
+  value = bytes[7];
+  next_carry = (value & 0x01) != 0;
+  result = 0;
+  if (value & 0x02) result = result | 0x01;
+  if (value & 0x04) result = result | 0x02;
+  if (value & 0x08) result = result | 0x04;
+  if (value & 0x10) result = result | 0x08;
+  if (value & 0x20) result = result | 0x10;
+  if (value & 0x40) result = result | 0x20;
+  if (value & 0x80) result = result | 0x40;
+  if (carry) result = result | 0x80;
+  bytes[7] = result;
+  carry = next_carry;
+
+  value = bytes[6];
+  next_carry = (value & 0x01) != 0;
+  result = 0;
+  if (value & 0x02) result = result | 0x01;
+  if (value & 0x04) result = result | 0x02;
+  if (value & 0x08) result = result | 0x04;
+  if (value & 0x10) result = result | 0x08;
+  if (value & 0x20) result = result | 0x10;
+  if (value & 0x40) result = result | 0x20;
+  if (value & 0x80) result = result | 0x40;
+  if (carry) result = result | 0x80;
+  bytes[6] = result;
+  carry = next_carry;
+
+  value = bytes[5];
+  next_carry = (value & 0x01) != 0;
+  result = 0;
+  if (value & 0x02) result = result | 0x01;
+  if (value & 0x04) result = result | 0x02;
+  if (value & 0x08) result = result | 0x04;
+  if (value & 0x10) result = result | 0x08;
+  if (value & 0x20) result = result | 0x10;
+  if (value & 0x40) result = result | 0x20;
+  if (value & 0x80) result = result | 0x40;
+  if (carry) result = result | 0x80;
+  bytes[5] = result;
+  carry = next_carry;
+
+  value = bytes[4];
+  next_carry = (value & 0x01) != 0;
+  result = 0;
+  if (value & 0x02) result = result | 0x01;
+  if (value & 0x04) result = result | 0x02;
+  if (value & 0x08) result = result | 0x04;
+  if (value & 0x10) result = result | 0x08;
+  if (value & 0x20) result = result | 0x10;
+  if (value & 0x40) result = result | 0x20;
+  if (value & 0x80) result = result | 0x40;
+  if (carry) result = result | 0x80;
+  bytes[4] = result;
+  carry = next_carry;
+
+  value = bytes[3];
+  next_carry = (value & 0x01) != 0;
+  result = 0;
+  if (value & 0x02) result = result | 0x01;
+  if (value & 0x04) result = result | 0x02;
+  if (value & 0x08) result = result | 0x04;
+  if (value & 0x10) result = result | 0x08;
+  if (value & 0x20) result = result | 0x10;
+  if (value & 0x40) result = result | 0x20;
+  if (value & 0x80) result = result | 0x40;
+  if (carry) result = result | 0x80;
+  bytes[3] = result;
+  carry = next_carry;
+
+  value = bytes[2];
+  next_carry = (value & 0x01) != 0;
+  result = 0;
+  if (value & 0x02) result = result | 0x01;
+  if (value & 0x04) result = result | 0x02;
+  if (value & 0x08) result = result | 0x04;
+  if (value & 0x10) result = result | 0x08;
+  if (value & 0x20) result = result | 0x10;
+  if (value & 0x40) result = result | 0x20;
+  if (value & 0x80) result = result | 0x40;
+  if (carry) result = result | 0x80;
+  bytes[2] = result;
+  carry = next_carry;
+
+  value = bytes[1];
+  next_carry = (value & 0x01) != 0;
+  result = 0;
+  if (value & 0x02) result = result | 0x01;
+  if (value & 0x04) result = result | 0x02;
+  if (value & 0x08) result = result | 0x04;
+  if (value & 0x10) result = result | 0x08;
+  if (value & 0x20) result = result | 0x10;
+  if (value & 0x40) result = result | 0x20;
+  if (value & 0x80) result = result | 0x40;
+  if (carry) result = result | 0x80;
+  bytes[1] = result;
+  carry = next_carry;
+
+  value = bytes[0];
+  next_carry = (value & 0x01) != 0;
+  result = 0;
+  if (value & 0x02) result = result | 0x01;
+  if (value & 0x04) result = result | 0x02;
+  if (value & 0x08) result = result | 0x04;
+  if (value & 0x10) result = result | 0x08;
+  if (value & 0x20) result = result | 0x10;
+  if (value & 0x40) result = result | 0x20;
+  if (value & 0x80) result = result | 0x40;
+  if (carry) result = result | 0x80;
+  bytes[0] = result;
+  carry = next_carry;
+}
+
 static tcc_dw_ulong tcc_pack_u64(tcc_dw_uword high, tcc_dw_uword low)
 {
   union tcc_dw_value v;
@@ -387,52 +694,46 @@ static void tcc_neg_u64(tcc_dw_uword *high, tcc_dw_uword *low)
 
 static void tcc_shl1_u64(tcc_dw_uword *high, tcc_dw_uword *low)
 {
-  tcc_dw_uword carry;
+  union tcc_dw_value v;
 
-  carry = *low & 0x80000000U;
-  *high = *high + *high;
-  if (carry)
-    *high = *high + 1;
-  *low = *low + *low;
+  v.s.low = *low;
+  v.s.high = *high;
+  tcc_shift_left_u64_bytes((unsigned char *)&v.ul);
+  *low = v.s.low;
+  *high = (tcc_dw_uword)v.s.high;
 }
 
 static void tcc_set_bit_u64(tcc_dw_uword *high, tcc_dw_uword *low, int bit)
 {
-  tcc_dw_uword mask;
+  union tcc_dw_value v;
+  int byte_index;
 
-  mask = 1;
-  if (bit >= 32) {
-    bit = bit - 32;
-    while (bit > 0) {
-      mask = mask + mask;
-      --bit;
-    }
-    *high = *high | mask;
-  } else {
-    while (bit > 0) {
-      mask = mask + mask;
-      --bit;
-    }
-    *low = *low | mask;
+  v.s.low = *low;
+  v.s.high = *high;
+  byte_index = 0;
+  while (bit >= 8) {
+    bit = bit - 8;
+    ++byte_index;
   }
+  ((unsigned char *)&v.ul)[byte_index] =
+      ((unsigned char *)&v.ul)[byte_index] | tcc_bit_mask_table[bit];
+  *low = v.s.low;
+  *high = (tcc_dw_uword)v.s.high;
 }
 
 static int tcc_get_bit_u64(tcc_dw_uword high, tcc_dw_uword low, int bit)
 {
-  tcc_dw_uword value;
+  union tcc_dw_value v;
+  int byte_index;
 
-  if (bit >= 32) {
-    bit = bit - 32;
-    value = high;
-  } else {
-    value = low;
+  v.s.low = low;
+  v.s.high = high;
+  byte_index = 0;
+  while (bit >= 8) {
+    bit = bit - 8;
+    ++byte_index;
   }
-
-  while (bit > 0) {
-    value = value / 2;
-    --bit;
-  }
-  return value & 1;
+  return (((unsigned char *)&v.ul)[byte_index] & tcc_bit_mask_table[bit]) != 0;
 }
 
 static tcc_dw_ulong tcc_udivmod_u64(tcc_dw_ulong numer, tcc_dw_ulong denom,
@@ -545,72 +846,32 @@ unsigned long long __umoddi3(unsigned long long a, unsigned long long b)
 long long __sardi3(long long a, int b)
 {
   union tcc_dw_value u;
-  tcc_dw_uword low;
-  tcc_dw_sword high;
-  int carry;
-  int sign;
-
   u.sl = a;
-  low = u.s.low;
-  high = u.s.high;
-
   while (b > 0) {
-    sign = high < 0;
-    carry = high & 1;
-    low = low / 2;
-    if (carry)
-      low = low | 0x80000000U;
-    high = (tcc_dw_sword)((tcc_dw_uword)high / 2);
-    if (sign)
-      high = high | 0x80000000U;
+    tcc_shift_right_u64_bytes((unsigned char *)&u.ul, 1);
     --b;
   }
-
-  return tcc_pack_s64((tcc_dw_uword)high, low);
+  return u.sl;
 }
 
 unsigned long long __shrdi3(unsigned long long a, int b)
 {
   union tcc_dw_value u;
-  tcc_dw_uword low;
-  tcc_dw_uword high;
-  int carry;
-
   u.ul = a;
-  low = u.s.low;
-  high = (tcc_dw_uword)u.s.high;
-
   while (b > 0) {
-    carry = high & 1;
-    low = low / 2;
-    if (carry)
-      low = low | 0x80000000U;
-    high = high / 2;
+    tcc_shift_right_u64_bytes((unsigned char *)&u.ul, 0);
     --b;
   }
-
-  return tcc_pack_u64(high, low);
+  return u.ul;
 }
 
 long long __shldi3(long long a, int b)
 {
   union tcc_dw_value u;
-  tcc_dw_uword low;
-  tcc_dw_uword high;
-  int carry;
-
   u.sl = a;
-  low = u.s.low;
-  high = (tcc_dw_uword)u.s.high;
-
   while (b > 0) {
-    carry = low & 0x80000000U;
-    high = high + high;
-    if (carry)
-      high = high | 1;
-    low = low + low;
+    tcc_shift_left_u64_bytes((unsigned char *)&u.ul);
     --b;
   }
-
-  return tcc_pack_s64(high, low);
+  return u.sl;
 }
