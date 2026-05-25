@@ -950,7 +950,7 @@ void gen_bounded_ptr_deref(void)
     sym = external_sym(func, func_old_type, 0);
     if (!sym->c)
         put_extern_sym(sym, NULL, 0, 0);
-    rel->r_info = ELF32_R_INFO(sym->c, ELF32_R_TYPE(rel->r_info));
+    rel->r_info = elf32_r_info(sym->c, elf32_r_type(rel->r_info));
 }
 #endif
 

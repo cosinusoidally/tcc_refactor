@@ -3,20 +3,19 @@
 
 typedef int sig_atomic_t;
 typedef unsigned long sigset_t;
-typedef void (*__sighandler_t)(int);
+typedef void (*__sighandler_t)();
 typedef struct {
     int si_signo;
     int si_errno;
     int si_code;
 } siginfo_t;
-
-struct sigaction {
-    __sighandler_t sa_handler;
-    void (*sa_sigaction)(int, siginfo_t *, void *);
+typedef struct {
+    void *sa_handler;
+    void *sa_sigaction;
     sigset_t sa_mask;
     int sa_flags;
-    void (*sa_restorer)(void);
-};
+    void *sa_restorer;
+} sigaction_t;
 
 #define SIG_DFL ((__sighandler_t)0)
 #define SIG_IGN ((__sighandler_t)1)
@@ -34,8 +33,8 @@ struct sigaction {
 #define SA_SIGINFO 4
 #define SA_ONESHOT 0x80000000
 
-__sighandler_t signal(int sig, __sighandler_t handler);
-int sigemptyset(sigset_t *set);
-int sigaction(int sig, const struct sigaction *act, struct sigaction *oldact);
+int signal();
+int sigemptyset();
+int sigaction();
 
 #endif

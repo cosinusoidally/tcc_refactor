@@ -1,7 +1,7 @@
 #ifndef _STDIO_H
 #define _STDIO_H
 
-#include <stdarg.h>
+#include "stdarg.h"
 #include "stddef.h"
 
 typedef struct _tcc_file FILE;
@@ -13,12 +13,12 @@ extern FILE *stderr;
 FILE *fopen(const char *filename, const char *mode);
 int fclose(FILE *stream);
 int fflush(FILE *stream);
-int fprintf(FILE *stream, const char *format, ...);
-int vfprintf(FILE *stream, const char *format, va_list ap);
-int printf(const char *format, ...);
-int sprintf(char *str, const char *format, ...);
-int snprintf(char *str, size_t size, const char *format, ...);
-int vsnprintf(char *str, size_t size, const char *format, va_list ap);
+int fprintf();
+int vfprintf();
+int printf();
+int sprintf();
+int snprintf();
+int vsnprintf();
 int fputs(const char *s, FILE *stream);
 int fputc(int c, FILE *stream);
 int getc_unlocked(FILE *stream);

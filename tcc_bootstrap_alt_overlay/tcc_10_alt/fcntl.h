@@ -9,6 +9,4 @@
 #define O_CREAT 0100
 #define O_TRUNC 01000
 
-int open(const char *pathname, int flags, ...);
-
 #endif

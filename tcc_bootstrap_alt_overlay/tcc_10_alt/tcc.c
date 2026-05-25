@@ -19,7 +19,7 @@
  */
 #include "stdlib.h"
 #include "stdio.h"
-#include <stdarg.h>
+#include "stdarg.h"
 #include "string.h"
 #include "errno.h"
 #include "math.h"
@@ -36,6 +36,42 @@
 #endif
 
 #include "libtcc.h"
+
+/* Keep bootstrap varargs macros local to the compiler source. The
+   self-hosted stage-3 parser is sensitive to macro-heavy stdarg headers. */
+#define va_start(ap,last) ap = ((char *)&(last)) + sizeof(int)
+#define va_arg(ap,type) (ap += sizeof(int), *(type *)(ap - sizeof(int)))
+#define va_end(ap)
+
+static int elf32_st_bind(int val)
+{
+    return val >> 4;
+}
+
+static int elf32_st_type(int val)
+{
+    return val & 15;
+}
+
+static int elf32_st_info(int bind, int type)
+{
+    return (bind << 4) + (type & 15);
+}
+
+static int elf32_r_sym(int val)
+{
+    return val >> 8;
+}
+
+static int elf32_r_type(int val)
+{
+    return val & 255;
+}
+
+static int elf32_r_info(int sym, int type)
+{
+    return (sym << 8) + (type & 255);
+}
 
 //#define DEBUG
 /* preprocessor debug */
@@ -965,7 +1001,7 @@ static void put_extern_sym(Sym *sym, Section *section,
             }
         }
 #endif
-        info = ELF32_ST_INFO(sym_bind, sym_type);
+        info = elf32_st_info(sym_bind, sym_type);
         sym->c = add_elf_sym(symtab_section, value, size, info, sh_num, name);
     } else {
         esym = &((Elf32_Sym *)symtab_section->data)[sym->c];
@@ -6623,7 +6659,7 @@ static int tcc_compile(TCCState *s)
     section_sym = 0; /* avoid warning */
     if (do_debug) {
         section_sym = put_elf_sym(symtab_section, 0, 0, 
-                                  ELF32_ST_INFO(STB_LOCAL, STT_SECTION), 0, 
+                                  elf32_st_info(STB_LOCAL, STT_SECTION), 0, 
                                   text_section->sh_num, NULL);
         getcwd(buf, sizeof(buf));
         pstrcat(buf, sizeof(buf), "/");
@@ -6635,7 +6671,7 @@ static int tcc_compile(TCCState *s)
     /* an elf symbol of type STT_FILE must be put so that STB_LOCAL
        symbols can be safely used */
     put_elf_sym(symtab_section, 0, 0, 
-                ELF32_ST_INFO(STB_LOCAL, STT_FILE), 0, 
+                elf32_st_info(STB_LOCAL, STT_FILE), 0, 
                 SHN_ABS, file->filename);
 
     /* define common 'char *' type because it is often used internally
@@ -6928,7 +6964,7 @@ int tcc_run(TCCState *s1, int argc, char **argv)
 #ifdef WIN32
         error("debug mode currently not available for Windows");
 #else        
-        struct sigaction sigact;
+        sigaction_t sigact;
         /* install TCC signal handlers to print debug info on fatal
            runtime errors */
         sigact.sa_flags = SA_SIGINFO | SA_ONESHOT;
@@ -7073,10 +7109,10 @@ static int tcc_add_file_internal(TCCState *s, const char *filename, int flags)
             error("could not read header");
         lseek(fd, 0, SEEK_SET);
         
-        if (ehdr.e_ident[0] == ELFMAG0 &&
-            ehdr.e_ident[1] == ELFMAG1 &&
-            ehdr.e_ident[2] == ELFMAG2 &&
-            ehdr.e_ident[3] == ELFMAG3) {
+        if (ehdr.e_ident0 == ELFMAG0 &&
+            ehdr.e_ident1 == ELFMAG1 &&
+            ehdr.e_ident2 == ELFMAG2 &&
+            ehdr.e_ident3 == ELFMAG3) {
             file->line_num = 0; /* do not display line number if error */
             if (ehdr.e_type == ET_REL) {
                 tcc_load_object_file(s, fd, 0);
@@ -7168,7 +7204,7 @@ int tcc_add_library(TCCState *s, const char *libraryname)
 int tcc_add_symbol(TCCState *s, const char *name, unsigned long val)
 {
     add_elf_sym(symtab_section, val, 0, 
-                ELF32_ST_INFO(STB_GLOBAL, STT_NOTYPE),
+                elf32_st_info(STB_GLOBAL, STT_NOTYPE),
                 SHN_ABS, name);
     return 0;
 }
