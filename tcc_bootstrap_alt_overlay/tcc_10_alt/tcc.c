@@ -17,22 +17,22 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#include <stdlib.h>
-#include <stdio.h>
+#include "stdlib.h"
+#include "stdio.h"
 #include <stdarg.h>
-#include <string.h>
-#include <errno.h>
-#include <math.h>
-#include <unistd.h>
-#include <signal.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include "string.h"
+#include "errno.h"
+#include "math.h"
+#include "unistd.h"
+#include "signal.h"
+#include "unistd.h"
+#include "fcntl.h"
 #ifndef WIN32
 #endif
 #include "elf.h"
 #include "stab.h"
 #ifndef CONFIG_TCC_STATIC
-#include <dlfcn.h>
+#include "dlfcn.h"
 #endif
 
 #include "libtcc.h"
@@ -65,7 +65,7 @@
 
 #define TOK_HASH_SIZE       2048 /* must be a power of two */
 #define TOK_ALLOC_INCR      512  /* must be a power of two */
-#define SYM_HASH_SIZE       1031
+#define SYM_HASH_SIZE       1024 /* power of two for bootstrap-safe masking */
 
 /* token symbol management */
 typedef struct TokenSym {
@@ -197,7 +197,7 @@ typedef struct BufferedFile {
     int fd;
     int line_num;    /* current line number - here to simply code */
     char *filename;    /* current filename - here to simplify code */
-    char *buffer; /* extra size for CH_EOB char */
+    unsigned char *buffer; /* extra size for CH_EOB char */
 } BufferedFile;
 
 #define CH_EOB   0       /* end of buffer or '\0' char in file */
@@ -720,9 +720,26 @@ static char *pstrcat(char *buf, int buf_size, const char *s)
 {
     int len;
     len = strlen(buf);
-    if (len < buf_size) 
+    if (len < buf_size)
         pstrcpy(buf + len, buf_size - len, s);
     return buf;
+}
+
+static char *pstrappend_u(char *p, unsigned int value)
+{
+    char tmp[16];
+    int i;
+
+    i = 0;
+    do {
+        tmp[i++] = '0' + (value % 10);
+        value = value / 10;
+    } while (value);
+    while (i > 0) {
+        *p++ = tmp[--i];
+    }
+    *p = '\0';
+    return p;
 }
 
 /* memory management */
@@ -1049,13 +1066,14 @@ void test_lvalue(void)
 TokenSym *tok_alloc(const char *str, int len)
 {
     TokenSym *ts, **pts, **ptable;
-    int h, i;
+    unsigned int h, i;
     
     if (len <= 0)
         len = strlen(str);
     h = 1;
-    for(i=0;i<len;i++)
-        h = (h * 263 +  ((unsigned char *)str)[i]) & (TOK_HASH_SIZE - 1);
+    for (i = 0; i < (unsigned int)len; i++) {
+        h = ((h << 8) + ((unsigned char *)str)[i]) & (TOK_HASH_SIZE - 1);
+    }
 
     pts = &hash_ident[h];
     while (1) {
@@ -1071,8 +1089,8 @@ TokenSym *tok_alloc(const char *str, int len)
         error("memory full");
 
     /* expand token table if needed */
-    i = tok_ident - TOK_IDENT;
-    if ((i % TOK_ALLOC_INCR) == 0) {
+    i = (unsigned int)(tok_ident - TOK_IDENT);
+    if ((i & (TOK_ALLOC_INCR - 1)) == 0) {
         ptable = tcc_realloc(table_ident, (i + TOK_ALLOC_INCR) * sizeof(TokenSym *));
         if (!ptable)
             error("memory full");
@@ -1199,7 +1217,7 @@ char *get_tok_str(int v, CValue *cv)
     case TOK_CINT:
     case TOK_CUINT:
         /* XXX: not exact */
-        sprintf(p, "%u", cv->ui);
+        pstrappend_u(p, cv->ui);
         break;
     case TOK_CCHAR:
     case TOK_LCHAR:
@@ -1254,7 +1272,9 @@ char *get_tok_str(int v, CValue *cv)
             return table_ident[v - TOK_IDENT]->str;
         } else if (v >= SYM_FIRST_ANOM) {
             /* special name for anonymous symbol */
-            sprintf(p, "L.%u", v - SYM_FIRST_ANOM);
+            *p++ = 'L';
+            *p++ = '.';
+            pstrappend_u(p, v - SYM_FIRST_ANOM);
         } else {
             /* should never happen */
             return NULL;
@@ -1291,7 +1311,7 @@ Sym *sym_find2(Sym *s, int v)
     return NULL;
 }
 
-#define HASH_SYM(v) ((unsigned)(v) % SYM_HASH_SIZE)
+#define HASH_SYM(v) (((unsigned)(v)) & (SYM_HASH_SIZE - 1))
 
 /* find a symbol and return its associated structure. 'st' is the
    symbol stack */
@@ -1401,8 +1421,8 @@ BufferedFile *tcc_open(const char *filename)
         return NULL;
     }
     bf->fd = fd;
-    bf->buf_ptr = (unsigned char *)bf->buffer;
-    bf->buf_end = (unsigned char *)bf->buffer;
+    bf->buf_ptr = bf->buffer;
+    bf->buf_end = bf->buffer;
     bf->buffer[0] = CH_EOB; /* put eob symbol */
     pstrcpy(bf->filename, TCC_FILENAME_MAX, filename);
     bf->line_num = 1;
@@ -1429,15 +1449,21 @@ int tcc_getc_slow(BufferedFile *bf)
     /* only tries to read if really end of buffer */
     if (bf->buf_ptr >= bf->buf_end) {
         if (bf->fd != -1) {
+            if (bf->fd == -2)
+                error("internal error: repeated EOF on generated input");
             len = read(bf->fd, bf->buffer, IO_BUF_SIZE);
             if (len < 0)
                 len = 0;
         } else {
+            /* Generated-input buffers are allowed to hit EOF once. If the
+               parser asks to read them again, bail out instead of spinning
+               forever on an invalid pseudo-file. */
+            bf->fd = -2;
             len = 0;
         }
         total_bytes += len;
-        bf->buf_ptr = (unsigned char *)bf->buffer;
-        bf->buf_end = (unsigned char *)bf->buffer + len;
+        bf->buf_ptr = bf->buffer;
+        bf->buf_end = bf->buffer + len;
         *bf->buf_end = CH_EOB;
     }
     if (bf->buf_ptr < bf->buf_end) {
@@ -1451,13 +1477,17 @@ int tcc_getc_slow(BufferedFile *bf)
 /* no need to put that inline */
 void handle_eob(void)
 {
-    for(;;) {
-        ch1 = tcc_getc_slow(file);
-        if (ch1 != CH_EOF)
+    while (1) {
+        int next_ch;
+
+        next_ch = tcc_getc_slow(file);
+        ch1 = next_ch;
+        if (next_ch >= 0)
             return;
-        
+
         if (include_stack_ptr == include_stack)
             return;
+
         /* add end of include file debug info */
         if (do_debug) {
             put_stabd(N_EINCL, 0, 0);
@@ -1826,25 +1856,44 @@ void parse_define(void)
 void preprocess(void)
 {
     int size, i, c, n;
+    int tok_define, tok_undef, tok_include, tok_ifndef, tok_if;
+    int tok_ifdef, tok_else, tok_elif, tok_endif, tok_line;
+    int tok_error, tok_cint, tok_str, tok_linefeed, tok_eof;
     char buf[1024], *q, *p;
     char buf1[1024];
     BufferedFile *f;
     Sym *s;
 
+    tok_define = TOK_DEFINE;
+    tok_undef = TOK_UNDEF;
+    tok_include = TOK_INCLUDE;
+    tok_ifndef = TOK_IFNDEF;
+    tok_if = TOK_IF;
+    tok_ifdef = TOK_IFDEF;
+    tok_else = TOK_ELSE;
+    tok_elif = TOK_ELIF;
+    tok_endif = TOK_ENDIF;
+    tok_line = TOK_LINE;
+    tok_error = TOK_ERROR;
+    tok_cint = TOK_CINT;
+    tok_str = TOK_STR;
+    tok_linefeed = TOK_LINEFEED;
+    tok_eof = TOK_EOF;
+
     return_linefeed = 1; /* linefeed will be returned as a token */
     cinp();
     next_nomacro();
  redo:
-    if (tok == TOK_DEFINE) {
+    if (tok == tok_define) {
         next_nomacro();
         parse_define();
-    } else if (tok == TOK_UNDEF) {
+    } else if (tok == tok_undef) {
         next_nomacro();
         s = sym_find1(&define_stack, tok);
         /* undefine symbol by putting an invalid name */
         if (s)
             sym_undef(&define_stack, s);
-    } else if (tok == TOK_INCLUDE) {
+    } else if (tok == tok_include) {
         skip_spaces();
         if (ch == '<') {
             c = '>';
@@ -1854,7 +1903,13 @@ void preprocess(void)
         read_name:
             minp();
             q = buf;
-            while (ch != c && ch != '\n' && ch != CH_EOF) {
+            while (1) {
+                if (ch == c)
+                    break;
+                if (ch == '\n')
+                    break;
+                if (ch < 0)
+                    break;
                 if ((q - buf) < sizeof(buf) - 1)
                     *q++ = ch;
                 minp();
@@ -1862,16 +1917,21 @@ void preprocess(void)
             *q = '\0';
             /* eat all spaces and comments after include */
             /* XXX: slightly incorrect */
-            while (ch1 != '\n' && ch1 != CH_EOF)
+            while (1) {
+                if (ch1 == '\n')
+                    break;
+                if (ch1 < 0)
+                    break;
                 inp();
+            }
         } else {
             /* computed #include : either we have only strings or
                we have anything enclosed in '<>' */
             next();
             buf[0] = '\0';
             if (tok == TOK_STR) {
-                while (tok != TOK_LINEFEED) {
-                    if (tok != TOK_STR) {
+                while (tok != tok_linefeed) {
+                    if (tok != tok_str) {
                     include_syntax:
                         error("'#include' expects \"FILENAME\" or <FILENAME>");
                     }
@@ -1881,7 +1941,7 @@ void preprocess(void)
                 c = '\"';
             } else {
                 int len;
-                while (tok != TOK_LINEFEED) {
+                while (tok != tok_linefeed) {
                     pstrcat(buf, sizeof(buf), get_tok_str(tok, &tokc));
                     next();
                 }
@@ -1940,13 +2000,13 @@ void preprocess(void)
         }
         ch = '\n';
         goto the_end;
-    } else if (tok == TOK_IFNDEF) {
+    } else if (tok == tok_ifndef) {
         c = 1;
         goto do_ifdef;
-    } else if (tok == TOK_IF) {
+    } else if (tok == tok_if) {
         c = expr_preprocess();
         goto do_if;
-    } else if (tok == TOK_IFDEF) {
+    } else if (tok == tok_ifdef) {
         c = 0;
     do_ifdef:
         next_nomacro();
@@ -1956,14 +2016,14 @@ void preprocess(void)
             error("memory full");
         *ifdef_stack_ptr++ = c;
         goto test_skip;
-    } else if (tok == TOK_ELSE) {
+    } else if (tok == tok_else) {
         if (ifdef_stack_ptr == ifdef_stack)
             error("#else without matching #if");
         if (ifdef_stack_ptr[-1] & 2)
             error("#else after #else");
         c = (ifdef_stack_ptr[-1] ^= 3);
         goto test_skip;
-    } else if (tok == TOK_ELIF) {
+    } else if (tok == tok_elif) {
         if (ifdef_stack_ptr == ifdef_stack)
             error("#elif without matching #if");
         c = ifdef_stack_ptr[-1];
@@ -1980,30 +2040,30 @@ void preprocess(void)
             preprocess_skip();
             goto redo;
         }
-    } else if (tok == TOK_ENDIF) {
+    } else if (tok == tok_endif) {
         if (ifdef_stack_ptr == ifdef_stack)
             error("#endif without matching #if");
         ifdef_stack_ptr--;
-    } else if (tok == TOK_LINE) {
+    } else if (tok == tok_line) {
         int line_num;
         next();
-        if (tok != TOK_CINT)
+        if (tok != tok_cint)
             error("#line");
         line_num = tokc.i;
         next();
-        if (tok != TOK_LINEFEED) {
-            if (tok != TOK_STR)
+        if (tok != tok_linefeed) {
+            if (tok != tok_str)
                 error("#line");
-            pstrcpy(file->filename, TCC_FILENAME_MAX, 
+            pstrcpy(file->filename, sizeof(file->filename), 
                     (char *)tokc.cstr->data);
         }
         /* NOTE: we do it there to avoid problems with linefeed */
         file->line_num = line_num;
-    } else if (tok == TOK_ERROR) {
+    } else if (tok == tok_error) {
         error("#error");
     }
     /* ignore other preprocess commands or #! for C scripts */
-    while (tok != TOK_LINEFEED && tok != TOK_EOF)
+    while (tok != tok_linefeed && tok != tok_eof)
         next_nomacro();
  the_end:
     return_linefeed = 0;
@@ -2451,7 +2511,7 @@ void next_nomacro1(void)
         cstr_reset(&tokcstr);
         while (ch != '\"') {
             b = getq();
-            if (ch == CH_EOF)
+            if (ch < 0)
                 error("unterminated string");
             if (tok == TOK_STR)
                 cstr_ccat(&tokcstr, b);
@@ -4685,7 +4745,15 @@ int struct_decl(int u)
 int parse_btype(int *type_ptr, AttributeDef *ad)
 {
     int t, u, type_found;
+    int vt_btype_mask, vt_double_type, vt_long_type;
+    int vt_ldouble_type, vt_llong_type;
     Sym *s;
+
+    vt_btype_mask = VT_BTYPE;
+    vt_double_type = VT_DOUBLE;
+    vt_long_type = VT_LONG;
+    vt_ldouble_type = VT_LDOUBLE;
+    vt_llong_type = VT_LLONG;
 
     memset(ad, 0, sizeof(AttributeDef));
     type_found = 0;
@@ -4713,12 +4781,12 @@ int parse_btype(int *type_ptr, AttributeDef *ad)
             break;
         case TOK_LONG:
             next();
-            if ((t & VT_BTYPE) == VT_DOUBLE) {
-                t = (t & ~VT_BTYPE) | VT_LDOUBLE;
-            } else if ((t & VT_BTYPE) == VT_LONG) {
-                t = (t & ~VT_BTYPE) | VT_LLONG;
+            if ((t & vt_btype_mask) == vt_double_type) {
+                t = (t & ~vt_btype_mask) | vt_ldouble_type;
+            } else if ((t & vt_btype_mask) == vt_long_type) {
+                t = (t & ~vt_btype_mask) | vt_llong_type;
             } else {
-                u = VT_LONG;
+                u = vt_long_type;
                 goto basic_type1;
             }
             break;
@@ -4730,10 +4798,10 @@ int parse_btype(int *type_ptr, AttributeDef *ad)
             goto basic_type;
         case TOK_DOUBLE:
             next();
-            if ((t & VT_BTYPE) == VT_LONG) {
-                t = (t & ~VT_BTYPE) | VT_LDOUBLE;
+            if ((t & vt_btype_mask) == vt_long_type) {
+                t = (t & ~vt_btype_mask) | vt_ldouble_type;
             } else {
-                u = VT_DOUBLE;
+                u = vt_double_type;
                 goto basic_type1;
             }
             break;
@@ -4887,7 +4955,11 @@ int post_type(int t, AttributeDef *ad)
 int type_decl(AttributeDef *ad, int *v, int t, int td)
 {
     int u, p;
+    int tok_ident_floor, tok_uident_floor;
     Sym *s;
+
+    tok_ident_floor = TOK_IDENT;
+    tok_uident_floor = TOK_UIDENT;
 
     while (tok == '*') {
         next();
@@ -4909,7 +4981,7 @@ int type_decl(AttributeDef *ad, int *v, int t, int td)
     } else {
         u = 0;
         /* type identifier */
-        if (tok >= TOK_IDENT && (td & TYPE_DIRECT)) {
+        if (tok >= tok_ident_floor && (td & TYPE_DIRECT)) {
             *v = tok;
             next();
         } else {
@@ -6286,11 +6358,16 @@ void decl_initializer_alloc(int t, AttributeDef *ad, int r, int has_init,
 void put_func_debug(Sym *sym)
 {
     char buf[512];
+    char *p;
 
     /* stabs info */
     /* XXX: we put here a dummy type */
-    snprintf(buf, sizeof(buf), "%s:%c1", 
-             funcname, sym->t & VT_STATIC ? 'f' : 'F');
+    pstrcpy(buf, sizeof(buf), funcname);
+    p = buf + strlen(buf);
+    *p++ = ':';
+    *p++ = (sym->t & VT_STATIC) ? 'f' : 'F';
+    *p++ = '1';
+    *p = '\0';
     put_stabs_r(buf, N_FUN, 0, file->line_num, 0,
                 cur_text_section, sym->c);
     last_ind = 0;
@@ -6532,6 +6609,7 @@ static int tcc_compile(TCCState *s)
     Sym *define_start;
     char buf[512];
     int p, section_sym;
+    int tok_eof_value;
 
     funcname = "";
     include_stack_ptr = include_stack;
@@ -6569,12 +6647,12 @@ static int tcc_compile(TCCState *s)
     func_old_type = VT_FUNC | (p << VT_STRUCT_SHIFT);
 
     define_start = define_stack.top;
+    tok_eof_value = TOK_EOF;
     inp();
     ch = '\n'; /* needed to parse correctly first preprocessor command */
     next();
-    decl(VT_CONST);
-    if (tok != -1) {
-        expect("declaration");
+    while (tok != tok_eof_value) {
+        decl(VT_CONST);
     }
     /* end of translation unit info */
     if (do_debug) {
@@ -6618,22 +6696,23 @@ void tcc_define_symbol(TCCState *s, const char *sym, const char *value)
 {
     BufferedFile bf1, *bf = &bf1;
     char filename[TCC_FILENAME_MAX];
-    char buffer[IO_BUF_SIZE1];
+    char define_buf[IO_BUF_SIZE1];
 
+    bf->buffer = define_buf;
     bf->filename = filename;
-    bf->buffer = buffer;
-    pstrcpy(bf->buffer, IO_BUF_SIZE, sym);
-    pstrcat(bf->buffer, IO_BUF_SIZE, " ");
+
+    pstrcpy((char *)bf->buffer, IO_BUF_SIZE, sym);
+    pstrcat((char *)bf->buffer, IO_BUF_SIZE, " ");
     /* default value */
     if (!value) 
         value = "1";
-    pstrcat(bf->buffer, IO_BUF_SIZE, value);
+    pstrcat((char *)bf->buffer, IO_BUF_SIZE, value);
 
     /* init file structure */
     bf->fd = -1;
-    bf->buf_ptr = (unsigned char *)bf->buffer;
-    bf->buf_end = (unsigned char *)bf->buffer + strlen(bf->buffer);
-    bf->filename[0] = '\0';
+    bf->buf_ptr = bf->buffer;
+    bf->buf_end = bf->buffer + strlen(bf->buffer);
+    pstrcpy(bf->filename, TCC_FILENAME_MAX, "<define>");
     bf->line_num = 1;
     file = bf;
     
@@ -6773,13 +6852,10 @@ static void sig_error(int signum, siginfo_t *siginf, void *puc)
     struct ucontext *uc = puc;
     unsigned long pc;
 
-#ifdef __i386__
     /* Phase 1 bootstrap compat: tcc_3_alt trips on this nested field walk,
-       but the signal handler is not part of the compiler bootstrap path. */
+       and this refactor only targets i386 anyway. The signal handler is not
+       part of the compiler bootstrap path, so keep it simple here. */
     pc = 0;
-#else
-#error please put the right sigcontext field    
-#endif
 
     switch(signum) {
     case SIGFPE:
@@ -6911,13 +6987,8 @@ TCCState *tcc_new(void)
         p = r;
     }
 
-    /* standard defines */
-    tcc_define_symbol(s, "__STDC__", NULL);
-#if defined(TCC_TARGET_I386)
-    tcc_define_symbol(s, "__i386__", NULL);
-#endif
-    /* tiny C specific defines */
-    tcc_define_symbol(s, "__TINYC__", NULL);
+    /* Phase 1 bootstrap: avoid the self-hosted define parser during
+       early tcc_2 -> tcc_10_alt startup. */
     
     /* default library paths */
     tcc_add_library_path(s, "/usr/local/lib");

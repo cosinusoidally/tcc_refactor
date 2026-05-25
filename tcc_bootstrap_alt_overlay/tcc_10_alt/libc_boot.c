@@ -3,13 +3,83 @@ extern int stdout;
 int strcpy(int d, int s);
 int strcat(int de,int s);
 
-int puts(int x) {
-  fputs(x, stdout);
-  fputs("\n", stdout);
+/* The tcc_2-built tcc_10 bootstrap compiler mis-emits the first two
+   function bodies in this support file. Keep those slots harmless so
+   the real helpers start at stable later offsets. */
+static int bootstrap_pad0(void) {
+  return 0;
 }
 
+static int bootstrap_pad1(void) {
+  return 0;
+}
+
+static int bootstrap_pad2(void) {
+  return 0;
+}
+
+static int bootstrap_pad3(void) {
+  return 0;
+}
+
+static int bootstrap_pad4(void) {
+  return 0;
+}
+
+static int bootstrap_pad5(void) {
+  return 0;
+}
+
+static int bootstrap_pad6(void) {
+  return 0;
+}
+
+static int bootstrap_pad7(void) {
+  return 0;
+}
+
+static int bootstrap_pad8(void) {
+  return 0;
+}
+
+static int bootstrap_pad9(void) {
+  return 0;
+}
+
+static int bootstrap_pad10(void) {
+  return 0;
+}
+
+static int bootstrap_pad11(void) {
+  return 0;
+}
+
+static int bootstrap_pad12(void) {
+  return 0;
+}
+
+static int bootstrap_pad13(void) {
+  return 0;
+}
+
+static int bootstrap_pad14(void) {
+  return 0;
+}
+
+static int bootstrap_pad15(void) {
+  return 0;
+}
+
+static int boot_append_char(char *out, int pos, int limit, int ch);
+static int boot_append_str(char *out, int pos, int limit, char *src);
+static int boot_append_uint(char *out, int pos, int limit, unsigned value);
+static int boot_append_int(char *out, int pos, int limit, int value);
+static int boot_vformat(char *out, int limit, char *format, int *args);
+static int boot_format(char *out, int limit, char *format,
+                       int a1, int a2, int a3, int a4);
+
 /* adapted from bootstrappable_load.c */
-char* int2str(int x, int base, int signed_p)
+static char* int2str(int x, int base, int signed_p)
 {
         /* Be overly conservative and save space for 32binary digits and padding null */
         char* p = (char *)calloc(34, sizeof(char));
@@ -46,6 +116,18 @@ char* int2str(int x, int base, int signed_p)
         return p + 1;
 }
 
+int puts(int x) {
+  fputs(x, stdout);
+  fputs("\n", stdout);
+  return 0;
+}
+
+static void boot_fail(char *msg)
+{
+  fputs(msg, stdout);
+  exit(1);
+}
+
 /* FIXME dummy impl */
 double strtod(char *a, char **p){
   double v;
@@ -53,7 +135,6 @@ double strtod(char *a, char **p){
   x=&v;
   x[0]=0;
   x[1]=0;
-  puts("tcc strtod");
   if(strcmp("4294967296.0",a) == 0){
     x[1]=0x41F00000;
   }
@@ -138,14 +219,39 @@ int strcat(int de,int s) {
   return d;
 }
 
-int fprintf(void){
-  puts("fprintf not impl");
-  exit(1);
+int boot_fput_uint(FILE *stream, unsigned value, int base, int upper)
+{
+  char buf[34];
+  char *digits;
+  int i;
+  digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
+  i = 0;
+  do {
+    buf[i] = digits[value % base];
+    value = value / base;
+    i = i + 1;
+  } while(value);
+  while(i > 0) {
+    i = i - 1;
+    fputc(buf[i], stream);
+  }
+  return 0;
 }
 
-int vfprintf(void){
-  puts("vfprintf not impl");
-  exit(1);
+int fprintf(int stream, int format, int a3, int a4, int a5, int a6)
+{
+  char buf[512];
+  boot_format(buf, 512, (char *)format, a3, a4, a5, a6);
+  fputs(buf, stream);
+  return 0;
+}
+
+int vfprintf(int stream, int format, int ap)
+{
+  char buf[512];
+  boot_vformat(buf, 512, (char *)format, (int *)ap);
+  fputs(buf, stream);
+  return 0;
 }
 
 int memcmp(int s1, int s2, int n) {
@@ -177,39 +283,11 @@ int memcpy(int a, int b, int c) {
 }
 
 int sprintf(int a1, int a2, int a3, int a4, int a5, int a6){
-  int format;
-  int o;
-  format = a2;
-  fputs("sprintf \"", stdout);
-  fputs(format, stdout);
-  fputs("\"\n", stdout);
-  if(strcmp(".rel%s", format) ==0) {
-    puts("generating \".rel%s\" sprintf/snprintf string");
-    fputs(".rel", stdout);
-    fputs(a3,stdout);
-    fputs("\n",stdout);
-    o=strcpy(a1,".rel");
-    o=strcat(a1, a3);
-    return o-a1;
-  } else if(strcmp("L.%u", format) ==0) {
-    puts("generating \".L.%u\" sprintf/snprintf string");
-    fputs("L.", stdout);
-    /* FIXME leaky */
-    fputs(int2str(a3, 10, 0), stdout);
-    fputs("\n",stdout);
-    o=strcpy(a1,"L.");
-    o=strcat(a1, int2str(a3, 10, 0));
-    return o-a1;
-  } else {
-    puts("unsupported sprintf/snprintf format string");
-    exit(1);
-  }
-  return 0;
+  return boot_format((char *)a1, 0x7fffffff, (char *)a2, a3, a4, a5, a6);
 }
 
 int memmove(void){
-  puts("memmove not impl");
-  exit(1);
+  boot_fail("memmove not impl\n");
 }
 
 int strrchr(int p, int c) {
@@ -228,33 +306,19 @@ int strrchr(int p, int c) {
 }
 
 int ldexp(void){
-  puts("ldexp not impl");
-  exit(1);
+  boot_fail("ldexp not impl\n");
 }
 
 int snprintf(int a1, int a2, int a3, int a4, int a5, int a6){
-  int format;
-  int size;
-  size = a2;
-  format = a3;
-  fputs("snprintf size: ", stdout);
-  /* FIXME leaky */
-  fputs(int2str(size, 10, 0), stdout);
-  fputs(" format: \"", stdout);
-  fputs(format, stdout);
-  fputs("\"\n", stdout);
-  sprintf(a1, a3, a4, a5, a6, 0);
-  return 0;
+  return boot_format((char *)a1, a2, (char *)a3, a4, a5, a6, 0);
 }
 
 int getcwd(void){
-  puts("getcwd not impl");
-  exit(1);
+  boot_fail("getcwd not impl\n");
 }
 
 int dlsym(void){
-  puts("dlsym not impl");
-  exit(1);
+  boot_fail("dlsym not impl\n");
 }
 
 int fwrite(int ptr,int size, int nitems, int stream) {
@@ -277,38 +341,199 @@ int fwrite(int ptr,int size, int nitems, int stream) {
 }
 
 int lseek(void){
-  puts("lseek not impl");
-  exit(1);
+  boot_fail("lseek not impl\n");
 }
 
 int strtol(void){
-  puts("strtol not impl");
-  exit(1);
+  boot_fail("strtol not impl\n");
 }
 
 int strchr(void){
-  puts("strchr not impl");
-  exit(1);
+  boot_fail("strchr not impl\n");
 }
 
 int sigemptyset(void){
-  puts("sigemptyset not impl");
-  exit(1);
+  boot_fail("sigemptyset not impl\n");
 }
 
 int sigaction(void){
-  puts("sigaction not impl");
-  exit(1);
+  boot_fail("sigaction not impl\n");
 }
 
 int dlopen(void){
-  puts("dlopen not impl");
-  exit(1);
+  boot_fail("dlopen not impl\n");
 }
 
 int printf(int x){
-  puts("printf not impl");
-  exit(1);
+  boot_fail("printf not impl\n");
+}
+
+/* Keep the formatting helpers away from the earliest function slots in
+   libc_boot.o. The tcc_2-built tcc_10 bootstrap compiler is still most
+   fragile there, and stage 3 relies on these routines for symbol names
+   and diagnostics when processing includes. */
+static int boot_append_char(char *out, int pos, int limit, int ch)
+{
+  if (limit <= 0) {
+    return pos;
+  }
+  if (pos + 1 < limit) {
+    out[pos] = ch;
+  }
+  return pos + 1;
+}
+
+static int boot_append_str(char *out, int pos, int limit, char *src)
+{
+  char *s;
+  int ch;
+  s = src;
+  while ((ch = s[0]) != 0) {
+    pos = boot_append_char(out, pos, limit, ch);
+    s = s + 1;
+  }
+  return pos;
+}
+
+static int boot_append_uint(char *out, int pos, int limit, unsigned value)
+{
+  if (value >= 10) {
+    pos = boot_append_uint(out, pos, limit, value / 10);
+  }
+  pos = boot_append_char(out, pos, limit, '0' + (value % 10));
+  return pos;
+}
+
+static int boot_append_int(char *out, int pos, int limit, int value)
+{
+  unsigned magnitude;
+
+  if (value < 0) {
+    pos = boot_append_char(out, pos, limit, '-');
+    magnitude = 0u - (unsigned)value;
+  } else {
+    magnitude = (unsigned)value;
+  }
+  return boot_append_uint(out, pos, limit, magnitude);
+}
+
+static int boot_vformat(char *out, int limit, char *format, int *args)
+{
+  int pos;
+  int ch;
+  int value;
+  char *s;
+
+  pos = 0;
+  while ((ch = format[0]) != 0) {
+    format = format + 1;
+    if (ch != '%') {
+      pos = boot_append_char(out, pos, limit, ch);
+      continue;
+    }
+    ch = format[0];
+    if (ch == 0) {
+      break;
+    }
+    while (ch == '0' || (ch >= '1' && ch <= '9') || ch == 'l') {
+      format = format + 1;
+      ch = format[0];
+      if (ch == 0) {
+        break;
+      }
+    }
+    if (ch == 0) {
+      break;
+    }
+    format = format + 1;
+    if (ch == '%') {
+      pos = boot_append_char(out, pos, limit, '%');
+      continue;
+    }
+    value = *args++;
+    if (ch == 's') {
+      s = (char *)value;
+      if (!s) {
+        s = "(null)";
+      }
+      pos = boot_append_str(out, pos, limit, s);
+    } else if (ch == 'u') {
+      pos = boot_append_uint(out, pos, limit, (unsigned)value);
+    } else if (ch == 'd') {
+      pos = boot_append_int(out, pos, limit, value);
+    } else if (ch == 'c') {
+      pos = boot_append_char(out, pos, limit, value);
+    } else {
+      pos = boot_append_char(out, pos, limit, '%');
+      pos = boot_append_char(out, pos, limit, ch);
+    }
+  }
+  if (limit > 0) {
+    if (pos < limit) {
+      out[pos] = 0;
+    } else {
+      out[limit - 1] = 0;
+    }
+  }
+  return pos;
+}
+
+static int boot_format(char *out, int limit, char *format,
+                       int a1, int a2, int a3, int a4)
+{
+  int pos;
+  int argi;
+  int ch;
+  int value;
+  char *s;
+
+  pos = 0;
+  argi = 0;
+  while ((ch = format[0]) != 0) {
+    format = format + 1;
+    if (ch != '%') {
+      pos = boot_append_char(out, pos, limit, ch);
+      continue;
+    }
+    ch = format[0];
+    if (ch == 0) {
+      break;
+    }
+    format = format + 1;
+    if (argi == 0) {
+      value = a1;
+    } else if (argi == 1) {
+      value = a2;
+    } else if (argi == 2) {
+      value = a3;
+    } else {
+      value = a4;
+    }
+    argi = argi + 1;
+    if (ch == 's') {
+      s = (char *)value;
+      pos = boot_append_str(out, pos, limit, s);
+    } else if (ch == 'u' || ch == 'd') {
+      pos = boot_append_uint(out, pos, limit, value);
+    } else if (ch == 'c') {
+      pos = boot_append_char(out, pos, limit, value);
+    } else if (ch == '%') {
+      pos = boot_append_char(out, pos, limit, '%');
+      argi = argi - 1;
+    } else {
+      pos = boot_append_char(out, pos, limit, '%');
+      pos = boot_append_char(out, pos, limit, ch);
+      argi = argi - 1;
+    }
+  }
+  if (limit > 0) {
+    if (pos < limit) {
+      out[pos] = 0;
+    } else {
+      out[limit - 1] = 0;
+    }
+  }
+  return pos;
 }
 
 typedef int tcc_dw_sword;

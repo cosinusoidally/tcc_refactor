@@ -2,7 +2,7 @@
 #define _STDIO_H
 
 #include <stdarg.h>
-#include <stddef.h>
+#include "stddef.h"
 
 typedef struct _tcc_file FILE;
 

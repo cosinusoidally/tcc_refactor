@@ -229,7 +229,8 @@ static void put_elf_reloc(Section *symtab, Section *s, unsigned long offset,
     sr = s->reloc;
     if (!sr) {
         /* if no relocation section, create it */
-        snprintf(buf, sizeof(buf), ".rel%s", s->name);
+        pstrcpy(buf, sizeof(buf), ".rel");
+        pstrcat(buf, sizeof(buf), s->name);
         /* if the symtab is allocated, then we consider the relocation
            are also */
         sr = new_section(buf, SHT_REL, symtab->sh_flags);
@@ -808,12 +809,14 @@ static void tcc_add_runtime(TCCState *s1)
                     goto next_sec;
                 p++;
             }
-            snprintf(buf, sizeof(buf), "__start_%s", s->name);
+            pstrcpy(buf, sizeof(buf), "__start_");
+            pstrcat(buf, sizeof(buf), s->name);
             add_elf_sym(symtab_section, 
                         0, 0,
                         ELF32_ST_INFO(STB_GLOBAL, STT_NOTYPE),
                         s->sh_num, buf);
-            snprintf(buf, sizeof(buf), "__stop_%s", s->name);
+            pstrcpy(buf, sizeof(buf), "__stop_");
+            pstrcat(buf, sizeof(buf), s->name);
             add_elf_sym(symtab_section,
                         s->data_offset, 0,
                         ELF32_ST_INFO(STB_GLOBAL, STT_NOTYPE),
@@ -846,11 +849,13 @@ int tcc_output_file(TCCState *s1, const char *filename)
     unsigned long saved_dynamic_data_offset;
     Elf32_Sym *sym;
     int type, file_type;
+    int obj_output_type;
     unsigned long rel_addr, rel_size;
     
     file_type = s1->output_type;
+    obj_output_type = TCC_OUTPUT_OBJ;
 
-    if (file_type != TCC_OUTPUT_OBJ)
+    if (file_type != obj_output_type)
         tcc_add_runtime(s1);
 
     interp = NULL;
@@ -862,7 +867,7 @@ int tcc_output_file(TCCState *s1, const char *filename)
     dynstr = NULL; /* avoid warning */
     saved_dynamic_data_offset = 0; /* avoid warning */
 
-    if (file_type != TCC_OUTPUT_OBJ) {
+    if (file_type != obj_output_type) {
 
         relocate_common_syms();
 
@@ -1057,7 +1062,7 @@ int tcc_output_file(TCCState *s1, const char *filename)
             !(s->sh_flags & SHF_ALLOC)) {
             prepare_dynamic_rel(s);
         } else if (do_debug || 
-            file_type == TCC_OUTPUT_OBJ || 
+            file_type == obj_output_type || 
             (s->sh_flags & SHF_ALLOC) ||
             i == (nb_sections - 1)) {
             /* we output all sections if debug or object file */
@@ -1272,7 +1277,7 @@ int tcc_output_file(TCCState *s1, const char *filename)
     
     /* if building executable or DLL, then relocate each section
        except the GOT which is already relocated */
-    if (file_type != TCC_OUTPUT_OBJ) {
+    if (file_type != obj_output_type) {
         relocate_syms(0);
 
         /* relocate sections */
@@ -1334,7 +1339,7 @@ int tcc_output_file(TCCState *s1, const char *filename)
     ehdr.e_shstrndx = shnum - 1;
     
     /* write elf file */
-    if (file_type == TCC_OUTPUT_OBJ)
+    if (file_type == obj_output_type)
         mode = 0666;
     else
         mode = 0777;
