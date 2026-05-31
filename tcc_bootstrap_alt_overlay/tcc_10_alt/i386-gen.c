@@ -42,58 +42,12 @@ enum {
     REG_ST0,
 };
 
-int reg_classes[NB_REGS];
-
-static void init_reg_classes(void)
-{
-    reg_classes[REG_EAX] = RC_INT | RC_EAX;
-    reg_classes[REG_ECX] = RC_INT | RC_ECX;
-    reg_classes[REG_EDX] = RC_INT | RC_EDX;
-    reg_classes[REG_ST0] = RC_FLOAT | RC_ST0;
-}
-
-static int gen_opf_swap_state(int op, int swapped)
-{
-    if (op == TOK_GE) {
-        if (swapped)
-            return 0;
-        return 1;
-    }
-    if (op == TOK_GT) {
-        if (swapped)
-            return 0;
-        return 1;
-    }
-    if (op == TOK_EQ)
-        return 0;
-    if (op == TOK_NE)
-        return 0;
-    return swapped;
-}
-
-static int gen_opf_emit_test(int op)
-{
-    if (op == TOK_EQ) {
-        o(0x45e480); /* and $0x45, %ah */
-        o(0x40fC80); /* cmp $0x40, %ah */
-        return TOK_EQ;
-    }
-    if (op == TOK_NE) {
-        o(0x45e480); /* and $0x45, %ah */
-        o(0x40f480); /* xor $0x40, %ah */
-        return TOK_NE;
-    }
-    if (op == TOK_GE) {
-        o(0x05c4f6); /* test $0x05, %ah */
-        return TOK_EQ;
-    }
-    if (op == TOK_LE) {
-        o(0x05c4f6); /* test $0x05, %ah */
-        return TOK_EQ;
-    }
-    o(0x45c4f6); /* test $0x45, %ah */
-    return TOK_EQ;
-}
+int reg_classes[NB_REGS] = {
+    /* eax */ RC_INT | RC_EAX,
+    /* ecx */ RC_INT | RC_ECX,
+    /* edx */ RC_INT | RC_EDX,
+    /* st0 */ RC_FLOAT | RC_ST0,
+};
 
 /* return registers for function */
 #define REG_IRET REG_EAX /* single word int return register */
@@ -473,7 +427,7 @@ void gfunc_prolog(int t)
 /* generate function epilog */
 void gfunc_epilog(void)
 {
-#if 0 /* Phase 1 bootstrap: bounds checking disabled */
+#ifdef CONFIG_TCC_BCHECK
     if (do_bounds_check && func_bound_offset != lbounds_section->data_offset) {
         int saved_ind;
         int *bounds_ptr;
@@ -739,12 +693,28 @@ void gen_opf(int op)
         /* load on stack second operand */
         load(REG_ST0, vtop);
         save_reg(REG_EAX); /* eax is used by FP comparison code */
-        swapped = gen_opf_swap_state(op, swapped);
+        if (op == TOK_GE || op == TOK_GT)
+            swapped = !swapped;
+        else if (op == TOK_EQ || op == TOK_NE)
+            swapped = 0;
         if (swapped)
             o(0xc9d9); /* fxch %st(1) */
         o(0xe9da); /* fucompp */
         o(0xe0df); /* fnstsw %ax */
-        op = gen_opf_emit_test(op);
+        if (op == TOK_EQ) {
+            o(0x45e480); /* and $0x45, %ah */
+            o(0x40fC80); /* cmp $0x40, %ah */
+        } else if (op == TOK_NE) {
+            o(0x45e480); /* and $0x45, %ah */
+            o(0x40f480); /* xor $0x40, %ah */
+            op = TOK_NE;
+        } else if (op == TOK_GE || op == TOK_LE) {
+            o(0x05c4f6); /* test $0x05, %ah */
+            op = TOK_EQ;
+        } else {
+            o(0x45c4f6); /* test $0x45, %ah */
+            op = TOK_EQ;
+        }
         vtop--;
         vtop->r = VT_CMP;
         vtop->c.i = op;
@@ -888,7 +858,7 @@ void gen_cvt_ftof(int t)
 }
 
 /* bound check support functions */
-#if 0 /* Phase 1 bootstrap: bounds checking disabled */
+#ifdef CONFIG_TCC_BCHECK
 
 /* generate a bounded pointer addition */
 void gen_bounded_ptr_add(void)
@@ -950,9 +920,10 @@ void gen_bounded_ptr_deref(void)
     sym = external_sym(func, func_old_type, 0);
     if (!sym->c)
         put_extern_sym(sym, NULL, 0, 0);
-    rel->r_info = elf32_r_info(sym->c, elf32_r_type(rel->r_info));
+    rel->r_info = ELF32_R_INFO(sym->c, ELF32_R_TYPE(rel->r_info));
 }
 #endif
 
 /* end of X86 code generator */
 /*************************************************************/
+

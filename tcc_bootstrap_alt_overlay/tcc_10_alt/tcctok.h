@@ -34,7 +34,7 @@ DEF(TOK___fixunsdfdi, "__fixunsdfdi")
 DEF(TOK___fixunsxfdi, "__fixunsxfdi")
 
 /* bound checking symbols */
-#if 0 /* Phase 1 bootstrap: bounds checking disabled */
+#ifdef CONFIG_TCC_BCHECK
 DEF(TOK___bound_ptr_add, "__bound_ptr_add")
 DEF(TOK___bound_ptr_indir1, "__bound_ptr_indir1")
 DEF(TOK___bound_ptr_indir2, "__bound_ptr_indir2")

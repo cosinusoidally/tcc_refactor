@@ -3,83 +3,13 @@ extern int stdout;
 int strcpy(int d, int s);
 int strcat(int de,int s);
 
-/* The tcc_2-built tcc_10 bootstrap compiler mis-emits the first two
-   function bodies in this support file. Keep those slots harmless so
-   the real helpers start at stable later offsets. */
-static int bootstrap_pad0(void) {
-  return 0;
+int puts(int x) {
+  fputs(x, stdout);
+  fputs("\n", stdout);
 }
-
-static int bootstrap_pad1(void) {
-  return 0;
-}
-
-static int bootstrap_pad2(void) {
-  return 0;
-}
-
-static int bootstrap_pad3(void) {
-  return 0;
-}
-
-static int bootstrap_pad4(void) {
-  return 0;
-}
-
-static int bootstrap_pad5(void) {
-  return 0;
-}
-
-static int bootstrap_pad6(void) {
-  return 0;
-}
-
-static int bootstrap_pad7(void) {
-  return 0;
-}
-
-static int bootstrap_pad8(void) {
-  return 0;
-}
-
-static int bootstrap_pad9(void) {
-  return 0;
-}
-
-static int bootstrap_pad10(void) {
-  return 0;
-}
-
-static int bootstrap_pad11(void) {
-  return 0;
-}
-
-static int bootstrap_pad12(void) {
-  return 0;
-}
-
-static int bootstrap_pad13(void) {
-  return 0;
-}
-
-static int bootstrap_pad14(void) {
-  return 0;
-}
-
-static int bootstrap_pad15(void) {
-  return 0;
-}
-
-static int boot_append_char(char *out, int pos, int limit, int ch);
-static int boot_append_str(char *out, int pos, int limit, char *src);
-static int boot_append_uint(char *out, int pos, int limit, unsigned value);
-static int boot_append_int(char *out, int pos, int limit, int value);
-static int boot_vformat(char *out, int limit, char *format, int *args);
-static int boot_format(char *out, int limit, char *format,
-                       int a1, int a2, int a3, int a4);
 
 /* adapted from bootstrappable_load.c */
-static char* int2str(int x, int base, int signed_p)
+char* int2str(int x, int base, int signed_p)
 {
         /* Be overly conservative and save space for 32binary digits and padding null */
         char* p = (char *)calloc(34, sizeof(char));
@@ -88,17 +18,17 @@ static char* int2str(int x, int base, int signed_p)
 
         p = p + 32;
         unsigned i;
-        unsigned ux;
         int sign_p = 0;
         char* table = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-        ux = (unsigned)x;
-        if (signed_p && (10 == base) && (x < 0)) {
-                i = 0u - ux;
+        if(signed_p && (10 == base) && (0 != (x & 0x80000000)))
+        {
+                /* Truncate to 31bits */
+                i = -x & 0x7FFFFFFF;
+                if(0 == i) return "-2147483648";
                 sign_p = 1;
-        } else {
-                i = ux;
-        }
+        } /* Truncate to 32bits */
+        else i = x & (0x7FFFFFFF | (1 << 31));
 
         do
         {
@@ -116,18 +46,6 @@ static char* int2str(int x, int base, int signed_p)
         return p + 1;
 }
 
-int puts(int x) {
-  fputs(x, stdout);
-  fputs("\n", stdout);
-  return 0;
-}
-
-static void boot_fail(char *msg)
-{
-  fputs(msg, stdout);
-  exit(1);
-}
-
 /* FIXME dummy impl */
 double strtod(char *a, char **p){
   double v;
@@ -135,6 +53,7 @@ double strtod(char *a, char **p){
   x=&v;
   x[0]=0;
   x[1]=0;
+  puts("tcc strtod");
   if(strcmp("4294967296.0",a) == 0){
     x[1]=0x41F00000;
   }
@@ -219,39 +138,14 @@ int strcat(int de,int s) {
   return d;
 }
 
-int boot_fput_uint(FILE *stream, unsigned value, int base, int upper)
-{
-  char buf[34];
-  char *digits;
-  int i;
-  digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
-  i = 0;
-  do {
-    buf[i] = digits[value % base];
-    value = value / base;
-    i = i + 1;
-  } while(value);
-  while(i > 0) {
-    i = i - 1;
-    fputc(buf[i], stream);
-  }
-  return 0;
+int fprintf(void){
+  puts("fprintf not impl");
+  exit(1);
 }
 
-int fprintf(int stream, int format, int a3, int a4, int a5, int a6)
-{
-  char buf[512];
-  boot_format(buf, 512, (char *)format, a3, a4, a5, a6);
-  fputs(buf, stream);
-  return 0;
-}
-
-int vfprintf(int stream, int format, int ap)
-{
-  char buf[512];
-  boot_vformat(buf, 512, (char *)format, (int *)ap);
-  fputs(buf, stream);
-  return 0;
+int vfprintf(void){
+  puts("vfprintf not impl");
+  exit(1);
 }
 
 int memcmp(int s1, int s2, int n) {
@@ -283,11 +177,39 @@ int memcpy(int a, int b, int c) {
 }
 
 int sprintf(int a1, int a2, int a3, int a4, int a5, int a6){
-  return boot_format((char *)a1, 0x7fffffff, (char *)a2, a3, a4, a5, a6);
+  int format;
+  int o;
+  format = a2;
+  fputs("sprintf \"", stdout);
+  fputs(format, stdout);
+  fputs("\"\n", stdout);
+  if(strcmp(".rel%s", format) ==0) {
+    puts("generating \".rel%s\" sprintf/snprintf string");
+    fputs(".rel", stdout);
+    fputs(a3,stdout);
+    fputs("\n",stdout);
+    o=strcpy(a1,".rel");
+    o=strcat(a1, a3);
+    return o-a1;
+  } else if(strcmp("L.%u", format) ==0) {
+    puts("generating \".L.%u\" sprintf/snprintf string");
+    fputs("L.", stdout);
+    /* FIXME leaky */
+    fputs(int2str(a3, 10, 0), stdout);
+    fputs("\n",stdout);
+    o=strcpy(a1,"L.");
+    o=strcat(a1, int2str(a3, 10, 0));
+    return o-a1;
+  } else {
+    puts("unsupported sprintf/snprintf format string");
+    exit(1);
+  }
+  return 0;
 }
 
 int memmove(void){
-  boot_fail("memmove not impl\n");
+  puts("memmove not impl");
+  exit(1);
 }
 
 int strrchr(int p, int c) {
@@ -306,19 +228,33 @@ int strrchr(int p, int c) {
 }
 
 int ldexp(void){
-  boot_fail("ldexp not impl\n");
+  puts("ldexp not impl");
+  exit(1);
 }
 
 int snprintf(int a1, int a2, int a3, int a4, int a5, int a6){
-  return boot_format((char *)a1, a2, (char *)a3, a4, a5, a6, 0);
+  int format;
+  int size;
+  size = a2;
+  format = a3;
+  fputs("snprintf size: ", stdout);
+  /* FIXME leaky */
+  fputs(int2str(size, 10, 0), stdout);
+  fputs(" format: \"", stdout);
+  fputs(format, stdout);
+  fputs("\"\n", stdout);
+  sprintf(a1, a3, a4, a5, a6, 0);
+  return 0;
 }
 
 int getcwd(void){
-  boot_fail("getcwd not impl\n");
+  puts("getcwd not impl");
+  exit(1);
 }
 
 int dlsym(void){
-  boot_fail("dlsym not impl\n");
+  puts("dlsym not impl");
+  exit(1);
 }
 
 int fwrite(int ptr,int size, int nitems, int stream) {
@@ -341,762 +277,36 @@ int fwrite(int ptr,int size, int nitems, int stream) {
 }
 
 int lseek(void){
-  boot_fail("lseek not impl\n");
+  puts("lseek not impl");
+  exit(1);
 }
 
 int strtol(void){
-  boot_fail("strtol not impl\n");
+  puts("strtol not impl");
+  exit(1);
 }
 
 int strchr(void){
-  boot_fail("strchr not impl\n");
+  puts("strchr not impl");
+  exit(1);
 }
 
 int sigemptyset(void){
-  boot_fail("sigemptyset not impl\n");
+  puts("sigemptyset not impl");
+  exit(1);
 }
 
 int sigaction(void){
-  boot_fail("sigaction not impl\n");
+  puts("sigaction not impl");
+  exit(1);
 }
 
 int dlopen(void){
-  boot_fail("dlopen not impl\n");
+  puts("dlopen not impl");
+  exit(1);
 }
 
 int printf(int x){
-  boot_fail("printf not impl\n");
-}
-
-/* Keep the formatting helpers away from the earliest function slots in
-   libc_boot.o. The tcc_2-built tcc_10 bootstrap compiler is still most
-   fragile there, and stage 3 relies on these routines for symbol names
-   and diagnostics when processing includes. */
-static int boot_append_char(char *out, int pos, int limit, int ch)
-{
-  if (limit <= 0) {
-    return pos;
-  }
-  if (pos + 1 < limit) {
-    out[pos] = ch;
-  }
-  return pos + 1;
-}
-
-static int boot_append_str(char *out, int pos, int limit, char *src)
-{
-  char *s;
-  int ch;
-  s = src;
-  while ((ch = s[0]) != 0) {
-    pos = boot_append_char(out, pos, limit, ch);
-    s = s + 1;
-  }
-  return pos;
-}
-
-static int boot_append_uint(char *out, int pos, int limit, unsigned value)
-{
-  if (value >= 10) {
-    pos = boot_append_uint(out, pos, limit, value / 10);
-  }
-  pos = boot_append_char(out, pos, limit, '0' + (value % 10));
-  return pos;
-}
-
-static int boot_append_int(char *out, int pos, int limit, int value)
-{
-  unsigned magnitude;
-
-  if (value < 0) {
-    pos = boot_append_char(out, pos, limit, '-');
-    magnitude = 0u - (unsigned)value;
-  } else {
-    magnitude = (unsigned)value;
-  }
-  return boot_append_uint(out, pos, limit, magnitude);
-}
-
-static int boot_vformat(char *out, int limit, char *format, int *args)
-{
-  int pos;
-  int ch;
-  int value;
-  char *s;
-
-  pos = 0;
-  while ((ch = format[0]) != 0) {
-    format = format + 1;
-    if (ch != '%') {
-      pos = boot_append_char(out, pos, limit, ch);
-      continue;
-    }
-    ch = format[0];
-    if (ch == 0) {
-      break;
-    }
-    while (ch == '0' || (ch >= '1' && ch <= '9') || ch == 'l') {
-      format = format + 1;
-      ch = format[0];
-      if (ch == 0) {
-        break;
-      }
-    }
-    if (ch == 0) {
-      break;
-    }
-    format = format + 1;
-    if (ch == '%') {
-      pos = boot_append_char(out, pos, limit, '%');
-      continue;
-    }
-    value = *args++;
-    if (ch == 's') {
-      s = (char *)value;
-      if (!s) {
-        s = "(null)";
-      }
-      pos = boot_append_str(out, pos, limit, s);
-    } else if (ch == 'u') {
-      pos = boot_append_uint(out, pos, limit, (unsigned)value);
-    } else if (ch == 'd') {
-      pos = boot_append_int(out, pos, limit, value);
-    } else if (ch == 'c') {
-      pos = boot_append_char(out, pos, limit, value);
-    } else {
-      pos = boot_append_char(out, pos, limit, '%');
-      pos = boot_append_char(out, pos, limit, ch);
-    }
-  }
-  if (limit > 0) {
-    if (pos < limit) {
-      out[pos] = 0;
-    } else {
-      out[limit - 1] = 0;
-    }
-  }
-  return pos;
-}
-
-static int boot_format(char *out, int limit, char *format,
-                       int a1, int a2, int a3, int a4)
-{
-  int pos;
-  int argi;
-  int ch;
-  int value;
-  char *s;
-
-  pos = 0;
-  argi = 0;
-  while ((ch = format[0]) != 0) {
-    format = format + 1;
-    if (ch != '%') {
-      pos = boot_append_char(out, pos, limit, ch);
-      continue;
-    }
-    ch = format[0];
-    if (ch == 0) {
-      break;
-    }
-    format = format + 1;
-    if (argi == 0) {
-      value = a1;
-    } else if (argi == 1) {
-      value = a2;
-    } else if (argi == 2) {
-      value = a3;
-    } else {
-      value = a4;
-    }
-    argi = argi + 1;
-    if (ch == 's') {
-      s = (char *)value;
-      pos = boot_append_str(out, pos, limit, s);
-    } else if (ch == 'u' || ch == 'd') {
-      pos = boot_append_uint(out, pos, limit, value);
-    } else if (ch == 'c') {
-      pos = boot_append_char(out, pos, limit, value);
-    } else if (ch == '%') {
-      pos = boot_append_char(out, pos, limit, '%');
-      argi = argi - 1;
-    } else {
-      pos = boot_append_char(out, pos, limit, '%');
-      pos = boot_append_char(out, pos, limit, ch);
-      argi = argi - 1;
-    }
-  }
-  if (limit > 0) {
-    if (pos < limit) {
-      out[pos] = 0;
-    } else {
-      out[limit - 1] = 0;
-    }
-  }
-  return pos;
-}
-
-typedef int tcc_dw_sword;
-typedef unsigned int tcc_dw_uword;
-typedef long long tcc_dw_slong;
-typedef unsigned long long tcc_dw_ulong;
-
-struct tcc_dw_words {
-  tcc_dw_uword low;
-  tcc_dw_sword high;
-};
-
-union tcc_dw_value {
-  struct tcc_dw_words s;
-  tcc_dw_slong sl;
-  tcc_dw_ulong ul;
-};
-
-static unsigned char tcc_bit_mask_table[8] = {
-  0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80
-};
-
-static unsigned char tcc_shift_left_byte(unsigned char value, int carry_in,
-                                         int *carry_out)
-{
-  unsigned char result;
-
-  result = 0;
-  *carry_out = (value & 0x80) != 0;
-  if (value & 0x01)
-    result = result | 0x02;
-  if (value & 0x02)
-    result = result | 0x04;
-  if (value & 0x04)
-    result = result | 0x08;
-  if (value & 0x08)
-    result = result | 0x10;
-  if (value & 0x10)
-    result = result | 0x20;
-  if (value & 0x20)
-    result = result | 0x40;
-  if (value & 0x40)
-    result = result | 0x80;
-  if (carry_in)
-    result = result | 0x01;
-  return result;
-}
-
-static unsigned char tcc_shift_right_byte(unsigned char value, int carry_in,
-                                          int *carry_out)
-{
-  unsigned char result;
-
-  result = 0;
-  *carry_out = (value & 0x01) != 0;
-  if (value & 0x02)
-    result = result | 0x01;
-  if (value & 0x04)
-    result = result | 0x02;
-  if (value & 0x08)
-    result = result | 0x04;
-  if (value & 0x10)
-    result = result | 0x08;
-  if (value & 0x20)
-    result = result | 0x10;
-  if (value & 0x40)
-    result = result | 0x20;
-  if (value & 0x80)
-    result = result | 0x40;
-  if (carry_in)
-    result = result | 0x80;
-  return result;
-}
-
-static void tcc_shift_left_u64_bytes(unsigned char *bytes)
-{
-  int carry;
-  unsigned int result;
-  unsigned int value;
-  int next_carry;
-
-  carry = 0;
-  {
-    value = bytes[0];
-    next_carry = (value & 0x80) != 0;
-    result = 0;
-    if (value & 0x01)
-      result = result | 0x02;
-    if (value & 0x02)
-      result = result | 0x04;
-    if (value & 0x04)
-      result = result | 0x08;
-    if (value & 0x08)
-      result = result | 0x10;
-    if (value & 0x10)
-      result = result | 0x20;
-    if (value & 0x20)
-      result = result | 0x40;
-    if (value & 0x40)
-      result = result | 0x80;
-    if (carry)
-      result = result | 0x01;
-    bytes[0] = result;
-    carry = next_carry;
-  }
-  value = bytes[1];
-  next_carry = (value & 0x80) != 0;
-  result = 0;
-  if (value & 0x01) result = result | 0x02;
-  if (value & 0x02) result = result | 0x04;
-  if (value & 0x04) result = result | 0x08;
-  if (value & 0x08) result = result | 0x10;
-  if (value & 0x10) result = result | 0x20;
-  if (value & 0x20) result = result | 0x40;
-  if (value & 0x40) result = result | 0x80;
-  if (carry) result = result | 0x01;
-  bytes[1] = result;
-  carry = next_carry;
-
-  value = bytes[2];
-  next_carry = (value & 0x80) != 0;
-  result = 0;
-  if (value & 0x01) result = result | 0x02;
-  if (value & 0x02) result = result | 0x04;
-  if (value & 0x04) result = result | 0x08;
-  if (value & 0x08) result = result | 0x10;
-  if (value & 0x10) result = result | 0x20;
-  if (value & 0x20) result = result | 0x40;
-  if (value & 0x40) result = result | 0x80;
-  if (carry) result = result | 0x01;
-  bytes[2] = result;
-  carry = next_carry;
-
-  value = bytes[3];
-  next_carry = (value & 0x80) != 0;
-  result = 0;
-  if (value & 0x01) result = result | 0x02;
-  if (value & 0x02) result = result | 0x04;
-  if (value & 0x04) result = result | 0x08;
-  if (value & 0x08) result = result | 0x10;
-  if (value & 0x10) result = result | 0x20;
-  if (value & 0x20) result = result | 0x40;
-  if (value & 0x40) result = result | 0x80;
-  if (carry) result = result | 0x01;
-  bytes[3] = result;
-  carry = next_carry;
-
-  value = bytes[4];
-  next_carry = (value & 0x80) != 0;
-  result = 0;
-  if (value & 0x01) result = result | 0x02;
-  if (value & 0x02) result = result | 0x04;
-  if (value & 0x04) result = result | 0x08;
-  if (value & 0x08) result = result | 0x10;
-  if (value & 0x10) result = result | 0x20;
-  if (value & 0x20) result = result | 0x40;
-  if (value & 0x40) result = result | 0x80;
-  if (carry) result = result | 0x01;
-  bytes[4] = result;
-  carry = next_carry;
-
-  value = bytes[5];
-  next_carry = (value & 0x80) != 0;
-  result = 0;
-  if (value & 0x01) result = result | 0x02;
-  if (value & 0x02) result = result | 0x04;
-  if (value & 0x04) result = result | 0x08;
-  if (value & 0x08) result = result | 0x10;
-  if (value & 0x10) result = result | 0x20;
-  if (value & 0x20) result = result | 0x40;
-  if (value & 0x40) result = result | 0x80;
-  if (carry) result = result | 0x01;
-  bytes[5] = result;
-  carry = next_carry;
-
-  value = bytes[6];
-  next_carry = (value & 0x80) != 0;
-  result = 0;
-  if (value & 0x01) result = result | 0x02;
-  if (value & 0x02) result = result | 0x04;
-  if (value & 0x04) result = result | 0x08;
-  if (value & 0x08) result = result | 0x10;
-  if (value & 0x10) result = result | 0x20;
-  if (value & 0x20) result = result | 0x40;
-  if (value & 0x40) result = result | 0x80;
-  if (carry) result = result | 0x01;
-  bytes[6] = result;
-  carry = next_carry;
-
-  value = bytes[7];
-  next_carry = (value & 0x80) != 0;
-  result = 0;
-  if (value & 0x01) result = result | 0x02;
-  if (value & 0x02) result = result | 0x04;
-  if (value & 0x04) result = result | 0x08;
-  if (value & 0x08) result = result | 0x10;
-  if (value & 0x10) result = result | 0x20;
-  if (value & 0x20) result = result | 0x40;
-  if (value & 0x40) result = result | 0x80;
-  if (carry) result = result | 0x01;
-  bytes[7] = result;
-  carry = next_carry;
-}
-
-static void tcc_shift_right_u64_bytes(unsigned char *bytes, int arithmetic)
-{
-  int carry;
-  unsigned int result;
-  unsigned int value;
-  int next_carry;
-
-  carry = arithmetic && (bytes[7] & 0x80);
-  value = bytes[7];
-  next_carry = (value & 0x01) != 0;
-  result = 0;
-  if (value & 0x02) result = result | 0x01;
-  if (value & 0x04) result = result | 0x02;
-  if (value & 0x08) result = result | 0x04;
-  if (value & 0x10) result = result | 0x08;
-  if (value & 0x20) result = result | 0x10;
-  if (value & 0x40) result = result | 0x20;
-  if (value & 0x80) result = result | 0x40;
-  if (carry) result = result | 0x80;
-  bytes[7] = result;
-  carry = next_carry;
-
-  value = bytes[6];
-  next_carry = (value & 0x01) != 0;
-  result = 0;
-  if (value & 0x02) result = result | 0x01;
-  if (value & 0x04) result = result | 0x02;
-  if (value & 0x08) result = result | 0x04;
-  if (value & 0x10) result = result | 0x08;
-  if (value & 0x20) result = result | 0x10;
-  if (value & 0x40) result = result | 0x20;
-  if (value & 0x80) result = result | 0x40;
-  if (carry) result = result | 0x80;
-  bytes[6] = result;
-  carry = next_carry;
-
-  value = bytes[5];
-  next_carry = (value & 0x01) != 0;
-  result = 0;
-  if (value & 0x02) result = result | 0x01;
-  if (value & 0x04) result = result | 0x02;
-  if (value & 0x08) result = result | 0x04;
-  if (value & 0x10) result = result | 0x08;
-  if (value & 0x20) result = result | 0x10;
-  if (value & 0x40) result = result | 0x20;
-  if (value & 0x80) result = result | 0x40;
-  if (carry) result = result | 0x80;
-  bytes[5] = result;
-  carry = next_carry;
-
-  value = bytes[4];
-  next_carry = (value & 0x01) != 0;
-  result = 0;
-  if (value & 0x02) result = result | 0x01;
-  if (value & 0x04) result = result | 0x02;
-  if (value & 0x08) result = result | 0x04;
-  if (value & 0x10) result = result | 0x08;
-  if (value & 0x20) result = result | 0x10;
-  if (value & 0x40) result = result | 0x20;
-  if (value & 0x80) result = result | 0x40;
-  if (carry) result = result | 0x80;
-  bytes[4] = result;
-  carry = next_carry;
-
-  value = bytes[3];
-  next_carry = (value & 0x01) != 0;
-  result = 0;
-  if (value & 0x02) result = result | 0x01;
-  if (value & 0x04) result = result | 0x02;
-  if (value & 0x08) result = result | 0x04;
-  if (value & 0x10) result = result | 0x08;
-  if (value & 0x20) result = result | 0x10;
-  if (value & 0x40) result = result | 0x20;
-  if (value & 0x80) result = result | 0x40;
-  if (carry) result = result | 0x80;
-  bytes[3] = result;
-  carry = next_carry;
-
-  value = bytes[2];
-  next_carry = (value & 0x01) != 0;
-  result = 0;
-  if (value & 0x02) result = result | 0x01;
-  if (value & 0x04) result = result | 0x02;
-  if (value & 0x08) result = result | 0x04;
-  if (value & 0x10) result = result | 0x08;
-  if (value & 0x20) result = result | 0x10;
-  if (value & 0x40) result = result | 0x20;
-  if (value & 0x80) result = result | 0x40;
-  if (carry) result = result | 0x80;
-  bytes[2] = result;
-  carry = next_carry;
-
-  value = bytes[1];
-  next_carry = (value & 0x01) != 0;
-  result = 0;
-  if (value & 0x02) result = result | 0x01;
-  if (value & 0x04) result = result | 0x02;
-  if (value & 0x08) result = result | 0x04;
-  if (value & 0x10) result = result | 0x08;
-  if (value & 0x20) result = result | 0x10;
-  if (value & 0x40) result = result | 0x20;
-  if (value & 0x80) result = result | 0x40;
-  if (carry) result = result | 0x80;
-  bytes[1] = result;
-  carry = next_carry;
-
-  value = bytes[0];
-  next_carry = (value & 0x01) != 0;
-  result = 0;
-  if (value & 0x02) result = result | 0x01;
-  if (value & 0x04) result = result | 0x02;
-  if (value & 0x08) result = result | 0x04;
-  if (value & 0x10) result = result | 0x08;
-  if (value & 0x20) result = result | 0x10;
-  if (value & 0x40) result = result | 0x20;
-  if (value & 0x80) result = result | 0x40;
-  if (carry) result = result | 0x80;
-  bytes[0] = result;
-  carry = next_carry;
-}
-
-static tcc_dw_ulong tcc_pack_u64(tcc_dw_uword high, tcc_dw_uword low)
-{
-  union tcc_dw_value v;
-  v.s.low = low;
-  v.s.high = high;
-  return v.ul;
-}
-
-static tcc_dw_slong tcc_pack_s64(tcc_dw_uword high, tcc_dw_uword low)
-{
-  union tcc_dw_value v;
-  v.s.low = low;
-  v.s.high = high;
-  return v.sl;
-}
-
-static void tcc_unpack_u64(tcc_dw_ulong value, tcc_dw_uword *high, tcc_dw_uword *low)
-{
-  union tcc_dw_value v;
-  v.ul = value;
-  *low = v.s.low;
-  *high = (tcc_dw_uword)v.s.high;
-}
-
-static int tcc_cmp_u64(tcc_dw_uword ah, tcc_dw_uword al,
-                       tcc_dw_uword bh, tcc_dw_uword bl)
-{
-  if (ah < bh)
-    return -1;
-  if (ah > bh)
-    return 1;
-  if (al < bl)
-    return -1;
-  if (al > bl)
-    return 1;
-  return 0;
-}
-
-static void tcc_sub_u64(tcc_dw_uword *ah, tcc_dw_uword *al,
-                        tcc_dw_uword bh, tcc_dw_uword bl)
-{
-  tcc_dw_uword new_low;
-  tcc_dw_uword borrow;
-
-  new_low = *al - bl;
-  borrow = new_low > *al;
-  *al = new_low;
-  *ah = *ah - bh - borrow;
-}
-
-static void tcc_neg_u64(tcc_dw_uword *high, tcc_dw_uword *low)
-{
-  *low = ~*low + 1;
-  *high = ~*high;
-  if (*low == 0)
-    *high = *high + 1;
-}
-
-static void tcc_shl1_u64(tcc_dw_uword *high, tcc_dw_uword *low)
-{
-  union tcc_dw_value v;
-
-  v.s.low = *low;
-  v.s.high = *high;
-  tcc_shift_left_u64_bytes((unsigned char *)&v.ul);
-  *low = v.s.low;
-  *high = (tcc_dw_uword)v.s.high;
-}
-
-static void tcc_set_bit_u64(tcc_dw_uword *high, tcc_dw_uword *low, int bit)
-{
-  union tcc_dw_value v;
-  int byte_index;
-
-  v.s.low = *low;
-  v.s.high = *high;
-  byte_index = 0;
-  while (bit >= 8) {
-    bit = bit - 8;
-    ++byte_index;
-  }
-  ((unsigned char *)&v.ul)[byte_index] =
-      ((unsigned char *)&v.ul)[byte_index] | tcc_bit_mask_table[bit];
-  *low = v.s.low;
-  *high = (tcc_dw_uword)v.s.high;
-}
-
-static int tcc_get_bit_u64(tcc_dw_uword high, tcc_dw_uword low, int bit)
-{
-  union tcc_dw_value v;
-  int byte_index;
-
-  v.s.low = low;
-  v.s.high = high;
-  byte_index = 0;
-  while (bit >= 8) {
-    bit = bit - 8;
-    ++byte_index;
-  }
-  return (((unsigned char *)&v.ul)[byte_index] & tcc_bit_mask_table[bit]) != 0;
-}
-
-static tcc_dw_ulong tcc_udivmod_u64(tcc_dw_ulong numer, tcc_dw_ulong denom,
-                                    tcc_dw_ulong *remainder)
-{
-  tcc_dw_uword nh;
-  tcc_dw_uword nl;
-  tcc_dw_uword dh;
-  tcc_dw_uword dl;
-  tcc_dw_uword qh;
-  tcc_dw_uword ql;
-  tcc_dw_uword rh;
-  tcc_dw_uword rl;
-  int bit;
-
-  tcc_unpack_u64(numer, &nh, &nl);
-  tcc_unpack_u64(denom, &dh, &dl);
-
-  qh = 0;
-  ql = 0;
-  rh = 0;
-  rl = 0;
-
-  if (dh == 0 && dl == 0) {
-    if (remainder != 0)
-      *remainder = 0;
-    return 0;
-  }
-
-  for (bit = 63; bit >= 0; --bit) {
-    tcc_shl1_u64(&rh, &rl);
-    rl = rl | tcc_get_bit_u64(nh, nl, bit);
-    if (tcc_cmp_u64(rh, rl, dh, dl) >= 0) {
-      tcc_sub_u64(&rh, &rl, dh, dl);
-      tcc_set_bit_u64(&qh, &ql, bit);
-    }
-  }
-
-  if (remainder != 0)
-    *remainder = tcc_pack_u64(rh, rl);
-  return tcc_pack_u64(qh, ql);
-}
-
-long long __divdi3(long long a, long long b)
-{
-  union tcc_dw_value ua;
-  union tcc_dw_value ub;
-  tcc_dw_uword qh;
-  tcc_dw_uword ql;
-  int negative;
-
-  ua.sl = a;
-  ub.sl = b;
-  negative = 0;
-
-  if (ua.s.high < 0) {
-    negative = !negative;
-    tcc_neg_u64((tcc_dw_uword *)&ua.s.high, &ua.s.low);
-  }
-  if (ub.s.high < 0) {
-    negative = !negative;
-    tcc_neg_u64((tcc_dw_uword *)&ub.s.high, &ub.s.low);
-  }
-
-  tcc_unpack_u64(tcc_udivmod_u64(ua.ul, ub.ul, 0), &qh, &ql);
-  if (negative)
-    tcc_neg_u64(&qh, &ql);
-  return tcc_pack_s64(qh, ql);
-}
-
-long long __moddi3(long long a, long long b)
-{
-  union tcc_dw_value ua;
-  union tcc_dw_value ub;
-  tcc_dw_ulong rem;
-  tcc_dw_uword rh;
-  tcc_dw_uword rl;
-  int negative;
-
-  ua.sl = a;
-  ub.sl = b;
-  negative = 0;
-
-  if (ua.s.high < 0) {
-    negative = 1;
-    tcc_neg_u64((tcc_dw_uword *)&ua.s.high, &ua.s.low);
-  }
-  if (ub.s.high < 0)
-    tcc_neg_u64((tcc_dw_uword *)&ub.s.high, &ub.s.low);
-
-  tcc_udivmod_u64(ua.ul, ub.ul, &rem);
-  tcc_unpack_u64(rem, &rh, &rl);
-  if (negative)
-    tcc_neg_u64(&rh, &rl);
-  return tcc_pack_s64(rh, rl);
-}
-
-unsigned long long __udivdi3(unsigned long long a, unsigned long long b)
-{
-  return tcc_udivmod_u64(a, b, 0);
-}
-
-unsigned long long __umoddi3(unsigned long long a, unsigned long long b)
-{
-  tcc_dw_ulong rem;
-  tcc_udivmod_u64(a, b, &rem);
-  return rem;
-}
-
-long long __sardi3(long long a, int b)
-{
-  union tcc_dw_value u;
-  u.sl = a;
-  while (b > 0) {
-    tcc_shift_right_u64_bytes((unsigned char *)&u.ul, 1);
-    --b;
-  }
-  return u.sl;
-}
-
-unsigned long long __shrdi3(unsigned long long a, int b)
-{
-  union tcc_dw_value u;
-  u.ul = a;
-  while (b > 0) {
-    tcc_shift_right_u64_bytes((unsigned char *)&u.ul, 0);
-    --b;
-  }
-  return u.ul;
-}
-
-long long __shldi3(long long a, int b)
-{
-  union tcc_dw_value u;
-  u.sl = a;
-  while (b > 0) {
-    tcc_shift_left_u64_bytes((unsigned char *)&u.ul);
-    --b;
-  }
-  return u.sl;
+  puts("printf not impl");
+  exit(1);
 }

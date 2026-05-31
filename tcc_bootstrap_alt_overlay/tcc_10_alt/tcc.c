@@ -17,61 +17,26 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#include "stdlib.h"
-#include "stdio.h"
-#include "stdarg.h"
-#include "string.h"
-#include "errno.h"
-#include "math.h"
-#include "unistd.h"
-#include "signal.h"
-#include "unistd.h"
-#include "fcntl.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
+#include <errno.h>
+#include <math.h>
+#include <unistd.h>
+#include <signal.h>
+#include <unistd.h>
+#include <fcntl.h>
 #ifndef WIN32
+#include <sys/ucontext.h>
 #endif
 #include "elf.h"
 #include "stab.h"
 #ifndef CONFIG_TCC_STATIC
-#include "dlfcn.h"
+#include <dlfcn.h>
 #endif
 
 #include "libtcc.h"
-
-/* Keep bootstrap varargs macros local to the compiler source. The
-   self-hosted stage-3 parser is sensitive to macro-heavy stdarg headers. */
-#define va_start(ap,last) ap = ((char *)&(last)) + sizeof(int)
-#define va_arg(ap,type) (ap += sizeof(int), *(type *)(ap - sizeof(int)))
-#define va_end(ap)
-
-static int elf32_st_bind(int val)
-{
-    return val >> 4;
-}
-
-static int elf32_st_type(int val)
-{
-    return val & 15;
-}
-
-static int elf32_st_info(int bind, int type)
-{
-    return (bind << 4) + (type & 15);
-}
-
-static int elf32_r_sym(int val)
-{
-    return val >> 8;
-}
-
-static int elf32_r_type(int val)
-{
-    return val & 255;
-}
-
-static int elf32_r_info(int sym, int type)
-{
-    return (sym << 8) + (type & 255);
-}
 
 //#define DEBUG
 /* preprocessor debug */
@@ -83,10 +48,17 @@ static int elf32_r_info(int sym, int type)
 //#define TCC_TARGET_I386   /* i386 code generator */
 //#define TCC_TARGET_IL     /* .NET CLI generator */
 
+/* default target is I386 */
+#if !defined(TCC_TARGET_I386) && !defined(TCC_TARGET_IL)
 #define TCC_TARGET_I386
+#endif
+
+#if !defined(WIN32) && !defined(TCC_UCLIBC) && !defined(TCC_TARGET_IL)
+#define CONFIG_TCC_BCHECK /* enable bound checking code */
+#endif
 
 #ifndef CONFIG_TCC_PREFIX
-#define CONFIG_TCC_PREFIX "/usr"
+#define CONFIG_TCC_PREFIX "/usr/local"
 #endif
 
 /* path to find crt1.o, crti.o and crtn.o. Only needed when generating
@@ -97,11 +69,10 @@ static int elf32_r_info(int sym, int type)
 #define IFDEF_STACK_SIZE    64
 #define VSTACK_SIZE         64
 #define STRING_MAX_SIZE     1024
-#define STRING_MAX_SIZE1    1025
 
 #define TOK_HASH_SIZE       2048 /* must be a power of two */
 #define TOK_ALLOC_INCR      512  /* must be a power of two */
-#define SYM_HASH_SIZE       1024 /* power of two for bootstrap-safe masking */
+#define SYM_HASH_SIZE       1031
 
 /* token symbol management */
 typedef struct TokenSym {
@@ -224,16 +195,14 @@ typedef struct AttributeDef {
 #define TYPE_DIRECT    2 /* type with variable */
 
 #define IO_BUF_SIZE 8192
-#define IO_BUF_SIZE1 8193
-#define TCC_FILENAME_MAX 1024
 
 typedef struct BufferedFile {
     unsigned char *buf_ptr;
     unsigned char *buf_end;
     int fd;
     int line_num;    /* current line number - here to simply code */
-    char *filename;    /* current filename - here to simplify code */
-    unsigned char *buffer; /* extra size for CH_EOB char */
+    char filename[1024];    /* current filename - here to simplify code */
+    unsigned char buffer[IO_BUF_SIZE + 1]; /* extra size for CH_EOB char */
 } BufferedFile;
 
 #define CH_EOB   0       /* end of buffer or '\0' char in file */
@@ -311,7 +280,7 @@ int last_line_num, last_ind, func_ind; /* debug last line number and pc */
 int tok_ident;
 TokenSym **table_ident;
 TokenSym *hash_ident[TOK_HASH_SIZE];
-char token_buf[STRING_MAX_SIZE1];
+char token_buf[STRING_MAX_SIZE + 1];
 char *funcname;
 SymStack define_stack, global_stack, local_stack, label_stack;
 
@@ -338,10 +307,10 @@ int total_lines;
 int total_bytes;
 
 /* use GNU C extensions */
-int gnu_ext = 0;
+int gnu_ext = 1;
 
 /* use Tiny C extensions */
-int tcc_ext = 0;
+int tcc_ext = 1;
 
 /* if true, static linking is performed */
 int static_link = 0;
@@ -756,26 +725,9 @@ static char *pstrcat(char *buf, int buf_size, const char *s)
 {
     int len;
     len = strlen(buf);
-    if (len < buf_size)
+    if (len < buf_size) 
         pstrcpy(buf + len, buf_size - len, s);
     return buf;
-}
-
-static char *pstrappend_u(char *p, unsigned int value)
-{
-    char tmp[16];
-    int i;
-
-    i = 0;
-    do {
-        tmp[i++] = '0' + (value % 10);
-        value = value / 10;
-    } while (value);
-    while (i > 0) {
-        *p++ = tmp[--i];
-    }
-    *p = '\0';
-    return p;
 }
 
 /* memory management */
@@ -978,8 +930,8 @@ static void put_extern_sym(Sym *sym, Section *section,
         else
             sym_bind = STB_GLOBAL;
         
-        name = get_tok_str(sym->v, &tokc);
-#if 0 /* Phase 1 bootstrap: bounds checking disabled */
+        name = get_tok_str(sym->v, NULL);
+#ifdef CONFIG_TCC_BCHECK
         if (do_bounds_check) {
             /* if bound checking is activated, we change some function
                names by adding the "__bound" prefix */
@@ -1001,7 +953,7 @@ static void put_extern_sym(Sym *sym, Section *section,
             }
         }
 #endif
-        info = elf32_st_info(sym_bind, sym_type);
+        info = ELF32_ST_INFO(sym_bind, sym_type);
         sym->c = add_elf_sym(symtab_section, value, size, info, sh_num, name);
     } else {
         esym = &((Elf32_Sym *)symtab_section->data)[sym->c];
@@ -1102,14 +1054,13 @@ void test_lvalue(void)
 TokenSym *tok_alloc(const char *str, int len)
 {
     TokenSym *ts, **pts, **ptable;
-    unsigned int h, i;
+    int h, i;
     
     if (len <= 0)
         len = strlen(str);
     h = 1;
-    for (i = 0; i < (unsigned int)len; i++) {
-        h = ((h << 8) + ((unsigned char *)str)[i]) & (TOK_HASH_SIZE - 1);
-    }
+    for(i=0;i<len;i++)
+        h = (h * 263 +  ((unsigned char *)str)[i]) & (TOK_HASH_SIZE - 1);
 
     pts = &hash_ident[h];
     while (1) {
@@ -1125,8 +1076,8 @@ TokenSym *tok_alloc(const char *str, int len)
         error("memory full");
 
     /* expand token table if needed */
-    i = (unsigned int)(tok_ident - TOK_IDENT);
-    if ((i & (TOK_ALLOC_INCR - 1)) == 0) {
+    i = tok_ident - TOK_IDENT;
+    if ((i % TOK_ALLOC_INCR) == 0) {
         ptable = tcc_realloc(table_ident, (i + TOK_ALLOC_INCR) * sizeof(TokenSym *));
         if (!ptable)
             error("memory full");
@@ -1236,7 +1187,7 @@ static void add_char(CString *cstr, int c)
 /* XXX: float tokens */
 char *get_tok_str(int v, CValue *cv)
 {
-    static char buf[STRING_MAX_SIZE1];
+    static char buf[STRING_MAX_SIZE + 1];
     static CString cstr_buf;
     CString *cstr;
     unsigned char *q;
@@ -1253,7 +1204,7 @@ char *get_tok_str(int v, CValue *cv)
     case TOK_CINT:
     case TOK_CUINT:
         /* XXX: not exact */
-        pstrappend_u(p, cv->ui);
+        sprintf(p, "%u", cv->ui);
         break;
     case TOK_CCHAR:
     case TOK_LCHAR:
@@ -1308,9 +1259,7 @@ char *get_tok_str(int v, CValue *cv)
             return table_ident[v - TOK_IDENT]->str;
         } else if (v >= SYM_FIRST_ANOM) {
             /* special name for anonymous symbol */
-            *p++ = 'L';
-            *p++ = '.';
-            pstrappend_u(p, v - SYM_FIRST_ANOM);
+            sprintf(p, "L.%u", v - SYM_FIRST_ANOM);
         } else {
             /* should never happen */
             return NULL;
@@ -1347,7 +1296,7 @@ Sym *sym_find2(Sym *s, int v)
     return NULL;
 }
 
-#define HASH_SYM(v) (((unsigned)(v)) & (SYM_HASH_SIZE - 1))
+#define HASH_SYM(v) ((unsigned)(v) % SYM_HASH_SIZE)
 
 /* find a symbol and return its associated structure. 'st' is the
    symbol stack */
@@ -1447,20 +1396,11 @@ BufferedFile *tcc_open(const char *filename)
         close(fd);
         return NULL;
     }
-    bf->filename = tcc_malloc(TCC_FILENAME_MAX);
-    bf->buffer = tcc_malloc(IO_BUF_SIZE1);
-    if (!bf->filename || !bf->buffer) {
-        tcc_free(bf->filename);
-        tcc_free(bf->buffer);
-        tcc_free(bf);
-        close(fd);
-        return NULL;
-    }
     bf->fd = fd;
     bf->buf_ptr = bf->buffer;
     bf->buf_end = bf->buffer;
     bf->buffer[0] = CH_EOB; /* put eob symbol */
-    pstrcpy(bf->filename, TCC_FILENAME_MAX, filename);
+    pstrcpy(bf->filename, sizeof(bf->filename), filename);
     bf->line_num = 1;
     //    printf("opening '%s'\n", filename);
     return bf;
@@ -1470,8 +1410,6 @@ void tcc_close(BufferedFile *bf)
 {
     total_lines += bf->line_num;
     close(bf->fd);
-    tcc_free(bf->filename);
-    tcc_free(bf->buffer);
     tcc_free(bf);
 }
 
@@ -1485,16 +1423,10 @@ int tcc_getc_slow(BufferedFile *bf)
     /* only tries to read if really end of buffer */
     if (bf->buf_ptr >= bf->buf_end) {
         if (bf->fd != -1) {
-            if (bf->fd == -2)
-                error("internal error: repeated EOF on generated input");
             len = read(bf->fd, bf->buffer, IO_BUF_SIZE);
             if (len < 0)
                 len = 0;
         } else {
-            /* Generated-input buffers are allowed to hit EOF once. If the
-               parser asks to read them again, bail out instead of spinning
-               forever on an invalid pseudo-file. */
-            bf->fd = -2;
             len = 0;
         }
         total_bytes += len;
@@ -1513,17 +1445,13 @@ int tcc_getc_slow(BufferedFile *bf)
 /* no need to put that inline */
 void handle_eob(void)
 {
-    while (1) {
-        int next_ch;
-
-        next_ch = tcc_getc_slow(file);
-        ch1 = next_ch;
-        if (next_ch >= 0)
+    for(;;) {
+        ch1 = tcc_getc_slow(file);
+        if (ch1 != CH_EOF)
             return;
-
+        
         if (include_stack_ptr == include_stack)
             return;
-
         /* add end of include file debug info */
         if (do_debug) {
             put_stabd(N_EINCL, 0, 0);
@@ -1882,7 +1810,7 @@ void parse_define(void)
     }
     tok_str_add(&str, 0);
 #ifdef PP_DEBUG
-    printf("define %s %d: ", get_tok_str(v, &tokc), t);
+    printf("define %s %d: ", get_tok_str(v, NULL), t);
     tok_print(str.str);
 #endif
     s = sym_push1(&define_stack, v, t, (int)str.str);
@@ -1892,44 +1820,25 @@ void parse_define(void)
 void preprocess(void)
 {
     int size, i, c, n;
-    int tok_define, tok_undef, tok_include, tok_ifndef, tok_if;
-    int tok_ifdef, tok_else, tok_elif, tok_endif, tok_line;
-    int tok_error, tok_cint, tok_str, tok_linefeed, tok_eof;
     char buf[1024], *q, *p;
     char buf1[1024];
     BufferedFile *f;
     Sym *s;
 
-    tok_define = TOK_DEFINE;
-    tok_undef = TOK_UNDEF;
-    tok_include = TOK_INCLUDE;
-    tok_ifndef = TOK_IFNDEF;
-    tok_if = TOK_IF;
-    tok_ifdef = TOK_IFDEF;
-    tok_else = TOK_ELSE;
-    tok_elif = TOK_ELIF;
-    tok_endif = TOK_ENDIF;
-    tok_line = TOK_LINE;
-    tok_error = TOK_ERROR;
-    tok_cint = TOK_CINT;
-    tok_str = TOK_STR;
-    tok_linefeed = TOK_LINEFEED;
-    tok_eof = TOK_EOF;
-
     return_linefeed = 1; /* linefeed will be returned as a token */
     cinp();
     next_nomacro();
  redo:
-    if (tok == tok_define) {
+    if (tok == TOK_DEFINE) {
         next_nomacro();
         parse_define();
-    } else if (tok == tok_undef) {
+    } else if (tok == TOK_UNDEF) {
         next_nomacro();
         s = sym_find1(&define_stack, tok);
         /* undefine symbol by putting an invalid name */
         if (s)
             sym_undef(&define_stack, s);
-    } else if (tok == tok_include) {
+    } else if (tok == TOK_INCLUDE) {
         skip_spaces();
         if (ch == '<') {
             c = '>';
@@ -1939,13 +1848,7 @@ void preprocess(void)
         read_name:
             minp();
             q = buf;
-            while (1) {
-                if (ch == c)
-                    break;
-                if (ch == '\n')
-                    break;
-                if (ch < 0)
-                    break;
+            while (ch != c && ch != '\n' && ch != CH_EOF) {
                 if ((q - buf) < sizeof(buf) - 1)
                     *q++ = ch;
                 minp();
@@ -1953,21 +1856,16 @@ void preprocess(void)
             *q = '\0';
             /* eat all spaces and comments after include */
             /* XXX: slightly incorrect */
-            while (1) {
-                if (ch1 == '\n')
-                    break;
-                if (ch1 < 0)
-                    break;
+            while (ch1 != '\n' && ch1 != CH_EOF)
                 inp();
-            }
         } else {
             /* computed #include : either we have only strings or
                we have anything enclosed in '<>' */
             next();
             buf[0] = '\0';
             if (tok == TOK_STR) {
-                while (tok != tok_linefeed) {
-                    if (tok != tok_str) {
+                while (tok != TOK_LINEFEED) {
+                    if (tok != TOK_STR) {
                     include_syntax:
                         error("'#include' expects \"FILENAME\" or <FILENAME>");
                     }
@@ -1977,7 +1875,7 @@ void preprocess(void)
                 c = '\"';
             } else {
                 int len;
-                while (tok != tok_linefeed) {
+                while (tok != TOK_LINEFEED) {
                     pstrcat(buf, sizeof(buf), get_tok_str(tok, &tokc));
                     next();
                 }
@@ -2036,13 +1934,13 @@ void preprocess(void)
         }
         ch = '\n';
         goto the_end;
-    } else if (tok == tok_ifndef) {
+    } else if (tok == TOK_IFNDEF) {
         c = 1;
         goto do_ifdef;
-    } else if (tok == tok_if) {
+    } else if (tok == TOK_IF) {
         c = expr_preprocess();
         goto do_if;
-    } else if (tok == tok_ifdef) {
+    } else if (tok == TOK_IFDEF) {
         c = 0;
     do_ifdef:
         next_nomacro();
@@ -2052,14 +1950,14 @@ void preprocess(void)
             error("memory full");
         *ifdef_stack_ptr++ = c;
         goto test_skip;
-    } else if (tok == tok_else) {
+    } else if (tok == TOK_ELSE) {
         if (ifdef_stack_ptr == ifdef_stack)
             error("#else without matching #if");
         if (ifdef_stack_ptr[-1] & 2)
             error("#else after #else");
         c = (ifdef_stack_ptr[-1] ^= 3);
         goto test_skip;
-    } else if (tok == tok_elif) {
+    } else if (tok == TOK_ELIF) {
         if (ifdef_stack_ptr == ifdef_stack)
             error("#elif without matching #if");
         c = ifdef_stack_ptr[-1];
@@ -2076,30 +1974,30 @@ void preprocess(void)
             preprocess_skip();
             goto redo;
         }
-    } else if (tok == tok_endif) {
+    } else if (tok == TOK_ENDIF) {
         if (ifdef_stack_ptr == ifdef_stack)
             error("#endif without matching #if");
         ifdef_stack_ptr--;
-    } else if (tok == tok_line) {
+    } else if (tok == TOK_LINE) {
         int line_num;
         next();
-        if (tok != tok_cint)
+        if (tok != TOK_CINT)
             error("#line");
         line_num = tokc.i;
         next();
-        if (tok != tok_linefeed) {
-            if (tok != tok_str)
+        if (tok != TOK_LINEFEED) {
+            if (tok != TOK_STR)
                 error("#line");
             pstrcpy(file->filename, sizeof(file->filename), 
                     (char *)tokc.cstr->data);
         }
         /* NOTE: we do it there to avoid problems with linefeed */
         file->line_num = line_num;
-    } else if (tok == tok_error) {
+    } else if (tok == TOK_ERROR) {
         error("#error");
     }
     /* ignore other preprocess commands or #! for C scripts */
-    while (tok != tok_linefeed && tok != tok_eof)
+    while (tok != TOK_LINEFEED && tok != TOK_EOF)
         next_nomacro();
  the_end:
     return_linefeed = 0;
@@ -2433,7 +2331,7 @@ void parse_number(void)
         }
         
         /* XXX: not exactly ANSI compliant */
-        if ((n >> 32) != 0) {
+        if ((n & 0xffffffff00000000LL) != 0) {
             if ((n >> 63) != 0)
                 tok = TOK_CULLONG;
             else
@@ -2547,7 +2445,7 @@ void next_nomacro1(void)
         cstr_reset(&tokcstr);
         while (ch != '\"') {
             b = getq();
-            if (ch < 0)
+            if (ch == CH_EOF)
                 error("unterminated string");
             if (tok == TOK_STR)
                 cstr_ccat(&tokcstr, b);
@@ -2819,7 +2717,7 @@ void macro_subst(TokenString *tok_str,
                         break;
                     if (!sa)
                         error("macro '%s' used with too many args",
-                              get_tok_str(s->v, &tokc));
+                              get_tok_str(s->v, 0));
                     tok_str_new(&str);
                     parlevel = 0;
                     /* NOTE: non zero sa->t indicates VA_ARGS */
@@ -2851,7 +2749,7 @@ void macro_subst(TokenString *tok_str,
                 }
                 if (sa) {
                     error("macro '%s' used with too few args",
-                          get_tok_str(s->v, &tokc));
+                          get_tok_str(s->v, 0));
                 }
 
                 /* now subst each arg */
@@ -3152,7 +3050,7 @@ void gaddrof(void)
         vtop->r = (vtop->r & ~(VT_VALMASK | VT_LVAL_TYPE)) | VT_LOCAL | VT_LVAL;
 }
 
-#if 0 /* Phase 1 bootstrap: bounds checking disabled */
+#ifdef CONFIG_TCC_BCHECK
 /* generate lvalue bound code */
 void gbound(void)
 {
@@ -3222,7 +3120,7 @@ int gv(int rc)
             vtop->r |= VT_LVAL | VT_SYM;
             vtop->c.sym = sym;
         }
-#if 0 /* Phase 1 bootstrap: bounds checking disabled */
+#ifdef CONFIG_TCC_BCHECK
         if (vtop->r & VT_MUSTBOUND) 
             gbound();
 #endif
@@ -3868,7 +3766,7 @@ void gen_op(int op)
             /* XXX: cast to int ? (long long case) */
             vpushi(pointed_size(vtop[-1].t));
             gen_op('*');
-#if 0 /* Phase 1 bootstrap: bounds checking disabled */
+#ifdef CONFIG_TCC_BCHECK
             /* if evaluating constant expression, no code should be
                generated, so no bound check */
             if (do_bounds_check && !const_wanted) {
@@ -4076,22 +3974,25 @@ void gen_cast(int t)
         } else if (df) {
             /* convert int to fp */
             if (c) {
-                if (sbt == (VT_LLONG | VT_UNSIGNED) ||
-                    sbt == VT_LLONG) {
+                switch(sbt) {
+                case VT_LLONG | VT_UNSIGNED:
+                case VT_LLONG:
                     /* XXX: add const cases for long long */
                     goto do_itof;
-                } else if (sbt == (VT_INT | VT_UNSIGNED)) {
+                case VT_INT | VT_UNSIGNED:
                     switch(dbt) {
                     case VT_FLOAT: vtop->c.f = (float)vtop->c.ui; break;
                     case VT_DOUBLE: vtop->c.d = (double)vtop->c.ui; break;
                     case VT_LDOUBLE: vtop->c.ld = (long double)vtop->c.ui; break;
                     }
-                } else {
+                    break;
+                default:
                     switch(dbt) {
                     case VT_FLOAT: vtop->c.f = (float)vtop->c.i; break;
                     case VT_DOUBLE: vtop->c.d = (double)vtop->c.i; break;
                     case VT_LDOUBLE: vtop->c.ld = (long double)vtop->c.i; break;
                     }
+                    break;
                 }
             } else {
             do_itof:
@@ -4105,23 +4006,26 @@ void gen_cast(int t)
                 dbt != VT_LLONG)
                 dbt = VT_INT;
             if (c) {
-                if (dbt == (VT_LLONG | VT_UNSIGNED) ||
-                    dbt == VT_LLONG) {
+                switch(dbt) {
+                case VT_LLONG | VT_UNSIGNED:
+                case VT_LLONG:
                     /* XXX: add const cases for long long */
                     goto do_ftoi;
-                } else if (dbt == (VT_INT | VT_UNSIGNED)) {
+                case VT_INT | VT_UNSIGNED:
                     switch(sbt) {
                     case VT_FLOAT: vtop->c.ui = (unsigned int)vtop->c.d; break;
                     case VT_DOUBLE: vtop->c.ui = (unsigned int)vtop->c.d; break;
                     case VT_LDOUBLE: vtop->c.ui = (unsigned int)vtop->c.d; break;
                     }
-                } else {
+                    break;
+                default:
                     /* int case */
                     switch(sbt) {
                     case VT_FLOAT: vtop->c.i = (int)vtop->c.d; break;
                     case VT_DOUBLE: vtop->c.i = (int)vtop->c.d; break;
                     case VT_LDOUBLE: vtop->c.i = (int)vtop->c.d; break;
                     }
+                    break;
                 }
             } else {
             do_ftoi:
@@ -4349,7 +4253,7 @@ void type_to_str(char *buf, int buf_size,
         if (v >= SYM_FIRST_ANOM)
             pstrcat(buf, buf_size, "<anonymous>");
         else
-            pstrcat(buf, buf_size, get_tok_str(v, &tokc));
+            pstrcat(buf, buf_size, get_tok_str(v, NULL));
         break;
     case VT_FUNC:
         s = sym_find((unsigned)t >> VT_STRUCT_SHIFT);
@@ -4480,7 +4384,7 @@ void vstore(void)
         /* store result */
         vstore();
     } else {
-#if 0 /* Phase 1 bootstrap: bounds checking disabled */
+#ifdef CONFIG_TCC_BCHECK
         /* bound check case */
         if (vtop[-1].r & VT_MUSTBOUND) {
             vswap();
@@ -4598,7 +4502,7 @@ void parse_attribute(AttributeDef *ad)
             ad->func_call = FUNC_STDCALL;
             break;
         default:
-            warning("'%s' attribute ignored", get_tok_str(t, &tokc));
+            warning("'%s' attribute ignored", get_tok_str(t, NULL));
             /* skip parameters */
             /* XXX: skip parenthesis too */
             if (tok == '(') {
@@ -4679,7 +4583,7 @@ int struct_decl(int u)
                         if ((t & VT_BTYPE) == VT_FUNC ||
                             (t & (VT_TYPEDEF | VT_STATIC | VT_EXTERN)))
                             error("invalid type for '%s'", 
-                                  get_tok_str(v, &tokc));
+                                  get_tok_str(v, NULL));
                     } else {
                         t = b;
                     }
@@ -4689,10 +4593,10 @@ int struct_decl(int u)
                         /* XXX: handle v = 0 case for messages */
                         if (bit_size < 0)
                             error("negative width in bit-field '%s'", 
-                                  get_tok_str(v, &tokc));
+                                  get_tok_str(v, NULL));
                         if (v && bit_size == 0)
                             error("zero width for bit-field '%s'", 
-                                  get_tok_str(v, &tokc));
+                                  get_tok_str(v, NULL));
                     }
                     size = type_size(t, &align);
                     lbit_pos = 0;
@@ -4705,7 +4609,7 @@ int struct_decl(int u)
                         bsize = size * 8;
                         if (bit_size > bsize) {
                             error("width of '%s' exceeds its type",
-                                  get_tok_str(v, &tokc));
+                                  get_tok_str(v, NULL));
                         } else if (bit_size == bsize) {
                             /* no need for bit fields */
                             bit_pos = 0;
@@ -4747,7 +4651,7 @@ int struct_decl(int u)
                         }
 #if 0
                         printf("add field %s offset=%d", 
-                               get_tok_str(v, &tokc), offset);
+                               get_tok_str(v, NULL), offset);
                         if (t & VT_BITFIELD) {
                             printf(" pos=%d size=%d", 
                                    (t >> VT_STRUCT_SHIFT) & 0x3f,
@@ -4781,15 +4685,7 @@ int struct_decl(int u)
 int parse_btype(int *type_ptr, AttributeDef *ad)
 {
     int t, u, type_found;
-    int vt_btype_mask, vt_double_type, vt_long_type;
-    int vt_ldouble_type, vt_llong_type;
     Sym *s;
-
-    vt_btype_mask = VT_BTYPE;
-    vt_double_type = VT_DOUBLE;
-    vt_long_type = VT_LONG;
-    vt_ldouble_type = VT_LDOUBLE;
-    vt_llong_type = VT_LLONG;
 
     memset(ad, 0, sizeof(AttributeDef));
     type_found = 0;
@@ -4817,12 +4713,12 @@ int parse_btype(int *type_ptr, AttributeDef *ad)
             break;
         case TOK_LONG:
             next();
-            if ((t & vt_btype_mask) == vt_double_type) {
-                t = (t & ~vt_btype_mask) | vt_ldouble_type;
-            } else if ((t & vt_btype_mask) == vt_long_type) {
-                t = (t & ~vt_btype_mask) | vt_llong_type;
+            if ((t & VT_BTYPE) == VT_DOUBLE) {
+                t = (t & ~VT_BTYPE) | VT_LDOUBLE;
+            } else if ((t & VT_BTYPE) == VT_LONG) {
+                t = (t & ~VT_BTYPE) | VT_LLONG;
             } else {
-                u = vt_long_type;
+                u = VT_LONG;
                 goto basic_type1;
             }
             break;
@@ -4834,10 +4730,10 @@ int parse_btype(int *type_ptr, AttributeDef *ad)
             goto basic_type;
         case TOK_DOUBLE:
             next();
-            if ((t & vt_btype_mask) == vt_long_type) {
-                t = (t & ~vt_btype_mask) | vt_ldouble_type;
+            if ((t & VT_BTYPE) == VT_LONG) {
+                t = (t & ~VT_BTYPE) | VT_LDOUBLE;
             } else {
-                u = vt_double_type;
+                u = VT_DOUBLE;
                 goto basic_type1;
             }
             break;
@@ -4991,11 +4887,7 @@ int post_type(int t, AttributeDef *ad)
 int type_decl(AttributeDef *ad, int *v, int t, int td)
 {
     int u, p;
-    int tok_ident_floor, tok_uident_floor;
     Sym *s;
-
-    tok_ident_floor = TOK_IDENT;
-    tok_uident_floor = TOK_UIDENT;
 
     while (tok == '*') {
         next();
@@ -5017,7 +4909,7 @@ int type_decl(AttributeDef *ad, int *v, int t, int td)
     } else {
         u = 0;
         /* type identifier */
-        if (tok >= tok_ident_floor && (td & TYPE_DIRECT)) {
+        if (tok >= TOK_IDENT && (td & TYPE_DIRECT)) {
             *v = tok;
             next();
         } else {
@@ -5273,7 +5165,7 @@ void unary(void)
             s = sym_find(t);
             if (!s) {
                 if (tok != '(')
-                    error("'%s' undeclared", get_tok_str(t, &tokc));
+                    error("'%s' undeclared", get_tok_str(t, NULL));
                 /* for simple function calls, we tolerate undeclared
                    external reference to int() function */
                 s = external_sym(t, func_old_type, 0); 
@@ -6351,9 +6243,9 @@ void decl_initializer_alloc(int t, AttributeDef *ad, int r, int has_init,
                     goto do_def;
                 if (!is_compatible_types(sym->t, t))
                     error("incompatible types for redefinition of '%s'", 
-                          get_tok_str(v, &tokc));
+                          get_tok_str(v, NULL));
                 if (!(sym->t & VT_EXTERN))
-                    error("redefinition of '%s'", get_tok_str(v, &tokc));
+                    error("redefinition of '%s'", get_tok_str(v, NULL));
                 sym->t &= ~VT_EXTERN;
             } else {
             do_def:
@@ -6394,16 +6286,11 @@ void decl_initializer_alloc(int t, AttributeDef *ad, int r, int has_init,
 void put_func_debug(Sym *sym)
 {
     char buf[512];
-    char *p;
 
     /* stabs info */
     /* XXX: we put here a dummy type */
-    pstrcpy(buf, sizeof(buf), funcname);
-    p = buf + strlen(buf);
-    *p++ = ':';
-    *p++ = (sym->t & VT_STATIC) ? 'f' : 'F';
-    *p++ = '1';
-    *p = '\0';
+    snprintf(buf, sizeof(buf), "%s:%c1", 
+             funcname, sym->t & VT_STATIC ? 'f' : 'F');
     put_stabs_r(buf, N_FUN, 0, file->line_num, 0,
                 cur_text_section, sym->c);
     last_ind = 0;
@@ -6418,7 +6305,7 @@ void add_var_ref(int t)
 {
     printf("%s:%d: &%s\n", 
            file->filename, file->line_num,
-           get_tok_str(t, &tokc));
+           get_tok_str(t, NULL));
 }
 
 /* first pass on a function with heuristic to extract variable usage
@@ -6502,7 +6389,7 @@ void decl(int l)
 #if 0
             {
                 char buf[500];
-                type_to_str(buf, sizeof(buf), t, get_tok_str(v, &tokc));
+                type_to_str(buf, sizeof(buf), t, get_tok_str(v, NULL));
                 printf("type = '%s'\n", buf);
             }
 #endif
@@ -6554,7 +6441,7 @@ void decl(int l)
                 if (!cur_text_section)
                     cur_text_section = text_section;
                 ind = cur_text_section->data_offset;
-                funcname = get_tok_str(v, &tokc);
+                funcname = get_tok_str(v, NULL);
                 sym = sym_find(v);
                 if (sym) {
                     /* if symbol is already defined, then put complete type */
@@ -6645,7 +6532,6 @@ static int tcc_compile(TCCState *s)
     Sym *define_start;
     char buf[512];
     int p, section_sym;
-    int tok_eof_value;
 
     funcname = "";
     include_stack_ptr = include_stack;
@@ -6659,7 +6545,7 @@ static int tcc_compile(TCCState *s)
     section_sym = 0; /* avoid warning */
     if (do_debug) {
         section_sym = put_elf_sym(symtab_section, 0, 0, 
-                                  elf32_st_info(STB_LOCAL, STT_SECTION), 0, 
+                                  ELF32_ST_INFO(STB_LOCAL, STT_SECTION), 0, 
                                   text_section->sh_num, NULL);
         getcwd(buf, sizeof(buf));
         pstrcat(buf, sizeof(buf), "/");
@@ -6671,7 +6557,7 @@ static int tcc_compile(TCCState *s)
     /* an elf symbol of type STT_FILE must be put so that STB_LOCAL
        symbols can be safely used */
     put_elf_sym(symtab_section, 0, 0, 
-                elf32_st_info(STB_LOCAL, STT_FILE), 0, 
+                ELF32_ST_INFO(STB_LOCAL, STT_FILE), 0, 
                 SHN_ABS, file->filename);
 
     /* define common 'char *' type because it is often used internally
@@ -6683,12 +6569,12 @@ static int tcc_compile(TCCState *s)
     func_old_type = VT_FUNC | (p << VT_STRUCT_SHIFT);
 
     define_start = define_stack.top;
-    tok_eof_value = TOK_EOF;
     inp();
     ch = '\n'; /* needed to parse correctly first preprocessor command */
     next();
-    while (tok != tok_eof_value) {
-        decl(VT_CONST);
+    decl(VT_CONST);
+    if (tok != -1) {
+        expect("declaration");
     }
     /* end of translation unit info */
     if (do_debug) {
@@ -6708,16 +6594,13 @@ static int tcc_compile(TCCState *s)
 int tcc_compile_string(TCCState *s, const char *str)
 {
     BufferedFile bf1, *bf = &bf1;
-    char filename[TCC_FILENAME_MAX];
     int ret;
 
     /* init file structure */
     bf->fd = -1;
-    bf->filename = filename;
-    bf->buffer = NULL;
     bf->buf_ptr = (char *)str;
-    bf->buf_end = (char *)str + strlen(str);
-    pstrcpy(bf->filename, TCC_FILENAME_MAX, "<string>");
+    bf->buf_end = (char *)str + strlen(bf->buffer);
+    pstrcpy(bf->filename, sizeof(bf->filename), "<string>");
     bf->line_num = 1;
     file = bf;
     
@@ -6731,24 +6614,19 @@ int tcc_compile_string(TCCState *s, const char *str)
 void tcc_define_symbol(TCCState *s, const char *sym, const char *value)
 {
     BufferedFile bf1, *bf = &bf1;
-    char filename[TCC_FILENAME_MAX];
-    char define_buf[IO_BUF_SIZE1];
 
-    bf->buffer = define_buf;
-    bf->filename = filename;
-
-    pstrcpy((char *)bf->buffer, IO_BUF_SIZE, sym);
-    pstrcat((char *)bf->buffer, IO_BUF_SIZE, " ");
+    pstrcpy(bf->buffer, IO_BUF_SIZE, sym);
+    pstrcat(bf->buffer, IO_BUF_SIZE, " ");
     /* default value */
     if (!value) 
         value = "1";
-    pstrcat((char *)bf->buffer, IO_BUF_SIZE, value);
+    pstrcat(bf->buffer, IO_BUF_SIZE, value);
 
     /* init file structure */
     bf->fd = -1;
     bf->buf_ptr = bf->buffer;
     bf->buf_end = bf->buffer + strlen(bf->buffer);
-    pstrcpy(bf->filename, TCC_FILENAME_MAX, "<define>");
+    bf->filename[0] = '\0';
     bf->line_num = 1;
     file = bf;
     
@@ -6888,10 +6766,11 @@ static void sig_error(int signum, siginfo_t *siginf, void *puc)
     struct ucontext *uc = puc;
     unsigned long pc;
 
-    /* Phase 1 bootstrap compat: tcc_3_alt trips on this nested field walk,
-       and this refactor only targets i386 anyway. The signal handler is not
-       part of the compiler bootstrap path, so keep it simple here. */
-    pc = 0;
+#ifdef __i386__
+    pc = uc->uc_mcontext.gregs[14];
+#else
+#error please put the right sigcontext field    
+#endif
 
     switch(signum) {
     case SIGFPE:
@@ -6964,7 +6843,7 @@ int tcc_run(TCCState *s1, int argc, char **argv)
 #ifdef WIN32
         error("debug mode currently not available for Windows");
 #else        
-        sigaction_t sigact;
+        struct sigaction sigact;
         /* install TCC signal handlers to print debug info on fatal
            runtime errors */
         sigact.sa_flags = SA_SIGINFO | SA_ONESHOT;
@@ -6978,7 +6857,7 @@ int tcc_run(TCCState *s1, int argc, char **argv)
 #endif
     }
 
-#if 0 /* Phase 1 bootstrap: bounds checking disabled */
+#ifdef CONFIG_TCC_BCHECK
     if (do_bounds_check) {
         void (*bound_init)(void);
         void **bound_error_func;
@@ -7004,9 +6883,6 @@ TCCState *tcc_new(void)
     if (!s)
         return NULL;
     s->output_type = TCC_OUTPUT_MEMORY;
-    init_reg_classes();
-    gnu_ext = 1;
-    tcc_ext = 1;
     
     /* default include paths */
     tcc_add_sysinclude_path(s, "../woody/usr/include/");
@@ -7023,8 +6899,13 @@ TCCState *tcc_new(void)
         p = r;
     }
 
-    /* Phase 1 bootstrap: avoid the self-hosted define parser during
-       early tcc_2 -> tcc_10_alt startup. */
+    /* standard defines */
+    tcc_define_symbol(s, "__STDC__", NULL);
+#if defined(TCC_TARGET_I386)
+    tcc_define_symbol(s, "__i386__", NULL);
+#endif
+    /* tiny C specific defines */
+    tcc_define_symbol(s, "__TINYC__", NULL);
     
     /* default library paths */
     tcc_add_library_path(s, "/usr/local/lib");
@@ -7109,10 +6990,10 @@ static int tcc_add_file_internal(TCCState *s, const char *filename, int flags)
             error("could not read header");
         lseek(fd, 0, SEEK_SET);
         
-        if (ehdr.e_ident0 == ELFMAG0 &&
-            ehdr.e_ident1 == ELFMAG1 &&
-            ehdr.e_ident2 == ELFMAG2 &&
-            ehdr.e_ident3 == ELFMAG3) {
+        if (ehdr.e_ident[0] == ELFMAG0 &&
+            ehdr.e_ident[1] == ELFMAG1 &&
+            ehdr.e_ident[2] == ELFMAG2 &&
+            ehdr.e_ident[3] == ELFMAG3) {
             file->line_num = 0; /* do not display line number if error */
             if (ehdr.e_type == ET_REL) {
                 tcc_load_object_file(s, fd, 0);
@@ -7204,7 +7085,7 @@ int tcc_add_library(TCCState *s, const char *libraryname)
 int tcc_add_symbol(TCCState *s, const char *name, unsigned long val)
 {
     add_elf_sym(symtab_section, val, 0, 
-                elf32_st_info(STB_GLOBAL, STT_NOTYPE),
+                ELF32_ST_INFO(STB_GLOBAL, STT_NOTYPE),
                 SHN_ABS, name);
     return 0;
 }
@@ -7214,7 +7095,7 @@ int tcc_set_output_type(TCCState *s, int output_type)
     s->output_type = output_type;
 
     /* if bound checking, then add corresponding sections */
-#if 0 /* Phase 1 bootstrap: bounds checking disabled */
+#ifdef CONFIG_TCC_BCHECK
     if (do_bounds_check) {
         /* define symbol */
         tcc_define_symbol(s, "__BOUNDS_CHECKING_ON", NULL);
@@ -7270,7 +7151,7 @@ void help(void)
            "  -Usym       undefine 'sym'\n"
            "C compiler options:\n"
            "  -g          generate runtime debug info\n"
-#if 0 /* Phase 1 bootstrap: bounds checking disabled */
+#ifdef CONFIG_TCC_BCHECK
            "  -b          compile with built-in memory and bounds checker (implies -g)\n"
 #endif
            "Linker options:\n"
@@ -7336,7 +7217,7 @@ int main(int argc, char **argv)
         } else if (!strcmp(r + 1, "bench")) {
             do_bench = 1;
         } else 
-#if 0 /* Phase 1 bootstrap: bounds checking disabled */
+#ifdef CONFIG_TCC_BCHECK
         if (r[1] == 'b') {
             do_bounds_check = 1;
             do_debug = 1;
@@ -7407,4 +7288,4 @@ int main(int argc, char **argv)
 #endif
 
 unsigned short __tcc_fpu_control = 0x137f;
-unsigned short __tcc_int_fpu_control = 0x137f;
+unsigned short __tcc_int_fpu_control = 0x137f | 0x0c;
