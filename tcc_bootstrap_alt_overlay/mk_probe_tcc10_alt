@@ -5,6 +5,10 @@ overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root="$overlay_dir/.."
 workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
 
+if [ -d "$overlay_dir/tcc_10_alt" ]; then
+    cp -a "$overlay_dir/tcc_10_alt/." "$workspace_dir/tcc_10/"
+fi
+
 cp -f "$overlay_dir/after_tcc10.kaem" "$workspace_dir/after_tcc10.kaem"
 cp -f "$overlay_dir/tcc10_alt_probe_kaem.x86" \
     "$workspace_dir/tcc10_alt_probe_kaem.x86"

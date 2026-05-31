@@ -9,9 +9,6 @@ workspace_dir="$workspace_root/tcc_bootstrap_alt"
 rm -rf "$workspace_root"
 mkdir -p "$workspace_root"
 cp -a "$upstream_dir" "$workspace_dir"
-if [ -d "$overlay_dir/tcc_10_alt" ]; then
-    cp -a "$overlay_dir/tcc_10_alt/." "$workspace_dir/tcc_10/"
-fi
 if [ -d "$overlay_dir/otccelf_alt" ]; then
     cp -a "$overlay_dir/otccelf_alt/." "$workspace_dir/otccelf/"
 fi
