@@ -42,12 +42,15 @@ enum {
     REG_ST0,
 };
 
-int reg_classes[NB_REGS] = {
-    /* eax */ RC_INT | RC_EAX,
-    /* ecx */ RC_INT | RC_ECX,
-    /* edx */ RC_INT | RC_EDX,
-    /* st0 */ RC_FLOAT | RC_ST0,
-};
+int reg_classes[NB_REGS];
+
+void init_reg_classes(void)
+{
+    reg_classes[0] = RC_INT | RC_EAX;
+    reg_classes[1] = RC_INT | RC_ECX;
+    reg_classes[2] = RC_INT | RC_EDX;
+    reg_classes[3] = RC_FLOAT | RC_ST0;
+}
 
 /* return registers for function */
 #define REG_IRET REG_EAX /* single word int return register */
@@ -920,10 +923,9 @@ void gen_bounded_ptr_deref(void)
     sym = external_sym(func, func_old_type, 0);
     if (!sym->c)
         put_extern_sym(sym, NULL, 0, 0);
-    rel->r_info = ELF32_R_INFO(sym->c, ELF32_R_TYPE(rel->r_info));
+    rel->r_info = elf32_r_info(sym->c, elf32_r_type(rel->r_info));
 }
 #endif
 
 /* end of X86 code generator */
 /*************************************************************/
-

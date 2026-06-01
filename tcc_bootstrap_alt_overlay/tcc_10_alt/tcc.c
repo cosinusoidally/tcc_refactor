@@ -202,7 +202,7 @@ typedef struct BufferedFile {
     int fd;
     int line_num;    /* current line number - here to simply code */
     char filename[1024];    /* current filename - here to simplify code */
-    unsigned char buffer[IO_BUF_SIZE + 1]; /* extra size for CH_EOB char */
+    unsigned char buffer[8193]; /* IO_BUF_SIZE + 1 */
 } BufferedFile;
 
 #define CH_EOB   0       /* end of buffer or '\0' char in file */
@@ -280,7 +280,7 @@ int last_line_num, last_ind, func_ind; /* debug last line number and pc */
 int tok_ident;
 TokenSym **table_ident;
 TokenSym *hash_ident[TOK_HASH_SIZE];
-char token_buf[STRING_MAX_SIZE + 1];
+char token_buf[1025]; /* STRING_MAX_SIZE + 1 */
 char *funcname;
 SymStack define_stack, global_stack, local_stack, label_stack;
 
@@ -307,10 +307,10 @@ int total_lines;
 int total_bytes;
 
 /* use GNU C extensions */
-int gnu_ext = 1;
+int gnu_ext;
 
 /* use Tiny C extensions */
-int tcc_ext = 1;
+int tcc_ext;
 
 /* if true, static linking is performed */
 int static_link = 0;
@@ -662,6 +662,36 @@ static int tcc_add_dll(TCCState *s, const char *filename, int flags);
 #define AFF_REFERENCED_DLL  0x0002 /* load a referenced dll from another dll */
 static int tcc_add_file_internal(TCCState *s, const char *filename, int flags);
 
+static int elf32_st_bind(int val)
+{
+    return (unsigned char)(val >> 4);
+}
+
+static int elf32_st_type(int val)
+{
+    return val & 0xf;
+}
+
+static int elf32_st_info(int bind, int type)
+{
+    return (bind << 4) + (type & 0xf);
+}
+
+static int elf32_r_sym(int val)
+{
+    return val >> 8;
+}
+
+static int elf32_r_type(int val)
+{
+    return (unsigned char)val;
+}
+
+static int elf32_r_info(int sym, int type)
+{
+    return (sym << 8) + (unsigned char)type;
+}
+
 /* true if float/double/long double type */
 static inline int is_float(int t)
 {
@@ -988,7 +1018,7 @@ static void put_extern_sym(Sym *sym, Section *section,
             }
         }
 #endif
-        info = ELF32_ST_INFO(sym_bind, sym_type);
+        info = elf32_st_info(sym_bind, sym_type);
         sym->c = add_elf_sym(symtab_section, value, size, info, sh_num, name);
     } else {
         esym = &((Elf32_Sym *)symtab_section->data)[sym->c];
@@ -1222,7 +1252,7 @@ static void add_char(CString *cstr, int c)
 /* XXX: float tokens */
 char *get_tok_str(int v, CValue *cv)
 {
-    static char buf[STRING_MAX_SIZE + 1];
+    static char buf[1025]; /* STRING_MAX_SIZE + 1 */
     static CString cstr_buf;
     CString *cstr;
     unsigned char *q;
@@ -6563,7 +6593,7 @@ static int tcc_compile(TCCState *s)
     section_sym = 0; /* avoid warning */
     if (do_debug) {
         section_sym = put_elf_sym(symtab_section, 0, 0, 
-                                  ELF32_ST_INFO(STB_LOCAL, STT_SECTION), 0, 
+                                  elf32_st_info(STB_LOCAL, STT_SECTION), 0, 
                                   text_section->sh_num, NULL);
         getcwd(buf, sizeof(buf));
         pstrcat(buf, sizeof(buf), "/");
@@ -6575,7 +6605,7 @@ static int tcc_compile(TCCState *s)
     /* an elf symbol of type STT_FILE must be put so that STB_LOCAL
        symbols can be safely used */
     put_elf_sym(symtab_section, 0, 0, 
-                ELF32_ST_INFO(STB_LOCAL, STT_FILE), 0, 
+                elf32_st_info(STB_LOCAL, STT_FILE), 0, 
                 SHN_ABS, file->filename);
 
     /* define common 'char *' type because it is often used internally
@@ -6901,6 +6931,9 @@ TCCState *tcc_new(void)
 
     __tcc_int_fpu_control = __tcc_fpu_control;
     __tcc_int_fpu_control = __tcc_int_fpu_control | 0x0c;
+    gnu_ext = 1;
+    tcc_ext = 1;
+    init_reg_classes();
     s = tcc_malloc(sizeof(TCCState));
     if (!s)
         return NULL;
@@ -7168,7 +7201,7 @@ int tcc_add_library(TCCState *s, const char *libraryname)
 int tcc_add_symbol(TCCState *s, const char *name, unsigned long val)
 {
     add_elf_sym(symtab_section, val, 0, 
-                ELF32_ST_INFO(STB_GLOBAL, STT_NOTYPE),
+                elf32_st_info(STB_GLOBAL, STT_NOTYPE),
                 SHN_ABS, name);
     return 0;
 }
