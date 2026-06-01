@@ -1,8 +1,6 @@
 #ifndef _SYS_UCONTEXT_H
 #define _SYS_UCONTEXT_H 1
 
-#include "../signal.h"
-
 typedef struct {
     unsigned long gregs[19];
 } mcontext_t;
@@ -18,7 +16,7 @@ struct ucontext {
     struct ucontext *uc_link;
     stack_t uc_stack;
     mcontext_t uc_mcontext;
-    sigset_t uc_sigmask;
+    unsigned long uc_sigmask;
 };
 
 #endif

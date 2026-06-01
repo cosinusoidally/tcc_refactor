@@ -25,7 +25,6 @@
 #include "math.h"
 #include "unistd.h"
 #include "signal.h"
-#include "unistd.h"
 #include "fcntl.h"
 #ifndef WIN32
 #include "sys/ucontext.h"
@@ -60,6 +59,8 @@
 #ifndef CONFIG_TCC_PREFIX
 #define CONFIG_TCC_PREFIX "/usr/local"
 #endif
+
+#define NULL ((void *)0)
 
 /* path to find crt1.o, crti.o and crtn.o. Only needed when generating
    executables or dlls */
@@ -729,14 +730,12 @@ typedef struct TCCSyms {
     void *ptr;
 } TCCSyms;
 
-#define TCCSYM(a) { #a, &a, },
-
 /* add the symbol you want here if no dynamic linking is done */
 static TCCSyms tcc_syms[] = {
-    TCCSYM(printf)
-    TCCSYM(fprintf)
-    TCCSYM(fopen)
-    TCCSYM(fclose)
+    { "printf", &printf },
+    { "fprintf", &fprintf },
+    { "fopen", &fopen },
+    { "fclose", &fclose },
     { NULL, NULL },
 };
 

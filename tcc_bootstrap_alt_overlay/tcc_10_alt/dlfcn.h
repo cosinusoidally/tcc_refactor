@@ -6,7 +6,7 @@
 #define RTLD_GLOBAL 0x00100
 #define RTLD_LOCAL 0
 
-void *dlopen(const char *filename, int flag);
-void *dlsym(void *handle, const char *symbol);
+void *dlopen();
+void *dlsym();
 
 #endif

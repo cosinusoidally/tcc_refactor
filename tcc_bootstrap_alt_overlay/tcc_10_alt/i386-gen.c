@@ -399,7 +399,10 @@ void gfunc_prolog(int t)
         addr += 4;
     }
     /* define parameters */
-    while ((sym = sym->next) != NULL) {
+    for (;;) {
+        sym = sym->next;
+        if (sym == NULL)
+            break;
         u = sym->t;
         sym_push(sym->v & ~SYM_FIELD, u,
                  VT_LOCAL | VT_LVAL, addr);
