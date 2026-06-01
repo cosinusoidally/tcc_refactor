@@ -17,23 +17,23 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <errno.h>
-#include <math.h>
-#include <unistd.h>
-#include <signal.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include "stdlib.h"
+#include "stdio.h"
+#include "stdarg.h"
+#include "string.h"
+#include "errno.h"
+#include "math.h"
+#include "unistd.h"
+#include "signal.h"
+#include "unistd.h"
+#include "fcntl.h"
 #ifndef WIN32
-#include <sys/ucontext.h>
+#include "sys/ucontext.h"
 #endif
 #include "elf.h"
 #include "stab.h"
 #ifndef CONFIG_TCC_STATIC
-#include <dlfcn.h>
+#include "dlfcn.h"
 #endif
 
 #include "libtcc.h"
@@ -510,27 +510,62 @@ enum {
     /* special identifiers */
     TOK___FUNC__,
     TOK_MAIN,
-#define DEF(id, str) id,
-#include "tcctok.h"
-#undef DEF
-};
+    /* attribute identifiers */
+    TOK_SECTION,
+    TOK___SECTION__,
+    TOK_ALIGNED,
+    TOK___ALIGNED__,
+    TOK_UNUSED,
+    TOK___UNUSED__,
+    TOK_CDECL,
+    TOK___CDECL,
+    TOK___CDECL__,
+    TOK_STDCALL,
+    TOK___STDCALL,
+    TOK___STDCALL__,
+    TOK_NORETURN,
+    TOK___NORETURN__,
 
-char *tcc_keywords = 
-"int\0void\0char\0if\0else\0while\0break\0return\0for\0extern\0static\0"
-"unsigned\0goto\0do\0continue\0switch\0case\0const\0volatile\0long\0"
-"register\0signed\0__signed__\0auto\0inline\0__inline__\0restrict\0"
-"float\0double\0_Bool\0short\0struct\0union\0typedef\0default\0enum\0"
-"sizeof\0__attribute__\0"
-/* the following are not keywords. They are included to ease parsing */
-"define\0include\0ifdef\0ifndef\0elif\0endif\0"
-"defined\0undef\0error\0line\0"
-"__LINE__\0__FILE__\0__DATE__\0__TIME__\0__VA_ARGS__\0"
-"__func__\0main\0"
-/* builtin functions */
-#define DEF(id, str) str "\0"
-#include "tcctok.h"
-#undef DEF
-;
+    /* builtin functions or variables */
+    TOK_memcpy,
+    TOK_memset,
+    TOK___divdi3,
+    TOK___moddi3,
+    TOK___udivdi3,
+    TOK___umoddi3,
+    TOK___sardi3,
+    TOK___shrdi3,
+    TOK___shldi3,
+    TOK___tcc_int_fpu_control,
+    TOK___tcc_fpu_control,
+    TOK___ulltof,
+    TOK___ulltod,
+    TOK___ulltold,
+    TOK___fixunssfdi,
+    TOK___fixunsdfdi,
+    TOK___fixunsxfdi,
+
+    /* bound checking symbols */
+#ifdef CONFIG_TCC_BCHECK
+    TOK___bound_ptr_add,
+    TOK___bound_ptr_indir1,
+    TOK___bound_ptr_indir2,
+    TOK___bound_ptr_indir4,
+    TOK___bound_ptr_indir8,
+    TOK___bound_ptr_indir12,
+    TOK___bound_ptr_indir16,
+    TOK___bound_local_new,
+    TOK___bound_local_delete,
+    TOK_malloc,
+    TOK_free,
+    TOK_realloc,
+    TOK_memalign,
+    TOK_calloc,
+    TOK_memmove,
+    TOK_strlen,
+    TOK_strcpy,
+#endif
+};
 
 #ifdef WIN32
 #define snprintf _snprintf
@@ -2331,7 +2366,7 @@ void parse_number(void)
         }
         
         /* XXX: not exactly ANSI compliant */
-        if ((n & 0xffffffff00000000LL) != 0) {
+        if ((n >> 32) != 0) {
             if ((n >> 63) != 0)
                 tok = TOK_CULLONG;
             else
@@ -2710,20 +2745,13 @@ void macro_subst(TokenString *tok_str,
                 next_nomacro();
                 args = NULL;
                 sa = s->next;
-                /* NOTE: empty args are allowed, except if no args */
-                for(;;) {
-                    /* handle '()' case */
-                    if (!args && tok == ')')
-                        break;
-                    if (!sa)
-                        error("macro '%s' used with too many args",
-                              get_tok_str(s->v, 0));
+                while (tok != ')' && sa) {
                     tok_str_new(&str);
                     parlevel = 0;
-                    /* NOTE: non zero sa->t indicates VA_ARGS */
                     while ((parlevel > 0 || 
                             (tok != ')' && 
-                             (tok != ',' || sa->t))) && 
+                             (tok != ',' || 
+                              sa->v == (TOK___VA_ARGS__ | SYM_FIELD)))) && 
                            tok != -1) {
                         if (tok == '(')
                             parlevel++;
@@ -2733,24 +2761,14 @@ void macro_subst(TokenString *tok_str,
                         next_nomacro();
                     }
                     tok_str_add(&str, 0);
-                    sym_push2(&args, sa->v & ~SYM_FIELD, sa->t, (int)str.str);
-                    sa = sa->next;
-                    if (tok == ')') {
-                        /* special case for gcc var args: add an empty
-                           var arg argument if it is omitted */
-                        if (sa && sa->t && gnu_ext)
-                            continue;
-                        else
-                            break;
-                    }
+                    sym_push2(&args, sa->v & ~SYM_FIELD, 0, (int)str.str);
                     if (tok != ',')
-                        expect(",");
+                        break;
                     next_nomacro();
+                    sa = sa->next;
                 }
-                if (sa) {
-                    error("macro '%s' used with too few args",
-                          get_tok_str(s->v, 0));
-                }
+                if (tok != ')')
+                    expect(")");
 
                 /* now subst each arg */
                 mstr = macro_arg_subst(nested_list, mstr, args);
@@ -6878,7 +6896,11 @@ TCCState *tcc_new(void)
 {
     char *p, *r;
     TCCState *s;
+    extern unsigned short __tcc_fpu_control;
+    extern unsigned short __tcc_int_fpu_control;
 
+    __tcc_int_fpu_control = __tcc_fpu_control;
+    __tcc_int_fpu_control = __tcc_int_fpu_control | 0x0c;
     s = tcc_malloc(sizeof(TCCState));
     if (!s)
         return NULL;
@@ -6891,7 +6913,68 @@ TCCState *tcc_new(void)
 
     /* add all tokens */
     tok_ident = TOK_IDENT;
-    p = tcc_keywords;
+    p = "int\0void\0char\0if\0else\0while\0break\0return\0for\0extern\0static\0"
+        "unsigned\0goto\0do\0continue\0switch\0case\0const\0volatile\0long\0"
+        "register\0signed\0__signed__\0auto\0inline\0__inline__\0restrict\0"
+        "float\0double\0_Bool\0short\0struct\0union\0typedef\0default\0enum\0"
+        "sizeof\0__attribute__\0"
+        /* the following are not keywords. They are included to ease parsing */
+        "define\0include\0ifdef\0ifndef\0elif\0endif\0"
+        "defined\0undef\0error\0line\0"
+        "__LINE__\0__FILE__\0__DATE__\0__TIME__\0__VA_ARGS__\0"
+        "__func__\0main\0"
+        /* builtin functions */
+        "section\0"
+        "__section__\0"
+        "aligned\0"
+        "__aligned__\0"
+        "unused\0"
+        "__unused__\0"
+        "cdecl\0"
+        "__cdecl\0"
+        "__cdecl__\0"
+        "stdcall\0"
+        "__stdcall\0"
+        "__stdcall__\0"
+        "noreturn\0"
+        "__noreturn__\0"
+        "memcpy\0"
+        "memset\0"
+        "__divdi3\0"
+        "__moddi3\0"
+        "__udivdi3\0"
+        "__umoddi3\0"
+        "__sardi3\0"
+        "__shrdi3\0"
+        "__shldi3\0"
+        "__tcc_int_fpu_control\0"
+        "__tcc_fpu_control\0"
+        "__ulltof\0"
+        "__ulltod\0"
+        "__ulltold\0"
+        "__fixunssfdi\0"
+        "__fixunsdfdi\0"
+        "__fixunsxfdi\0"
+#ifdef CONFIG_TCC_BCHECK
+        "__bound_ptr_add\0"
+        "__bound_ptr_indir1\0"
+        "__bound_ptr_indir2\0"
+        "__bound_ptr_indir4\0"
+        "__bound_ptr_indir8\0"
+        "__bound_ptr_indir12\0"
+        "__bound_ptr_indir16\0"
+        "__bound_local_new\0"
+        "__bound_local_delete\0"
+        "malloc\0"
+        "free\0"
+        "realloc\0"
+        "memalign\0"
+        "calloc\0"
+        "memmove\0"
+        "strlen\0"
+        "strlen\0"
+#endif
+        ;
     while (*p) {
         r = p;
         while (*r++);
@@ -7250,6 +7333,8 @@ int main(int argc, char **argv)
     tcc_set_output_type(s, output_type);
 
     tcc_add_file(s, argv[optind]);
+    /* Keep the tcc_2 bootstrap path on the same stable statement shape. */
+    output_type = output_type;
     if (multiple_files) {
         while ((optind + 1) < argc) {
             optind++;
@@ -7288,4 +7373,4 @@ int main(int argc, char **argv)
 #endif
 
 unsigned short __tcc_fpu_control = 0x137f;
-unsigned short __tcc_int_fpu_control = 0x137f | 0x0c;
+unsigned short __tcc_int_fpu_control;
