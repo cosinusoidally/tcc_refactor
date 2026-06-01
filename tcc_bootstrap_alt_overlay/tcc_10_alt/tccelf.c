@@ -829,6 +829,17 @@ static char elf_interp[] = "/lib/ld-linux.so.2";
 #define ELF_START_ADDR 0x08048000
 #define ELF_PAGE_SIZE  0x1000
 
+static void boot_fwrite_bytes(FILE *f, void *data, int size)
+{
+    char *p;
+    p = data;
+    while (size > 0) {
+        fputc(p[0], f);
+        p = p + 1;
+        size = size - 1;
+    }
+}
+
 /* output an ELF file */
 /* XXX: suppress unneeded sections */
 int tcc_output_file(TCCState *s1, const char *filename)
@@ -845,12 +856,13 @@ int tcc_output_file(TCCState *s1, const char *filename)
     Section *interp, *plt, *dynamic, *dynstr;
     unsigned long saved_dynamic_data_offset;
     Elf32_Sym *sym;
-    int type, file_type;
+    int type, file_type, non_object_output;
     unsigned long rel_addr, rel_size;
     
     file_type = s1->output_type;
+    non_object_output = file_type - TCC_OUTPUT_OBJ;
 
-    if (file_type != TCC_OUTPUT_OBJ)
+    if (non_object_output)
         tcc_add_runtime(s1);
 
     interp = NULL;
@@ -862,7 +874,7 @@ int tcc_output_file(TCCState *s1, const char *filename)
     dynstr = NULL; /* avoid warning */
     saved_dynamic_data_offset = 0; /* avoid warning */
 
-    if (file_type != TCC_OUTPUT_OBJ) {
+    if (non_object_output) {
 
         relocate_common_syms();
 
@@ -1057,7 +1069,7 @@ int tcc_output_file(TCCState *s1, const char *filename)
             !(s->sh_flags & SHF_ALLOC)) {
             prepare_dynamic_rel(s);
         } else if (do_debug || 
-            file_type == TCC_OUTPUT_OBJ || 
+            !non_object_output || 
             (s->sh_flags & SHF_ALLOC) ||
             i == (nb_sections - 1)) {
             /* we output all sections if debug or object file */
@@ -1272,7 +1284,7 @@ int tcc_output_file(TCCState *s1, const char *filename)
     
     /* if building executable or DLL, then relocate each section
        except the GOT which is already relocated */
-    if (file_type != TCC_OUTPUT_OBJ) {
+    if (non_object_output) {
         relocate_syms(0);
 
         /* relocate sections */
@@ -1334,7 +1346,7 @@ int tcc_output_file(TCCState *s1, const char *filename)
     ehdr.e_shstrndx = shnum - 1;
     
     /* write elf file */
-    if (file_type == TCC_OUTPUT_OBJ)
+    if (!non_object_output)
         mode = 0666;
     else
         mode = 0777;
@@ -1346,8 +1358,8 @@ int tcc_output_file(TCCState *s1, const char *filename)
     f = fdopen(fd, "w");
 */
     f = fopen(filename, "wb");
-    fwrite(&ehdr, 1, sizeof(Elf32_Ehdr), f);
-    fwrite(phdr, 1, phnum * sizeof(Elf32_Phdr), f);
+    boot_fwrite_bytes(f, &ehdr, sizeof(Elf32_Ehdr));
+    boot_fwrite_bytes(f, phdr, phnum * sizeof(Elf32_Phdr));
     offset = sizeof(Elf32_Ehdr) + phnum * sizeof(Elf32_Phdr);
     for(i=1;i<nb_sections;i++) {
         s = sections[section_order[i]];
@@ -1357,7 +1369,7 @@ int tcc_output_file(TCCState *s1, const char *filename)
                 offset++;
             }
             size = s->sh_size;
-            fwrite(s->data, 1, size, f);
+            boot_fwrite_bytes(f, s->data, size);
             offset += size;
         }
     }
@@ -1384,7 +1396,7 @@ int tcc_output_file(TCCState *s1, const char *filename)
             sh->sh_offset = s->sh_offset;
             sh->sh_size = s->sh_size;
         }
-        fwrite(sh, 1, sizeof(Elf32_Shdr), f);
+        boot_fwrite_bytes(f, sh, sizeof(Elf32_Shdr));
     }
     fclose(f);
 
