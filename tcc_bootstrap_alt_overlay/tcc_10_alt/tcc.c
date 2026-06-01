@@ -2064,8 +2064,8 @@ void preprocess(void)
         error("#error");
     }
     /* ignore other preprocess commands or #! for C scripts */
-    while (tok != TOK_LINEFEED && tok != TOK_EOF)
-        next_nomacro();
+    while (ch != '\n' && ch != CH_EOF)
+        cinp();
  the_end:
     return_linefeed = 0;
 }
