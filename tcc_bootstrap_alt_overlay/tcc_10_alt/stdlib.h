@@ -7,7 +7,6 @@ void *realloc();
 void free();
 double strtod();
 float strtof();
-long double strtold();
 int atoi();
 long strtol();
 unsigned long strtoul();
