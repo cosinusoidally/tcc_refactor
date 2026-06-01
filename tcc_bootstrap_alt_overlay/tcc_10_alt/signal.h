@@ -1,5 +1,5 @@
 #ifndef _SIGNAL_H
-#define _SIGNAL_H
+#define _SIGNAL_H 1
 
 typedef int sig_atomic_t;
 typedef unsigned long sigset_t;

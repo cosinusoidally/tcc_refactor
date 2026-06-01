@@ -1,5 +1,5 @@
 #ifndef LIBTCC_H
-#define LIBTCC_H
+#define LIBTCC_H 1
 
 struct TCCState;
 

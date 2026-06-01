@@ -693,7 +693,7 @@ static int elf32_r_info(int sym, int type)
 }
 
 /* true if float/double/long double type */
-static inline int is_float(int t)
+static int is_float(int t)
 {
     int bt;
     bt = t & VT_BTYPE;
@@ -801,7 +801,7 @@ int mem_cur_size;
 int mem_max_size;
 #endif
 
-static inline void tcc_free(void *ptr)
+static void tcc_free(void *ptr)
 {
 #ifdef MEM_DEBUG
     mem_cur_size -= malloc_usable_size(ptr);
@@ -831,7 +831,7 @@ static void *tcc_mallocz(unsigned long size)
     return ptr;
 }
 
-static inline void *tcc_realloc(void *ptr, unsigned long size)
+static void *tcc_realloc(void *ptr, unsigned long size)
 {
     void *ptr1;
 #ifdef MEM_DEBUG
@@ -934,7 +934,7 @@ static void section_realloc(Section *sec, unsigned long new_size)
 
 /* reserve at least 'size' bytes in section 'sec' from
    sec->data_offset. Optimized for speed */
-static inline void *section_ptr(Section *sec, unsigned long size)
+static void *section_ptr(Section *sec, unsigned long size)
 {
     unsigned long offset, offset1;
     offset = sec->data_offset;
@@ -1037,24 +1037,24 @@ static void greloc(Section *s, Sym *sym, unsigned long offset, int type)
     put_elf_reloc(symtab_section, s, offset, type, sym->c);
 }
 
-static inline int isid(int c)
+static int isid(int c)
 {
     return (c >= 'a' && c <= 'z') ||
         (c >= 'A' && c <= 'Z') ||
         c == '_';
 }
 
-static inline int isnum(int c)
+static int isnum(int c)
 {
     return c >= '0' && c <= '9';
 }
 
-static inline int toup(int c)
+static int toup(int c)
 {
-    if (ch >= 'a' && ch <= 'z')
-        return ch - 'a' + 'A';
+    if (c >= 'a' && c <= 'z')
+        return c - 'a' + 'A';
     else
-        return ch;
+        return c;
 }
 
 void printline(void)
@@ -1485,31 +1485,29 @@ void tcc_close(BufferedFile *bf)
 int tcc_getc_slow(BufferedFile *bf)
 {
     int len;
-    /* only tries to read if really end of buffer */
-    if (bf->buf_ptr >= bf->buf_end) {
-        if (bf->fd != -1) {
-            len = read(bf->fd, bf->buffer, IO_BUF_SIZE);
-            if (len < 0)
-                len = 0;
-        } else {
-            len = 0;
-        }
-        total_bytes += len;
-        bf->buf_ptr = bf->buffer;
-        bf->buf_end = bf->buffer + len;
-        *bf->buf_end = CH_EOB;
-    }
-    if (bf->buf_ptr < bf->buf_end) {
+    if (bf->buf_ptr < bf->buf_end)
         return *bf->buf_ptr++;
-    } else {
+    if (bf->fd < 0) {
         bf->buf_ptr = bf->buf_end;
         return CH_EOF;
     }
+    len = read(bf->fd, bf->buffer, IO_BUF_SIZE);
+    if (len <= 0) {
+        bf->buf_ptr = bf->buf_end;
+        return CH_EOF;
+    }
+    total_bytes += len;
+    bf->buf_ptr = bf->buffer;
+    bf->buf_end = bf->buffer + len;
+    *bf->buf_end = CH_EOB;
+    return *bf->buf_ptr++;
 }
 
 /* no need to put that inline */
 void handle_eob(void)
 {
+    BufferedFile *bf;
+
     for(;;) {
         ch1 = tcc_getc_slow(file);
         if (ch1 != CH_EOF)
@@ -1522,14 +1520,15 @@ void handle_eob(void)
             put_stabd(N_EINCL, 0, 0);
         }
         /* pop include stack */
-        tcc_close(file);
+        bf = file;
         include_stack_ptr--;
         file = *include_stack_ptr;
+        tcc_close(bf);
     }
 }
 
 /* read next char from current input file */
-static inline void inp(void)
+static void inp(void)
 {
     ch1 = TCC_GETC(file);
     /* end of buffer/file handling */
@@ -1541,7 +1540,7 @@ static inline void inp(void)
 }
 
 /* input with '\\n' handling */
-static inline void minp(void)
+static void minp(void)
 {
  redo:
     ch = ch1;
@@ -1648,7 +1647,7 @@ void restore_parse_state(ParseState *s)
 
 /* return the number of additionnal 'ints' necessary to store the
    token */
-static inline int tok_ext_size(int t)
+static int tok_ext_size(int t)
 {
     switch(t) {
         /* 4 bytes */
@@ -1674,7 +1673,7 @@ static inline int tok_ext_size(int t)
 
 /* token string handling */
 
-static inline void tok_str_new(TokenString *s)
+static void tok_str_new(TokenString *s)
 {
     s->str = NULL;
     s->len = 0;
@@ -1706,15 +1705,19 @@ static void tok_str_free(int *str)
 
 static void tok_str_add(TokenString *s, int t)
 {
-    int len, *str;
+    int len, *str, *str1;
 
     len = s->len;
     str = s->str;
     if ((len & 63) == 0) {
-        str = tcc_realloc(str, (len + 64) * sizeof(int));
-        if (!str)
+        str1 = tcc_malloc((len + 64) * sizeof(int));
+        if (!str1)
             return;
-        s->str = str;
+        if (str)
+            memcpy(str1, str, len * sizeof(int));
+        tcc_free(str);
+        str = str1;
+        s->str = str1;
     }
     str[len++] = t;
     s->len = len;
@@ -4022,25 +4025,22 @@ void gen_cast(int t)
         } else if (df) {
             /* convert int to fp */
             if (c) {
-                switch(sbt) {
-                case VT_LLONG | VT_UNSIGNED:
-                case VT_LLONG:
+                if (sbt == (VT_LLONG | VT_UNSIGNED) ||
+                    sbt == VT_LLONG) {
                     /* XXX: add const cases for long long */
                     goto do_itof;
-                case VT_INT | VT_UNSIGNED:
+                } else if (sbt == (VT_INT | VT_UNSIGNED)) {
                     switch(dbt) {
                     case VT_FLOAT: vtop->c.f = (float)vtop->c.ui; break;
                     case VT_DOUBLE: vtop->c.d = (double)vtop->c.ui; break;
                     case VT_LDOUBLE: vtop->c.ld = (long double)vtop->c.ui; break;
                     }
-                    break;
-                default:
+                } else {
                     switch(dbt) {
                     case VT_FLOAT: vtop->c.f = (float)vtop->c.i; break;
                     case VT_DOUBLE: vtop->c.d = (double)vtop->c.i; break;
                     case VT_LDOUBLE: vtop->c.ld = (long double)vtop->c.i; break;
                     }
-                    break;
                 }
             } else {
             do_itof:
@@ -4054,26 +4054,23 @@ void gen_cast(int t)
                 dbt != VT_LLONG)
                 dbt = VT_INT;
             if (c) {
-                switch(dbt) {
-                case VT_LLONG | VT_UNSIGNED:
-                case VT_LLONG:
+                if (dbt == (VT_LLONG | VT_UNSIGNED) ||
+                    dbt == VT_LLONG) {
                     /* XXX: add const cases for long long */
                     goto do_ftoi;
-                case VT_INT | VT_UNSIGNED:
+                } else if (dbt == (VT_INT | VT_UNSIGNED)) {
                     switch(sbt) {
                     case VT_FLOAT: vtop->c.ui = (unsigned int)vtop->c.d; break;
                     case VT_DOUBLE: vtop->c.ui = (unsigned int)vtop->c.d; break;
                     case VT_LDOUBLE: vtop->c.ui = (unsigned int)vtop->c.d; break;
                     }
-                    break;
-                default:
+                } else {
                     /* int case */
                     switch(sbt) {
                     case VT_FLOAT: vtop->c.i = (int)vtop->c.d; break;
                     case VT_DOUBLE: vtop->c.i = (int)vtop->c.d; break;
                     case VT_LDOUBLE: vtop->c.i = (int)vtop->c.d; break;
                     }
-                    break;
                 }
             } else {
             do_ftoi:
@@ -6647,7 +6644,7 @@ int tcc_compile_string(TCCState *s, const char *str)
     /* init file structure */
     bf->fd = -1;
     bf->buf_ptr = (char *)str;
-    bf->buf_end = (char *)str + strlen(bf->buffer);
+    bf->buf_end = (char *)str + strlen(str);
     pstrcpy(bf->filename, sizeof(bf->filename), "<string>");
     bf->line_num = 1;
     file = bf;
@@ -6686,6 +6683,19 @@ void tcc_define_symbol(TCCState *s, const char *sym, const char *value)
     next_nomacro();
     parse_define();
     file = NULL;
+}
+
+static void tcc_define_symbol_int(TCCState *s, const char *sym, int value)
+{
+    TokenSym *ts;
+    int *str;
+
+    ts = tok_alloc(sym, 0);
+    str = tcc_malloc(3 * sizeof(int));
+    str[0] = TOK_CINT;
+    str[1] = value;
+    str[2] = 0;
+    sym_push1(&define_stack, ts->tok, MACRO_OBJ, (int)str);
 }
 
 void tcc_undefine_symbol(TCCState *s1, const char *sym)
@@ -7016,12 +7026,12 @@ TCCState *tcc_new(void)
     }
 
     /* standard defines */
-    tcc_define_symbol(s, "__STDC__", NULL);
+    tcc_define_symbol_int(s, "__STDC__", 1);
 #if defined(TCC_TARGET_I386)
-    tcc_define_symbol(s, "__i386__", NULL);
+    tcc_define_symbol_int(s, "__i386__", 1);
 #endif
     /* tiny C specific defines */
-    tcc_define_symbol(s, "__TINYC__", NULL);
+    tcc_define_symbol_int(s, "__TINYC__", 1);
     
     /* default library paths */
     tcc_add_library_path(s, "/usr/local/lib");

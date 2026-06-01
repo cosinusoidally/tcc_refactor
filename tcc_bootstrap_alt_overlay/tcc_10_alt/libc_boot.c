@@ -21,14 +21,13 @@ char* int2str(int x, int base, int signed_p)
         int sign_p = 0;
         char* table = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-        if(signed_p && (10 == base) && (0 != (x & 0x80000000)))
+        if(signed_p && (10 == base) && (x < 0))
         {
-                /* Truncate to 31bits */
-                i = -x & 0x7FFFFFFF;
-                if(0 == i) return "-2147483648";
+                i = 0 - (unsigned)x;
+                if(i == 0x80000000) return "-2147483648";
                 sign_p = 1;
-        } /* Truncate to 32bits */
-        else i = x & (0x7FFFFFFF | (1 << 31));
+        }
+        else i = (unsigned)x;
 
         do
         {
@@ -58,6 +57,358 @@ double strtod(char *a, char **p){
     x[1]=0x41F00000;
   }
   return v;
+}
+
+typedef int tcc_wtype;
+typedef unsigned int tcc_uwtype;
+typedef long long tcc_dwtype;
+typedef unsigned long long tcc_udwtype;
+
+struct tcc_dwstruct {
+  tcc_wtype low;
+  tcc_wtype high;
+};
+
+typedef union {
+  struct tcc_dwstruct s;
+  tcc_dwtype ll;
+} tcc_dwunion;
+
+typedef union {
+  struct {
+    tcc_uwtype low;
+    tcc_uwtype high;
+  } s;
+  tcc_udwtype ll;
+} tcc_udwunion;
+
+static int tcc_udw_ge(tcc_udwtype a, tcc_udwtype b)
+{
+  tcc_udwunion ua;
+  tcc_udwunion ub;
+  ua.ll = a;
+  ub.ll = b;
+  if (ua.s.high != ub.s.high) {
+    return ua.s.high > ub.s.high;
+  }
+  return ua.s.low >= ub.s.low;
+}
+
+static tcc_udwtype tcc_udw_sub(tcc_udwtype a, tcc_udwtype b)
+{
+  tcc_udwunion ua;
+  tcc_udwunion ub;
+  tcc_udwunion ur;
+  ua.ll = a;
+  ub.ll = b;
+  ur.s.high = ua.s.high - ub.s.high;
+  ur.s.low = ua.s.low - ub.s.low;
+  if (ua.s.low < ub.s.low) {
+    ur.s.high = ur.s.high - 1;
+  }
+  return ur.ll;
+}
+
+static tcc_udwtype tcc_udw_shl1(tcc_udwtype a)
+{
+  tcc_udwunion ua;
+  ua.ll = a;
+  ua.s.high = (ua.s.high << 1) | (ua.s.low >> 31);
+  ua.s.low = ua.s.low << 1;
+  return ua.ll;
+}
+
+static int tcc_udw_bit(tcc_udwtype a, int bit)
+{
+  tcc_udwunion ua;
+  ua.ll = a;
+  if (bit >= 32) {
+    return (ua.s.high >> (bit - 32)) & 1;
+  }
+  return (ua.s.low >> bit) & 1;
+}
+
+static tcc_udwtype tcc_udw_set_bit(tcc_udwtype a, int bit)
+{
+  tcc_udwunion ua;
+  ua.ll = a;
+  if (bit >= 32) {
+    ua.s.high = ua.s.high | ((tcc_uwtype)1 << (bit - 32));
+  } else {
+    ua.s.low = ua.s.low | ((tcc_uwtype)1 << bit);
+  }
+  return ua.ll;
+}
+
+static unsigned int tcc_half_byte(unsigned int b)
+{
+  unsigned int r;
+  r = 0;
+  if (b & 2) {
+    r = r + 1;
+  }
+  if (b & 4) {
+    r = r + 2;
+  }
+  if (b & 8) {
+    r = r + 4;
+  }
+  if (b & 16) {
+    r = r + 8;
+  }
+  if (b & 32) {
+    r = r + 16;
+  }
+  if (b & 64) {
+    r = r + 32;
+  }
+  if (b & 128) {
+    r = r + 64;
+  }
+  return r;
+}
+
+static tcc_uwtype tcc_shr1_u32(tcc_uwtype x)
+{
+  unsigned char *p;
+  unsigned int b0;
+  unsigned int b1;
+  unsigned int b2;
+  unsigned int b3;
+  p = (unsigned char *)&x;
+  b0 = p[0];
+  b1 = p[1];
+  b2 = p[2];
+  b3 = p[3];
+  p[3] = tcc_half_byte(b3);
+  p[2] = tcc_half_byte(b2);
+  if (b3 & 1) {
+    p[2] = p[2] + 128;
+  }
+  p[1] = tcc_half_byte(b1);
+  if (b2 & 1) {
+    p[1] = p[1] + 128;
+  }
+  p[0] = tcc_half_byte(b0);
+  if (b1 & 1) {
+    p[0] = p[0] + 128;
+  }
+  return x;
+}
+
+static tcc_uwtype tcc_sar1_u32(tcc_uwtype x)
+{
+  unsigned char *p;
+  unsigned int b0;
+  unsigned int b1;
+  unsigned int b2;
+  unsigned int b3;
+  p = (unsigned char *)&x;
+  b0 = p[0];
+  b1 = p[1];
+  b2 = p[2];
+  b3 = p[3];
+  p[3] = tcc_half_byte(b3);
+  if (b3 & 128) {
+    p[3] = p[3] + 128;
+  }
+  p[2] = tcc_half_byte(b2);
+  if (b3 & 1) {
+    p[2] = p[2] + 128;
+  }
+  p[1] = tcc_half_byte(b1);
+  if (b2 & 1) {
+    p[1] = p[1] + 128;
+  }
+  p[0] = tcc_half_byte(b0);
+  if (b1 & 1) {
+    p[0] = p[0] + 128;
+  }
+  return x;
+}
+
+static tcc_udwtype tcc_udivmoddi4(tcc_udwtype n, tcc_udwtype d, tcc_udwtype *rp)
+{
+  tcc_udwtype q;
+  tcc_udwtype r;
+  int i;
+  q = 0;
+  r = 0;
+  if (d == 0) {
+    puts("tcc udiv by zero");
+    exit(1);
+  }
+  for (i = 63; i >= 0; --i) {
+    r = tcc_udw_shl1(r);
+    if (tcc_udw_bit(n, i)) {
+      r = r | 1;
+    }
+    if (tcc_udw_ge(r, d)) {
+      r = tcc_udw_sub(r, d);
+      q = tcc_udw_set_bit(q, i);
+    }
+  }
+  if (rp != 0) {
+    *rp = r;
+  }
+  return q;
+}
+
+long long __divdi3(long long a, long long b)
+{
+  tcc_udwtype ua;
+  tcc_udwtype ub;
+  tcc_udwtype uq;
+  int negate;
+  negate = 0;
+  if (a < 0) {
+    ua = 0 - (tcc_udwtype)a;
+    negate = !negate;
+  } else {
+    ua = a;
+  }
+  if (b < 0) {
+    ub = 0 - (tcc_udwtype)b;
+    negate = !negate;
+  } else {
+    ub = b;
+  }
+  uq = tcc_udivmoddi4(ua, ub, 0);
+  if (negate) {
+    return 0 - uq;
+  }
+  return uq;
+}
+
+long long __moddi3(long long a, long long b)
+{
+  tcc_udwtype ua;
+  tcc_udwtype ub;
+  tcc_udwtype ur;
+  int negate;
+  negate = 0;
+  if (a < 0) {
+    ua = 0 - (tcc_udwtype)a;
+    negate = 1;
+  } else {
+    ua = a;
+  }
+  if (b < 0) {
+    ub = 0 - (tcc_udwtype)b;
+  } else {
+    ub = b;
+  }
+  tcc_udivmoddi4(ua, ub, &ur);
+  if (negate) {
+    return 0 - ur;
+  }
+  return ur;
+}
+
+unsigned long long __udivdi3(unsigned long long a, unsigned long long b)
+{
+  return tcc_udivmoddi4(a, b, 0);
+}
+
+unsigned long long __umoddi3(unsigned long long a, unsigned long long b)
+{
+  tcc_udwtype ur;
+  tcc_udivmoddi4(a, b, &ur);
+  return ur;
+}
+
+long long __sardi3(long long a, int b)
+{
+  tcc_udwunion u;
+  tcc_uwtype low;
+  tcc_uwtype high;
+  tcc_uwtype carry;
+  int n;
+  u.ll = a;
+  low = u.s.low;
+  high = u.s.high;
+  n = b;
+  while (n >= 32) {
+    low = high;
+    if (high & 0x80000000) {
+      high = 0xFFFFFFFF;
+    } else {
+      high = 0;
+    }
+    n = n - 32;
+  }
+  while (n > 0) {
+    carry = 0;
+    if (high & 1) {
+      carry = 0x80000000;
+    }
+    high = tcc_sar1_u32(high);
+    low = tcc_shr1_u32(low) | carry;
+    n = n - 1;
+  }
+  u.s.low = low;
+  u.s.high = high;
+  return u.ll;
+}
+
+unsigned long long __shrdi3(unsigned long long a, int b)
+{
+  tcc_udwunion u;
+  tcc_uwtype low;
+  tcc_uwtype high;
+  tcc_uwtype carry;
+  int n;
+  u.ll = a;
+  low = u.s.low;
+  high = u.s.high;
+  n = b;
+  while (n >= 32) {
+    low = high;
+    high = 0;
+    n = n - 32;
+  }
+  while (n > 0) {
+    carry = 0;
+    if (high & 1) {
+      carry = 0x80000000;
+    }
+    high = tcc_shr1_u32(high);
+    low = tcc_shr1_u32(low) | carry;
+    n = n - 1;
+  }
+  u.s.low = low;
+  u.s.high = high;
+  return u.ll;
+}
+
+long long __shldi3(long long a, int b)
+{
+  tcc_udwunion u;
+  tcc_uwtype low;
+  tcc_uwtype high;
+  tcc_uwtype carry;
+  int n;
+  u.ll = a;
+  low = u.s.low;
+  high = u.s.high;
+  n = b;
+  while (n >= 32) {
+    high = low;
+    low = 0;
+    n = n - 32;
+  }
+  while (n > 0) {
+    carry = 0;
+    if (low & 0x80000000) {
+      carry = 1;
+    }
+    low = low + low;
+    high = high + high + carry;
+    n = n - 1;
+  }
+  u.s.low = low;
+  u.s.high = high;
+  return u.ll;
 }
 
 
@@ -138,14 +489,70 @@ int strcat(int de,int s) {
   return d;
 }
 
-int fprintf(void){
-  puts("fprintf not impl");
-  exit(1);
+static int boot_vfprintf_impl(int stream, int format, int ap)
+{
+  char *fmt;
+  char *args;
+  int count;
+  int c;
+  fmt = (char *)format;
+  args = (char *)ap;
+  count = 0;
+  while ((c = *fmt++) != 0) {
+    if (c != '%') {
+      fputc(c, stream);
+      count = count + 1;
+      continue;
+    }
+    c = *fmt++;
+    if (c == 0) {
+      break;
+    }
+    if (c == '%') {
+      fputc('%', stream);
+      count = count + 1;
+    } else if (c == 's') {
+      char *s;
+      s = *(char **)args;
+      args = args + sizeof(int);
+      if (!s) {
+        s = "(null)";
+      }
+      fputs(s, stream);
+      count = count + strlen(s);
+    } else if (c == 'd') {
+      char *s;
+      s = int2str(*(int *)args, 10, 1);
+      args = args + sizeof(int);
+      fputs(s, stream);
+      count = count + strlen(s);
+    } else if (c == 'u') {
+      char *s;
+      s = int2str(*(int *)args, 10, 0);
+      args = args + sizeof(int);
+      fputs(s, stream);
+      count = count + strlen(s);
+    } else if (c == 'c') {
+      fputc(*(int *)args, stream);
+      args = args + sizeof(int);
+      count = count + 1;
+    } else {
+      fputc('%', stream);
+      fputc(c, stream);
+      count = count + 2;
+    }
+  }
+  return count;
 }
 
-int vfprintf(void){
-  puts("vfprintf not impl");
-  exit(1);
+int fprintf(int stream, int format, int a3, int a4, int a5, int a6)
+{
+  return boot_vfprintf_impl(stream, format, (int)&a3);
+}
+
+int vfprintf(int stream, int format, int ap)
+{
+  return boot_vfprintf_impl(stream, format, ap);
 }
 
 int memcmp(int s1, int s2, int n) {
@@ -306,7 +713,7 @@ int dlopen(void){
   exit(1);
 }
 
-int printf(int x){
-  puts("printf not impl");
-  exit(1);
+int printf(int format, int a2, int a3, int a4, int a5, int a6)
+{
+  return boot_vfprintf_impl(stdout, format, (int)&a2);
 }

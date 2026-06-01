@@ -2,7 +2,7 @@
 #define _ELF_H 1
 
 #ifndef __int8_t_defined
-#define __int8_t_defined
+#define __int8_t_defined 1
 typedef signed char int8_t;
 typedef short int int16_t;
 typedef int int32_t;

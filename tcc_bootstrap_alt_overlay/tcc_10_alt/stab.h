@@ -1,6 +1,6 @@
 #ifndef __GNU_STAB__
 
-#define __GNU_STAB__
+#define __GNU_STAB__ 1
 
 #define __define_stab(NAME, CODE, STRING) NAME=CODE,
 
