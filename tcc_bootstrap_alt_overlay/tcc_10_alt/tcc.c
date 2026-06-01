@@ -4953,7 +4953,7 @@ int type_decl(AttributeDef *ad, int *v, int t, int td)
     } else {
         u = 0;
         /* type identifier */
-        if (tok >= TOK_IDENT && (td & TYPE_DIRECT)) {
+        if ((tok & ~255) && (td & TYPE_DIRECT)) {
             *v = tok;
             next();
         } else {
