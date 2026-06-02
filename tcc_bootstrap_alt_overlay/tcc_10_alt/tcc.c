@@ -284,6 +284,7 @@ SymStack define_stack, global_stack, local_stack, label_stack;
 SValue vstack[VSTACK_SIZE], *vtop;
 int *macro_ptr, *macro_ptr_allocated;
 BufferedFile *include_stack[INCLUDE_STACK_SIZE], **include_stack_ptr;
+int include_stack_depth;
 int ifdef_stack[IFDEF_STACK_SIZE], *ifdef_stack_ptr;
 char **include_paths;
 int nb_include_paths;
@@ -1073,12 +1074,12 @@ void printline(void)
 void error(const char *fmt, ...)
 {
     va_list ap;
-    va_start(ap, fmt);
+    ap = (char *)&fmt;
+    ap = ap + sizeof(fmt);
     printline();
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
     exit(1);
-    va_end(ap);
 }
 
 void expect(const char *msg)
@@ -1090,12 +1091,12 @@ void warning(const char *fmt, ...)
 {
     va_list ap;
 
-    va_start(ap, fmt);
+    ap = (char *)&fmt;
+    ap = ap + sizeof(fmt);
     printline();
     fprintf(stderr, "warning: ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
-    va_end(ap);
 }
 
 void skip(int c)
@@ -1505,10 +1506,10 @@ void handle_eob(void)
 
     for(;;) {
         ch1 = tcc_getc_slow(file);
-        if (ch1 != CH_EOF)
+        if (ch1 >= 0)
             return;
         
-        if (include_stack_ptr == include_stack)
+        if (include_stack_depth == 0)
             return;
         /* add end of include file debug info */
         if (do_debug) {
@@ -1516,8 +1517,9 @@ void handle_eob(void)
         }
         /* pop include stack */
         bf = file;
-        include_stack_ptr--;
-        file = *include_stack_ptr;
+        include_stack_depth = include_stack_depth - 1;
+        include_stack_ptr = include_stack + include_stack_depth;
+        file = include_stack[include_stack_depth];
         tcc_close(bf);
     }
 }
@@ -1989,7 +1991,9 @@ void preprocess(void)
     found:
         /* push current file in stack */
         /* XXX: fix current line init */
-        *include_stack_ptr++ = file;
+        include_stack[include_stack_depth] = file;
+        include_stack_depth = include_stack_depth + 1;
+        include_stack_ptr = include_stack + include_stack_depth;
         file = f;
         /* add include file debug info */
         if (do_debug) {
@@ -6575,6 +6579,7 @@ static int tcc_compile(TCCState *s)
 
     funcname = "";
     include_stack_ptr = include_stack;
+    include_stack_depth = 0;
     ifdef_stack_ptr = ifdef_stack;
 
     /* XXX: not ANSI compliant: bound checking says error */
@@ -6643,6 +6648,8 @@ int tcc_compile_string(TCCState *s, const char *str)
     pstrcpy(bf->filename, sizeof(bf->filename), "<string>");
     bf->line_num = 1;
     file = bf;
+    include_stack_ptr = include_stack;
+    include_stack_depth = 0;
     
     ret = tcc_compile(s);
     
@@ -6671,6 +6678,7 @@ void tcc_define_symbol(TCCState *s, const char *sym, const char *value)
     file = bf;
     
     include_stack_ptr = include_stack;
+    include_stack_depth = 0;
 
     /* parse with define parser */
     inp();
@@ -6803,13 +6811,13 @@ static void rt_printline(unsigned long wanted_pc)
 void rt_error(unsigned long pc, const char *fmt, ...)
 {
     va_list ap;
-    va_start(ap, fmt);
+    ap = (char *)&fmt;
+    ap = ap + sizeof(fmt);
 
     rt_printline(pc);
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
     exit(255);
-    va_end(ap);
 }
 
 /* launch the compiled program with the given arguments */

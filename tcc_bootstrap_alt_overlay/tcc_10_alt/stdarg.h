@@ -9,7 +9,6 @@ typedef char *va_list;
 #define va_arg(ap,type) (ap += sizeof(int), *(type *)(ap - sizeof(int)))
 #define va_end(ap)
 
-/* fix a buggy dependency on GCC in libio.h */
 typedef va_list __gnuc_va_list;
 
 #endif
