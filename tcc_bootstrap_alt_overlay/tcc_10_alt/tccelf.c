@@ -824,7 +824,7 @@ static void tcc_add_runtime(TCCState *s1)
 }
 
 /* name of ELF interpreter */
-static char elf_interp[] = "/lib/ld-linux.so.2";
+#define ELF_INTERP "/lib/ld-linux.so.2"
 
 #define ELF_START_ADDR 0x08048000
 #define ELF_PAGE_SIZE  0x1000
@@ -888,8 +888,8 @@ int tcc_output_file(TCCState *s1, const char *filename)
                 /* add interpreter section only if executable */
                 interp = new_section(".interp", SHT_PROGBITS, SHF_ALLOC);
                 interp->sh_addralign = 1;
-                ptr = section_ptr_add(interp, sizeof(elf_interp));
-                strcpy(ptr, elf_interp);
+                ptr = section_ptr_add(interp, strlen(ELF_INTERP) + 1);
+                strcpy(ptr, ELF_INTERP);
             }
         
             /* add dynamic symbol table */

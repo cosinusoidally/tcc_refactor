@@ -265,7 +265,7 @@ TokenSym **table_ident;
 TokenSym **hash_ident;
 char *token_buf;
 char *funcname;
-SymStack define_stack, global_stack, local_stack, label_stack;
+SymStack *define_stack, *global_stack, *local_stack, *label_stack;
 
 SValue *vstack, *vtop;
 int *macro_ptr, *macro_ptr_allocated;
@@ -427,7 +427,7 @@ typedef struct TCCState TCCState;
 #define TOK_A_SAR 0x82
 
 /* WARNING: the content of this string encodes token numbers */
-static char tok_two_chars[] = "<=\236>=\235!=\225&&\240||\241++\244--\242==\224<<\1>>\2+=\253-=\255*=\252/=\257%=\245&=\246^=\336|=\374->\313..\250##\266";
+static char *tok_two_chars;
 
 #define TOK_EOF       (-1)  /* end of file */
 #define TOK_LINEFEED  10    /* line feed */
@@ -435,128 +435,124 @@ static char tok_two_chars[] = "<=\236>=\235!=\225&&\240||\241++\244--\242==\224<
 /* all identificators and strings have token above that */
 #define TOK_IDENT 256
 
-enum {
-    TOK_INT = TOK_IDENT,
-    TOK_VOID,
-    TOK_CHAR,
-    TOK_IF,
-    TOK_ELSE,
-    TOK_WHILE,
-    TOK_BREAK,
-    TOK_RETURN,
-    TOK_FOR,
-    TOK_EXTERN,
-    TOK_STATIC,
-    TOK_UNSIGNED,
-    TOK_GOTO,
-    TOK_DO,
-    TOK_CONTINUE,
-    TOK_SWITCH,
-    TOK_CASE,
+#define TOK_INT TOK_IDENT
+#define TOK_VOID (TOK_INT + 1)
+#define TOK_CHAR (TOK_VOID + 1)
+#define TOK_IF (TOK_CHAR + 1)
+#define TOK_ELSE (TOK_IF + 1)
+#define TOK_WHILE (TOK_ELSE + 1)
+#define TOK_BREAK (TOK_WHILE + 1)
+#define TOK_RETURN (TOK_BREAK + 1)
+#define TOK_FOR (TOK_RETURN + 1)
+#define TOK_EXTERN (TOK_FOR + 1)
+#define TOK_STATIC (TOK_EXTERN + 1)
+#define TOK_UNSIGNED (TOK_STATIC + 1)
+#define TOK_GOTO (TOK_UNSIGNED + 1)
+#define TOK_DO (TOK_GOTO + 1)
+#define TOK_CONTINUE (TOK_DO + 1)
+#define TOK_SWITCH (TOK_CONTINUE + 1)
+#define TOK_CASE (TOK_SWITCH + 1)
 
-    /* ignored types Must have contiguous values */
-    TOK_CONST,
-    TOK_VOLATILE,
-    TOK_LONG,
-    TOK_REGISTER,
-    TOK_SIGNED,
-    TOK___SIGNED__, /* gcc keyword */
-    TOK_AUTO,
-    TOK_INLINE,
-    TOK___INLINE__, /* gcc keyword */
-    TOK_RESTRICT,
+/* ignored types Must have contiguous values */
+#define TOK_CONST (TOK_CASE + 1)
+#define TOK_VOLATILE (TOK_CONST + 1)
+#define TOK_LONG (TOK_VOLATILE + 1)
+#define TOK_REGISTER (TOK_LONG + 1)
+#define TOK_SIGNED (TOK_REGISTER + 1)
+#define TOK___SIGNED__ (TOK_SIGNED + 1)
+#define TOK_AUTO (TOK___SIGNED__ + 1)
+#define TOK_INLINE (TOK_AUTO + 1)
+#define TOK___INLINE__ (TOK_INLINE + 1)
+#define TOK_RESTRICT (TOK___INLINE__ + 1)
 
-    /* unsupported type */
-    TOK_FLOAT,
-    TOK_DOUBLE,
-    TOK_BOOL,
+/* unsupported type */
+#define TOK_FLOAT (TOK_RESTRICT + 1)
+#define TOK_DOUBLE (TOK_FLOAT + 1)
+#define TOK_BOOL (TOK_DOUBLE + 1)
 
-    TOK_SHORT,
-    TOK_STRUCT,
-    TOK_UNION,
-    TOK_TYPEDEF,
-    TOK_DEFAULT,
-    TOK_ENUM,
-    TOK_SIZEOF,
-    TOK___ATTRIBUTE__,
-    
-    /* preprocessor only */
-    TOK_UIDENT, /* first "user" ident (not keyword) */
-    TOK_DEFINE = TOK_UIDENT,
-    TOK_INCLUDE,
-    TOK_IFDEF,
-    TOK_IFNDEF,
-    TOK_ELIF,
-    TOK_ENDIF,
-    TOK_DEFINED,
-    TOK_UNDEF,
-    TOK_ERROR,
-    TOK_LINE,
-    TOK___LINE__,
-    TOK___FILE__,
-    TOK___DATE__,
-    TOK___TIME__,
-    TOK___VA_ARGS__,
+#define TOK_SHORT (TOK_BOOL + 1)
+#define TOK_STRUCT (TOK_SHORT + 1)
+#define TOK_UNION (TOK_STRUCT + 1)
+#define TOK_TYPEDEF (TOK_UNION + 1)
+#define TOK_DEFAULT (TOK_TYPEDEF + 1)
+#define TOK_ENUM (TOK_DEFAULT + 1)
+#define TOK_SIZEOF (TOK_ENUM + 1)
+#define TOK___ATTRIBUTE__ (TOK_SIZEOF + 1)
 
-    /* special identifiers */
-    TOK___FUNC__,
-    TOK_MAIN,
-    /* attribute identifiers */
-    TOK_SECTION,
-    TOK___SECTION__,
-    TOK_ALIGNED,
-    TOK___ALIGNED__,
-    TOK_UNUSED,
-    TOK___UNUSED__,
-    TOK_CDECL,
-    TOK___CDECL,
-    TOK___CDECL__,
-    TOK_STDCALL,
-    TOK___STDCALL,
-    TOK___STDCALL__,
-    TOK_NORETURN,
-    TOK___NORETURN__,
+/* preprocessor only */
+#define TOK_UIDENT (TOK___ATTRIBUTE__ + 1)
+#define TOK_DEFINE TOK_UIDENT
+#define TOK_INCLUDE (TOK_DEFINE + 1)
+#define TOK_IFDEF (TOK_INCLUDE + 1)
+#define TOK_IFNDEF (TOK_IFDEF + 1)
+#define TOK_ELIF (TOK_IFNDEF + 1)
+#define TOK_ENDIF (TOK_ELIF + 1)
+#define TOK_DEFINED (TOK_ENDIF + 1)
+#define TOK_UNDEF (TOK_DEFINED + 1)
+#define TOK_ERROR (TOK_UNDEF + 1)
+#define TOK_LINE (TOK_ERROR + 1)
+#define TOK___LINE__ (TOK_LINE + 1)
+#define TOK___FILE__ (TOK___LINE__ + 1)
+#define TOK___DATE__ (TOK___FILE__ + 1)
+#define TOK___TIME__ (TOK___DATE__ + 1)
+#define TOK___VA_ARGS__ (TOK___TIME__ + 1)
 
-    /* builtin functions or variables */
-    TOK_memcpy,
-    TOK_memset,
-    TOK___divdi3,
-    TOK___moddi3,
-    TOK___udivdi3,
-    TOK___umoddi3,
-    TOK___sardi3,
-    TOK___shrdi3,
-    TOK___shldi3,
-    TOK___tcc_int_fpu_control,
-    TOK___tcc_fpu_control,
-    TOK___ulltof,
-    TOK___ulltod,
-    TOK___ulltold,
-    TOK___fixunssfdi,
-    TOK___fixunsdfdi,
-    TOK___fixunsxfdi,
+/* special identifiers */
+#define TOK___FUNC__ (TOK___VA_ARGS__ + 1)
+#define TOK_MAIN (TOK___FUNC__ + 1)
+/* attribute identifiers */
+#define TOK_SECTION (TOK_MAIN + 1)
+#define TOK___SECTION__ (TOK_SECTION + 1)
+#define TOK_ALIGNED (TOK___SECTION__ + 1)
+#define TOK___ALIGNED__ (TOK_ALIGNED + 1)
+#define TOK_UNUSED (TOK___ALIGNED__ + 1)
+#define TOK___UNUSED__ (TOK_UNUSED + 1)
+#define TOK_CDECL (TOK___UNUSED__ + 1)
+#define TOK___CDECL (TOK_CDECL + 1)
+#define TOK___CDECL__ (TOK___CDECL + 1)
+#define TOK_STDCALL (TOK___CDECL__ + 1)
+#define TOK___STDCALL (TOK_STDCALL + 1)
+#define TOK___STDCALL__ (TOK___STDCALL + 1)
+#define TOK_NORETURN (TOK___STDCALL__ + 1)
+#define TOK___NORETURN__ (TOK_NORETURN + 1)
 
-    /* bound checking symbols */
-#ifdef CONFIG_TCC_BCHECK
-    TOK___bound_ptr_add,
-    TOK___bound_ptr_indir1,
-    TOK___bound_ptr_indir2,
-    TOK___bound_ptr_indir4,
-    TOK___bound_ptr_indir8,
-    TOK___bound_ptr_indir12,
-    TOK___bound_ptr_indir16,
-    TOK___bound_local_new,
-    TOK___bound_local_delete,
-    TOK_malloc,
-    TOK_free,
-    TOK_realloc,
-    TOK_memalign,
-    TOK_calloc,
-    TOK_memmove,
-    TOK_strlen,
-    TOK_strcpy,
-#endif
-};
+/* builtin functions or variables */
+#define TOK_memcpy (TOK___NORETURN__ + 1)
+#define TOK_memset (TOK_memcpy + 1)
+#define TOK___divdi3 (TOK_memset + 1)
+#define TOK___moddi3 (TOK___divdi3 + 1)
+#define TOK___udivdi3 (TOK___moddi3 + 1)
+#define TOK___umoddi3 (TOK___udivdi3 + 1)
+#define TOK___sardi3 (TOK___umoddi3 + 1)
+#define TOK___shrdi3 (TOK___sardi3 + 1)
+#define TOK___shldi3 (TOK___shrdi3 + 1)
+#define TOK___tcc_int_fpu_control (TOK___shldi3 + 1)
+#define TOK___tcc_fpu_control (TOK___tcc_int_fpu_control + 1)
+#define TOK___ulltof (TOK___tcc_fpu_control + 1)
+#define TOK___ulltod (TOK___ulltof + 1)
+#define TOK___ulltold (TOK___ulltod + 1)
+#define TOK___fixunssfdi (TOK___ulltold + 1)
+#define TOK___fixunsdfdi (TOK___fixunssfdi + 1)
+#define TOK___fixunsxfdi (TOK___fixunsdfdi + 1)
+
+/* bound checking symbols */
+#define TOK___bound_ptr_add (TOK___fixunsxfdi + 1)
+#define TOK___bound_ptr_indir1 (TOK___bound_ptr_add + 1)
+#define TOK___bound_ptr_indir2 (TOK___bound_ptr_indir1 + 1)
+#define TOK___bound_ptr_indir4 (TOK___bound_ptr_indir2 + 1)
+#define TOK___bound_ptr_indir8 (TOK___bound_ptr_indir4 + 1)
+#define TOK___bound_ptr_indir12 (TOK___bound_ptr_indir8 + 1)
+#define TOK___bound_ptr_indir16 (TOK___bound_ptr_indir12 + 1)
+#define TOK___bound_local_new (TOK___bound_ptr_indir16 + 1)
+#define TOK___bound_local_delete (TOK___bound_local_new + 1)
+#define TOK_malloc (TOK___bound_local_delete + 1)
+#define TOK_free (TOK_malloc + 1)
+#define TOK_realloc (TOK_free + 1)
+#define TOK_memalign (TOK_realloc + 1)
+#define TOK_calloc (TOK_memalign + 1)
+#define TOK_memmove (TOK_calloc + 1)
+#define TOK_strlen (TOK_memmove + 1)
+#define TOK_strcpy (TOK_strlen + 1)
 
 #ifdef WIN32
 #define snprintf _snprintf
@@ -713,29 +709,16 @@ const char *dlerror(void)
     return "error";
 }
 
-typedef struct TCCSyms {
-    char *str;
-    void *ptr;
-} TCCSyms;
-
-/* add the symbol you want here if no dynamic linking is done */
-static TCCSyms tcc_syms[] = {
-    { "printf", &printf },
-    { "fprintf", &fprintf },
-    { "fopen", &fopen },
-    { "fclose", &fclose },
-    { NULL, NULL },
-};
-
 void *dlsym(void *handle, const char *symbol)
 {
-    TCCSyms *p;
-    p = tcc_syms;
-    while (p->str != NULL) {
-        if (!strcmp(p->str, symbol))
-            return p->ptr;
-        p++;
-    }
+    if (!strcmp(symbol, "printf"))
+        return &printf;
+    if (!strcmp(symbol, "fprintf"))
+        return &fprintf;
+    if (!strcmp(symbol, "fopen"))
+        return &fopen;
+    if (!strcmp(symbol, "fclose"))
+        return &fclose;
     return NULL;
 }
 
@@ -1380,9 +1363,9 @@ Sym *sym_push1(SymStack *st, int v, int t, int c)
 Sym *sym_find(int v)
 {
     Sym *s;
-    s = sym_find1(&local_stack, v);
+    s = sym_find1(local_stack, v);
     if (!s)
-        s = sym_find1(&global_stack, v);
+        s = sym_find1(global_stack, v);
     return s;
 }
 
@@ -1390,10 +1373,10 @@ Sym *sym_find(int v)
 Sym *sym_push(int v, int t, int r, int c)
 {
     Sym *s;
-    if (local_stack.top)
-        s = sym_push1(&local_stack, v, t, c);
+    if (local_stack->top)
+        s = sym_push1(local_stack, v, t, c);
     else
-        s = sym_push1(&global_stack, v, t, c);
+        s = sym_push1(global_stack, v, t, c);
     s->r = r;
     return s;
 }
@@ -1777,7 +1760,7 @@ int expr_preprocess(void)
             t = tok;
             if (t == '(') 
                 next_nomacro();
-            c = sym_find1(&define_stack, tok) != 0;
+            c = sym_find1(define_stack, tok) != 0;
             if (t == '(')
                 next_nomacro();
             tok = TOK_CINT;
@@ -1845,7 +1828,7 @@ void parse_define(void)
             }
             if (varg < TOK_IDENT)
                 error("badly punctuated parameter list");
-            s = sym_push1(&define_stack, varg | SYM_FIELD, is_vaargs, 0);
+            s = sym_push1(define_stack, varg | SYM_FIELD, is_vaargs, 0);
             *ps = s;
             ps = &s->next;
             if (tok != ',')
@@ -1867,7 +1850,7 @@ void parse_define(void)
     printf("define %s %d: ", get_tok_str(v, NULL), t);
     tok_print(str.str);
 #endif
-    s = sym_push1(&define_stack, v, t, (int)str.str);
+    s = sym_push1(define_stack, v, t, (int)str.str);
     s->next = first;
 }
 
@@ -1888,10 +1871,10 @@ void preprocess(void)
         parse_define();
     } else if (tok == TOK_UNDEF) {
         next_nomacro();
-        s = sym_find1(&define_stack, tok);
+        s = sym_find1(define_stack, tok);
         /* undefine symbol by putting an invalid name */
         if (s)
-            sym_undef(&define_stack, s);
+            sym_undef(define_stack, s);
     } else if (tok == TOK_INCLUDE) {
         skip_spaces();
         if (ch == '<') {
@@ -2000,7 +1983,7 @@ void preprocess(void)
         c = 0;
     do_ifdef:
         next_nomacro();
-        c = (sym_find1(&define_stack, tok) != 0) ^ c;
+        c = (sym_find1(define_stack, tok) != 0) ^ c;
     do_if:
         if (ifdef_stack_ptr >= ifdef_stack + IFDEF_STACK_SIZE)
             error("memory full");
@@ -2741,7 +2724,7 @@ void macro_subst(TokenString *tok_str,
             cval.cstr = &cstr;
             tok_str_add2(tok_str, TOK_STR, &cval);
             cstr_free(&cstr);
-        } else if ((s = sym_find1(&define_stack, tok)) != NULL) {
+        } else if ((s = sym_find1(define_stack, tok)) != NULL) {
             /* if symbol is a macro, prepare substitution */
             /* if nested substitution, do nothing */
             if (sym_find2(*nested_list, tok))
@@ -2909,7 +2892,7 @@ static Sym *get_sym_ref(int t, Section *sec,
     Sym *sym;
 
     v = anon_sym++;
-    sym = sym_push1(&global_stack, v, t | VT_STATIC, 0);
+    sym = sym_push1(global_stack, v, t | VT_STATIC, 0);
     sym->r = VT_CONST | VT_SYM;
     put_extern_sym(sym, sec, offset, size);
     return sym;
@@ -4977,7 +4960,7 @@ Sym *external_sym(int v, int u, int r)
     s = sym_find(v);
     if (!s) {
         /* push forward reference */
-        s = sym_push1(&global_stack, 
+        s = sym_push1(global_stack, 
                       v, u | VT_EXTERN, 0);
         s->r = r | VT_CONST | VT_SYM;
     }
@@ -5619,14 +5602,14 @@ void block(int *bsym, int *csym, int *case_sym, int *def_sym, int case_reg)
     } else if (tok == '{') {
         next();
         /* declarations */
-        s = local_stack.top;
+        s = local_stack->top;
         while (tok != '}') {
             decl(VT_LOCAL);
             if (tok != '}')
                 block(bsym, csym, case_sym, def_sym, case_reg);
         }
         /* pop locally defined symbols */
-        sym_pop(&local_stack, s);
+        sym_pop(local_stack, s);
         next();
     } else if (tok == TOK_RETURN) {
         next();
@@ -5777,10 +5760,10 @@ void block(int *bsym, int *csym, int *case_sym, int *def_sym, int case_reg)
     } else
     if (tok == TOK_GOTO) {
         next();
-        s = sym_find1(&label_stack, tok);
+        s = sym_find1(label_stack, tok);
         /* put forward definition if needed */
         if (!s)
-            s = sym_push1(&label_stack, tok, LABEL_FORWARD, 0);
+            s = sym_push1(label_stack, tok, LABEL_FORWARD, 0);
         /* label already defined */
         if (s->t & LABEL_FORWARD) 
             s->c = gjmp(s->c);
@@ -5792,7 +5775,7 @@ void block(int *bsym, int *csym, int *case_sym, int *def_sym, int case_reg)
         b = is_label();
         if (b) {
             /* label case */
-            s = sym_find1(&label_stack, b);
+            s = sym_find1(label_stack, b);
             if (s) {
                 if (!(s->t & LABEL_FORWARD))
                     error("multiple defined label");
@@ -5800,7 +5783,7 @@ void block(int *bsym, int *csym, int *case_sym, int *def_sym, int case_reg)
                 s->c = ind;
                 s->t = 0;
             } else {
-                sym_push1(&label_stack, b, 0, ind);
+                sym_push1(label_stack, b, 0, ind);
             }
             /* we accept this, but it is a mistake */
             if (tok == '}') 
@@ -6481,7 +6464,7 @@ void decl(int l)
                     sym->t = t;
                 } else {
                     /* put function symbol */
-                    sym = sym_push1(&global_stack, v, t, 0);
+                    sym = sym_push1(global_stack, v, t, 0);
                 }
                 /* NOTE: we patch the symbol size later */
                 put_extern_sym(sym, cur_text_section, ind, 0);
@@ -6491,7 +6474,7 @@ void decl(int l)
                 if (do_debug)
                     put_func_debug(sym);
                 /* push a dummy symbol to enable local sym storage */
-                sym_push1(&local_stack, 0, 0, 0);
+                sym_push1(local_stack, 0, 0, 0);
                 gfunc_prolog(t);
                 loc = 0;
                 rsym = 0;
@@ -6503,8 +6486,8 @@ void decl(int l)
                 gsym(rsym);
                 gfunc_epilog();
                 cur_text_section->data_offset = ind;
-                sym_pop(&label_stack, NULL); /* reset label stack */
-                sym_pop(&local_stack, NULL); /* reset local stack */
+                sym_pop(label_stack, NULL); /* reset label stack */
+                sym_pop(local_stack, NULL); /* reset local stack */
                 /* end of function */
                 /* patch symbol size */
                 ((Elf32_Sym *)symtab_section->data)[sym->c].st_size = 
@@ -6599,10 +6582,10 @@ static int tcc_compile(TCCState *s)
     char_pointer_type = mk_pointer(VT_BYTE);
     /* define an old type function 'int func()' */
     p = anon_sym++;
-    sym_push1(&global_stack, p, 0, FUNC_OLD);
+    sym_push1(global_stack, p, 0, FUNC_OLD);
     func_old_type = VT_FUNC | (p << VT_STRUCT_SHIFT);
 
-    define_start = define_stack.top;
+    define_start = define_stack->top;
     inp();
     ch = '\n'; /* needed to parse correctly first preprocessor command */
     next();
@@ -6618,9 +6601,9 @@ static int tcc_compile(TCCState *s)
 
     /* reset define stack, but leave -Dsymbols (may be incorrect if
        they are undefined) */
-    sym_pop(&define_stack, define_start); 
+    sym_pop(define_stack, define_start); 
     
-    sym_pop(&global_stack, NULL);
+    sym_pop(global_stack, NULL);
     
     return 0;
 }
@@ -6687,7 +6670,7 @@ static void tcc_define_symbol_int(TCCState *s, const char *sym, int value)
     str[0] = TOK_CINT;
     str[1] = value;
     str[2] = 0;
-    sym_push1(&define_stack, ts->tok, MACRO_OBJ, (int)str);
+    sym_push1(define_stack, ts->tok, MACRO_OBJ, (int)str);
 }
 
 void tcc_undefine_symbol(TCCState *s1, const char *sym)
@@ -6695,10 +6678,10 @@ void tcc_undefine_symbol(TCCState *s1, const char *sym)
     TokenSym *ts;
     Sym *s;
     ts = tok_alloc(sym, 0);
-    s = sym_find1(&define_stack, tok);
+    s = sym_find1(define_stack, tok);
     /* undefine symbol by putting an invalid name */
     if (s)
-        sym_undef(&define_stack, s);
+        sym_undef(define_stack, s);
 }
 
 #include "tccelf.c"
@@ -6881,8 +6864,23 @@ TCCState *tcc_new(void)
     hash_ident = tcc_mallocz(TOK_HASH_SIZE * sizeof(TokenSym *));
     if (!hash_ident)
         return NULL;
+    tok_two_chars = tcc_strdup("<=\236>=\235!=\225&&\240||\241++\244--\242==\224<<\1>>\2+=\253-=\255*=\252/=\257%=\245&=\246^=\336|=\374->\313..\250##\266");
+    if (!tok_two_chars)
+        return NULL;
     token_buf = tcc_malloc(1025);
     if (!token_buf)
+        return NULL;
+    define_stack = tcc_mallocz(sizeof(SymStack));
+    if (!define_stack)
+        return NULL;
+    global_stack = tcc_mallocz(sizeof(SymStack));
+    if (!global_stack)
+        return NULL;
+    local_stack = tcc_mallocz(sizeof(SymStack));
+    if (!local_stack)
+        return NULL;
+    label_stack = tcc_mallocz(sizeof(SymStack));
+    if (!label_stack)
         return NULL;
     vstack = tcc_mallocz(VSTACK_SIZE * sizeof(SValue));
     if (!vstack)
@@ -6898,6 +6896,7 @@ TCCState *tcc_new(void)
     do_bench = 0;
     static_link = 0;
     tcc_lib_path = "/usr/local/lib/tcc";
+    __tcc_fpu_control = 0x137f;
     s->output_type = TCC_OUTPUT_MEMORY;
     
     /* default include paths */
@@ -7013,7 +7012,12 @@ TCCState *tcc_new(void)
 void tcc_delete(TCCState *s)
 {
     tcc_free(hash_ident);
+    tcc_free(tok_two_chars);
     tcc_free(token_buf);
+    tcc_free(define_stack);
+    tcc_free(global_stack);
+    tcc_free(local_stack);
+    tcc_free(label_stack);
     tcc_free(vstack);
     tcc_free(include_stack);
     tcc_free(ifdef_stack);
@@ -7371,5 +7375,5 @@ int main(int argc, char **argv)
 
 #endif
 
-unsigned short __tcc_fpu_control = 0x137f;
+unsigned short __tcc_fpu_control;
 unsigned short __tcc_int_fpu_control;
