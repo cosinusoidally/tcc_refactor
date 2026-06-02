@@ -19,7 +19,6 @@
  */
 #include "stdlib.h"
 #include "stdio.h"
-#include "stdarg.h"
 #include "string.h"
 #include "errno.h"
 #include "math.h"
@@ -57,6 +56,7 @@
 #endif
 
 #define NULL ((void *)0)
+typedef char *va_list;
 
 /* path to find crt1.o, crti.o and crtn.o. Only needed when generating
    executables or dlls */
