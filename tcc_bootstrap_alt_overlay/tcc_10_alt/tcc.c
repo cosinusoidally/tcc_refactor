@@ -17,8 +17,6 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#define CONFIG_TCC_STATIC
-
 #include "stdlib.h"
 #include "stdio.h"
 #include "string.h"
@@ -28,9 +26,6 @@
 #include "fcntl.h"
 #include "elf.h"
 #include "stab.h"
-#ifndef CONFIG_TCC_STATIC
-#include "dlfcn.h"
-#endif
 
 //#define DEBUG
 /* preprocessor debug */
@@ -43,27 +38,12 @@
 //#define TCC_TARGET_IL     /* .NET CLI generator */
 
 /* default target is I386 */
-#if !defined(TCC_TARGET_I386) && !defined(TCC_TARGET_IL)
 #define TCC_TARGET_I386
-#endif
-
-#if !defined(WIN32) && !defined(TCC_UCLIBC) && !defined(TCC_TARGET_IL)
 #define CONFIG_TCC_BCHECK /* enable bound checking code */
-#endif
-
-#ifndef CONFIG_TCC_PREFIX
 #define CONFIG_TCC_PREFIX "/usr/local"
-#endif
 
 #define NULL ((void *)0)
 typedef char *va_list;
-typedef struct TCCState TCCState;
-
-#define TCC_OUTPUT_MEMORY 0
-#define TCC_OUTPUT_EXE 1
-#define TCC_OUTPUT_DLL 2
-#define TCC_OUTPUT_OBJ 3
-
 /* path to find crt1.o, crti.o and crtn.o. Only needed when generating
    executables or dlls */
 #define CONFIG_TCC_CRT_PREFIX "/usr/lib"
@@ -325,6 +305,13 @@ static const char *tcc_lib_path = CONFIG_TCC_PREFIX "/lib/tcc";
 struct TCCState {
     int output_type;
 };
+
+typedef struct TCCState TCCState;
+
+#define TCC_OUTPUT_MEMORY 0
+#define TCC_OUTPUT_EXE 1
+#define TCC_OUTPUT_DLL 2
+#define TCC_OUTPUT_OBJ 3
 
 /* The current value can be: */
 #define VT_VALMASK   0x00ff
@@ -711,8 +698,6 @@ static int is_float(int t)
 #include "il-gen.c"
 #endif
 
-#ifdef CONFIG_TCC_STATIC
-
 #define RTLD_LAZY       0x001
 #define RTLD_NOW        0x002
 #define RTLD_GLOBAL     0x100
@@ -753,8 +738,6 @@ void *dlsym(void *handle, const char *symbol)
     }
     return NULL;
 }
-
-#endif
 
 /********************************************************/
 
