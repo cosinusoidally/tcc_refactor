@@ -17,13 +17,6 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#include "stdlib.h"
-#include "stdio.h"
-#include "string.h"
-#include "errno.h"
-#include "math.h"
-#include "unistd.h"
-#include "fcntl.h"
 #include "elf.h"
 #include "stab.h"
 
@@ -43,6 +36,47 @@
 
 #define NULL ((void *)0)
 typedef char *va_list;
+typedef struct _tcc_file FILE;
+extern FILE *stdin;
+extern FILE *stdout;
+extern FILE *stderr;
+void *malloc();
+void *calloc();
+void *realloc();
+void free();
+double strtod();
+float strtof();
+long strtol();
+void exit();
+int fprintf();
+int vfprintf();
+int printf();
+int sprintf();
+int snprintf();
+int fputs();
+int fputc();
+FILE *fopen();
+int fclose();
+int memcmp();
+void *memcpy();
+void *memset();
+char *strcpy();
+char *strcat();
+char *strchr();
+char *strrchr();
+int strcmp();
+unsigned int strlen();
+char *strdup();
+double ldexp();
+int open();
+int close();
+int read();
+int getcwd();
+long lseek();
+#define O_RDONLY 0
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
 /* path to find crt1.o, crti.o and crtn.o. Only needed when generating
    executables or dlls */
 #define CONFIG_TCC_CRT_PREFIX "/usr/lib"
