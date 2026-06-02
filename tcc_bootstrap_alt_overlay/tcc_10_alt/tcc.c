@@ -262,16 +262,16 @@ int func_vt, func_vc; /* current function return type (used by
 int last_line_num, last_ind, func_ind; /* debug last line number and pc */
 int tok_ident;
 TokenSym **table_ident;
-TokenSym *hash_ident[TOK_HASH_SIZE];
-char token_buf[1025]; /* STRING_MAX_SIZE + 1 */
+TokenSym **hash_ident;
+char *token_buf;
 char *funcname;
 SymStack define_stack, global_stack, local_stack, label_stack;
 
-SValue vstack[VSTACK_SIZE], *vtop;
+SValue *vstack, *vtop;
 int *macro_ptr, *macro_ptr_allocated;
-BufferedFile *include_stack[INCLUDE_STACK_SIZE], **include_stack_ptr;
+BufferedFile **include_stack, **include_stack_ptr;
 int include_stack_depth;
-int ifdef_stack[IFDEF_STACK_SIZE], *ifdef_stack_ptr;
+int *ifdef_stack, *ifdef_stack_ptr;
 char **include_paths;
 int nb_include_paths;
 char **sysinclude_paths;
@@ -280,13 +280,13 @@ int char_pointer_type;
 int func_old_type;
 
 /* compile with debug symbol (and use them if error during execution) */
-int do_debug = 0;
+int do_debug;
 
 /* compile with built-in memory and bounds checker */
-int do_bounds_check = 0;
+int do_bounds_check;
 
 /* display benchmark infos */
-int do_bench = 0;
+int do_bench;
 int total_lines;
 int total_bytes;
 
@@ -297,10 +297,10 @@ int gnu_ext;
 int tcc_ext;
 
 /* if true, static linking is performed */
-int static_link = 0;
+int static_link;
 
 /* give the path of the tcc libraries */
-static const char *tcc_lib_path = CONFIG_TCC_PREFIX "/lib/tcc";
+static const char *tcc_lib_path;
 
 struct TCCState {
     int output_type;
@@ -2675,9 +2675,9 @@ int *macro_twosharps(int *macro_str)
                 if (tok >= TOK_IDENT && 
                     (t >= TOK_IDENT || t == TOK_CINT)) {
                     p = get_tok_str(tok, &tokc);
-                    pstrcpy(token_buf, sizeof(token_buf), p);
+                    pstrcpy(token_buf, 1025, p);
                     p = get_tok_str(t, &cval);
-                    pstrcat(token_buf, sizeof(token_buf), p);
+                    pstrcat(token_buf, 1025, p);
                     ts = tok_alloc(token_buf, 0);
                     tok = ts->tok; /* modify current token */
                 } else {
@@ -6878,6 +6878,26 @@ TCCState *tcc_new(void)
     s = tcc_malloc(sizeof(TCCState));
     if (!s)
         return NULL;
+    hash_ident = tcc_mallocz(TOK_HASH_SIZE * sizeof(TokenSym *));
+    if (!hash_ident)
+        return NULL;
+    token_buf = tcc_malloc(1025);
+    if (!token_buf)
+        return NULL;
+    vstack = tcc_mallocz(VSTACK_SIZE * sizeof(SValue));
+    if (!vstack)
+        return NULL;
+    include_stack = tcc_mallocz(INCLUDE_STACK_SIZE * sizeof(BufferedFile *));
+    if (!include_stack)
+        return NULL;
+    ifdef_stack = tcc_mallocz(IFDEF_STACK_SIZE * sizeof(int));
+    if (!ifdef_stack)
+        return NULL;
+    do_debug = 0;
+    do_bounds_check = 0;
+    do_bench = 0;
+    static_link = 0;
+    tcc_lib_path = "/usr/local/lib/tcc";
     s->output_type = TCC_OUTPUT_MEMORY;
     
     /* default include paths */
@@ -6992,6 +7012,11 @@ TCCState *tcc_new(void)
 
 void tcc_delete(TCCState *s)
 {
+    tcc_free(hash_ident);
+    tcc_free(token_buf);
+    tcc_free(vstack);
+    tcc_free(include_stack);
+    tcc_free(ifdef_stack);
     tcc_free(s);
 }
 
