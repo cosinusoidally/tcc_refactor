@@ -7221,23 +7221,18 @@ void help(void)
 
 int main(int argc, char **argv)
 {
-    char *r, *outfile, *sym, *value;
-    int optind, output_type;
+    char *r, *outfile, *sym, *value, *input;
+    int optind;
     TCCState *s;
     
     s = tcc_new();
-    output_type = TCC_OUTPUT_MEMORY;
-
     optind = 1;
     outfile = NULL;
-    while (1) {
-        if (optind >= argc) {
-            help();
-            return 1;
-        }
+    input = NULL;
+    while (optind < argc) {
         r = argv[optind];
         if (r[0] != '-')
-            break;
+            goto found_input;
         optind++;
         if (r[1] == 'h' || r[1] == '?') {
             help();
@@ -7254,7 +7249,6 @@ int main(int argc, char **argv)
             }
             tcc_define_symbol(s, sym, value);
         } else if (r[1] == 'c') {
-            output_type = TCC_OUTPUT_OBJ;
         } else if (r[1] == 'o') {
             if (optind >= argc) {
                 help();
@@ -7265,20 +7259,20 @@ int main(int argc, char **argv)
             error("invalid option -- '%s'", r);
         }
     }
+    help();
+    return 1;
 
-    /* if outfile provided without other options, we output an
-       executable */
-    if (outfile && output_type == TCC_OUTPUT_MEMORY)
-        output_type = TCC_OUTPUT_EXE;
-    
-    tcc_set_output_type(s, output_type);
-
-    tcc_add_file(s, argv[optind]);
-    if (s->output_type != TCC_OUTPUT_MEMORY) {
-        tcc_output_file(s, outfile);
-        return 0;
+found_input:
+    input = r;
+    if (!outfile) {
+        help();
+        return 1;
     }
-    return tcc_run(s, argc - optind, argv + optind);
+
+    tcc_set_output_type(s, TCC_OUTPUT_OBJ);
+    tcc_add_file(s, input);
+    tcc_output_file(s, outfile);
+    return 0;
 }
 
 unsigned short __tcc_fpu_control;
