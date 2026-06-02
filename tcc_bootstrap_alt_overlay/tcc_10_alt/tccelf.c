@@ -1318,13 +1318,13 @@ int tcc_output_file(TCCState *s1, const char *filename)
     file_offset = (file_offset + 3) & -4;
     
     /* fill header */
-    ehdr.e_ident[0] = ELFMAG0;
-    ehdr.e_ident[1] = ELFMAG1;
-    ehdr.e_ident[2] = ELFMAG2;
-    ehdr.e_ident[3] = ELFMAG3;
-    ehdr.e_ident[4] = ELFCLASS32;
-    ehdr.e_ident[5] = ELFDATA2LSB;
-    ehdr.e_ident[6] = EV_CURRENT;
+    ehdr.e_ident0 = ELFMAG0;
+    ehdr.e_ident1 = ELFMAG1;
+    ehdr.e_ident2 = ELFMAG2;
+    ehdr.e_ident3 = ELFMAG3;
+    ehdr.e_ident4 = ELFCLASS32;
+    ehdr.e_ident5 = ELFDATA2LSB;
+    ehdr.e_ident6 = EV_CURRENT;
     switch(file_type) {
     default:
     case TCC_OUTPUT_EXE:
@@ -1439,16 +1439,16 @@ static int tcc_load_object_file(TCCState *s1,
 
     if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr))
         goto fail;
-    if (ehdr.e_ident[0] != ELFMAG0 ||
-        ehdr.e_ident[1] != ELFMAG1 ||
-        ehdr.e_ident[2] != ELFMAG2 ||
-        ehdr.e_ident[3] != ELFMAG3)
+    if (ehdr.e_ident0 != ELFMAG0 ||
+        ehdr.e_ident1 != ELFMAG1 ||
+        ehdr.e_ident2 != ELFMAG2 ||
+        ehdr.e_ident3 != ELFMAG3)
         goto fail;
     /* test if object file */
     if (ehdr.e_type != ET_REL)
         goto fail;
     /* test CPU specific stuff */
-    if (ehdr.e_ident[5] != ELFDATA2LSB ||
+    if (ehdr.e_ident5 != ELFDATA2LSB ||
         ehdr.e_machine != EM_386) {
     fail:
         error("invalid object file");
@@ -1693,7 +1693,7 @@ static int tcc_load_dll(TCCState *s1, int fd, const char *filename, int level)
     read(fd, &ehdr, sizeof(ehdr));
 
     /* test CPU specific stuff */
-    if (ehdr.e_ident[5] != ELFDATA2LSB ||
+    if (ehdr.e_ident5 != ELFDATA2LSB ||
         ehdr.e_machine != EM_386)
         error("bad architecture");
 

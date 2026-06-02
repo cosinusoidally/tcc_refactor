@@ -7058,10 +7058,10 @@ static int tcc_add_file_internal(TCCState *s, const char *filename, int flags)
             error("could not read header");
         lseek(fd, 0, SEEK_SET);
         
-        if (ehdr.e_ident[0] == ELFMAG0 &&
-            ehdr.e_ident[1] == ELFMAG1 &&
-            ehdr.e_ident[2] == ELFMAG2 &&
-            ehdr.e_ident[3] == ELFMAG3) {
+        if (ehdr.e_ident0 == ELFMAG0 &&
+            ehdr.e_ident1 == ELFMAG1 &&
+            ehdr.e_ident2 == ELFMAG2 &&
+            ehdr.e_ident3 == ELFMAG3) {
             file->line_num = 0; /* do not display line number if error */
             if (ehdr.e_type == ET_REL) {
                 tcc_load_object_file(s, fd, 0);

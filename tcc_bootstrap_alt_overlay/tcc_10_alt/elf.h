@@ -25,7 +25,22 @@ typedef unsigned short int Elf32_Section;
 
 typedef struct
 {
-  unsigned char e_ident[EI_NIDENT];
+  unsigned char e_ident0;
+  unsigned char e_ident1;
+  unsigned char e_ident2;
+  unsigned char e_ident3;
+  unsigned char e_ident4;
+  unsigned char e_ident5;
+  unsigned char e_ident6;
+  unsigned char e_ident7;
+  unsigned char e_ident8;
+  unsigned char e_ident9;
+  unsigned char e_ident10;
+  unsigned char e_ident11;
+  unsigned char e_ident12;
+  unsigned char e_ident13;
+  unsigned char e_ident14;
+  unsigned char e_ident15;
   Elf32_Half e_type;
   Elf32_Half e_machine;
   Elf32_Word e_version;
@@ -138,14 +153,6 @@ typedef struct
 #define STT_FUNC 2
 #define STT_SECTION 3
 #define STT_FILE 4
-
-#define ELF32_ST_BIND(val) ((unsigned char)((val) >> 4))
-#define ELF32_ST_TYPE(val) ((val) & 0xf)
-#define ELF32_ST_INFO(bind, type) (((bind) << 4) + ((type) & 0xf))
-
-#define ELF32_R_SYM(val) ((val) >> 8)
-#define ELF32_R_TYPE(val) ((unsigned char)(val))
-#define ELF32_R_INFO(sym, type) (((sym) << 8) + (unsigned char)(type))
 
 #define R_386_NONE 0
 #define R_386_32 1
