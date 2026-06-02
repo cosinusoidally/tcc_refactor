@@ -17,6 +17,8 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
+#define CONFIG_TCC_STATIC
+
 #include "stdlib.h"
 #include "stdio.h"
 #include "string.h"
@@ -29,8 +31,6 @@
 #ifndef CONFIG_TCC_STATIC
 #include "dlfcn.h"
 #endif
-
-#include "libtcc.h"
 
 //#define DEBUG
 /* preprocessor debug */
@@ -57,6 +57,12 @@
 
 #define NULL ((void *)0)
 typedef char *va_list;
+typedef struct TCCState TCCState;
+
+#define TCC_OUTPUT_MEMORY 0
+#define TCC_OUTPUT_EXE 1
+#define TCC_OUTPUT_DLL 2
+#define TCC_OUTPUT_OBJ 3
 
 /* path to find crt1.o, crti.o and crtn.o. Only needed when generating
    executables or dlls */

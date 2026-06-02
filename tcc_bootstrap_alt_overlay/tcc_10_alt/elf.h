@@ -1,27 +1,12 @@
 #ifndef _ELF_H
 #define _ELF_H 1
 
-#ifndef __int8_t_defined
-#define __int8_t_defined 1
-typedef signed char int8_t;
-typedef short int int16_t;
-typedef int int32_t;
-typedef long long int int64_t;
-#endif
-
-typedef unsigned char uint8_t;
-typedef unsigned short int uint16_t;
-typedef unsigned int uint32_t;
-typedef unsigned long long int uint64_t;
-
 typedef unsigned short int Elf32_Half;
 typedef unsigned int Elf32_Word;
 typedef int Elf32_Sword;
 typedef unsigned int Elf32_Addr;
 typedef unsigned int Elf32_Off;
 typedef unsigned short int Elf32_Section;
-
-#define EI_NIDENT 16
 
 typedef struct
 {
