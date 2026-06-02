@@ -7255,7 +7255,7 @@ void help(void)
 
 int main(int argc, char **argv)
 {
-    char *r, *outfile, *sym, *value, *input;
+    char *r, *outfile, *input;
     int optind;
     TCCState *s;
     
@@ -7274,14 +7274,6 @@ int main(int argc, char **argv)
         } else if (r[1] == 'I') {
             if (tcc_add_include_path(s, r + 2) < 0)
                 error("too many include paths");
-        } else if (r[1] == 'D') {
-            sym = r + 2;
-            value = strchr(sym, '=');
-            if (value) {
-                *value = '\0';
-                value++;
-            }
-            tcc_define_symbol(s, sym, value);
         } else if (r[1] == 'c') {
         } else if (r[1] == 'o') {
             if (optind >= argc) {
