@@ -39,7 +39,6 @@
 
 /* default target is I386 */
 #define TCC_TARGET_I386
-#define CONFIG_TCC_BCHECK /* enable bound checking code */
 #define CONFIG_TCC_PREFIX "/usr/local"
 
 #define NULL ((void *)0)
@@ -7215,58 +7214,24 @@ int tcc_set_output_type(TCCState *s, int output_type)
     return 0;
 }
 
-#if !defined(LIBTCC)
-
 void help(void)
 {
-    printf("tcc version 0.9.10pre1 - Tiny C Compiler - Copyright (C) 2001, 2002 Fabrice Bellard\n" 
-           "usage: tcc [-c] [-o outfile] [-Bdir] [-bench] [-Idir] [-Dsym[=val]] [-Usym]\n"
-           "           [-g] [-b] [-Ldir] [-llib] [-shared] [-static]\n"
-           "           [--] infile1 [infile2... --] [infile_args...]\n"
-           "\n"
-           "General options:\n"
-           "  -c          compile only - generate an object file\n"
-           "  -o outfile  set output filename\n"
-           "  --          allows multiples input files if no -o option given. Also\n" 
-           "              separate input files from runtime arguments\n"
-           "  -Bdir       set tcc internal library path\n"
-           "  -bench      output compilation statistics\n"
-           "Preprocessor options:\n"
-           "  -Idir       add include path 'dir'\n"
-           "  -Dsym[=val] define 'sym' with value 'val'\n"
-           "  -Usym       undefine 'sym'\n"
-           "C compiler options:\n"
-           "  -g          generate runtime debug info\n"
-#ifdef CONFIG_TCC_BCHECK
-           "  -b          compile with built-in memory and bounds checker (implies -g)\n"
-#endif
-           "Linker options:\n"
-           "  -Ldir       add library path 'dir'\n"
-           "  -llib       link with dynamic or static library 'lib'\n"
-           "  -shared     generate a shared library\n"
-           "  -static     static linking\n"
-           );
+    printf("usage: tcc [-c] [-o outfile] [-Idir] [-Dsym[=val]] infile\n");
 }
 
 int main(int argc, char **argv)
 {
-    char *r, *outfile;
-    int optind, output_type, multiple_files, i;
+    char *r, *outfile, *sym, *value;
+    int optind, output_type;
     TCCState *s;
-    char **libraries;
-    int nb_libraries;
     
     s = tcc_new();
     output_type = TCC_OUTPUT_MEMORY;
 
     optind = 1;
     outfile = NULL;
-    multiple_files = 0;
-    libraries = NULL;
-    nb_libraries = 0;
     while (1) {
         if (optind >= argc) {
-        show_help:
             help();
             return 1;
         }
@@ -7274,16 +7239,13 @@ int main(int argc, char **argv)
         if (r[0] != '-')
             break;
         optind++;
-        if (r[1] == '-') {
-            /* '--' enables multiple files input */
-            multiple_files = 1;
-        } else if (r[1] == 'h' || r[1] == '?') {
-            goto show_help;
+        if (r[1] == 'h' || r[1] == '?') {
+            help();
+            return 1;
         } else if (r[1] == 'I') {
             if (tcc_add_include_path(s, r + 2) < 0)
                 error("too many include paths");
         } else if (r[1] == 'D') {
-            char *sym, *value;
             sym = r + 2;
             value = strchr(sym, '=');
             if (value) {
@@ -7291,37 +7253,13 @@ int main(int argc, char **argv)
                 value++;
             }
             tcc_define_symbol(s, sym, value);
-        } else if (r[1] == 'U') {
-            tcc_undefine_symbol(s, r + 2);
-        } else if (r[1] == 'L') {
-            tcc_add_library_path(s, r + 2);
-        } else if (r[1] == 'B') {
-            /* set tcc utilities path (mainly for tcc development) */
-            tcc_lib_path = r + 2;
-        } else if (r[1] == 'l') {
-            dynarray_add((void ***)&libraries, &nb_libraries, r + 2);
-        } else if (!strcmp(r + 1, "bench")) {
-            do_bench = 1;
-        } else 
-#ifdef CONFIG_TCC_BCHECK
-        if (r[1] == 'b') {
-            do_bounds_check = 1;
-            do_debug = 1;
-        } else 
-#endif
-        if (r[1] == 'g') {
-            do_debug = 1;
         } else if (r[1] == 'c') {
-            multiple_files = 1;
             output_type = TCC_OUTPUT_OBJ;
-        } else if (!strcmp(r + 1, "static")) {
-            static_link = 1;
-        } else if (!strcmp(r + 1, "shared")) {
-            output_type = TCC_OUTPUT_DLL;
         } else if (r[1] == 'o') {
-            if (optind >= argc)
-                goto show_help;
-            multiple_files = 1;
+            if (optind >= argc) {
+                help();
+                return 1;
+            }
             outfile = argv[optind++];
         } else {
             error("invalid option -- '%s'", r);
@@ -7336,44 +7274,12 @@ int main(int argc, char **argv)
     tcc_set_output_type(s, output_type);
 
     tcc_add_file(s, argv[optind]);
-    /* Keep the tcc_2 bootstrap path on the same stable statement shape. */
-    output_type = output_type;
-    if (multiple_files) {
-        while ((optind + 1) < argc) {
-            optind++;
-            r = argv[optind];
-            if (r[0] == '-') {
-                if (r[1] != '-')
-                    error("'--' expected");
-                break;
-            }
-            tcc_add_file(s, r);
-        }
-    }
-
-    /* add specified libraries */
-    for(i = 0; i < nb_libraries;i++) {
-        if (tcc_add_library(s, libraries[i]) < 0)
-                error("cannot find -l%s", libraries[i]);
-    }
-
-    if (do_bench) {
-        printf("total: %d idents, %d lines, %d bytes\n", 
-               tok_ident - TOK_IDENT, total_lines, total_bytes);
-#ifdef MEM_DEBUG
-        printf("memory: %d bytes, max = %d bytes\n", mem_cur_size, mem_max_size);
-#endif
-    }
-
     if (s->output_type != TCC_OUTPUT_MEMORY) {
         tcc_output_file(s, outfile);
         return 0;
-    } else {
-        return tcc_run(s, argc - optind, argv + optind);
     }
+    return tcc_run(s, argc - optind, argv + optind);
 }
-
-#endif
 
 unsigned short __tcc_fpu_control;
 unsigned short __tcc_int_fpu_control;
