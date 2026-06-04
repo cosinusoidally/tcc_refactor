@@ -4499,57 +4499,94 @@ void inc(int post, int c)
    - section(x) : generate data/code in this section.
    - unused : currently ignored, but may be used someday.
  */
+static void parse_attribute_skip_parens(void)
+{
+    if (tok == '(') {
+        next();
+        while (tok != ')' && tok != -1)
+            next();
+        next();
+    }
+}
+
+static int parse_attribute_calling_conv(AttributeDef *ad, int t)
+{
+    if (t == TOK_CDECL ||
+        t == TOK___CDECL ||
+        t == TOK___CDECL__) {
+        ad->func_call = FUNC_CDECL;
+        return 1;
+    }
+    if (t == TOK_STDCALL ||
+        t == TOK___STDCALL ||
+        t == TOK___STDCALL__) {
+        ad->func_call = FUNC_STDCALL;
+        return 1;
+    }
+    return 0;
+}
+
+static int parse_attribute_section_or_align(AttributeDef *ad, int t)
+{
+    int n;
+
+    if (t == TOK_SECTION || t == TOK___SECTION__) {
+        skip('(');
+        if (tok != TOK_STR)
+            expect("section name");
+        ad->section = find_section((char *)tokc.cstr->data);
+        next();
+        skip(')');
+        return 1;
+    }
+    if (t == TOK_ALIGNED || t == TOK___ALIGNED__) {
+        skip('(');
+        n = expr_const();
+        if (n <= 0 || (n & (n - 1)) != 0)
+            error("alignment must be a positive power of two");
+        ad->aligned = n;
+        skip(')');
+        return 1;
+    }
+    return 0;
+}
+
+static int parse_attribute_ignored(int t)
+{
+    if (t == TOK_UNUSED || t == TOK___UNUSED__)
+        return 1;
+    if (t == TOK_NORETURN || t == TOK___NORETURN__)
+        return 1;
+    return 0;
+}
+
+static void parse_attribute_one(AttributeDef *ad)
+{
+    int t;
+
+    if (tok < TOK_IDENT)
+        expect("attribute name");
+    t = tok;
+    next();
+
+    if (parse_attribute_section_or_align(ad, t))
+        return;
+    if (parse_attribute_ignored(t))
+        return;
+    if (parse_attribute_calling_conv(ad, t))
+        return;
+
+    warning("'%s' attribute ignored", get_tok_str(t, NULL));
+    parse_attribute_skip_parens();
+}
+
 void parse_attribute(AttributeDef *ad)
 {
-    int t, n;
-
     next();
     skip('(');
     skip('(');
     while (tok != ')') {
-        if (tok < TOK_IDENT)
-            expect("attribute name");
-        t = tok;
-        next();
-        if (t == TOK_SECTION || t == TOK___SECTION__) {
-            skip('(');
-            if (tok != TOK_STR)
-                expect("section name");
-            ad->section = find_section((char *)tokc.cstr->data);
-            next();
-            skip(')');
-        } else if (t == TOK_ALIGNED || t == TOK___ALIGNED__) {
-            skip('(');
-            n = expr_const();
-            if (n <= 0 || (n & (n - 1)) != 0) 
-                error("alignment must be a positive power of two");
-            ad->aligned = n;
-            skip(')');
-        } else if (t == TOK_UNUSED || t == TOK___UNUSED__) {
-            /* currently, no need to handle it because tcc does not
-               track unused objects */
-        } else if (t == TOK_NORETURN || t == TOK___NORETURN__) {
-            /* currently, no need to handle it because tcc does not
-               track unused objects */
-        } else if (t == TOK_CDECL ||
-                   t == TOK___CDECL ||
-                   t == TOK___CDECL__) {
-            ad->func_call = FUNC_CDECL;
-        } else if (t == TOK_STDCALL ||
-                   t == TOK___STDCALL ||
-                   t == TOK___STDCALL__) {
-            ad->func_call = FUNC_STDCALL;
-        } else {
-            warning("'%s' attribute ignored", get_tok_str(t, NULL));
-            /* skip parameters */
-            /* XXX: skip parenthesis too */
-            if (tok == '(') {
-                next();
-                while (tok != ')' && tok != -1)
-                    next();
-                next();
-            }
-        }
+        parse_attribute_one(ad);
         if (tok != ',')
             break;
         next();
