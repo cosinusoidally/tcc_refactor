@@ -1595,6 +1595,30 @@ void skip_spaces(void)
         cinp();
 }
 
+static int preprocess_is_boundary(int level)
+{
+    if (level != 0)
+        return 0;
+    if (tok == TOK_ELSE)
+        return 1;
+    if (tok == TOK_ELIF)
+        return 1;
+    if (tok == TOK_ENDIF)
+        return 1;
+    return 0;
+}
+
+static int preprocess_is_if_token(void)
+{
+    if (tok == TOK_IF)
+        return 1;
+    if (tok == TOK_IFDEF)
+        return 1;
+    if (tok == TOK_IFNDEF)
+        return 1;
+    return 0;
+}
+
 /* skip block of text until #else, #elif or #endif. skip also pairs of
    #if/#endif */
 void preprocess_skip(void)
@@ -1612,10 +1636,9 @@ void preprocess_skip(void)
         if (ch == '#') {
             cinp();
             next_nomacro();
-            if (a == 0 &&
-                (tok == TOK_ELSE || tok == TOK_ELIF || tok == TOK_ENDIF))
+            if (preprocess_is_boundary(a))
                 break;
-            if (tok == TOK_IF || tok == TOK_IFDEF || tok == TOK_IFNDEF)
+            if (preprocess_is_if_token())
                 a++;
             else if (tok == TOK_ENDIF)
                 a--;
@@ -4887,6 +4910,29 @@ static int parse_btype_basic(int *type_ptr)
     return 1;
 }
 
+static int is_btype_ignored_modifier(int t)
+{
+    if (t == TOK_CONST)
+        return 1;
+    if (t == TOK_VOLATILE)
+        return 1;
+    if (t == TOK_REGISTER)
+        return 1;
+    if (t == TOK_SIGNED)
+        return 1;
+    if (t == TOK___SIGNED__)
+        return 1;
+    if (t == TOK_AUTO)
+        return 1;
+    if (t == TOK_INLINE)
+        return 1;
+    if (t == TOK___INLINE__)
+        return 1;
+    if (t == TOK_RESTRICT)
+        return 1;
+    return 0;
+}
+
 int parse_btype(int *type_ptr, AttributeDef *ad)
 {
     int t, u, type_found;
@@ -4902,15 +4948,7 @@ int parse_btype(int *type_ptr, AttributeDef *ad)
             continue;
         }
         /* type modifiers */
-        if (tok == TOK_CONST ||
-                   tok == TOK_VOLATILE ||
-                   tok == TOK_REGISTER ||
-                   tok == TOK_SIGNED ||
-                   tok == TOK___SIGNED__ ||
-                   tok == TOK_AUTO ||
-                   tok == TOK_INLINE ||
-                   tok == TOK___INLINE__ ||
-                   tok == TOK_RESTRICT) {
+        if (is_btype_ignored_modifier(tok)) {
             next();
         } else if (tok == TOK_UNSIGNED) {
             t |= VT_UNSIGNED;
