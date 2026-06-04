@@ -34,49 +34,17 @@
 #define TCC_TARGET_I386
 #define CONFIG_TCC_PREFIX "/usr/local"
 
+#include "stdlib.h"
+#include "stdio.h"
+#include "stdarg.h"
+#include "string.h"
+#include "errno.h"
+#include "math.h"
+#include "unistd.h"
+#include "fcntl.h"
+#include "dlfcn.h"
+
 #define NULL ((void *)0)
-typedef char *va_list;
-typedef struct _tcc_file FILE;
-extern FILE *stdin;
-extern FILE *stdout;
-extern FILE *stderr;
-void *malloc();
-void *calloc();
-void *realloc();
-void free();
-double strtod();
-float strtof();
-long strtol();
-void exit();
-int fprintf();
-int vfprintf();
-int printf();
-int sprintf();
-int snprintf();
-int fputs();
-int fputc();
-FILE *fopen();
-int fclose();
-int memcmp();
-void *memcpy();
-void *memset();
-char *strcpy();
-char *strcat();
-char *strchr();
-char *strrchr();
-int strcmp();
-unsigned int strlen();
-char *strdup();
-double ldexp();
-int open();
-int close();
-int read();
-int getcwd();
-long lseek();
-#define O_RDONLY 0
-#define SEEK_SET 0
-#define SEEK_CUR 1
-#define SEEK_END 2
 /* path to find crt1.o, crti.o and crtn.o. Only needed when generating
    executables or dlls */
 #define CONFIG_TCC_CRT_PREFIX "/usr/lib"
@@ -587,10 +555,6 @@ static char *tok_two_chars;
 #define TOK_strlen (TOK_memmove + 1)
 #define TOK_strcpy (TOK_strlen + 1)
 
-#ifdef WIN32
-#define snprintf _snprintf
-#endif
-
 // HACK MMVM unconditionally enable
 /* currently incorrect */
 long double strtold(const char *nptr, char **endptr)
@@ -791,7 +755,7 @@ static char *pstrcat(char *buf, int buf_size, const char *s)
 {
     int len;
     len = strlen(buf);
-    if (len < buf_size) 
+    if (len < buf_size)
         pstrcpy(buf + len, buf_size - len, s);
     return buf;
 }
