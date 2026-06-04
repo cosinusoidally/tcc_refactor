@@ -229,7 +229,8 @@ static void put_elf_reloc(Section *symtab, Section *s, unsigned long offset,
     sr = s->reloc;
     if (!sr) {
         /* if no relocation section, create it */
-        snprintf(buf, sizeof(buf), ".rel%s", s->name);
+        pstrcpy(buf, sizeof(buf), ".rel");
+        pstrcat(buf, sizeof(buf), s->name);
         /* if the symtab is allocated, then we consider the relocation
            are also */
         sr = new_section(buf, SHT_REL, symtab->sh_flags);
@@ -755,7 +756,9 @@ static void tcc_add_runtime(TCCState *s1)
                     elf32_st_info(STB_GLOBAL, STT_NOTYPE),
                     bounds_section->sh_num, "__bounds_start");
         /* add bound check code */
-        snprintf(buf, sizeof(buf), "%s/%s", tcc_lib_path, "bcheck.o");
+        pstrcpy(buf, sizeof(buf), tcc_lib_path);
+        pstrcat(buf, sizeof(buf), "/");
+        pstrcat(buf, sizeof(buf), "bcheck.o");
         tcc_add_file(s1, buf);
 #ifdef TCC_TARGET_I386
         if (s1->output_type != TCC_OUTPUT_MEMORY) {
@@ -808,12 +811,14 @@ static void tcc_add_runtime(TCCState *s1)
                     goto next_sec;
                 p++;
             }
-            snprintf(buf, sizeof(buf), "__start_%s", s->name);
+            pstrcpy(buf, sizeof(buf), "__start_");
+            pstrcat(buf, sizeof(buf), s->name);
             add_elf_sym(symtab_section, 
                         0, 0,
                         elf32_st_info(STB_GLOBAL, STT_NOTYPE),
                         s->sh_num, buf);
-            snprintf(buf, sizeof(buf), "__stop_%s", s->name);
+            pstrcpy(buf, sizeof(buf), "__stop_");
+            pstrcat(buf, sizeof(buf), s->name);
             add_elf_sym(symtab_section,
                         s->data_offset, 0,
                         elf32_st_info(STB_GLOBAL, STT_NOTYPE),

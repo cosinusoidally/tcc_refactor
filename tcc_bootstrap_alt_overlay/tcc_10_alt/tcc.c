@@ -7294,8 +7294,9 @@ static int tcc_add_dll(TCCState *s, const char *filename, int flags)
     int i;
 
     for(i = 0; i < nb_library_paths; i++) {
-        snprintf(buf, sizeof(buf), "%s/%s", 
-                 library_paths[i], filename);
+        pstrcpy(buf, sizeof(buf), library_paths[i]);
+        pstrcat(buf, sizeof(buf), "/");
+        pstrcat(buf, sizeof(buf), filename);
         if (tcc_add_file_internal(s, buf, flags) == 0)
             return 0;
     }
@@ -7314,7 +7315,9 @@ int tcc_add_library(TCCState *s, const char *libraryname)
         /* Since the libc is already loaded, we don't need to load it again */
         if (!strcmp(libraryname, "c"))
             return 0;
-        snprintf(buf, sizeof(buf), "lib%s.so", libraryname);
+        pstrcpy(buf, sizeof(buf), "lib");
+        pstrcat(buf, sizeof(buf), libraryname);
+        pstrcat(buf, sizeof(buf), ".so");
         h = dlopen(buf, RTLD_GLOBAL | RTLD_LAZY);
         if (!h)
             return -1;
@@ -7323,15 +7326,19 @@ int tcc_add_library(TCCState *s, const char *libraryname)
     
     /* first we look for the dynamic library if not static linking */
     if (!static_link) {
-        snprintf(buf, sizeof(buf), "lib%s.so", libraryname);
+        pstrcpy(buf, sizeof(buf), "lib");
+        pstrcat(buf, sizeof(buf), libraryname);
+        pstrcat(buf, sizeof(buf), ".so");
         if (tcc_add_dll(s, buf, 0) == 0)
             return 0;
     }
 
     /* then we look for the static library */
     for(i = 0; i < nb_library_paths; i++) {
-        snprintf(buf, sizeof(buf), "%s/lib%s.a", 
-                 library_paths[i], libraryname);
+        pstrcpy(buf, sizeof(buf), library_paths[i]);
+        pstrcat(buf, sizeof(buf), "/lib");
+        pstrcat(buf, sizeof(buf), libraryname);
+        pstrcat(buf, sizeof(buf), ".a");
         if (tcc_add_file_internal(s, buf, 0) == 0)
             return 0;
     }
