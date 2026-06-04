@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
+out_dir="$workspace_dir/host_debug"
+
+mkdir -p "$out_dir"
+
+(
+    cd "$workspace_dir/tcc_2"
+    gcc -m32 -D__thread=__threadp -include stdarg.h \
+        tcc.c -I ../woody/usr/include/ -ldl \
+        -o "$out_dir/tcc2_host.exe"
+)
+
+echo "$out_dir/tcc2_host.exe"

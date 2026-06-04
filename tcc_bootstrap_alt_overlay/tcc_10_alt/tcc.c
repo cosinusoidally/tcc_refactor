@@ -4511,46 +4511,35 @@ void parse_attribute(AttributeDef *ad)
             expect("attribute name");
         t = tok;
         next();
-        switch(t) {
-        case TOK_SECTION:
-        case TOK___SECTION__:
+        if (t == TOK_SECTION || t == TOK___SECTION__) {
             skip('(');
             if (tok != TOK_STR)
                 expect("section name");
             ad->section = find_section((char *)tokc.cstr->data);
             next();
             skip(')');
-            break;
-        case TOK_ALIGNED:
-        case TOK___ALIGNED__:
+        } else if (t == TOK_ALIGNED || t == TOK___ALIGNED__) {
             skip('(');
             n = expr_const();
             if (n <= 0 || (n & (n - 1)) != 0) 
                 error("alignment must be a positive power of two");
             ad->aligned = n;
             skip(')');
-            break;
-        case TOK_UNUSED:
-        case TOK___UNUSED__:
+        } else if (t == TOK_UNUSED || t == TOK___UNUSED__) {
             /* currently, no need to handle it because tcc does not
                track unused objects */
-            break;
-        case TOK_NORETURN:
-        case TOK___NORETURN__:
+        } else if (t == TOK_NORETURN || t == TOK___NORETURN__) {
             /* currently, no need to handle it because tcc does not
                track unused objects */
-            break;
-        case TOK_CDECL:
-        case TOK___CDECL:
-        case TOK___CDECL__:
+        } else if (t == TOK_CDECL ||
+                   t == TOK___CDECL ||
+                   t == TOK___CDECL__) {
             ad->func_call = FUNC_CDECL;
-            break;
-        case TOK_STDCALL:
-        case TOK___STDCALL:
-        case TOK___STDCALL__:
+        } else if (t == TOK_STDCALL ||
+                   t == TOK___STDCALL ||
+                   t == TOK___STDCALL__) {
             ad->func_call = FUNC_STDCALL;
-            break;
-        default:
+        } else {
             warning("'%s' attribute ignored", get_tok_str(t, NULL));
             /* skip parameters */
             /* XXX: skip parenthesis too */
@@ -4560,7 +4549,6 @@ void parse_attribute(AttributeDef *ad)
                     next();
                 next();
             }
-            break;
         }
         if (tok != ',')
             break;
@@ -4740,27 +4728,28 @@ int parse_btype(int *type_ptr, AttributeDef *ad)
     type_found = 0;
     t = 0;
     while(1) {
-        switch(tok) {
-            /* basic types */
-        case TOK_CHAR:
+        /* basic types */
+        if (tok == TOK_CHAR) {
             u = VT_BYTE;
-        basic_type:
             next();
-        basic_type1:
             if ((t & VT_BTYPE) != 0)
                 error("too many basic types");
             t |= u;
-            break;
-        case TOK_VOID:
+        } else if (tok == TOK_VOID) {
             u = VT_VOID;
-            goto basic_type;
-        case TOK_SHORT:
-            u = VT_SHORT;
-            goto basic_type;
-        case TOK_INT:
             next();
-            break;
-        case TOK_LONG:
+            if ((t & VT_BTYPE) != 0)
+                error("too many basic types");
+            t |= u;
+        } else if (tok == TOK_SHORT) {
+            u = VT_SHORT;
+            next();
+            if ((t & VT_BTYPE) != 0)
+                error("too many basic types");
+            t |= u;
+        } else if (tok == TOK_INT) {
+            next();
+        } else if (tok == TOK_LONG) {
             next();
             if ((t & VT_BTYPE) == VT_DOUBLE) {
                 t = (t & ~VT_BTYPE) | VT_LDOUBLE;
@@ -4768,73 +4757,76 @@ int parse_btype(int *type_ptr, AttributeDef *ad)
                 t = (t & ~VT_BTYPE) | VT_LLONG;
             } else {
                 u = VT_LONG;
-                goto basic_type1;
+                if ((t & VT_BTYPE) != 0)
+                    error("too many basic types");
+                t |= u;
             }
-            break;
-        case TOK_BOOL:
+        } else if (tok == TOK_BOOL) {
             u = VT_BOOL;
-            goto basic_type;
-        case TOK_FLOAT:
+            next();
+            if ((t & VT_BTYPE) != 0)
+                error("too many basic types");
+            t |= u;
+        } else if (tok == TOK_FLOAT) {
             u = VT_FLOAT;
-            goto basic_type;
-        case TOK_DOUBLE:
+            next();
+            if ((t & VT_BTYPE) != 0)
+                error("too many basic types");
+            t |= u;
+        } else if (tok == TOK_DOUBLE) {
             next();
             if ((t & VT_BTYPE) == VT_LONG) {
                 t = (t & ~VT_BTYPE) | VT_LDOUBLE;
             } else {
                 u = VT_DOUBLE;
-                goto basic_type1;
+                if ((t & VT_BTYPE) != 0)
+                    error("too many basic types");
+                t |= u;
             }
-            break;
-        case TOK_ENUM:
+        } else if (tok == TOK_ENUM) {
             u = struct_decl(VT_ENUM);
-            goto basic_type1;
-        case TOK_STRUCT:
-        case TOK_UNION:
+            if ((t & VT_BTYPE) != 0)
+                error("too many basic types");
+            t |= u;
+        } else if (tok == TOK_STRUCT || tok == TOK_UNION) {
             u = struct_decl(VT_STRUCT);
-            goto basic_type1;
+            if ((t & VT_BTYPE) != 0)
+                error("too many basic types");
+            t |= u;
 
-            /* type modifiers */
-        case TOK_CONST:
-        case TOK_VOLATILE:
-        case TOK_REGISTER:
-        case TOK_SIGNED:
-        case TOK___SIGNED__:
-        case TOK_AUTO:
-        case TOK_INLINE:
-        case TOK___INLINE__:
-        case TOK_RESTRICT:
+        /* type modifiers */
+        } else if (tok == TOK_CONST ||
+                   tok == TOK_VOLATILE ||
+                   tok == TOK_REGISTER ||
+                   tok == TOK_SIGNED ||
+                   tok == TOK___SIGNED__ ||
+                   tok == TOK_AUTO ||
+                   tok == TOK_INLINE ||
+                   tok == TOK___INLINE__ ||
+                   tok == TOK_RESTRICT) {
             next();
-            break;
-        case TOK_UNSIGNED:
+        } else if (tok == TOK_UNSIGNED) {
             t |= VT_UNSIGNED;
             next();
-            break;
-
-            /* storage */
-        case TOK_EXTERN:
+        /* storage */
+        } else if (tok == TOK_EXTERN) {
             t |= VT_EXTERN;
             next();
-            break;
-        case TOK_STATIC:
+        } else if (tok == TOK_STATIC) {
             t |= VT_STATIC;
             next();
-            break;
-        case TOK_TYPEDEF:
+        } else if (tok == TOK_TYPEDEF) {
             t |= VT_TYPEDEF;
             next();
-            break;
-            /* GNUC attribute */
-        case TOK___ATTRIBUTE__:
+        /* GNUC attribute */
+        } else if (tok == TOK___ATTRIBUTE__) {
             parse_attribute(ad);
-            break;
-        default:
+        } else {
             s = sym_find(tok);
             if (!s || !(s->t & VT_TYPEDEF))
                 goto the_end;
             t |= (s->t & ~VT_TYPEDEF);
             next();
-            break;
         }
         type_found = 1;
     }

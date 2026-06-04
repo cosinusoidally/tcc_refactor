@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+
+overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
+out_dir="$workspace_dir/host_debug"
+tcc2_host=$("$overlay_dir/mk_gcc_tcc2_host_alt")
+
+mkdir -p "$out_dir"
+
+(
+    cd "$workspace_dir/tcc_10"
+    rm -f "$out_dir/tcc10_stage1_from_tcc2_host.out"
+    "$tcc2_host" tcc_dummy_strtod.c -I. \
+        -o "$out_dir/tcc10_stage1_from_tcc2_host.out" -c tcc.c
+)
+
+echo "$out_dir/tcc10_stage1_from_tcc2_host.out"
