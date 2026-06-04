@@ -1612,7 +1612,7 @@ void preprocess_skip(void)
         if (ch == '#') {
             cinp();
             next_nomacro();
-            if (a == 0 && 
+            if (a == 0 &&
                 (tok == TOK_ELSE || tok == TOK_ELIF || tok == TOK_ENDIF))
                 break;
             if (tok == TOK_IF || tok == TOK_IFDEF || tok == TOK_IFNDEF)
@@ -4509,20 +4509,56 @@ static void parse_attribute_skip_parens(void)
     }
 }
 
+static int is_cdecl_attribute(int t)
+{
+    if (t == TOK_CDECL)
+        return 1;
+    if (t == TOK___CDECL)
+        return 1;
+    if (t == TOK___CDECL__)
+        return 1;
+    return 0;
+}
+
+static int is_stdcall_attribute(int t)
+{
+    if (t == TOK_STDCALL)
+        return 1;
+    if (t == TOK___STDCALL)
+        return 1;
+    if (t == TOK___STDCALL__)
+        return 1;
+    return 0;
+}
+
 static int parse_attribute_calling_conv(AttributeDef *ad, int t)
 {
-    if (t == TOK_CDECL ||
-        t == TOK___CDECL ||
-        t == TOK___CDECL__) {
+    if (is_cdecl_attribute(t)) {
         ad->func_call = FUNC_CDECL;
         return 1;
     }
-    if (t == TOK_STDCALL ||
-        t == TOK___STDCALL ||
-        t == TOK___STDCALL__) {
+    if (is_stdcall_attribute(t)) {
         ad->func_call = FUNC_STDCALL;
         return 1;
     }
+    return 0;
+}
+
+static int is_section_attribute(int t)
+{
+    if (t == TOK_SECTION)
+        return 1;
+    if (t == TOK___SECTION__)
+        return 1;
+    return 0;
+}
+
+static int is_aligned_attribute(int t)
+{
+    if (t == TOK_ALIGNED)
+        return 1;
+    if (t == TOK___ALIGNED__)
+        return 1;
     return 0;
 }
 
@@ -4530,7 +4566,7 @@ static int parse_attribute_section_or_align(AttributeDef *ad, int t)
 {
     int n;
 
-    if (t == TOK_SECTION || t == TOK___SECTION__) {
+    if (is_section_attribute(t)) {
         skip('(');
         if (tok != TOK_STR)
             expect("section name");
@@ -4539,7 +4575,7 @@ static int parse_attribute_section_or_align(AttributeDef *ad, int t)
         skip(')');
         return 1;
     }
-    if (t == TOK_ALIGNED || t == TOK___ALIGNED__) {
+    if (is_aligned_attribute(t)) {
         skip('(');
         n = expr_const();
         if (n <= 0 || (n & (n - 1)) != 0)
@@ -4551,11 +4587,29 @@ static int parse_attribute_section_or_align(AttributeDef *ad, int t)
     return 0;
 }
 
+static int is_unused_attribute(int t)
+{
+    if (t == TOK_UNUSED)
+        return 1;
+    if (t == TOK___UNUSED__)
+        return 1;
+    return 0;
+}
+
+static int is_noreturn_attribute(int t)
+{
+    if (t == TOK_NORETURN)
+        return 1;
+    if (t == TOK___NORETURN__)
+        return 1;
+    return 0;
+}
+
 static int parse_attribute_ignored(int t)
 {
-    if (t == TOK_UNUSED || t == TOK___UNUSED__)
+    if (is_unused_attribute(t))
         return 1;
-    if (t == TOK_NORETURN || t == TOK___NORETURN__)
+    if (is_noreturn_attribute(t))
         return 1;
     return 0;
 }
