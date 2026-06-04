@@ -4719,6 +4719,83 @@ int struct_decl(int u)
 /* return 0 if no type declaration. otherwise, return the basic type
    and skip it. 
  */
+static int parse_btype_basic(int *type_ptr)
+{
+    int t, u;
+
+    t = *type_ptr;
+    if (tok == TOK_CHAR) {
+        u = VT_BYTE;
+        next();
+        if ((t & VT_BTYPE) != 0)
+            error("too many basic types");
+        t |= u;
+    } else if (tok == TOK_VOID) {
+        u = VT_VOID;
+        next();
+        if ((t & VT_BTYPE) != 0)
+            error("too many basic types");
+        t |= u;
+    } else if (tok == TOK_SHORT) {
+        u = VT_SHORT;
+        next();
+        if ((t & VT_BTYPE) != 0)
+            error("too many basic types");
+        t |= u;
+    } else if (tok == TOK_INT) {
+        next();
+    } else if (tok == TOK_LONG) {
+        next();
+        if ((t & VT_BTYPE) == VT_DOUBLE) {
+            t = (t & ~VT_BTYPE) | VT_LDOUBLE;
+        } else if ((t & VT_BTYPE) == VT_LONG) {
+            t = (t & ~VT_BTYPE) | VT_LLONG;
+        } else {
+            u = VT_LONG;
+            if ((t & VT_BTYPE) != 0)
+                error("too many basic types");
+            t |= u;
+        }
+    } else if (tok == TOK_BOOL) {
+        u = VT_BOOL;
+        next();
+        if ((t & VT_BTYPE) != 0)
+            error("too many basic types");
+        t |= u;
+    } else if (tok == TOK_FLOAT) {
+        u = VT_FLOAT;
+        next();
+        if ((t & VT_BTYPE) != 0)
+            error("too many basic types");
+        t |= u;
+    } else if (tok == TOK_DOUBLE) {
+        next();
+        if ((t & VT_BTYPE) == VT_LONG) {
+            t = (t & ~VT_BTYPE) | VT_LDOUBLE;
+        } else {
+            u = VT_DOUBLE;
+            if ((t & VT_BTYPE) != 0)
+                error("too many basic types");
+            t |= u;
+        }
+    } else if (tok == TOK_ENUM) {
+        u = struct_decl(VT_ENUM);
+        if ((t & VT_BTYPE) != 0)
+            error("too many basic types");
+        t |= u;
+    } else if (tok == TOK_STRUCT || tok == TOK_UNION) {
+        u = struct_decl(VT_STRUCT);
+        if ((t & VT_BTYPE) != 0)
+            error("too many basic types");
+        t |= u;
+    } else {
+        return 0;
+    }
+
+    *type_ptr = t;
+    return 1;
+}
+
 int parse_btype(int *type_ptr, AttributeDef *ad)
 {
     int t, u, type_found;
@@ -4729,73 +4806,12 @@ int parse_btype(int *type_ptr, AttributeDef *ad)
     t = 0;
     while(1) {
         /* basic types */
-        if (tok == TOK_CHAR) {
-            u = VT_BYTE;
-            next();
-            if ((t & VT_BTYPE) != 0)
-                error("too many basic types");
-            t |= u;
-        } else if (tok == TOK_VOID) {
-            u = VT_VOID;
-            next();
-            if ((t & VT_BTYPE) != 0)
-                error("too many basic types");
-            t |= u;
-        } else if (tok == TOK_SHORT) {
-            u = VT_SHORT;
-            next();
-            if ((t & VT_BTYPE) != 0)
-                error("too many basic types");
-            t |= u;
-        } else if (tok == TOK_INT) {
-            next();
-        } else if (tok == TOK_LONG) {
-            next();
-            if ((t & VT_BTYPE) == VT_DOUBLE) {
-                t = (t & ~VT_BTYPE) | VT_LDOUBLE;
-            } else if ((t & VT_BTYPE) == VT_LONG) {
-                t = (t & ~VT_BTYPE) | VT_LLONG;
-            } else {
-                u = VT_LONG;
-                if ((t & VT_BTYPE) != 0)
-                    error("too many basic types");
-                t |= u;
-            }
-        } else if (tok == TOK_BOOL) {
-            u = VT_BOOL;
-            next();
-            if ((t & VT_BTYPE) != 0)
-                error("too many basic types");
-            t |= u;
-        } else if (tok == TOK_FLOAT) {
-            u = VT_FLOAT;
-            next();
-            if ((t & VT_BTYPE) != 0)
-                error("too many basic types");
-            t |= u;
-        } else if (tok == TOK_DOUBLE) {
-            next();
-            if ((t & VT_BTYPE) == VT_LONG) {
-                t = (t & ~VT_BTYPE) | VT_LDOUBLE;
-            } else {
-                u = VT_DOUBLE;
-                if ((t & VT_BTYPE) != 0)
-                    error("too many basic types");
-                t |= u;
-            }
-        } else if (tok == TOK_ENUM) {
-            u = struct_decl(VT_ENUM);
-            if ((t & VT_BTYPE) != 0)
-                error("too many basic types");
-            t |= u;
-        } else if (tok == TOK_STRUCT || tok == TOK_UNION) {
-            u = struct_decl(VT_STRUCT);
-            if ((t & VT_BTYPE) != 0)
-                error("too many basic types");
-            t |= u;
-
+        if (parse_btype_basic(&t)) {
+            type_found = 1;
+            continue;
+        }
         /* type modifiers */
-        } else if (tok == TOK_CONST ||
+        if (tok == TOK_CONST ||
                    tok == TOK_VOLATILE ||
                    tok == TOK_REGISTER ||
                    tok == TOK_SIGNED ||
