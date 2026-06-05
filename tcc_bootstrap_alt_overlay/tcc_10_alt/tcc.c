@@ -759,8 +759,6 @@ static void tcc_put_hex8(FILE *stream, unsigned long v)
 
 void *dlsym(void *handle, const char *symbol)
 {
-    if (!strcmp(symbol, "printf"))
-        return &printf;
     if (!strcmp(symbol, "fprintf"))
         return &fprintf;
     if (!strcmp(symbol, "fopen"))
@@ -7454,7 +7452,8 @@ int tcc_set_output_type(TCCState *s, int output_type)
 
 void help(void)
 {
-    printf("usage: tcc [-c] [-o outfile] [-Idir] [-Dsym[=val]] infile\n");
+    tcc_fputs("usage: tcc [-c] [-o outfile] [-Idir] [-Dsym[=val]] infile\n",
+              stdout);
 }
 
 int main(int argc, char **argv)
