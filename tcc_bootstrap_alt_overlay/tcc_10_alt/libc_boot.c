@@ -583,35 +583,37 @@ int memcpy(int a, int b, int c) {
   }
 }
 
-int sprintf(int a1, int a2, int a3, int a4, int a5, int a6){
-  int format;
+static int boot_copy_rel_name(int dst, int suffix)
+{
   int o;
-  format = a2;
-  fputs("sprintf \"", stdout);
-  fputs(format, stdout);
-  fputs("\"\n", stdout);
-  if(strcmp(".rel%s", format) ==0) {
-    puts("generating \".rel%s\" sprintf/snprintf string");
-    fputs(".rel", stdout);
-    fputs(a3,stdout);
-    fputs("\n",stdout);
-    o=strcpy(a1,".rel");
-    o=strcat(a1, a3);
-    return o-a1;
-  } else if(strcmp("L.%u", format) ==0) {
-    puts("generating \".L.%u\" sprintf/snprintf string");
-    fputs("L.", stdout);
-    /* FIXME leaky */
-    fputs(int2str(a3, 10, 0), stdout);
-    fputs("\n",stdout);
-    o=strcpy(a1,"L.");
-    o=strcat(a1, int2str(a3, 10, 0));
-    return o-a1;
+  o = strcpy(dst, ".rel");
+  o = strcat(dst, suffix);
+  return o - dst;
+}
+
+static int boot_copy_label_name(int dst, int value)
+{
+  int o;
+  o = strcpy(dst, "L.");
+  o = strcat(dst, int2str(value, 10, 0));
+  return o - dst;
+}
+
+static int boot_copy_format_name(int dst, int format, int value)
+{
+  if(strcmp(".rel%s", format) == 0) {
+    return boot_copy_rel_name(dst, value);
+  } else if(strcmp("L.%u", format) == 0) {
+    return boot_copy_label_name(dst, value);
   } else {
-    puts("unsupported sprintf/snprintf format string");
+    puts("unsupported bootstrap name format");
     exit(1);
   }
   return 0;
+}
+
+int sprintf(int a1, int a2, int a3, int a4, int a5, int a6){
+  return boot_copy_format_name(a1, a2, a3);
 }
 
 int memmove(void){
@@ -640,18 +642,14 @@ int ldexp(void){
 }
 
 int snprintf(int a1, int a2, int a3, int a4, int a5, int a6){
-  int format;
   int size;
+  int len;
   size = a2;
-  format = a3;
-  fputs("snprintf size: ", stdout);
-  /* FIXME leaky */
-  fputs(int2str(size, 10, 0), stdout);
-  fputs(" format: \"", stdout);
-  fputs(format, stdout);
-  fputs("\"\n", stdout);
-  sprintf(a1, a3, a4, a5, a6, 0);
-  return 0;
+  len = boot_copy_format_name(a1, a3, a4);
+  if (size > 0 && len >= size) {
+    ((char *)a1)[size - 1] = 0;
+  }
+  return len;
 }
 
 int getcwd(void){
