@@ -76,7 +76,7 @@ typedef struct CString {
 
 /* constant value */
 typedef union CValue {
-    long double ld;
+    double ld;
     double d;
     float f;
     int i;
@@ -563,9 +563,9 @@ enum {
 
 // HACK MMVM unconditionally enable
 /* currently incorrect */
-long double strtold(const char *nptr, char **endptr)
+double strtold(const char *nptr, char **endptr)
 {
-    return (long double)strtod(nptr, endptr);
+    return strtod(nptr, endptr);
 }
 float strtof(const char *nptr, char **endptr)
 {
@@ -3816,7 +3816,7 @@ void gen_opif(int op)
 {
     int c1, c2;
     SValue *v1, *v2;
-    long double f1, f2;
+    double f1, f2;
 
     v1 = vtop - 1;
     v2 = vtop;
