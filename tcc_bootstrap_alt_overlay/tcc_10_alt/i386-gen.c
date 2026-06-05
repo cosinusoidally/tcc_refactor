@@ -365,7 +365,7 @@ void gfunc_call(GFuncContext *c)
         /* constant case */
         if (vtop->r & VT_SYM) {
             /* relocation case */
-            greloc(cur_text_section, vtop->c.sym, 
+            greloc(cur_text_section, cvalue_get_sym(&vtop->c), 
                    ind + 1, R_386_PC32);
             oad(0xe8, -4);
         } else {

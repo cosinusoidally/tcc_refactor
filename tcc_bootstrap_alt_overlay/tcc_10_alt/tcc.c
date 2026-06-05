@@ -84,8 +84,6 @@ typedef union CValue {
     unsigned int ul; /* address (should be unsigned long on 64 bit cpu) */
     long long ll;
     unsigned long long ull;
-    struct CString *cstr;
-    struct Sym *sym;
     void *ptr;
     struct {
         int w0;
@@ -714,6 +712,31 @@ static void cvalue_word_set(CValue *cv, int i, int v)
     } else {
         cv->words.w2 = v;
     }
+}
+
+static void cvalue_set_ptr(CValue *cv, void *ptr)
+{
+    cv->ptr = ptr;
+}
+
+static CString *cvalue_get_cstr(CValue *cv)
+{
+    return (CString *)cv->ptr;
+}
+
+static void cvalue_set_cstr(CValue *cv, CString *cstr)
+{
+    cvalue_set_ptr(cv, cstr);
+}
+
+static struct Sym *cvalue_get_sym(CValue *cv)
+{
+    return (struct Sym *)cv->ptr;
+}
+
+static void cvalue_set_sym(CValue *cv, struct Sym *sym)
+{
+    cvalue_set_ptr(cv, sym);
 }
 
 #ifdef TCC_TARGET_I386
@@ -1377,7 +1400,7 @@ char *get_tok_str(int v, CValue *cv)
         break;
     case TOK_STR:
     case TOK_LSTR:
-        cstr = cv->cstr;
+        cstr = cvalue_get_cstr(cv);
         cstr_ccat(&cstr_buf, '\"');
         if (v == TOK_STR) {
             len = cstr->size - 1;
@@ -1852,7 +1875,7 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
     tok_str_add(s, t);
     if (t == TOK_STR || t == TOK_LSTR) {
         /* special case: need to duplicate string */
-        cstr1 = cv->cstr;
+        cstr1 = cvalue_get_cstr(cv);
         cstr = tcc_malloc(sizeof(CString));
         size = cstr1->size;
         cstr->size = size;
@@ -1860,7 +1883,7 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
         cstr->data_allocated = tcc_malloc(size);
         cstr->data = cstr->data_allocated;
         memcpy(cstr->data_allocated, cstr1->data_allocated, size);
-        cv1.cstr = cstr;
+        cvalue_set_cstr(&cv1, cstr);
         tok_str_add(s, cvalue_word_get(&cv1, 0));
     } else {
         n = tok_ext_size(t);
@@ -2037,7 +2060,7 @@ void preprocess(void)
                     include_syntax:
                         error("'#include' expects \"FILENAME\" or <FILENAME>");
                     }
-                    pstrcat(buf, sizeof(buf), (char *)tokc.cstr->data);
+                    pstrcat(buf, sizeof(buf), (char *)cvalue_get_cstr(&tokc)->data);
                     next();
                 }
                 c = '\"';
@@ -2159,7 +2182,7 @@ void preprocess(void)
             if (tok != TOK_STR)
                 error("#line");
             pstrcpy(file->filename, sizeof(file->filename), 
-                    (char *)tokc.cstr->data);
+                    (char *)cvalue_get_cstr(&tokc)->data);
         }
         /* NOTE: we do it there to avoid problems with linefeed */
         file->line_num = line_num;
@@ -2626,7 +2649,7 @@ void next_nomacro1(void)
             cstr_ccat(&tokcstr, '\0');
         else
             cstr_wccat(&tokcstr, '\0');
-        tokc.cstr = &tokcstr;
+        cvalue_set_cstr(&tokc, &tokcstr);
         minp();
     } else {
         q = tok_two_chars;
@@ -2713,7 +2736,7 @@ int *macro_arg_subst(Sym **nested_list, int *macro_str, Sym *args)
                 }
                 cstr_ccat(&cstr, '\0');
                 /* add string */
-                cval.cstr = &cstr;
+                cvalue_set_cstr(&cval, &cstr);
                 tok_str_add2(&str, TOK_STR, &cval);
                 cstr_free(&cstr);
             } else {
@@ -2849,7 +2872,7 @@ void macro_subst(TokenString *tok_str,
             cstr_new(&cstr);
             cstr_cat(&cstr, cstrval);
             cstr_ccat(&cstr, '\0');
-            cval.cstr = &cstr;
+            cvalue_set_cstr(&cval, &cstr);
             tok_str_add2(tok_str, TOK_STR, &cval);
             cstr_free(&cstr);
         } else if ((s = sym_find1(define_stack, tok)) != NULL) {
@@ -3028,7 +3051,7 @@ void vpush_ref(int t, Section *sec, unsigned long offset, unsigned long size)
 {
     CValue cval;
 
-    cval.sym = get_sym_ref(t, sec, offset, size);
+    cvalue_set_sym(&cval, get_sym_ref(t, sec, offset, size));
     vsetc(t, VT_CONST | VT_SYM, &cval);
 }
 
@@ -3039,7 +3062,7 @@ void vpush_sym(int t, int v)
     CValue cval;
 
     sym = external_sym(v, t, 0);
-    cval.sym = sym;
+    cvalue_set_sym(&cval, sym);
     vsetc(t, VT_CONST | VT_SYM, &cval);
 }
 
@@ -3265,7 +3288,7 @@ int gv(int rc)
                 ptr[i] = cvalue_word_get(&vtop->c, i);
             sym = get_sym_ref(vtop->t, data_section, offset, size << 2);
             vtop->r |= VT_LVAL | VT_SYM;
-            vtop->c.sym = sym;
+            cvalue_set_sym(&vtop->c, sym);
         }
 #ifdef CONFIG_TCC_BCHECK
         if (vtop->r & VT_MUSTBOUND) 
@@ -4662,7 +4685,7 @@ static int parse_attribute_section_or_align(AttributeDef *ad, int t)
         skip('(');
         if (tok != TOK_STR)
             expect("section name");
-        ad->section = find_section((char *)tokc.cstr->data);
+        ad->section = find_section((char *)cvalue_get_cstr(&tokc)->data);
         next();
         skip(')');
         return 1;
@@ -5418,7 +5441,7 @@ void unary(void)
             vset(s->t, s->r, s->c);
             /* if forward reference, we must point to s */
             if (vtop->r & VT_SYM)
-                vtop->c.sym = s;
+                cvalue_set_sym(&vtop->c, s);
         }
     }
     
@@ -6164,7 +6187,7 @@ void init_putv(int t, Section *sec, unsigned long c,
             break;
         default:
             if (vtop->r & VT_SYM) {
-                greloc(sec, vtop->c.sym, c, R_DATA_32);
+                greloc(sec, cvalue_get_sym(&vtop->c), c, R_DATA_32);
                 *(int *)ptr = 0;
             } else {
                 *(int *)ptr = vtop->c.i;
@@ -6235,7 +6258,7 @@ void decl_initializer(int t, Section *sec, unsigned long c, int first, int size_
                 int cstr_len, ch;
                 CString *cstr;
 
-                cstr = tokc.cstr;
+                cstr = cvalue_get_cstr(&tokc);
                 /* compute maximum number of chars wanted */
                 if (tok == TOK_STR)
                     cstr_len = cstr->size;
@@ -6502,7 +6525,7 @@ void decl_initializer_alloc(int t, AttributeDef *ad, int r, int has_init,
 
             /* push global reference */
             sym = get_sym_ref(t, sec, addr, size);
-            cval.sym = sym;
+            cvalue_set_sym(&cval, sym);
             vsetc(t, VT_CONST | VT_SYM, &cval);
         }
 
