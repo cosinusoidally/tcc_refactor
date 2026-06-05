@@ -2,6 +2,7 @@
 #define _STRING_H 1
 
 void *memcpy();
+void *memmove();
 void *memset();
 int memcmp();
 char *strcpy();

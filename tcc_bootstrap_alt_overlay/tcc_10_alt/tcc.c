@@ -641,6 +641,10 @@ static void put_stabs_r(const char *str, int type, int other, int desc,
 static void put_stabn(int type, int other, int desc, int value);
 static void put_stabd(int type, int other, int desc);
 static int tcc_add_dll(TCCState *s, const char *filename, int flags);
+int tcc_add_sysinclude_path(TCCState *s, const char *pathname);
+void tcc_add_file(TCCState *s, const char *filename);
+int tcc_add_library_path(TCCState *s, const char *pathname);
+int tcc_add_library(TCCState *s, const char *libraryname);
 
 #define AFF_PRINT_ERROR     0x0001 /* print error if file not found */
 #define AFF_REFERENCED_DLL  0x0002 /* load a referenced dll from another dll */
@@ -757,7 +761,7 @@ static void tcc_put_hex8(FILE *stream, unsigned long v)
     }
 }
 
-static void tcc_vdiag(FILE *stream, const char *fmt, int ap)
+static void tcc_vdiag(FILE *stream, const char *fmt, va_list ap)
 {
     int c;
 
