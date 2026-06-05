@@ -82,8 +82,6 @@ typedef union CValue {
     int i;
     unsigned int ui;
     unsigned int ul; /* address (should be unsigned long on 64 bit cpu) */
-    long long ll;
-    unsigned long long ull;
     void *ptr;
     struct {
         int w0;
@@ -737,6 +735,42 @@ static struct Sym *cvalue_get_sym(CValue *cv)
 static void cvalue_set_sym(CValue *cv, struct Sym *sym)
 {
     cvalue_set_ptr(cv, sym);
+}
+
+static unsigned int cvalue_u64_low(CValue *cv)
+{
+    return (unsigned int)cvalue_word_get(cv, 0);
+}
+
+static unsigned int cvalue_u64_high(CValue *cv)
+{
+    return (unsigned int)cvalue_word_get(cv, 1);
+}
+
+static void cvalue_set_u64_words(CValue *cv, unsigned int low, unsigned int high)
+{
+    cvalue_word_set(cv, 0, (int)low);
+    cvalue_word_set(cv, 1, (int)high);
+}
+
+static void cvalue_set_s64_from_int(CValue *cv, int v)
+{
+    unsigned int high;
+
+    if (v < 0)
+        high = 0xffffffffU;
+    else
+        high = 0;
+    cvalue_set_u64_words(cv, (unsigned int)v, high);
+}
+
+static void cvalue_store_u64(void *ptr, CValue *cv)
+{
+    int *iptr;
+
+    iptr = ptr;
+    iptr[0] = cvalue_word_get(cv, 0);
+    iptr[1] = cvalue_word_get(cv, 1);
 }
 
 #ifdef TCC_TARGET_I386
@@ -2561,7 +2595,7 @@ void parse_number(void)
         if (tok == TOK_CINT || tok == TOK_CUINT)
             tokc.ui = n;
         else
-            tokc.ull = n;
+            cvalue_set_u64_words(&tokc, (unsigned int)n, (unsigned int)(n >> 32));
     }
 }
 
@@ -3253,7 +3287,6 @@ void gbound(void)
 int gv(int rc)
 {
     int r, r2, rc2, bit_pos, bit_size, size, align, i;
-    unsigned long long ll;
 
     /* NOTE: get_reg can modify vstack[] */
     if (vtop->t & VT_BITFIELD) {
@@ -3311,11 +3344,10 @@ int gv(int rc)
                    temporarily */
                 if ((vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST) {
                     /* load constant */
-                    ll = vtop->c.ull;
-                    vtop->c.ui = ll; /* first word */
+                    vtop->c.ui = cvalue_u64_low(&vtop->c); /* first word */
                     load(r, vtop);
                     vtop->r = r; /* save register value */
-                    vpushi(ll >> 32); /* second word */
+                    vpushi(cvalue_u64_high(&vtop->c)); /* second word */
                 } else if (r >= VT_CONST || 
                            (vtop->r & VT_LVAL)) {
                     /* load from memory */
@@ -4205,9 +4237,9 @@ void gen_cast(int t)
                 /* scalar to long long */
                 if (c) {
                     if (sbt == (VT_INT | VT_UNSIGNED))
-                        vtop->c.ll = vtop->c.ui;
+                        cvalue_set_u64_words(&vtop->c, vtop->c.ui, 0);
                     else
-                        vtop->c.ll = vtop->c.i;
+                        cvalue_set_s64_from_int(&vtop->c, vtop->c.i);
                 } else {
                     /* machine independant conversion */
                     gv(RC_INT);
@@ -6183,7 +6215,7 @@ void init_putv(int t, Section *sec, unsigned long c,
             *(long double *)ptr = vtop->c.ld;
             break;
         case VT_LLONG:
-            *(long long *)ptr = vtop->c.ll;
+            cvalue_store_u64(ptr, &vtop->c);
             break;
         default:
             if (vtop->r & VT_SYM) {
