@@ -714,6 +714,49 @@ static void tcc_fputs(const char *s, FILE *stream)
     }
 }
 
+static void tcc_put_uint(FILE *stream, unsigned int v)
+{
+    char buf[16];
+    int i;
+
+    if (v == 0) {
+        fputc('0', stream);
+        return;
+    }
+    i = 0;
+    while (v != 0) {
+        buf[i++] = '0' + (v % 10);
+        v = v / 10;
+    }
+    while (i > 0) {
+        fputc(buf[--i], stream);
+    }
+}
+
+static void tcc_put_int(FILE *stream, int v)
+{
+    if (v < 0) {
+        fputc('-', stream);
+        tcc_put_uint(stream, (unsigned int)(-v));
+    } else {
+        tcc_put_uint(stream, (unsigned int)v);
+    }
+}
+
+static void tcc_put_hex8(FILE *stream, unsigned long v)
+{
+    int i;
+    unsigned int digit;
+
+    for (i = 7; i >= 0; --i) {
+        digit = (v >> (i * 4)) & 0xf;
+        if (digit < 10)
+            fputc('0' + digit, stream);
+        else
+            fputc('a' + (digit - 10), stream);
+    }
+}
+
 void *dlsym(void *handle, const char *symbol)
 {
     if (!strcmp(symbol, "printf"))
@@ -1050,16 +1093,27 @@ void printline(void)
     BufferedFile **f;
 
     if (file) {
-        for(f = include_stack; f < include_stack_ptr; f++)
-            fprintf(stderr, "In file included from %s:%d:\n", 
-                    (*f)->filename, (*f)->line_num);
+        for(f = include_stack; f < include_stack_ptr; f++) {
+            tcc_fputs("In file included from ", stderr);
+            tcc_fputs((*f)->filename, stderr);
+            fputc(':', stderr);
+            tcc_put_int(stderr, (*f)->line_num);
+            fputc(':', stderr);
+            fputc('\n', stderr);
+        }
         if (file->line_num > 0) {
-            fprintf(stderr, "%s:%d: ", file->filename, file->line_num);
+            tcc_fputs(file->filename, stderr);
+            fputc(':', stderr);
+            tcc_put_int(stderr, file->line_num);
+            fputc(':', stderr);
+            fputc(' ', stderr);
         } else {
-            fprintf(stderr, "%s: ", file->filename);
+            tcc_fputs(file->filename, stderr);
+            fputc(':', stderr);
+            fputc(' ', stderr);
         }
     } else {
-        fprintf(stderr, "tcc: ");
+        tcc_fputs("tcc: ", stderr);
     }
 }
 
@@ -6931,18 +6985,27 @@ static void rt_printline(unsigned long wanted_pc)
         sym++;
     }
     /* did not find line number info: */
-    fprintf(stderr, "(no debug info, pc=0x%08lx): ", wanted_pc);
+    tcc_fputs("(no debug info, pc=0x", stderr);
+    tcc_put_hex8(stderr, wanted_pc);
+    tcc_fputs("): ", stderr);
     return;
  found:
-    for(i = 0; i < incl_index - 1; i++)
-        fprintf(stderr, "In file included from %s\n", 
-                incl_files[i]);
+    for(i = 0; i < incl_index - 1; i++) {
+        tcc_fputs("In file included from ", stderr);
+        tcc_fputs(incl_files[i], stderr);
+        fputc('\n', stderr);
+    }
     if (incl_index > 0) {
-        fprintf(stderr, "%s:%d: ", 
-                incl_files[incl_index - 1], last_line_num);
+        tcc_fputs(incl_files[incl_index - 1], stderr);
+        fputc(':', stderr);
+        tcc_put_int(stderr, last_line_num);
+        fputc(':', stderr);
+        fputc(' ', stderr);
     }
     if (last_func_name[0] != '\0') {
-        fprintf(stderr, "in function '%s()': ", last_func_name);
+        tcc_fputs("in function '", stderr);
+        tcc_fputs(last_func_name, stderr);
+        tcc_fputs("()': ", stderr);
     }
 }
 
