@@ -36,7 +36,6 @@
 
 #include "stdlib.h"
 #include "stdio.h"
-#include "stdarg.h"
 #include "string.h"
 #include "errno.h"
 #include "math.h"
@@ -45,6 +44,8 @@
 #include "dlfcn.h"
 
 #define NULL ((void *)0)
+
+typedef char *va_list;
 /* path to find crt1.o, crti.o and crtn.o. Only needed when generating
    executables or dlls */
 #define CONFIG_TCC_CRT_PREFIX "/usr/lib"
@@ -63,7 +64,7 @@ typedef struct TokenSym {
     struct TokenSym *hash_next;
     int tok; /* token number */
     int len;
-    char str[1];
+    char *str;
 } TokenSym;
 
 typedef struct CString {
@@ -1220,11 +1221,12 @@ TokenSym *tok_alloc(const char *str, int len)
         table_ident = ptable;
     }
 
-    ts = tcc_malloc(sizeof(TokenSym) + len);
+    ts = tcc_malloc(sizeof(TokenSym));
     table_ident[i] = ts;
     ts->tok = tok_ident++;
     ts->len = len;
     ts->hash_next = NULL;
+    ts->str = tcc_malloc(len + 1);
     memcpy(ts->str, str, len + 1);
     *pts = ts;
     return ts;

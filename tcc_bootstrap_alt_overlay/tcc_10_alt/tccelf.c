@@ -86,9 +86,11 @@ static int put_elf_sym(Section *s,
 {
     int name_offset, sym_index;
     int nbuckets, h;
+    int *hash_entry;
     Elf32_Sym *sym;
     Section *hs;
     
+    sym_index = s->data_offset / sizeof(Elf32_Sym);
     sym = section_ptr_add(s, sizeof(Elf32_Sym));
     if (name)
         name_offset = put_elf_str(s->link, name);
@@ -101,7 +103,6 @@ static int put_elf_sym(Section *s,
     sym->st_info = info;
     sym->st_other = other;
     sym->st_shndx = shndx;
-    sym_index = sym - (Elf32_Sym *)s->data;
     hs = s->hash;
     if (hs) {
         int *ptr, *base;
@@ -112,13 +113,14 @@ static int put_elf_sym(Section *s,
             /* add another hashing entry */
             nbuckets = base[0];
             h = elf_hash(name) % nbuckets;
-            *ptr = base[2 + h];
-            base[2 + h] = sym_index;
+            hash_entry = base + 2 + h;
+            *ptr = *hash_entry;
+            *hash_entry = sym_index;
             base[1]++;
             /* we resize the hash table */
             hs->nb_hashed_syms++;
-            if (hs->nb_hashed_syms > 2 * nbuckets) {
-                rebuild_hash(s, 2 * nbuckets);
+            if (hs->nb_hashed_syms > (nbuckets + nbuckets)) {
+                rebuild_hash(s, nbuckets + nbuckets);
             }
         } else {
             *ptr = 0;
