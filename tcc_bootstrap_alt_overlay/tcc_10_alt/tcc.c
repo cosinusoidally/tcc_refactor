@@ -1080,7 +1080,7 @@ void warning(const char *fmt, ...)
     printline();
     fprintf(stderr, "warning: ");
     vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
+    fputc('\n', stderr);
 }
 
 void skip(int c)
