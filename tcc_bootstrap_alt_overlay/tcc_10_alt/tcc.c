@@ -2456,7 +2456,7 @@ void parse_number(void)
             
             /* now we can generate the number */
             /* XXX: should patch directly float number */
-            d = (double)bn[1] * 4294967296.0 + (double)bn[0];
+            d = ldexp((double)bn[1], 32) + (double)bn[0];
             d = ldexp(d, exp_val - frac_bits);
             t = toup(ch);
             if (t == 'F') {
@@ -3877,7 +3877,7 @@ void gen_opif(int op)
         case '-': f1 -= f2; break;
         case '*': f1 *= f2; break;
         case '/': 
-            if (f2 == 0.0) {
+            if (f2 == 0) {
                 if (const_wanted)
                     error("division by zero in constant");
                 goto general_case;
