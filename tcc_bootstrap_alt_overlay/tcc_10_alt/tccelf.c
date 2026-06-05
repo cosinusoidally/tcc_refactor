@@ -194,10 +194,6 @@ static int add_elf_sym(Section *s, unsigned long value, unsigned long size,
             } else if (sym_bind == STB_WEAK && esym_bind == STB_GLOBAL) {
                 /* weak is ignored if already global */
             } else {
-#if 0
-                printf("new_bind=%d new_shndx=%d last_bind=%d old_shndx=%d\n",
-                       sym_bind, sh_num, esym_bind, esym->st_shndx);
-#endif
                 /* NOTE: we accept that two DLL define the same symbol */
                 if (s != dynsymtab_section)
                     error("'%s' defined twice", name);
@@ -739,9 +735,7 @@ static void tcc_add_runtime(TCCState *s1)
     int i;
     Section *s;
 
-// HACK BOOTSTRAP
-//    snprintf(buf, sizeof(buf), "%s/%s", tcc_lib_path, "libtcc1.o");
-//    tcc_add_file(s1, buf);
+/* bootstrap path loads libtcc1.o separately */
 #ifdef CONFIG_TCC_BCHECK
     if (do_bounds_check) {
         unsigned long *ptr;
@@ -1663,7 +1657,6 @@ static int tcc_load_archive(TCCState *s1, int fd)
                 break;
         }
         ar_name[i + 1] = '\0';
-        //        printf("name='%s' size=%d %s\n", ar_name, size, ar_size);
         file_offset = lseek(fd, 0, SEEK_CUR);
         if (!strcmp(ar_name, "/") ||
             !strcmp(ar_name, "//") ||
@@ -1751,8 +1744,6 @@ static int tcc_load_dll(TCCState *s1, int fd, const char *filename, int level)
         }
     }
     
-    //    printf("loading dll '%s'\n", soname);
-
     /* add the dll and its level */
     dllref = tcc_malloc(sizeof(DLLReference) + strlen(soname));
     dllref->level = level;
@@ -1836,7 +1827,6 @@ static int tcc_load_ldscript(TCCState *s1)
             return 0;
         else if (ret < 0)
             return -1;
-        //        printf("cmd='%s'\n", cmd);
         if (!strcmp(cmd, "INPUT") ||
             !strcmp(cmd, "GROUP")) {
             ld_skipspaces();
