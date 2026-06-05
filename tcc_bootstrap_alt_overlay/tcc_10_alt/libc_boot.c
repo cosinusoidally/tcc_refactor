@@ -612,10 +612,6 @@ static int boot_copy_format_name(int dst, int format, int value)
   return 0;
 }
 
-int sprintf(int a1, int a2, int a3, int a4, int a5, int a6){
-  return boot_copy_format_name(a1, a2, a3);
-}
-
 int memmove(void){
   puts("memmove not impl");
   exit(1);
@@ -639,17 +635,6 @@ int strrchr(int p, int c) {
 int ldexp(void){
   puts("ldexp not impl");
   exit(1);
-}
-
-int snprintf(int a1, int a2, int a3, int a4, int a5, int a6){
-  int size;
-  int len;
-  size = a2;
-  len = boot_copy_format_name(a1, a3, a4);
-  if (size > 0 && len >= size) {
-    ((char *)a1)[size - 1] = 0;
-  }
-  return len;
 }
 
 int getcwd(void){

@@ -706,9 +706,6 @@ const char *dlerror(void)
     return "error";
 }
 
-static void *keep_snprintf_symbol = &snprintf;
-static void *keep_sprintf_symbol = &sprintf;
-
 void *dlsym(void *handle, const char *symbol)
 {
     if (!strcmp(symbol, "printf"))
@@ -1252,7 +1249,6 @@ char *get_tok_str(int v, CValue *cv)
     case TOK_CINT:
     case TOK_CUINT:
         /* XXX: not exact */
-        keep_sprintf_symbol = keep_sprintf_symbol;
         pstr_uint(p, cv->ui);
         break;
     case TOK_CCHAR:
@@ -6461,7 +6457,6 @@ void put_func_debug(Sym *sym)
 
     /* stabs info */
     /* XXX: we put here a dummy type */
-    keep_snprintf_symbol = keep_snprintf_symbol;
     pstrcpy(buf, sizeof(buf), funcname);
     p = buf + strlen(buf);
     *p++ = ':';
