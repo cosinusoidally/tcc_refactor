@@ -87,7 +87,11 @@ typedef union CValue {
     struct CString *cstr;
     struct Sym *sym;
     void *ptr;
-    int tab[1];
+    struct {
+        int w0;
+        int w1;
+        int w2;
+    } words;
 } CValue;
 
 /* value on stack */
@@ -690,6 +694,26 @@ static int is_float(int t)
     int bt;
     bt = t & VT_BTYPE;
     return bt == VT_LDOUBLE || bt == VT_DOUBLE || bt == VT_FLOAT;
+}
+
+static int cvalue_word_get(CValue *cv, int i)
+{
+    if (i == 0)
+        return cv->words.w0;
+    if (i == 1)
+        return cv->words.w1;
+    return cv->words.w2;
+}
+
+static void cvalue_word_set(CValue *cv, int i, int v)
+{
+    if (i == 0) {
+        cv->words.w0 = v;
+    } else if (i == 1) {
+        cv->words.w1 = v;
+    } else {
+        cv->words.w2 = v;
+    }
 }
 
 #ifdef TCC_TARGET_I386
@@ -1837,11 +1861,11 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
         cstr->data = cstr->data_allocated;
         memcpy(cstr->data_allocated, cstr1->data_allocated, size);
         cv1.cstr = cstr;
-        tok_str_add(s, cv1.tab[0]);
+        tok_str_add(s, cvalue_word_get(&cv1, 0));
     } else {
         n = tok_ext_size(t);
         for(i=0;i<n;i++)
-            tok_str_add(s, cv->tab[i]);
+            tok_str_add(s, cvalue_word_get(cv, i));
     }
 }
 
@@ -1868,7 +1892,7 @@ static int tok_get(int **tok_str, CValue *cv)
     t = *p++;
     n = tok_ext_size(t);
     for(i=0;i<n;i++)
-        cv->tab[i] = *p++;
+        cvalue_word_set(cv, i, *p++);
     *tok_str = p;
     return t;
 }
@@ -3238,7 +3262,7 @@ int gv(int rc)
             ptr = section_ptr_add(data_section, size);
             size = size >> 2;
             for(i=0;i<size;i++)
-                ptr[i] = vtop->c.tab[i];
+                ptr[i] = cvalue_word_get(&vtop->c, i);
             sym = get_sym_ref(vtop->t, data_section, offset, size << 2);
             vtop->r |= VT_LVAL | VT_SYM;
             vtop->c.sym = sym;
