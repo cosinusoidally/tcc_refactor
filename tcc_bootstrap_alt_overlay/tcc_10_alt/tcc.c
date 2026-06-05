@@ -706,6 +706,14 @@ const char *dlerror(void)
     return "error";
 }
 
+static void tcc_fputs(const char *s, FILE *stream)
+{
+    while (*s != '\0') {
+        fputc(*s, stream);
+        ++s;
+    }
+}
+
 void *dlsym(void *handle, const char *symbol)
 {
     if (!strcmp(symbol, "printf"))
@@ -1078,7 +1086,7 @@ void warning(const char *fmt, ...)
     ap = (char *)&fmt;
     ap = ap + sizeof(fmt);
     printline();
-    fprintf(stderr, "warning: ");
+    tcc_fputs("warning: ", stderr);
     vfprintf(stderr, fmt, ap);
     fputc('\n', stderr);
 }

@@ -555,6 +555,11 @@ int vfprintf(int stream, int format, int ap)
   return boot_vfprintf_impl(stream, format, ap);
 }
 
+int printf(int format, int a2, int a3, int a4, int a5, int a6)
+{
+  return boot_vfprintf_impl(stdout, format, (int)&a2);
+}
+
 int memcmp(int s1, int s2, int n) {
   int i;
   int r;
@@ -694,9 +699,4 @@ int sigaction(void){
 int dlopen(void){
   puts("dlopen not impl");
   exit(1);
-}
-
-int printf(int format, int a2, int a3, int a4, int a5, int a6)
-{
-  return boot_vfprintf_impl(stdout, format, (int)&a2);
 }
