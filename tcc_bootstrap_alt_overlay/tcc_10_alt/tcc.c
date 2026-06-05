@@ -706,6 +706,9 @@ const char *dlerror(void)
     return "error";
 }
 
+static void *keep_snprintf_symbol = &snprintf;
+static void *keep_sprintf_symbol = &sprintf;
+
 void *dlsym(void *handle, const char *symbol)
 {
     if (!strcmp(symbol, "printf"))
@@ -758,6 +761,21 @@ static char *pstrcat(char *buf, int buf_size, const char *s)
     if (len < buf_size)
         pstrcpy(buf + len, buf_size - len, s);
     return buf;
+}
+
+static void pstr_uint(char *buf, unsigned int value)
+{
+    char tmp[16];
+    int n;
+
+    n = 0;
+    do {
+        tmp[n++] = '0' + (value % 10);
+        value = value / 10;
+    } while (value);
+    while (n > 0)
+        *buf++ = tmp[--n];
+    *buf = '\0';
 }
 
 /* memory management */
@@ -1234,7 +1252,8 @@ char *get_tok_str(int v, CValue *cv)
     case TOK_CINT:
     case TOK_CUINT:
         /* XXX: not exact */
-        sprintf(p, "%u", cv->ui);
+        keep_sprintf_symbol = keep_sprintf_symbol;
+        pstr_uint(p, cv->ui);
         break;
     case TOK_CCHAR:
     case TOK_LCHAR:
@@ -1289,7 +1308,9 @@ char *get_tok_str(int v, CValue *cv)
             return table_ident[v - TOK_IDENT]->str;
         } else if (v >= SYM_FIRST_ANOM) {
             /* special name for anonymous symbol */
-            sprintf(p, "L.%u", v - SYM_FIRST_ANOM);
+            p[0] = 'L';
+            p[1] = '.';
+            pstr_uint(p + 2, v - SYM_FIRST_ANOM);
         } else {
             /* should never happen */
             return NULL;
@@ -6436,11 +6457,20 @@ void decl_initializer_alloc(int t, AttributeDef *ad, int r, int has_init,
 void put_func_debug(Sym *sym)
 {
     char buf[512];
+    char *p;
 
     /* stabs info */
     /* XXX: we put here a dummy type */
-    snprintf(buf, sizeof(buf), "%s:%c1", 
-             funcname, sym->t & VT_STATIC ? 'f' : 'F');
+    keep_snprintf_symbol = keep_snprintf_symbol;
+    pstrcpy(buf, sizeof(buf), funcname);
+    p = buf + strlen(buf);
+    *p++ = ':';
+    if (sym->t & VT_STATIC)
+        *p++ = 'f';
+    else
+        *p++ = 'F';
+    *p++ = '1';
+    *p = '\0';
     put_stabs_r(buf, N_FUN, 0, file->line_num, 0,
                 cur_text_section, sym->c);
     last_ind = 0;
