@@ -580,10 +580,7 @@ static void put_got_offset(int index, unsigned long val)
 /* XXX: suppress that */
 static void put32(unsigned char *p, unsigned int val)
 {
-    p[0] = val;
-    p[1] = val >> 8;
-    p[2] = val >> 16;
-    p[3] = val >> 24;
+    memcpy(p, &val, 4);
 }
 
 static void build_got(void)

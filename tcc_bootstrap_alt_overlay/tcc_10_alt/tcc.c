@@ -436,124 +436,127 @@ static char *tok_two_chars;
 /* all identificators and strings have token above that */
 #define TOK_IDENT 256
 
-#define TOK_INT TOK_IDENT
-#define TOK_VOID (TOK_INT + 1)
-#define TOK_CHAR (TOK_VOID + 1)
-#define TOK_IF (TOK_CHAR + 1)
-#define TOK_ELSE (TOK_IF + 1)
-#define TOK_WHILE (TOK_ELSE + 1)
-#define TOK_BREAK (TOK_WHILE + 1)
-#define TOK_RETURN (TOK_BREAK + 1)
-#define TOK_FOR (TOK_RETURN + 1)
-#define TOK_EXTERN (TOK_FOR + 1)
-#define TOK_STATIC (TOK_EXTERN + 1)
-#define TOK_UNSIGNED (TOK_STATIC + 1)
-#define TOK_GOTO (TOK_UNSIGNED + 1)
-#define TOK_DO (TOK_GOTO + 1)
-#define TOK_CONTINUE (TOK_DO + 1)
-#define TOK_SWITCH (TOK_CONTINUE + 1)
-#define TOK_CASE (TOK_SWITCH + 1)
+enum {
+    TOK_INT = TOK_IDENT,
+    TOK_VOID,
+    TOK_CHAR,
+    TOK_IF,
+    TOK_ELSE,
+    TOK_WHILE,
+    TOK_BREAK,
+    TOK_RETURN,
+    TOK_FOR,
+    TOK_EXTERN,
+    TOK_STATIC,
+    TOK_UNSIGNED,
+    TOK_GOTO,
+    TOK_DO,
+    TOK_CONTINUE,
+    TOK_SWITCH,
+    TOK_CASE,
 
-/* ignored types Must have contiguous values */
-#define TOK_CONST (TOK_CASE + 1)
-#define TOK_VOLATILE (TOK_CONST + 1)
-#define TOK_LONG (TOK_VOLATILE + 1)
-#define TOK_REGISTER (TOK_LONG + 1)
-#define TOK_SIGNED (TOK_REGISTER + 1)
-#define TOK___SIGNED__ (TOK_SIGNED + 1)
-#define TOK_AUTO (TOK___SIGNED__ + 1)
-#define TOK_INLINE (TOK_AUTO + 1)
-#define TOK___INLINE__ (TOK_INLINE + 1)
-#define TOK_RESTRICT (TOK___INLINE__ + 1)
+    /* ignored types Must have contiguous values */
+    TOK_CONST,
+    TOK_VOLATILE,
+    TOK_LONG,
+    TOK_REGISTER,
+    TOK_SIGNED,
+    TOK___SIGNED__,
+    TOK_AUTO,
+    TOK_INLINE,
+    TOK___INLINE__,
+    TOK_RESTRICT,
 
-/* unsupported type */
-#define TOK_FLOAT (TOK_RESTRICT + 1)
-#define TOK_DOUBLE (TOK_FLOAT + 1)
-#define TOK_BOOL (TOK_DOUBLE + 1)
+    /* unsupported type */
+    TOK_FLOAT,
+    TOK_DOUBLE,
+    TOK_BOOL,
 
-#define TOK_SHORT (TOK_BOOL + 1)
-#define TOK_STRUCT (TOK_SHORT + 1)
-#define TOK_UNION (TOK_STRUCT + 1)
-#define TOK_TYPEDEF (TOK_UNION + 1)
-#define TOK_DEFAULT (TOK_TYPEDEF + 1)
-#define TOK_ENUM (TOK_DEFAULT + 1)
-#define TOK_SIZEOF (TOK_ENUM + 1)
-#define TOK___ATTRIBUTE__ (TOK_SIZEOF + 1)
+    TOK_SHORT,
+    TOK_STRUCT,
+    TOK_UNION,
+    TOK_TYPEDEF,
+    TOK_DEFAULT,
+    TOK_ENUM,
+    TOK_SIZEOF,
+    TOK___ATTRIBUTE__,
 
-/* preprocessor only */
-#define TOK_UIDENT (TOK___ATTRIBUTE__ + 1)
-#define TOK_DEFINE TOK_UIDENT
-#define TOK_INCLUDE (TOK_DEFINE + 1)
-#define TOK_IFDEF (TOK_INCLUDE + 1)
-#define TOK_IFNDEF (TOK_IFDEF + 1)
-#define TOK_ELIF (TOK_IFNDEF + 1)
-#define TOK_ENDIF (TOK_ELIF + 1)
-#define TOK_DEFINED (TOK_ENDIF + 1)
-#define TOK_UNDEF (TOK_DEFINED + 1)
-#define TOK_ERROR (TOK_UNDEF + 1)
-#define TOK_LINE (TOK_ERROR + 1)
-#define TOK___LINE__ (TOK_LINE + 1)
-#define TOK___FILE__ (TOK___LINE__ + 1)
-#define TOK___DATE__ (TOK___FILE__ + 1)
-#define TOK___TIME__ (TOK___DATE__ + 1)
-#define TOK___VA_ARGS__ (TOK___TIME__ + 1)
+    /* preprocessor only */
+    TOK_UIDENT,
+    TOK_DEFINE = TOK_UIDENT,
+    TOK_INCLUDE,
+    TOK_IFDEF,
+    TOK_IFNDEF,
+    TOK_ELIF,
+    TOK_ENDIF,
+    TOK_DEFINED,
+    TOK_UNDEF,
+    TOK_ERROR,
+    TOK_LINE,
+    TOK___LINE__,
+    TOK___FILE__,
+    TOK___DATE__,
+    TOK___TIME__,
+    TOK___VA_ARGS__,
 
-/* special identifiers */
-#define TOK___FUNC__ (TOK___VA_ARGS__ + 1)
-#define TOK_MAIN (TOK___FUNC__ + 1)
-/* attribute identifiers */
-#define TOK_SECTION (TOK_MAIN + 1)
-#define TOK___SECTION__ (TOK_SECTION + 1)
-#define TOK_ALIGNED (TOK___SECTION__ + 1)
-#define TOK___ALIGNED__ (TOK_ALIGNED + 1)
-#define TOK_UNUSED (TOK___ALIGNED__ + 1)
-#define TOK___UNUSED__ (TOK_UNUSED + 1)
-#define TOK_CDECL (TOK___UNUSED__ + 1)
-#define TOK___CDECL (TOK_CDECL + 1)
-#define TOK___CDECL__ (TOK___CDECL + 1)
-#define TOK_STDCALL (TOK___CDECL__ + 1)
-#define TOK___STDCALL (TOK_STDCALL + 1)
-#define TOK___STDCALL__ (TOK___STDCALL + 1)
-#define TOK_NORETURN (TOK___STDCALL__ + 1)
-#define TOK___NORETURN__ (TOK_NORETURN + 1)
+    /* special identifiers */
+    TOK___FUNC__,
+    TOK_MAIN,
 
-/* builtin functions or variables */
-#define TOK_memcpy (TOK___NORETURN__ + 1)
-#define TOK_memset (TOK_memcpy + 1)
-#define TOK___divdi3 (TOK_memset + 1)
-#define TOK___moddi3 (TOK___divdi3 + 1)
-#define TOK___udivdi3 (TOK___moddi3 + 1)
-#define TOK___umoddi3 (TOK___udivdi3 + 1)
-#define TOK___sardi3 (TOK___umoddi3 + 1)
-#define TOK___shrdi3 (TOK___sardi3 + 1)
-#define TOK___shldi3 (TOK___shrdi3 + 1)
-#define TOK___tcc_int_fpu_control (TOK___shldi3 + 1)
-#define TOK___tcc_fpu_control (TOK___tcc_int_fpu_control + 1)
-#define TOK___ulltof (TOK___tcc_fpu_control + 1)
-#define TOK___ulltod (TOK___ulltof + 1)
-#define TOK___ulltold (TOK___ulltod + 1)
-#define TOK___fixunssfdi (TOK___ulltold + 1)
-#define TOK___fixunsdfdi (TOK___fixunssfdi + 1)
-#define TOK___fixunsxfdi (TOK___fixunsdfdi + 1)
+    /* attribute identifiers */
+    TOK_SECTION,
+    TOK___SECTION__,
+    TOK_ALIGNED,
+    TOK___ALIGNED__,
+    TOK_UNUSED,
+    TOK___UNUSED__,
+    TOK_CDECL,
+    TOK___CDECL,
+    TOK___CDECL__,
+    TOK_STDCALL,
+    TOK___STDCALL,
+    TOK___STDCALL__,
+    TOK_NORETURN,
+    TOK___NORETURN__,
 
-/* bound checking symbols */
-#define TOK___bound_ptr_add (TOK___fixunsxfdi + 1)
-#define TOK___bound_ptr_indir1 (TOK___bound_ptr_add + 1)
-#define TOK___bound_ptr_indir2 (TOK___bound_ptr_indir1 + 1)
-#define TOK___bound_ptr_indir4 (TOK___bound_ptr_indir2 + 1)
-#define TOK___bound_ptr_indir8 (TOK___bound_ptr_indir4 + 1)
-#define TOK___bound_ptr_indir12 (TOK___bound_ptr_indir8 + 1)
-#define TOK___bound_ptr_indir16 (TOK___bound_ptr_indir12 + 1)
-#define TOK___bound_local_new (TOK___bound_ptr_indir16 + 1)
-#define TOK___bound_local_delete (TOK___bound_local_new + 1)
-#define TOK_malloc (TOK___bound_local_delete + 1)
-#define TOK_free (TOK_malloc + 1)
-#define TOK_realloc (TOK_free + 1)
-#define TOK_memalign (TOK_realloc + 1)
-#define TOK_calloc (TOK_memalign + 1)
-#define TOK_memmove (TOK_calloc + 1)
-#define TOK_strlen (TOK_memmove + 1)
-#define TOK_strcpy (TOK_strlen + 1)
+    /* builtin functions or variables */
+    TOK_memcpy,
+    TOK_memset,
+    TOK___divdi3,
+    TOK___moddi3,
+    TOK___udivdi3,
+    TOK___umoddi3,
+    TOK___sardi3,
+    TOK___shrdi3,
+    TOK___shldi3,
+    TOK___tcc_int_fpu_control,
+    TOK___tcc_fpu_control,
+    TOK___ulltof,
+    TOK___ulltod,
+    TOK___ulltold,
+    TOK___fixunssfdi,
+    TOK___fixunsdfdi,
+    TOK___fixunsxfdi,
+
+    /* bound checking symbols */
+    TOK___bound_ptr_add,
+    TOK___bound_ptr_indir1,
+    TOK___bound_ptr_indir2,
+    TOK___bound_ptr_indir4,
+    TOK___bound_ptr_indir8,
+    TOK___bound_ptr_indir12,
+    TOK___bound_ptr_indir16,
+    TOK___bound_local_new,
+    TOK___bound_local_delete,
+    TOK_malloc,
+    TOK_free,
+    TOK_realloc,
+    TOK_memalign,
+    TOK_calloc,
+    TOK_memmove,
+    TOK_strlen,
+    TOK_strcpy
+};
 
 // HACK MMVM unconditionally enable
 /* currently incorrect */
