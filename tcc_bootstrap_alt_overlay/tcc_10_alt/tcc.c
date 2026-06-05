@@ -1062,7 +1062,7 @@ void error(const char *fmt, ...)
     ap = ap + sizeof(fmt);
     printline();
     vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
+    fputc('\n', stderr);
     exit(1);
 }
 
