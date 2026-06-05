@@ -6947,7 +6947,7 @@ void rt_error(unsigned long pc, const char *fmt, ...)
 
     rt_printline(pc);
     vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
+    fputc('\n', stderr);
     exit(255);
 }
 
