@@ -757,10 +757,34 @@ static void tcc_put_hex8(FILE *stream, unsigned long v)
     }
 }
 
+static void tcc_vdiag(FILE *stream, const char *fmt, int ap)
+{
+    int c;
+
+    while (*fmt != '\0') {
+        c = *fmt++;
+        if (c != '%') {
+            fputc(c, stream);
+            continue;
+        }
+        c = *fmt++;
+        if (c == 's') {
+            tcc_fputs(*(char **)ap, stream);
+            ap = ap + sizeof(int);
+        } else if (c == 'c') {
+            fputc(*(int *)ap, stream);
+            ap = ap + sizeof(int);
+        } else if (c == '%') {
+            fputc('%', stream);
+        } else {
+            fputc('%', stream);
+            fputc(c, stream);
+        }
+    }
+}
+
 void *dlsym(void *handle, const char *symbol)
 {
-    if (!strcmp(symbol, "fprintf"))
-        return &fprintf;
     if (!strcmp(symbol, "fopen"))
         return &fopen;
     if (!strcmp(symbol, "fclose"))
@@ -1121,7 +1145,7 @@ void error(const char *fmt, ...)
     ap = (char *)&fmt;
     ap = ap + sizeof(fmt);
     printline();
-    vfprintf(stderr, fmt, ap);
+    tcc_vdiag(stderr, fmt, ap);
     fputc('\n', stderr);
     exit(1);
 }
@@ -1139,7 +1163,7 @@ void warning(const char *fmt, ...)
     ap = ap + sizeof(fmt);
     printline();
     tcc_fputs("warning: ", stderr);
-    vfprintf(stderr, fmt, ap);
+    tcc_vdiag(stderr, fmt, ap);
     fputc('\n', stderr);
 }
 
@@ -1509,7 +1533,6 @@ BufferedFile *tcc_open(const char *filename)
     bf->buffer[0] = CH_EOB; /* put eob symbol */
     pstrcpy(bf->filename, sizeof(bf->filename), filename);
     bf->line_num = 1;
-    //    printf("opening '%s'\n", filename);
     return bf;
 }
 
@@ -1579,7 +1602,6 @@ static void inp(void)
         handle_eob();
     if (ch1 == '\n')
         file->line_num++;
-    //    printf("ch1=%c 0x%x\n", ch1, ch1);
 }
 
 /* input with '\\n' handling */
@@ -1592,7 +1614,6 @@ static void minp(void)
         inp();
         goto redo;
     }
-    //printf("ch=%c 0x%x\n", ch, ch);
 }
 
 
@@ -1880,22 +1901,6 @@ int expr_preprocess(void)
     return c != 0;
 }
 
-#if defined(DEBUG) || defined(PP_DEBUG)
-void tok_print(int *str)
-{
-    int t;
-    CValue cval;
-
-    while (1) {
-        t = tok_get(&str, &cval);
-        if (!t)
-            break;
-        printf(" %s", get_tok_str(t, &cval));
-    }
-    printf("\n");
-}
-#endif
-
 /* parse after #define */
 void parse_define(void)
 {
@@ -1943,10 +1948,6 @@ void parse_define(void)
         tok_str_add2(&str, tok, &tokc);
     }
     tok_str_add(&str, 0);
-#ifdef PP_DEBUG
-    printf("define %s %d: ", get_tok_str(v, NULL), t);
-    tok_print(str.str);
-#endif
     s = sym_push1(define_stack, v, t, (int)str.str);
     s->next = first;
 }
@@ -2678,9 +2679,6 @@ int *macro_arg_subst(Sym **nested_list, int *macro_str, Sym *args)
                     notfirst = 1;
                 }
                 cstr_ccat(&cstr, '\0');
-#ifdef PP_DEBUG
-                printf("stringize: %s\n", (char *)cstr.data);
-#endif
                 /* add string */
                 cval.cstr = &cstr;
                 tok_str_add2(&str, TOK_STR, &cval);
@@ -2945,9 +2943,6 @@ void next(void)
             }
         }
     }
-#if defined(DEBUG)
-    printf("token = %s\n", get_tok_str(tok, &tokc));
-#endif
 }
 
 void swap(int *p, int *q)
@@ -4841,16 +4836,6 @@ int struct_decl(int u)
                             if (align > maxalign)
                                 maxalign = align;
                         }
-#if 0
-                        printf("add field %s offset=%d", 
-                               get_tok_str(v, NULL), offset);
-                        if (t & VT_BITFIELD) {
-                            printf(" pos=%d size=%d", 
-                                   (t >> VT_STRUCT_SHIFT) & 0x3f,
-                                   (t >> (VT_STRUCT_SHIFT + 6)) & 0x3f);
-                        }
-                        printf("\n");
-#endif
                         ss = sym_push(v | SYM_FIELD, t, 0, offset);
                         *ps = ss;
                         ps = &ss->next;
@@ -6535,62 +6520,6 @@ void put_func_debug(Sym *sym)
 /* not finished : try to put some local vars in registers */
 //#define CONFIG_REG_VARS
 
-#ifdef CONFIG_REG_VARS
-void add_var_ref(int t)
-{
-    printf("%s:%d: &%s\n", 
-           file->filename, file->line_num,
-           get_tok_str(t, NULL));
-}
-
-/* first pass on a function with heuristic to extract variable usage
-   and pointer references to local variables for register allocation */
-void analyse_function(void)
-{
-    int level, t;
-
-    for(;;) {
-        if (tok == -1)
-            break;
-        /* any symbol coming after '&' is considered as being a
-           variable whose reference is taken. It is highly unaccurate
-           but it is difficult to do better without a complete parse */
-        if (tok == '&') {
-            next();
-            /* if '& number', then no need to examine next tokens */
-            if (tok == TOK_CINT ||
-                tok == TOK_CUINT ||
-                tok == TOK_CLLONG ||
-                tok == TOK_CULLONG) {
-                continue;
-            } else if (tok >= TOK_UIDENT) {
-                /* if '& ident [' or '& ident ->', then ident address
-                   is not needed */
-                t = tok;
-                next();
-                if (tok != '[' && tok != TOK_ARROW)
-                    add_var_ref(t);
-            } else {
-                level = 0;
-                while (tok != '}' && tok != ';' && 
-                       !((tok == ',' || tok == ')') && level == 0)) {
-                    if (tok >= TOK_UIDENT) {
-                        add_var_ref(tok);
-                    } else if (tok == '(') {
-                        level++;
-                    } else if (tok == ')') {
-                        level--;
-                    }
-                    next();
-                }
-            }
-        } else {
-            next();
-        }
-    }
-}
-#endif
-
 /* 'l' is VT_LOCAL or VT_CONST to define default storage type */
 void decl(int l)
 {
@@ -6621,13 +6550,6 @@ void decl(int l)
         }
         while (1) { /* iterate thru each declaration */
             t = type_decl(&ad, &v, b, TYPE_DIRECT);
-#if 0
-            {
-                char buf[500];
-                type_to_str(buf, sizeof(buf), t, get_tok_str(v, NULL));
-                printf("type = '%s'\n", buf);
-            }
-#endif
             if (tok == '{') {
 #ifdef CONFIG_REG_VARS
                 TokenString func_str;
@@ -7015,7 +6937,7 @@ void rt_error(unsigned long pc, const char *fmt, ...)
     ap = ap + sizeof(fmt);
 
     rt_printline(pc);
-    vfprintf(stderr, fmt, ap);
+    tcc_vdiag(stderr, fmt, ap);
     fputc('\n', stderr);
     exit(255);
 }
