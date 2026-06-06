@@ -57,7 +57,7 @@ typedef char *va_list;
 
 #define TOK_HASH_SIZE       2048 /* must be a power of two */
 #define TOK_ALLOC_INCR      512  /* must be a power of two */
-#define SYM_HASH_SIZE       1031
+#define SYM_HASH_SIZE       1024
 
 /* token symbol management */
 typedef struct TokenSym {
@@ -1438,6 +1438,10 @@ static void cstr_free(CString *cstr)
 /* XXX: unicode ? */
 static void add_char(CString *cstr, int c)
 {
+    int v;
+    int d0;
+    int d1;
+
     if (c == '\'' || c == '\"' || c == '\\') {
         /* XXX: could be more precise if char or string */
         cstr_ccat(cstr, '\\');
@@ -1449,9 +1453,20 @@ static void add_char(CString *cstr, int c)
         if (c == '\n') {
             cstr_ccat(cstr, 'n');
         } else {
-            cstr_ccat(cstr, '0' + ((c >> 6) & 7));
-            cstr_ccat(cstr, '0' + ((c >> 3) & 7));
-            cstr_ccat(cstr, '0' + (c & 7));
+            v = c;
+            d0 = 0;
+            while (v >= 64) {
+                v = v - 64;
+                d0++;
+            }
+            d1 = 0;
+            while (v >= 8) {
+                v = v - 8;
+                d1++;
+            }
+            cstr_ccat(cstr, '0' + d0);
+            cstr_ccat(cstr, '0' + d1);
+            cstr_ccat(cstr, '0' + v);
         }
     }
 }
@@ -1571,7 +1586,7 @@ Sym *sym_find2(Sym *s, int v)
     return NULL;
 }
 
-#define HASH_SYM(v) ((unsigned)(v) % SYM_HASH_SIZE)
+#define HASH_SYM(v) ((unsigned)(v) & (SYM_HASH_SIZE - 1))
 
 /* find a symbol and return its associated structure. 'st' is the
    symbol stack */
@@ -1896,7 +1911,7 @@ static int tok_ext_size(int t)
     case TOK_CULLONG:
         return 2;
     case TOK_CLDOUBLE:
-        return LDOUBLE_SIZE / 4;
+        return 3;
     default:
         return 0;
     }
@@ -2364,11 +2379,17 @@ static int getq(void)
 void bn_lshift(unsigned int *bn, int shift, int or_val)
 {
     int i;
-    unsigned int v;
-    for(i=0;i<BN_SIZE;i++) {
-        v = bn[i];
-        bn[i] = (v << shift) | or_val;
-        or_val = v >> (32 - shift);
+    int next_or;
+    while (shift > 0) {
+        for (i = 0; i < BN_SIZE; i++) {
+            if ((int)bn[i] < 0)
+                next_or = 1;
+            else
+                next_or = 0;
+            bn[i] = bn[i] + bn[i] + or_val;
+            or_val = next_or;
+        }
+        shift--;
     }
 }
 
