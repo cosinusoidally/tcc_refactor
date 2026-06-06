@@ -99,18 +99,29 @@ void g(int c)
 
 void o(int c)
 {
-    while (c) {
-        g(c);
-        c = c / 256;
+    unsigned char *p;
+
+    p = (unsigned char *)&c;
+    g(p[0]);
+    if (p[1] != 0 || p[2] != 0 || p[3] != 0) {
+        g(p[1]);
+        if (p[2] != 0 || p[3] != 0) {
+            g(p[2]);
+            if (p[3] != 0)
+                g(p[3]);
+        }
     }
 }
 
 void gen_le32(int c)
 {
-    g(c);
-    g(c >> 8);
-    g(c >> 16);
-    g(c >> 24);
+    unsigned char *p;
+
+    p = (unsigned char *)&c;
+    g(p[0]);
+    g(p[1]);
+    g(p[2]);
+    g(p[3]);
 }
 
 /* output a symbol and patch all calls to it */

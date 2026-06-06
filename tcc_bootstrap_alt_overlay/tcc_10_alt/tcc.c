@@ -654,9 +654,27 @@ int tcc_add_library(TCCState *s, const char *libraryname);
 #define AFF_REFERENCED_DLL  0x0002 /* load a referenced dll from another dll */
 static int tcc_add_file_internal(TCCState *s, const char *filename, int flags);
 
+static int elf_nibble_shift4(int v)
+{
+    static unsigned char table[16] = {
+        0, 16, 32, 48, 64, 80, 96, 112,
+        128, 144, 160, 176, 192, 208, 224, 240
+    };
+    return table[v & 15];
+}
+
 static int elf32_st_bind(int val)
 {
-    return (unsigned char)(val >> 4);
+    unsigned char c;
+    int bind;
+
+    c = (unsigned char)val;
+    bind = 0;
+    while (c >= 16) {
+        c = c - 16;
+        bind++;
+    }
+    return bind;
 }
 
 static int elf32_st_type(int val)
@@ -666,12 +684,22 @@ static int elf32_st_type(int val)
 
 static int elf32_st_info(int bind, int type)
 {
-    return (bind << 4) + (type & 0xf);
+    return elf_nibble_shift4(bind) + (type & 0xf);
 }
 
 static int elf32_r_sym(int val)
 {
-    return val >> 8;
+    int sym;
+    unsigned char *src;
+    unsigned char *dst;
+
+    src = (unsigned char *)&val;
+    dst = (unsigned char *)&sym;
+    dst[0] = src[1];
+    dst[1] = src[2];
+    dst[2] = src[3];
+    dst[3] = 0;
+    return sym;
 }
 
 static int elf32_r_type(int val)
@@ -681,7 +709,17 @@ static int elf32_r_type(int val)
 
 static int elf32_r_info(int sym, int type)
 {
-    return (sym << 8) + (unsigned char)type;
+    int info;
+    unsigned char *src;
+    unsigned char *dst;
+
+    src = (unsigned char *)&sym;
+    dst = (unsigned char *)&info;
+    dst[0] = (unsigned char)type;
+    dst[1] = src[0];
+    dst[2] = src[1];
+    dst[3] = src[2];
+    return info;
 }
 
 /* true if float/double/long double type */
@@ -805,20 +843,27 @@ static void tcc_fputs(const char *s, FILE *stream)
 
 static void tcc_put_uint(FILE *stream, unsigned int v)
 {
-    char buf[16];
-    int i;
+    static unsigned int dec[10] = {
+        1000000000U, 100000000U, 10000000U, 1000000U, 100000U,
+        10000U, 1000U, 100U, 10U, 1U
+    };
+    int i, digit, started;
 
     if (v == 0) {
         fputc('0', stream);
         return;
     }
-    i = 0;
-    while (v != 0) {
-        buf[i++] = '0' + (v % 10);
-        v = v / 10;
-    }
-    while (i > 0) {
-        fputc(buf[--i], stream);
+    started = 0;
+    for (i = 0; i < 10; ++i) {
+        digit = 0;
+        while (v >= dec[i]) {
+            v = v - dec[i];
+            digit++;
+        }
+        if (digit != 0 || started || i == 9) {
+            fputc('0' + digit, stream);
+            started = 1;
+        }
     }
 }
 
@@ -834,15 +879,16 @@ static void tcc_put_int(FILE *stream, int v)
 
 static void tcc_put_hex8(FILE *stream, unsigned long v)
 {
-    int i;
-    unsigned int digit;
+    static const char hex[] = "0123456789abcdef";
+    unsigned char *p;
+    unsigned char byte;
+    int hi;
 
-    for (i = 7; i >= 0; --i) {
-        digit = (v >> (i * 4)) & 0xf;
-        if (digit < 10)
-            fputc('0' + digit, stream);
-        else
-            fputc('a' + (digit - 10), stream);
+    p = (unsigned char *)&v;
+    for (hi = 3; hi >= 0; --hi) {
+        byte = p[hi];
+        fputc(hex[elf32_st_bind(byte)], stream);
+        fputc(hex[byte & 15], stream);
     }
 }
 
@@ -924,16 +970,24 @@ static char *pstrcat(char *buf, int buf_size, const char *s)
 
 static void pstr_uint(char *buf, unsigned int value)
 {
-    char tmp[16];
-    int n;
+    static unsigned int dec[10] = {
+        1000000000U, 100000000U, 10000000U, 1000000U, 100000U,
+        10000U, 1000U, 100U, 10U, 1U
+    };
+    int i, digit, started;
 
-    n = 0;
-    do {
-        tmp[n++] = '0' + (value % 10);
-        value = value / 10;
-    } while (value);
-    while (n > 0)
-        *buf++ = tmp[--n];
+    started = 0;
+    for (i = 0; i < 10; ++i) {
+        digit = 0;
+        while (value >= dec[i]) {
+            value = value - dec[i];
+            digit++;
+        }
+        if (digit != 0 || started || i == 9) {
+            *buf++ = '0' + digit;
+            started = 1;
+        }
+    }
     *buf = '\0';
 }
 
@@ -1278,7 +1332,7 @@ TokenSym *tok_alloc(const char *str, int len)
         len = strlen(str);
     h = 1;
     for(i=0;i<len;i++)
-        h = (h * 263 +  ((unsigned char *)str)[i]) & (TOK_HASH_SIZE - 1);
+        h = (h + h + h + ((unsigned char *)str)[i]) & (TOK_HASH_SIZE - 1);
 
     pts = &hash_ident[h];
     while (1) {
@@ -1295,7 +1349,7 @@ TokenSym *tok_alloc(const char *str, int len)
 
     /* expand token table if needed */
     i = tok_ident - TOK_IDENT;
-    if ((i % TOK_ALLOC_INCR) == 0) {
+    if ((i & (TOK_ALLOC_INCR - 1)) == 0) {
         ptable = tcc_realloc(table_ident, (i + TOK_ALLOC_INCR) * sizeof(TokenSym *));
         if (!ptable)
             error("memory full");
