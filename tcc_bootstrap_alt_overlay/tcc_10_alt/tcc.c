@@ -722,6 +722,46 @@ static int elf32_r_info(int sym, int type)
     return info;
 }
 
+static unsigned int vt_struct_unit(void)
+{
+    return 4096;
+}
+
+static unsigned int vt_struct_id(int t)
+{
+    return ((unsigned int)t) / vt_struct_unit();
+}
+
+static int vt_with_struct_id(int t, unsigned int id)
+{
+    return t | (int)(id * vt_struct_unit());
+}
+
+static int vt_with_bitfield_bits(int t, int bit_pos, int bit_size)
+{
+    int bits;
+
+    bits = VT_BITFIELD;
+    bits = bits | (int)(bit_pos * vt_struct_unit());
+    bits = bits | (int)(bit_size * vt_struct_unit() * 64);
+    return t | bits;
+}
+
+static int vt_bitfield_pos(int t)
+{
+    return (int)(vt_struct_id(t) & 0x3f);
+}
+
+static int vt_bitfield_size(int t)
+{
+    return (int)((vt_struct_id(t) / 64) & 0x3f);
+}
+
+static int vt_without_struct_bits(int t)
+{
+    return t & (int)(vt_struct_unit() - 1);
+}
+
 /* true if float/double/long double type */
 static int is_float(int t)
 {
@@ -789,6 +829,55 @@ static void cvalue_set_u64_words(CValue *cv, unsigned int low, unsigned int high
 {
     cvalue_word_set(cv, 0, (int)low);
     cvalue_word_set(cv, 1, (int)high);
+}
+
+static int u64_add_small(unsigned int *low, unsigned int *high, unsigned int add)
+{
+    unsigned int old_low;
+
+    old_low = *low;
+    *low = *low + add;
+    if (*low < old_low) {
+        *high = *high + 1;
+        if (*high == 0)
+            return -1;
+    }
+    return 0;
+}
+
+static int u64_add_words(unsigned int *low, unsigned int *high,
+                         unsigned int add_low, unsigned int add_high)
+{
+    unsigned int old_high;
+
+    if (u64_add_small(low, high, add_low))
+        return -1;
+    old_high = *high;
+    *high = *high + add_high;
+    if (*high < old_high)
+        return -1;
+    return 0;
+}
+
+static int u64_mul_small(unsigned int *low, unsigned int *high, unsigned int mul)
+{
+    unsigned int src_low;
+    unsigned int src_high;
+    unsigned int out_low;
+    unsigned int out_high;
+    unsigned int i;
+
+    src_low = *low;
+    src_high = *high;
+    out_low = 0;
+    out_high = 0;
+    for (i = 0; i < mul; ++i) {
+        if (u64_add_words(&out_low, &out_high, src_low, src_high))
+            return -1;
+    }
+    *low = out_low;
+    *high = out_high;
+    return 0;
 }
 
 static void cvalue_set_s64_from_int(CValue *cv, int v)
@@ -2600,7 +2689,10 @@ void parse_number(void)
             }
         }
     } else {
-        unsigned long long n, n1;
+        unsigned int n_low;
+        unsigned int n_high;
+        unsigned int old_low;
+        unsigned int old_high;
         int lcount;
 
         /* integer number */
@@ -2610,7 +2702,8 @@ void parse_number(void)
             b = 8;
             q++;
         }
-        n = 0;
+        n_low = 0;
+        n_high = 0;
         while(1) {
             t = *q++;
             /* no need for checks except for base 10 / 8 errors */
@@ -2625,20 +2718,24 @@ void parse_number(void)
                 if (t >= b)
                     error("invalid digit");
             }
-            n1 = n;
-            n = n * b + t;
+            old_low = n_low;
+            old_high = n_high;
+            if (u64_mul_small(&n_low, &n_high, b))
+                error("integer constant overflow");
+            if (u64_add_small(&n_low, &n_high, (unsigned int)t))
+                error("integer constant overflow");
             /* detect overflow */
-            if (n < n1)
+            if (n_high < old_high || (n_high == old_high && n_low < old_low))
                 error("integer constant overflow");
         }
         
         /* XXX: not exactly ANSI compliant */
-        if ((n >> 32) != 0) {
-            if ((n >> 63) != 0)
+        if (n_high != 0) {
+            if ((int)n_high < 0)
                 tok = TOK_CULLONG;
             else
                 tok = TOK_CLLONG;
-        } else if (n > 0x7fffffff) {
+        } else if (n_low > 0x7fffffffU) {
             tok = TOK_CUINT;
         } else {
             tok = TOK_CINT;
@@ -2668,9 +2765,9 @@ void parse_number(void)
             }
         }
         if (tok == TOK_CINT || tok == TOK_CUINT)
-            tokc.ui = n;
+            tokc.ui = n_low;
         else
-            cvalue_set_u64_words(&tokc, (unsigned int)n, (unsigned int)(n >> 32));
+            cvalue_set_u64_words(&tokc, n_low, n_high);
     }
 }
 
@@ -3365,10 +3462,10 @@ int gv(int rc)
 
     /* NOTE: get_reg can modify vstack[] */
     if (vtop->t & VT_BITFIELD) {
-        bit_pos = (vtop->t >> VT_STRUCT_SHIFT) & 0x3f;
-        bit_size = (vtop->t >> (VT_STRUCT_SHIFT + 6)) & 0x3f;
+        bit_pos = vt_bitfield_pos(vtop->t);
+        bit_size = vt_bitfield_size(vtop->t);
         /* remove bit field info to avoid loops */
-        vtop->t &= ~(VT_BITFIELD | (-1 << VT_STRUCT_SHIFT));
+        vtop->t = vt_without_struct_bits(vtop->t);
         /* generate shifts */
         vpushi(32 - (bit_pos + bit_size));
         gen_op(TOK_SHL);
@@ -4363,12 +4460,12 @@ int type_size(int t, int *a)
     bt = t & VT_BTYPE;
     if (bt == VT_STRUCT) {
         /* struct/union */
-        s = sym_find(((unsigned)t >> VT_STRUCT_SHIFT) | SYM_STRUCT);
+        s = sym_find(vt_struct_id(t) | SYM_STRUCT);
         *a = 4; /* XXX: cannot store it yet. Doing that is safe */
         return s->c;
     } else if (bt == VT_PTR) {
         if (t & VT_ARRAY) {
-            s = sym_find(((unsigned)t >> VT_STRUCT_SHIFT));
+            s = sym_find(vt_struct_id(t));
             return type_size(s->t, a) * s->c;
         } else {
             *a = PTR_SIZE;
@@ -4397,7 +4494,7 @@ int type_size(int t, int *a)
 int pointed_type(int t)
 {
     Sym *s;
-    s = sym_find(((unsigned)t >> VT_STRUCT_SHIFT));
+    s = sym_find(vt_struct_id(t));
     return s->t | (t & ~VT_TYPE);
 }
 
@@ -4406,7 +4503,7 @@ int mk_pointer(int t)
     int p;
     p = anon_sym++;
     sym_push(p, t, 0, -1);
-    return VT_PTR | (p << VT_STRUCT_SHIFT) | (t & ~VT_TYPE);
+    return vt_with_struct_id(VT_PTR | (t & ~VT_TYPE), p);
 }
 
 int is_compatible_types(int t1, int t2)
@@ -4437,8 +4534,8 @@ int is_compatible_types(int t1, int t2)
     } else if (bt1 == VT_FUNC) {
         if (bt2 != VT_FUNC)
             return 0;
-        s1 = sym_find(((unsigned)t1 >> VT_STRUCT_SHIFT));
-        s2 = sym_find(((unsigned)t2 >> VT_STRUCT_SHIFT));
+        s1 = sym_find(vt_struct_id(t1));
+        s2 = sym_find(vt_struct_id(t2));
         if (!is_compatible_types(s1->t, s2->t))
             return 0;
         /* XXX: not complete */
@@ -4520,14 +4617,14 @@ void type_to_str(char *buf, int buf_size,
         else
             tstr = "enum ";
         pstrcat(buf, buf_size, tstr);
-        v = (unsigned)t >> VT_STRUCT_SHIFT;
+        v = vt_struct_id(t);
         if (v >= SYM_FIRST_ANOM)
             pstrcat(buf, buf_size, "<anonymous>");
         else
             pstrcat(buf, buf_size, get_tok_str(v, NULL));
         break;
     case VT_FUNC:
-        s = sym_find((unsigned)t >> VT_STRUCT_SHIFT);
+        s = sym_find(vt_struct_id(t));
         type_to_str(buf, buf_size, s->t, varstr);
         pstrcat(buf, buf_size, "(");
         sa = s->next;
@@ -4541,7 +4638,7 @@ void type_to_str(char *buf, int buf_size,
         pstrcat(buf, buf_size, ")");
         goto no_var;
     case VT_PTR:
-        s = sym_find((unsigned)t >> VT_STRUCT_SHIFT);
+        s = sym_find(vt_struct_id(t));
         pstrcpy(buf1, sizeof(buf1), "*");
         if (varstr)
             pstrcat(buf1, sizeof(buf1), varstr);
@@ -4633,10 +4730,10 @@ void vstore(void)
         /* leave source on stack */
     } else if (ft & VT_BITFIELD) {
         /* bitfield store handling */
-        bit_pos = (ft >> VT_STRUCT_SHIFT) & 0x3f;
-        bit_size = (ft >> (VT_STRUCT_SHIFT + 6)) & 0x3f;
+        bit_pos = vt_bitfield_pos(ft);
+        bit_size = vt_bitfield_size(ft);
         /* remove bit field info to avoid loops */
-        vtop[-1].t = ft & ~(VT_BITFIELD | (-1 << VT_STRUCT_SHIFT));
+        vtop[-1].t = vt_without_struct_bits(ft);
 
         /* duplicate destination */
         vdup();
@@ -4898,7 +4995,7 @@ int struct_decl(int u)
     s = sym_push(v | SYM_STRUCT, a, 0, 0);
     /* put struct/union/enum name in type */
  do_decl:
-    u = u | (v << VT_STRUCT_SHIFT);
+    u = vt_with_struct_id(u, v);
     
     if (tok == '{') {
         next();
@@ -4975,9 +5072,7 @@ int struct_decl(int u)
                                 bit_pos = 0;
                             lbit_pos = bit_pos;
                             /* XXX: handle LSB first */
-                            t |= VT_BITFIELD | 
-                                (bit_pos << VT_STRUCT_SHIFT) |
-                                (bit_size << (VT_STRUCT_SHIFT + 6));
+                            t = vt_with_bitfield_bits(t, bit_pos, bit_size);
                             bit_pos += bit_size;
                         }
                     } else {
@@ -5231,7 +5326,7 @@ int post_type(int t, AttributeDef *ad)
         p = anon_sym++;
         s = sym_push(p, t, ad->func_call, l);
         s->next = first;
-        t = t1 | VT_FUNC | (p << VT_STRUCT_SHIFT);
+        t = vt_with_struct_id(t1 | VT_FUNC, p);
     } else if (tok == '[') {
         /* array definition */
         next();
@@ -5250,7 +5345,7 @@ int post_type(int t, AttributeDef *ad)
            element type */
         p = anon_sym++;
         sym_push(p, t, 0, n);
-        t = t1 | VT_ARRAY | VT_PTR | (p << VT_STRUCT_SHIFT);
+        t = vt_with_struct_id(t1 | VT_ARRAY | VT_PTR, p);
     }
     return t;
 }
@@ -5301,7 +5396,7 @@ int type_decl(AttributeDef *ad, int *v, int t, int td)
         return t;
     p = u;
     while(1) {
-        s = sym_find((unsigned)p >> VT_STRUCT_SHIFT);
+        s = sym_find(vt_struct_id(p));
         p = s->t;
         if (!p) {
             s->t = t;
@@ -5414,7 +5509,7 @@ void unary(void)
         len = strlen(funcname) + 1;
         /* generate char[len] type */
         t = VT_ARRAY | mk_pointer(VT_BYTE);
-        s = sym_find(((unsigned)t >> VT_STRUCT_SHIFT));
+        s = sym_find(vt_struct_id(t));
         s->c = len;
         vpush_ref(t, data_section, data_section->data_offset, len);
         ptr = section_ptr_add(data_section, len);
@@ -5567,7 +5662,7 @@ void unary(void)
             /* expect pointer on structure */
             if ((vtop->t & VT_BTYPE) != VT_STRUCT)
                 expect("struct or union");
-            s = sym_find(((unsigned)vtop->t >> VT_STRUCT_SHIFT) | SYM_STRUCT);
+            s = sym_find(vt_struct_id(vtop->t) | SYM_STRUCT);
             /* find field */
             tok |= SYM_FIELD;
             while ((s = s->next) != NULL) {
@@ -5611,7 +5706,7 @@ void unary(void)
                 vtop->r &= ~VT_LVAL; /* no lvalue */
             }
             /* get return type */
-            s = sym_find((unsigned)vtop->t >> VT_STRUCT_SHIFT);
+            s = sym_find(vt_struct_id(vtop->t));
             save_regs(0); /* save used temporary registers */
             gfunc_start(&gf, s->r);
             next();
@@ -6179,7 +6274,7 @@ void decl_designator(int t, Section *sec, unsigned long c,
         if (tok == '[') {
             if (!(t & VT_ARRAY))
                 expect("array type");
-            s = sym_find(((unsigned)t >> VT_STRUCT_SHIFT));
+            s = sym_find(vt_struct_id(t));
             next();
             index = expr_const();
             if (index < 0 || (s->c >= 0 && index >= s->c))
@@ -6196,7 +6291,7 @@ void decl_designator(int t, Section *sec, unsigned long c,
         struct_field:
             if ((t & VT_BTYPE) != VT_STRUCT)
                 expect("struct/union type");
-            s = sym_find(((unsigned)t >> VT_STRUCT_SHIFT) | SYM_STRUCT);
+            s = sym_find(vt_struct_id(t) | SYM_STRUCT);
             l |= SYM_FIELD;
             f = s->next;
             while (f) {
@@ -6342,7 +6437,7 @@ void decl_initializer(int t, Section *sec, unsigned long c, int first, int size_
     Sym *s, *f;
 
     if (t & VT_ARRAY) {
-        s = sym_find(((unsigned)t >> VT_STRUCT_SHIFT));
+        s = sym_find(vt_struct_id(t));
         n = s->c;
         array_length = 0;
         t1 = pointed_type(t);
@@ -6436,7 +6531,7 @@ void decl_initializer(int t, Section *sec, unsigned long c, int first, int size_
     } else if ((t & VT_BTYPE) == VT_STRUCT && tok == '{') {
         /* XXX: union needs only one init */
         next();
-        s = sym_find(((unsigned)t >> VT_STRUCT_SHIFT) | SYM_STRUCT);
+        s = sym_find(vt_struct_id(t) | SYM_STRUCT);
         f = s->next;
         array_length = 0;
         index = 0;
@@ -6887,7 +6982,7 @@ static int tcc_compile(TCCState *s)
     /* define an old type function 'int func()' */
     p = anon_sym++;
     sym_push1(global_stack, p, 0, FUNC_OLD);
-    func_old_type = VT_FUNC | (p << VT_STRUCT_SHIFT);
+    func_old_type = vt_with_struct_id(VT_FUNC, p);
 
     define_start = define_stack->top;
     inp();
