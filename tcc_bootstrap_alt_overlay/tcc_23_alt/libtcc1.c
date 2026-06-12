@@ -475,6 +475,21 @@ long long __shldi3(long long a, int b)
 #endif
 }
 
+long long __ashrdi3(long long a, int b)
+{
+    return __sardi3(a, b);
+}
+
+unsigned long long __lshrdi3(unsigned long long a, int b)
+{
+    return __shrdi3(a, b);
+}
+
+long long __ashldi3(long long a, int b)
+{
+    return __shldi3(a, b);
+}
+
 #if defined(__i386__)
 /* FPU control word for rounding to nearest mode */
 unsigned short __tcc_fpu_control = 0x137f;
@@ -498,6 +513,11 @@ float __ulltof(unsigned long long a)
     }
 }
 
+float __floatundisf(unsigned long long a)
+{
+    return __ulltof(a);
+}
+
 double __ulltod(unsigned long long a)
 {
     DWunion uu; 
@@ -513,6 +533,11 @@ double __ulltod(unsigned long long a)
     }
 }
 
+double __floatundidf(unsigned long long a)
+{
+    return __ulltod(a);
+}
+
 long double __ulltold(unsigned long long a)
 {
     DWunion uu; 
@@ -526,6 +551,11 @@ long double __ulltold(unsigned long long a)
         r += 18446744073709551616.0;
         return (long double)r;
     }
+}
+
+long double __floatundixf(unsigned long long a)
+{
+    return __ulltold(a);
 }
 
 unsigned long long __fixunssfdi (float a1)
@@ -599,4 +629,3 @@ unsigned long long __fixunsxfdi (long double a1)
     else
         return 0;
 }
-

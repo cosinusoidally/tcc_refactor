@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+workspace_dir="$overlay_dir/_alt_work/tcc_bootstrap_alt"
+
+cd "$overlay_dir"
+./mk_otccelf_alt >/dev/null
+
+cd "$workspace_dir/tcc_26"
+/home/foo/src/gpt/tcc_refactor/scripts/run-i386.sh \
+    ../otccelf/artifacts/elf_loader_otcc.exe \
+    -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+    -I ../woody/usr/include/ -I include \
+    -c tcc.c -DONE_SOURCE -o tcc_from_tcc23_alt.o
+
+sha256sum tcc.o tcc_from_tcc23_alt.o
