@@ -7766,6 +7766,9 @@ static void expr_eq(void)
             } else if (bt1 == VT_PTR || bt2 == VT_PTR) {
                 /* XXX: test pointer compatibility */
                 type = type1;
+            } else if (bt1 == VT_FUNC || bt2 == VT_FUNC) {
+                /* XXX: test function pointer compatibility */
+                type = type1;
             } else if (bt1 == VT_STRUCT || bt2 == VT_STRUCT) {
                 /* XXX: test structure compatibility */
                 type = type1;
@@ -7783,6 +7786,8 @@ static void expr_eq(void)
                 
             /* now we convert second operand */
             gen_cast(&type);
+            if (VT_STRUCT == (vtop->type.t & VT_BTYPE))
+                gaddrof();
             rc = RC_INT;
             if (is_float(type.t)) {
                 rc = RC_FLOAT;
@@ -7800,6 +7805,8 @@ static void expr_eq(void)
             /* put again first value and cast it */
             *vtop = sv;
             gen_cast(&type);
+            if (VT_STRUCT == (vtop->type.t & VT_BTYPE))
+                gaddrof();
             r1 = gv(rc);
             move_reg(r2, r1);
             vtop->r = r2;
