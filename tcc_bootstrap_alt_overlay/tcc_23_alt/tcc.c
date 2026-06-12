@@ -5218,13 +5218,13 @@ void gen_opl(int op)
             /* XXX: should provide a faster fallback on x86 ? */
             switch(op) {
             case TOK_SAR:
-                func = TOK___sardi3;
+                func = TOK___ashrdi3;
                 goto gen_func;
             case TOK_SHR:
-                func = TOK___shrdi3;
+                func = TOK___lshrdi3;
                 goto gen_func;
             case TOK_SHL:
-                func = TOK___shldi3;
+                func = TOK___ashldi3;
                 goto gen_func;
             }
         }
@@ -5335,7 +5335,7 @@ void gen_opic(int op)
         case TOK_EQ: v1->c.i = v1->c.i == fc; break;
         case TOK_NE: v1->c.i = v1->c.i != fc; break;
         case TOK_ULE: v1->c.i = (unsigned)v1->c.i <= (unsigned)fc; break;
-        case TOK_UGT: v1->c.i = (unsigned)v1->c.i > (unsigned)fc; break;
+        case TOK_UGT: v1->c.i = (unsigned)v1->c.i > fc; break;
         case TOK_LT: v1->c.i = v1->c.i < fc; break;
         case TOK_GE: v1->c.i = v1->c.i >= fc; break;
         case TOK_LE: v1->c.i = v1->c.i <= fc; break;
@@ -5355,7 +5355,7 @@ void gen_opic(int op)
             swap(&c1, &c2);
         }
         fc = vtop->c.i;
-        if (c2 && (((op == '*' || op == '/' || op == TOK_UDIV || 
+        if (c2 && (((op == '*' || op == '/' || op == TOK_UDIV ||
                      op == TOK_PDIV) && 
                     fc == 1) ||
                    ((op == '+' || op == '-' || op == '|' || op == '^' || 
@@ -5677,11 +5677,11 @@ void gen_cvt_itof1(int t)
         (VT_LLONG | VT_UNSIGNED)) {
 
         if (t == VT_FLOAT)
-            vpush_global_sym(&func_old_type, TOK___ulltof);
-        else if (t == VT_DOUBLE)
-            vpush_global_sym(&func_old_type, TOK___ulltod);
+            vpush_global_sym(&func_old_type, TOK___floatundisf);
+        else if (t == VT_LDOUBLE)
+            vpush_global_sym(&func_old_type, TOK___floatundixf);
         else
-            vpush_global_sym(&func_old_type, TOK___ulltold);
+            vpush_global_sym(&func_old_type, TOK___floatundidf);
         vrott(2);
         gfunc_call(1);
         vpushi(0);
@@ -5732,6 +5732,10 @@ void force_charshort_cast(int t)
         bits = 32 - bits;
         vpushi(bits);
         gen_op(TOK_SHL);
+        /* result must be signed or the SAR is converted to an SHL
+           This was not the case when "t" was a signed short
+           and the last value on the stack was an unsigned int */
+        vtop->type.t &= ~VT_UNSIGNED;
         vpushi(bits);
         gen_op(TOK_SAR);
     }
@@ -5816,41 +5820,46 @@ static void gen_cast(CType *type)
             }
         } else if (sf) {
             /* convert fp to int */
-            /* we handle char/short/etc... with generic code */
-            if (dbt != (VT_INT | VT_UNSIGNED) &&
-                dbt != (VT_LLONG | VT_UNSIGNED) &&
-                dbt != VT_LLONG)
-                dbt = VT_INT;
-            if (c) {
-                switch(dbt) {
-                case VT_LLONG | VT_UNSIGNED:
-                case VT_LLONG:
-                    /* XXX: add const cases for long long */
-                    goto do_ftoi;
-                case VT_INT | VT_UNSIGNED:
-                    switch(sbt) {
-                    case VT_FLOAT: vtop->c.ui = (unsigned int)vtop->c.d; break;
-                    case VT_DOUBLE: vtop->c.ui = (unsigned int)vtop->c.d; break;
-                    case VT_LDOUBLE: vtop->c.ui = (unsigned int)vtop->c.d; break;
-                    }
-                    break;
-                default:
-                    /* int case */
-                    switch(sbt) {
-                    case VT_FLOAT: vtop->c.i = (int)vtop->c.d; break;
-                    case VT_DOUBLE: vtop->c.i = (int)vtop->c.d; break;
-                    case VT_LDOUBLE: vtop->c.i = (int)vtop->c.d; break;
-                    }
-                    break;
-                }
+            if (dbt == VT_BOOL) {
+                 vpushi(0);
+                 gen_op(TOK_NE);
             } else {
-            do_ftoi:
-                gen_cvt_ftoi1(dbt);
-            }
-            if (dbt == VT_INT && (type->t & (VT_BTYPE | VT_UNSIGNED)) != dbt) {
-                /* additional cast for char/short/bool... */
-                vtop->type.t = dbt;
-                gen_cast(type);
+                /* we handle char/short/etc... with generic code */
+                if (dbt != (VT_INT | VT_UNSIGNED) &&
+                    dbt != (VT_LLONG | VT_UNSIGNED) &&
+                    dbt != VT_LLONG)
+                    dbt = VT_INT;
+                if (c) {
+                    switch(dbt) {
+                    case VT_LLONG | VT_UNSIGNED:
+                    case VT_LLONG:
+                        /* XXX: add const cases for long long */
+                        goto do_ftoi;
+                    case VT_INT | VT_UNSIGNED:
+                        switch(sbt) {
+                        case VT_FLOAT: vtop->c.ui = (unsigned int)vtop->c.d; break;
+                        case VT_DOUBLE: vtop->c.ui = (unsigned int)vtop->c.d; break;
+                        case VT_LDOUBLE: vtop->c.ui = (unsigned int)vtop->c.d; break;
+                        }
+                        break;
+                    default:
+                        /* int case */
+                        switch(sbt) {
+                        case VT_FLOAT: vtop->c.i = (int)vtop->c.d; break;
+                        case VT_DOUBLE: vtop->c.i = (int)vtop->c.d; break;
+                        case VT_LDOUBLE: vtop->c.i = (int)vtop->c.d; break;
+                        }
+                        break;
+                    }
+                } else {
+                do_ftoi:
+                    gen_cvt_ftoi1(dbt);
+                }
+                if (dbt == VT_INT && (type->t & (VT_BTYPE | VT_UNSIGNED)) != dbt) {
+                    /* additional cast for char/short... */
+                    vtop->type.t = dbt;
+                    gen_cast(type);
+                }
             }
         } else if ((dbt & VT_BTYPE) == VT_LLONG) {
             if ((sbt & VT_BTYPE) != VT_LLONG) {
@@ -5883,6 +5892,10 @@ static void gen_cast(CType *type)
             gen_op(TOK_NE);
         } else if ((dbt & VT_BTYPE) == VT_BYTE || 
                    (dbt & VT_BTYPE) == VT_SHORT) {
+            if (sbt == VT_PTR) {
+                vtop->type.t = VT_INT;
+                warning("nonportable conversion from pointer to char/short");
+            }
             force_charshort_cast(dbt);
         } else if ((dbt & VT_BTYPE) == VT_INT) {
             /* scalar to int */
@@ -5895,6 +5908,11 @@ static void gen_cast(CType *type)
                the lvalue already contains the real type size (see
                VT_LVAL_xxx constants) */
         }
+    } else if ((dbt & VT_BTYPE) == VT_PTR && !(vtop->r & VT_LVAL)) {
+        /* if we are casting between pointer types,
+           we must update the VT_LVAL_xxx size */
+        vtop->r = (vtop->r & ~VT_LVAL_TYPE)
+                  | (lvalue_type(type->ref->type.t) & VT_LVAL_TYPE);
     }
     vtop->type = *type;
 }
@@ -7221,8 +7239,10 @@ static void unary(void)
             vtop->c.i = !vtop->c.i;
         else if ((vtop->r & VT_VALMASK) == VT_CMP)
             vtop->c.i = vtop->c.i ^ 1;
-        else
+        else {
+            save_regs(1);
             vseti(VT_JMP, gtst(1, 0));
+        }
         break;
     case '~':
         next();
@@ -7634,6 +7654,7 @@ static void expr_land(void)
     expr_or();
     if (tok == TOK_LAND) {
         t = 0;
+        save_regs(1);
         for(;;) {
             t = gtst(1, t);
             if (tok != TOK_LAND) {
@@ -7653,6 +7674,7 @@ static void expr_lor(void)
     expr_land();
     if (tok == TOK_LOR) {
         t = 0;
+        save_regs(1);
         for(;;) {
             t = gtst(0, t);
             if (tok != TOK_LOR) {

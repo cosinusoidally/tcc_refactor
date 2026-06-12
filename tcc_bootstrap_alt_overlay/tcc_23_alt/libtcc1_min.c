@@ -38,3 +38,7 @@ long long __shldi3(long long a, int b)
 #endif
 }
 
+long long __ashldi3(long long a, int b)
+{
+    return __shldi3(a, b);
+}

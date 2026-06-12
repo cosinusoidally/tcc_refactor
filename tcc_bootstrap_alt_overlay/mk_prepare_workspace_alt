@@ -19,6 +19,9 @@ fi
 chmod +x "$workspace_dir/otccelf/mk_loader"
 rm -rf "$workspace_dir/tcc_23"
 cp -a "$overlay_dir/tcc_23_alt" "$workspace_dir/tcc_23"
+if [ -f "$overlay_dir/tcc_26_build.kaem" ]; then
+    cp -f "$overlay_dir/tcc_26_build.kaem" "$workspace_dir/tcc_26/build.kaem"
+fi
 (
     cd "$workspace_dir"
     ./mk_really_clean >/dev/null 2>&1 || true
