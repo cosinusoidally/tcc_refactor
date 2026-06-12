@@ -311,6 +311,7 @@ static int tok_flags;
 #define TOK_FLAG_BOL   0x0001 /* beginning of line before */
 #define TOK_FLAG_BOF   0x0002 /* beginning of file before */
 #define TOK_FLAG_ENDIF 0x0004 /* a endif was found matching starting #ifdef */
+#define TOK_FLAG_EOF   0x0008 /* end of file */
 
 static int *macro_ptr, *macro_ptr_allocated;
 static int *unget_saved_macro_ptr;
@@ -1793,7 +1794,7 @@ static Sym *global_identifier_push(int v, int t, int c)
 /* pop symbols until top reaches 'b' */
 static void sym_pop(Sym **ptop, Sym *b)
 {
-    Sym *s, *ss, **ps;
+    Sym *s, *ss, *ass, **ps;
     TokenSym *ts;
     int v;
 
@@ -1899,7 +1900,7 @@ static inline void inp(void)
 }
 
 /* handle '\[\r]\n' */
-static void handle_stray(void)
+static int handle_stray_noerror(void)
 {
     while (ch == '\\') {
         inp();
@@ -1914,9 +1915,17 @@ static void handle_stray(void)
             inp();
         } else {
         fail:
-            error("stray '\\' in program");
+            return 1;
         }
     }
+    return 0;
+}
+
+/* handle '\[\r]\n' */
+static void handle_stray(void)
+{
+    if (handle_stray_noerror())
+        error("stray '\\' in program");
 }
 
 /* skip the stray and handle the \\n case. Output an error if
@@ -2868,12 +2877,14 @@ static void preprocess(int is_bof)
             printf("%s: skipping %s\n", file->filename, buf);
 #endif
         } else {
+            if (s1->include_stack_ptr >= s1->include_stack + INCLUDE_STACK_SIZE)
+                error("#include recursion too deep");
+            /* push current file in stack */
+            /* XXX: fix current line init */
+            *s1->include_stack_ptr++ = file;
             if (c == '\"') {
                 /* first search in current dir if "header.h" */
-                size = 0;
-                p = strrchr(file->filename, '/');
-                if (p) 
-                    size = p + 1 - file->filename;
+                size = tcc_basename(file->filename) - file->filename;
                 if (size > sizeof(buf1) - 1)
                     size = sizeof(buf1) - 1;
                 memcpy(buf1, file->filename, size);
@@ -2887,8 +2898,6 @@ static void preprocess(int is_bof)
                         goto found;
                 }
             }
-            if (s1->include_stack_ptr >= s1->include_stack + INCLUDE_STACK_SIZE)
-                error("#include recursion too deep");
             /* now search in all the include paths */
             n = s1->nb_include_paths + s1->nb_sysinclude_paths;
             for(i = 0; i < n; i++) {
@@ -2908,17 +2917,15 @@ static void preprocess(int is_bof)
                         goto found;
                 }
             }
+            --s1->include_stack_ptr;
             error("include file '%s' not found", buf);
-            f = NULL;
+            break;
         found:
 #ifdef INC_DEBUG
             printf("%s: including %s\n", file->filename, buf1);
 #endif
             f->inc_type = c;
             pstrcpy(f->inc_filename, sizeof(f->inc_filename), buf);
-            /* push current file in stack */
-            /* XXX: fix current line init */
-            *s1->include_stack_ptr++ = file;
             file = f;
             /* add include file debug info */
             if (do_debug) {
@@ -3021,7 +3028,11 @@ static void preprocess(int is_bof)
         while (ch != '\n' && ch != CH_EOF) {
             if ((q - buf) < sizeof(buf) - 1)
                 *q++ = ch;
-            minp();
+            if (ch == '\\') {
+                if (handle_stray_noerror() == 0)
+                    --q;
+            } else
+                inp();
         }
         *q = '\0';
         if (c == TOK_ERROR)
@@ -3038,7 +3049,7 @@ static void preprocess(int is_bof)
                to emulate cpp behaviour */
         } else {
             if (!(saved_parse_flags & PARSE_FLAG_ASM_COMMENTS))
-                error("invalid preprocessing directive #%s", get_tok_str(tok, &tokc));
+                warning("Ignoring unknown preprocessing directive #%s", get_tok_str(tok, &tokc));
         }
         break;
     }
@@ -3496,13 +3507,17 @@ static inline void next_nomacro1(void)
     parse_eof:
         {
             TCCState *s1 = tcc_state;
-            if (parse_flags & PARSE_FLAG_LINEFEED) {
+            if ((parse_flags & PARSE_FLAG_LINEFEED)
+                && !(tok_flags & TOK_FLAG_EOF)) {
+                tok_flags |= TOK_FLAG_EOF;
                 tok = TOK_LINEFEED;
+                goto keep_tok_flags;
             } else if (s1->include_stack_ptr == s1->include_stack ||
                        !(parse_flags & PARSE_FLAG_PREPROCESS)) {
                 /* no include left : end of file. */
                 tok = TOK_EOF;
             } else {
+                tok_flags &= ~TOK_FLAG_EOF;
                 /* pop include file */
                 
                 /* test if previous '#endif' was after a #ifdef at
@@ -3530,15 +3545,13 @@ static inline void next_nomacro1(void)
         break;
 
     case '\n':
-        if (parse_flags & PARSE_FLAG_LINEFEED) {
-            tok = TOK_LINEFEED;
-        } else {
-            file->line_num++;
-            tok_flags |= TOK_FLAG_BOL;
-            p++;
+        file->line_num++;
+        tok_flags |= TOK_FLAG_BOL;
+        p++;
+        if (0 == (parse_flags & PARSE_FLAG_LINEFEED))
             goto redo_no_start;
-        }
-        break;
+        tok = TOK_LINEFEED;
+        goto keep_tok_flags;
 
     case '#':
         /* XXX: simplify */
@@ -3868,8 +3881,9 @@ static inline void next_nomacro1(void)
         error("unrecognized character \\x%02x", c);
         break;
     }
-    file->buf_ptr = p;
     tok_flags = 0;
+keep_tok_flags:
+    file->buf_ptr = p;
 #if defined(PARSE_DEBUG)
     printf("token = %s\n", get_tok_str(tok, &tokc));
 #endif
@@ -6425,7 +6439,7 @@ static void struct_decl(CType *type, int u)
 {
     int a, v, size, align, maxalign, c, offset;
     int bit_size, bit_pos, bsize, bt, lbit_pos;
-    Sym *s, *ss, **ps;
+    Sym *s, *ss, *ass, **ps;
     AttributeDef ad;
     CType type1, btype;
 
@@ -6486,6 +6500,7 @@ static void struct_decl(CType *type, int u)
             skip('}');
         } else {
             maxalign = 1;
+            ass = NULL;
             ps = &s->next;
             bit_pos = 0;
             offset = 0;
@@ -6496,7 +6511,9 @@ static void struct_decl(CType *type, int u)
                     v = 0;
                     type1 = btype;
                     if (tok != ':') {
-                        type_decl(&type1, &ad, &v, TYPE_DIRECT);
+                        type_decl(&type1, &ad, &v, TYPE_DIRECT | TYPE_ABSTRACT);
+                        if (v == 0 && (type1.t & VT_BTYPE) != VT_STRUCT)
+                            expect("identifier");
                         if ((type1.t & VT_BTYPE) == VT_FUNC ||
                             (type1.t & (VT_TYPEDEF | VT_STATIC | VT_EXTERN | VT_INLINE)))
                             error("invalid type for '%s'", 
@@ -6559,14 +6576,15 @@ static void struct_decl(CType *type, int u)
                     } else {
                         bit_pos = 0;
                     }
-                    if (v) {
+                    if (v != 0 || (type1.t & VT_BTYPE) == VT_STRUCT) {
                         /* add new memory data only if starting
                            bit field */
                         if (lbit_pos == 0) {
                             if (a == TOK_STRUCT) {
                                 c = (c + align - 1) & -align;
                                 offset = c;
-                                c += size;
+                                if (size > 0)
+                                    c += size;
                             } else {
                                 offset = 0;
                                 if (size > c)
@@ -6585,9 +6603,19 @@ static void struct_decl(CType *type, int u)
                         }
                         printf("\n");
 #endif
-                        ss = sym_push(v | SYM_FIELD, &type1, 0, offset);
-                        *ps = ss;
-                        ps = &ss->next;
+                        if (v == 0 && (type1.t & VT_BTYPE) == VT_STRUCT) {
+                            ass = type1.ref;
+                            while ((ass = ass->next) != NULL) {
+                                ss = sym_push(ass->v, &ass->type, 0,
+                                              offset + ass->c);
+                                *ps = ss;
+                                ps = &ss->next;
+                            }
+                        } else if (v) {
+                            ss = sym_push(v | SYM_FIELD, &type1, 0, offset);
+                            *ps = ss;
+                            ps = &ss->next;
+                        }
                     }
                     if (tok == ';' || tok == TOK_EOF)
                         break;
@@ -6608,13 +6636,14 @@ static void struct_decl(CType *type, int u)
  */
 static int parse_btype(CType *type, AttributeDef *ad)
 {
-    int t, u, type_found, typespec_found;
+    int t, u, type_found, typespec_found, typedef_found;
     Sym *s;
     CType type1;
 
     memset(ad, 0, sizeof(AttributeDef));
     type_found = 0;
     typespec_found = 0;
+    typedef_found = 0;
     t = 0;
     while(1) {
         switch(tok) {
@@ -6747,14 +6776,16 @@ static int parse_btype(CType *type, AttributeDef *ad)
             parse_expr_type(&type1);
             goto basic_type2;
         default:
-            if (typespec_found)
+            if (typespec_found || typedef_found)
                 goto the_end;
             s = sym_find(tok);
             if (!s || !(s->type.t & VT_TYPEDEF))
                 goto the_end;
+            typedef_found = 1;
             t |= (s->type.t & ~VT_TYPEDEF);
             type->ref = s->type.ref;
             next();
+            typespec_found = 1;
             break;
         }
         type_found = 1;
@@ -6802,35 +6833,39 @@ static void post_type(CType *type, AttributeDef *ad)
         l = 0;
         first = NULL;
         plast = &first;
-        while (tok != ')') {
-            /* read param name and compute offset */
-            if (l != FUNC_OLD) {
-                if (!parse_btype(&pt, &ad1)) {
-                    if (l) {
-                        error("invalid type");
-                    } else {
-                        l = FUNC_OLD;
-                        goto old_proto;
+        if (tok != ')') {
+            for(;;) {
+                /* read param name and compute offset */
+                if (l != FUNC_OLD) {
+                    if (!parse_btype(&pt, &ad1)) {
+                        if (l) {
+                            error("invalid type");
+                        } else {
+                            l = FUNC_OLD;
+                            goto old_proto;
+                        }
                     }
+                    l = FUNC_NEW;
+                    if ((pt.t & VT_BTYPE) == VT_VOID && tok == ')')
+                        break;
+                    type_decl(&pt, &ad1, &n, TYPE_DIRECT | TYPE_ABSTRACT);
+                    if ((pt.t & VT_BTYPE) == VT_VOID)
+                        error("parameter declared as void");
+                } else {
+                old_proto:
+                    n = tok;
+                    if (n < TOK_UIDENT)
+                        expect("identifier");
+                    pt.t = VT_INT;
+                    next();
                 }
-                l = FUNC_NEW;
-                if ((pt.t & VT_BTYPE) == VT_VOID && tok == ')')
+                convert_parameter_type(&pt);
+                s = sym_push(n | SYM_FIELD, &pt, 0, 0);
+                *plast = s;
+                plast = &s->next;
+                if (tok == ')')
                     break;
-                type_decl(&pt, &ad1, &n, TYPE_DIRECT | TYPE_ABSTRACT);
-                if ((pt.t & VT_BTYPE) == VT_VOID)
-                    error("parameter declared as void");
-            } else {
-            old_proto:
-                n = tok;
-                pt.t = VT_INT;
-                next();
-            }
-            convert_parameter_type(&pt);
-            s = sym_push(n | SYM_FIELD, &pt, 0, 0);
-            *plast = s;
-            plast = &s->next;
-            if (tok == ',') {
-                next();
+                skip(',');
                 if (l == FUNC_NEW && tok == TOK_DOTS) {
                     l = FUNC_ELLIPSIS;
                     next();
