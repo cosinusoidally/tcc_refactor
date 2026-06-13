@@ -38,6 +38,11 @@ cp -f "$overlay_dir/tcc_27_tccasm_tcc23.c" "$workspace_dir/tcc_27/tcc_27_tccasm_
 )
 
 (
+    cd "$repo_root"
+    ./scripts/run-i386.sh "$overlay_dir/mk_finish_seed_tcc27_tcc23_alt" "$workspace_dir"
+)
+
+(
     cd "$workspace_dir"
     sha256sum -c sum
 )

@@ -1,0 +1,95 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -ne 1 ]; then
+    echo "usage: $0 <workspace_dir>" >&2
+    exit 1
+fi
+
+workspace_dir=$1
+tcc27_dir=$workspace_dir/tcc_27
+
+cd "$tcc27_dir"
+
+restore_tcc27_orig() {
+    mv -f tcc.h.orig_tcc23 tcc.h
+    mv -f libtcc.h.orig_tcc23 libtcc.h
+    mv -f tcctok.h.orig_tcc23 tcctok.h
+    mv -f i386-tok.h.orig_tcc23 i386-tok.h
+    mv -f i386-asm.h.orig_tcc23 i386-asm.h
+    mv -f libtcc.c.orig_tcc23 libtcc.c
+    mv -f tccpp.c.orig_tcc23 tccpp.c
+    mv -f tccelf.c.orig_tcc23 tccelf.c
+    mv -f tccgen.c.orig_tcc23 tccgen.c
+    mv -f tccrun.c.orig_tcc23 tccrun.c
+    mv -f i386-gen.c.orig_tcc23 i386-gen.c
+    mv -f i386-asm.c.orig_tcc23 i386-asm.c
+    mv -f tccasm.c.orig_tcc23 tccasm.c
+}
+
+# Build libc_boot3 and the transitional tcc_27 from tcc_23.
+../x86/bin/elf_loader_cc_x86.exe -l ../tcc_10/libc_boot.o -l ../tcc_10/tcc.o -o libc_boot3.o -c ../tcc_10/libc_boot3.c
+
+cp -f tcc.h tcc.h.orig_tcc23
+cp -f libtcc.h libtcc.h.orig_tcc23
+cp -f tcctok.h tcctok.h.orig_tcc23
+cp -f i386-tok.h i386-tok.h.orig_tcc23
+cp -f i386-asm.h i386-asm.h.orig_tcc23
+cp -f libtcc.c libtcc.c.orig_tcc23
+cp -f tccpp.c tccpp.c.orig_tcc23
+cp -f tccelf.c tccelf.c.orig_tcc23
+cp -f tccgen.c tccgen.c.orig_tcc23
+cp -f tccrun.c tccrun.c.orig_tcc23
+cp -f i386-gen.c i386-gen.c.orig_tcc23
+cp -f i386-asm.c i386-asm.c.orig_tcc23
+cp -f tccasm.c tccasm.c.orig_tcc23
+cp -f include/stddef.h include/stddef.h.orig_tcc23
+
+cp -f tcc_27_tcc23.h tcc.h
+cp -f tcc_27_libtcc_tcc23.h libtcc.h
+cp -f tcc_27_tcctok_tcc23.h tcctok.h
+cp -f tcc_27_i386-tok_tcc23.h i386-tok.h
+cp -f tcc_27_i386-asm_tcc23.h i386-asm.h
+cp -f tcc_27_libtcc_tcc23.c libtcc.c
+cp -f tcc_27_tccpp_tcc23.c tccpp.c
+cp -f tcc_27_tccelf_tcc23.c tccelf.c
+cp -f tcc_27_tccgen_tcc23.c tccgen.c
+cp -f tcc_27_tccrun_tcc23.c tccrun.c
+cp -f tcc_27_i386-gen_tcc23.c i386-gen.c
+cp -f tcc_27_i386-asm_tcc23.c i386-asm.c
+cp -f tcc_27_tccasm_tcc23.c tccasm.c
+cp -f tcc_27_stddef_tcc23.h include/stddef.h
+
+../x86/bin/elf_loader_cc_x86.exe -l ../tcc_23/libc_boot2.o -l libc_boot3.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o -I ../woody/usr/include/ -I ../tcc_26/include -c tcc_27_tcc23.c -DONE_SOURCE -o tcc.o
+../x86/bin/elf_loader_cc_x86.exe -l ../tcc_23/libc_boot2.o -l libc_boot3.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o -c ../tcc_26/lib/libtcc1.c
+
+restore_tcc27_orig
+
+# Rebuild tcc_27 with itself twice to reach the canonical hashes.
+../x86/bin/elf_loader_cc_x86.exe -l libtcc1.o -l libc_boot3.o -l tcc.o -c ./lib/libtcc1.c -o libtcc1_new.o
+../x86/bin/elf_loader_cc_x86.exe -l libtcc1.o -l libc_boot3.o -l tcc.o -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE -o tcc_new.o
+mv -f libtcc1_new.o libtcc1.o
+mv -f tcc_new.o tcc.o
+
+../x86/bin/elf_loader_cc_x86.exe -l libtcc1.o -l libc_boot3.o -l tcc.o -c ./lib/libtcc1.c -o libtcc1_new2.o
+../x86/bin/elf_loader_cc_x86.exe -l libtcc1.o -l libc_boot3.o -l tcc.o -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE -o tcc_new2.o
+mv -f libtcc1_new2.o libtcc1.o
+mv -f tcc_new2.o tcc.o
+
+# Produce the final static binary with the canonical tcc_27.
+../x86/bin/catm libc_boot4.o
+../x86/bin/elf_loader_cc_x86.exe -l libtcc1.o -l libc_boot3.o -l tcc.o -c libc_boot4.c
+
+../x86/bin/catm tcc_new.o
+../x86/bin/catm libtcc1_new.o
+../x86/bin/catm libc_static.o
+../x86/bin/catm libc_boot4_new.o
+
+../x86/bin/elf_loader_cc_x86.exe -l libtcc1.o -l libc_boot4.o -l tcc.o -c ./lib/libtcc1.c -o libtcc1_new.o
+../x86/bin/elf_loader_cc_x86.exe -l libtcc1.o -l libc_boot4.o -l tcc.o -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE -o tcc_new.o
+../x86/bin/elf_loader_cc_x86.exe -l libtcc1.o -l libc_boot4.o -l tcc.o -I ../woody/usr/include/ -I include -c libc_boot4.c -o libc_boot4_new.o
+../x86/bin/elf_loader_cc_x86.exe -l libtcc1.o -l libc_boot4.o -l tcc.o -c libc_static.c
+../x86/bin/catm ../artifacts/tcc_27_boot_static.exe
+../x86/bin/elf_loader_cc_x86.exe -l libtcc1.o -l libc_boot4_new.o -l tcc.o -nostdlib -static libc_static.o libc_boot4_new.o libtcc1_new.o tcc.o -o ../artifacts/tcc_27_boot_static.exe
+
+mv -f include/stddef.h.orig_tcc23 include/stddef.h

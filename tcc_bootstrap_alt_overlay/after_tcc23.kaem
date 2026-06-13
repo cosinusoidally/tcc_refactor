@@ -21,6 +21,3 @@
 ./x86/bin/cdrun ./tcc_10/ ../x86/artifact/kaem-0 ./build.kaem
 ./x86/bin/cdrun ./tcc_23/ ../x86/artifact/kaem-0 ./build.kaem
 ./x86/bin/cdrun ./tcc_23/ ../x86/artifact/kaem-0 ./run_23.kaem
-./x86/bin/cdrun ./tcc_27/ ../x86/artifact/kaem-0 ./build.kaem
-./x86/bin/cdrun ./tcc_27/ ../x86/artifact/kaem-0 ./run_27.kaem
-./x86/bin/cdrun ./tcc_27/ ../x86/artifact/kaem-0 ./run_27_static.kaem
