@@ -55,4 +55,10 @@ mv -f tccasm.c.orig_tcc23 tccasm.c
 
 mv libtcc1_new.o libtcc1.o
 mv tcc_new.o tcc.o
+
+../x86/bin/elf_loader_cc_x86.exe -l libtcc1.o -l tcc.o -c ./lib/libtcc1.c -o libtcc1_new2.o
+../x86/bin/elf_loader_cc_x86.exe -l libtcc1.o -l tcc.o -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE -o tcc_new2.o
+
+mv libtcc1_new2.o libtcc1.o
+mv tcc_new2.o tcc.o
 mv -f include/stddef.h.orig_tcc23 include/stddef.h
