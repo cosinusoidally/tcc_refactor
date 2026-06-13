@@ -4200,7 +4200,7 @@ static inline int *macro_twosharps(const int *macro_str)
             macro_ptr++;
             macro_ptr1 = macro_ptr;
             t = *macro_ptr;
-            if (t) {
+            if (t && t != TOK_TWOSHARPS) {
                 TOK_GET(t, macro_ptr, cval);
                 /* We concatenate the two tokens if we have an
                    identifier or a preprocessing number */
@@ -4210,8 +4210,8 @@ static inline int *macro_twosharps(const int *macro_str)
                 p2 = get_tok_str(t, &cval);
                 cstr_cat(&cstr, p2);
                 cstr_ccat(&cstr, '\0');
-                
-                if ((tok >= TOK_IDENT || tok == TOK_PPNUM) && 
+
+                if ((tok >= TOK_IDENT || tok == TOK_PPNUM) &&
                     (t >= TOK_IDENT || t == TOK_PPNUM)) {
                     if (tok == TOK_PPNUM) {
                         /* if number, then create a number token */
@@ -4260,20 +4260,51 @@ static inline int *macro_twosharps(const int *macro_str)
                         }
                         tok = q[2];
                     } else {
+                        BufferedFile bf1, *bf = &bf1;
+                        BufferedFile *saved_file;
+                        CValue saved_tokc;
+                        int saved_tok;
+                        char *buf;
+
                     error_pasting:
-                        /* NOTE: because get_tok_str use a static buffer,
-                           we must save it */
-                        cstr_reset(&cstr);
-                        p1 = get_tok_str(tok, &tokc);
-                        cstr_cat(&cstr, p1);
-                        cstr_ccat(&cstr, '\0');
-                        p2 = get_tok_str(t, &cval);
-                        warning("pasting \"%s\" and \"%s\" does not give a valid preprocessing token", cstr.data, p2);
-                        /* cannot merge tokens: just add them separately */
-                        tok_str_add2(&macro_str1, tok, &tokc);
-                        /* XXX: free associated memory ? */
-                        tok = t;
-                        tokc = cval;
+                        buf = tcc_malloc(cstr.size);
+                        memcpy(buf, cstr.data, cstr.size);
+                        buf[cstr.size - 1] = CH_EOB;
+
+                        bf->fd = -1;
+                        bf->buf_ptr = buf;
+                        bf->buf_end = buf + cstr.size - 1;
+                        pstrcpy(bf->filename, sizeof(bf->filename), ":paste:");
+                        bf->line_num = 1;
+
+                        saved_file = file;
+                        file = bf;
+                        ch = file->buf_ptr[0];
+                        next_nomacro1();
+                        saved_tok = tok;
+                        saved_tokc = tokc;
+                        next_nomacro1();
+                        file = saved_file;
+                        tcc_free(buf);
+
+                        if (tok == TOK_EOF) {
+                            tok = saved_tok;
+                            tokc = saved_tokc;
+                        } else {
+                            /* NOTE: because get_tok_str use a static buffer,
+                               we must save it */
+                            cstr_reset(&cstr);
+                            p1 = get_tok_str(tok, &tokc);
+                            cstr_cat(&cstr, p1);
+                            cstr_ccat(&cstr, '\0');
+                            p2 = get_tok_str(t, &cval);
+                            warning("pasting \"%s\" and \"%s\" does not give a valid preprocessing token", cstr.data, p2);
+                            /* cannot merge tokens: just add them separately */
+                            tok_str_add2(&macro_str1, tok, &tokc);
+                            /* XXX: free associated memory ? */
+                            tok = t;
+                            tokc = cval;
+                        }
                     }
                 }
             }

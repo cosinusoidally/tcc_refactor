@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+
+overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root="$overlay_dir/.."
+workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
+
+cp -f "$overlay_dir/tcc_10_alt/build_tcc2.kaem" "$workspace_dir/tcc_10/build.kaem"
+cp -f "$overlay_dir/otccelf_alt/mk_elf_loader_tcc_23_alt" "$workspace_dir/otccelf/mk_elf_loader"
+
+(
+    cd "$workspace_dir"
+    ./mk_really_clean >/dev/null 2>&1 || true
+    bash ./mk_seeds
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir' && ./x86/artifact/kaem-optional-seed ./alt_kaem.x86"
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/bash -c "cd '$workspace_dir/otccelf' && ./mk_elf_loader"
+)
+
+(
+    cd "$workspace_dir"
+    test -s tcc_10/tcc.o
+    sha256sum -c sum
+)
