@@ -138,7 +138,6 @@ typedef struct CString {
     int size; /* size in bytes */
     void *data; /* either 'char *' or 'int *' */
     int size_allocated;
-    void *data_allocated; /* if non NULL, data has been malloced */
 } CString;
 
 /* type definition */
@@ -157,9 +156,14 @@ typedef union CValue {
     unsigned int ul; /* address (should be unsigned long on 64 bit cpu) */
     long long ll;
     unsigned long long ull;
+    uint64_t i64;
     struct CString *cstr;
+    struct {
+        int size;
+        const void *data;
+    } str;
     void *ptr;
-    int tab[1];
+    int tab[3];
 } CValue;
 
 /* value on stack */
@@ -286,8 +290,13 @@ typedef struct ParseState {
 typedef struct TokenString {
     int *str;
     int len;
+    int lastlen;
     int allocated_len;
     int last_line_num;
+    int save_line_num;
+    struct TokenString *prev;
+    const int *prev_ptr;
+    char alloc;
 } TokenString;
 
 /* include file cache, used to find files faster and also to eliminate
@@ -323,7 +332,11 @@ static int parse_flags;
 #define PARSE_FLAG_LINEFEED   0x0004 /* line feed is returned as a
                                         token. line feed is also
                                         returned at eof */
-#define PARSE_FLAG_ASM_COMMENTS 0x0008 /* '#' can be used for line comment */
+#define PARSE_FLAG_ASM_FILE   0x0008 /* '#' can be used for line comment */
+#define PARSE_FLAG_ASM_COMMENTS PARSE_FLAG_ASM_FILE
+#define PARSE_FLAG_SPACES     0x0010 /* next() returns space tokens */
+#define PARSE_FLAG_ACCEPT_STRAYS 0x0020 /* next() returns '\\' token */
+#define PARSE_FLAG_TOK_STR    0x0040 /* return parsed strings instead of TOK_PPSTR */
  
 static Section *text_section, *data_section, *bss_section; /* predefined sections */
 static Section *cur_text_section; /* current section where function code is
@@ -582,6 +595,7 @@ struct TCCState {
 #define TOK_CCHAR 0xb4 /* char constant in tokc */
 #define TOK_STR   0xb5 /* pointer to string in tokc */
 #define TOK_TWOSHARPS 0xb6 /* ## preprocessing token */
+#define TOK_TWODOTS   0xa8 /* C++ token ? */
 #define TOK_LCHAR    0xb7
 #define TOK_LSTR     0xb8
 #define TOK_CFLOAT   0xb9 /* float constant */
@@ -601,6 +615,10 @@ struct TCCState {
 #define TOK_SHR      0xcd /* unsigned shift right */
 #define TOK_PPNUM    0xce /* preprocessor number */
 #define TOK_NOSUBST  0xcf /* means following token has already been pp'd */
+#define TOK_PPJOIN   0xd0 /* preprocessing paste marker */
+#define TOK_PLCHLDR  0xd1 /* placeholder token as defined in C99 */
+#define TOK_CLONG    0xd2 /* long constant */
+#define TOK_CULONG   0xd3 /* unsigned long constant */
 
 #define TOK_SHL   0x01 /* shift left */
 #define TOK_SAR   0x02 /* signed shift right */
@@ -1522,14 +1540,21 @@ static void cstr_realloc(CString *cstr, int new_size)
     void *data;
 
     size = cstr->size_allocated;
+    if (size < 0)
+        size = -size;
     if (size == 0)
         size = 8; /* no need to allocate a too small first string */
     while (size < new_size)
         size = size * 2;
-    data = tcc_realloc(cstr->data_allocated, size);
+    if (cstr->size_allocated < 0) {
+        data = tcc_malloc(size);
+        if (cstr->data != NULL && cstr->size > 0)
+            memcpy(data, cstr->data, cstr->size);
+    } else {
+        data = tcc_realloc(cstr->data, size);
+    }
     if (!data)
         error("memory full");
-    cstr->data_allocated = data;
     cstr->size_allocated = size;
     cstr->data = data;
 }
@@ -1545,15 +1570,17 @@ static inline void cstr_ccat(CString *cstr, int ch)
     cstr->size = size;
 }
 
-static void cstr_cat(CString *cstr, const char *str)
+static void cstr_cat(CString *cstr, const char *str, int len)
 {
     int c;
-    for(;;) {
-        c = *str;
-        if (c == '\0')
-            break;
+    if (len <= 0) {
+        len = strlen(str) + 1 + len;
+    }
+    while (len > 0) {
+        c = *(unsigned char *)str;
         cstr_ccat(cstr, c);
         str++;
+        len--;
     }
 }
 
@@ -1576,7 +1603,8 @@ static void cstr_new(CString *cstr)
 /* free string and reset it to NULL */
 static void cstr_free(CString *cstr)
 {
-    tcc_free(cstr->data_allocated);
+    if (cstr->size_allocated > 0)
+        tcc_free(cstr->data);
     cstr_new(cstr);
 }
 
@@ -1610,6 +1638,8 @@ char *get_tok_str(int v, CValue *cv)
     static char buf[STRING_MAX_SIZE + 1];
     static CString cstr_buf;
     CString *cstr;
+    const void *str_data;
+    int str_size;
     unsigned char *q;
     char *p;
     int i, len;
@@ -1617,7 +1647,7 @@ char *get_tok_str(int v, CValue *cv)
     /* NOTE: to go faster, we give a fixed buffer for small strings */
     cstr_reset(&cstr_buf);
     cstr_buf.data = buf;
-    cstr_buf.size_allocated = sizeof(buf);
+    cstr_buf.size_allocated = -sizeof(buf);
     p = buf;
 
     switch(v) {
@@ -1639,24 +1669,38 @@ char *get_tok_str(int v, CValue *cv)
         cstr_ccat(&cstr_buf, '\0');
         break;
     case TOK_PPNUM:
-        cstr = cv->cstr;
-        len = cstr->size - 1;
+        if (cv->cstr != NULL) {
+            cstr = cv->cstr;
+            str_data = cstr->data;
+            str_size = cstr->size;
+        } else {
+            str_data = cv->str.data;
+            str_size = cv->str.size;
+        }
+        len = str_size - 1;
         for(i=0;i<len;i++)
-            add_char(&cstr_buf, ((unsigned char *)cstr->data)[i]);
+            add_char(&cstr_buf, ((unsigned char *)str_data)[i]);
         cstr_ccat(&cstr_buf, '\0');
         break;
     case TOK_STR:
     case TOK_LSTR:
-        cstr = cv->cstr;
+        if (cv->cstr != NULL) {
+            cstr = cv->cstr;
+            str_data = cstr->data;
+            str_size = cstr->size;
+        } else {
+            str_data = cv->str.data;
+            str_size = cv->str.size;
+        }
         cstr_ccat(&cstr_buf, '\"');
         if (v == TOK_STR) {
-            len = cstr->size - 1;
+            len = str_size - 1;
             for(i=0;i<len;i++)
-                add_char(&cstr_buf, ((unsigned char *)cstr->data)[i]);
+                add_char(&cstr_buf, ((unsigned char *)str_data)[i]);
         } else {
-            len = (cstr->size / sizeof(int)) - 1;
+            len = (str_size / sizeof(int)) - 1;
             for(i=0;i<len;i++)
-                add_char(&cstr_buf, ((int *)cstr->data)[i]);
+                add_char(&cstr_buf, ((int *)str_data)[i]);
         }
         cstr_ccat(&cstr_buf, '\"');
         cstr_ccat(&cstr_buf, '\0');
@@ -2383,12 +2427,10 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
             while ((len + nb_words) > s->allocated_len)
                 str = tok_str_realloc(s);
             cstr = (CString *)(str + len);
-            cstr->data = NULL;
+            cstr->data = (char *)cstr + sizeof(CString);
             cstr->size = cv->cstr->size;
-            cstr->data_allocated = NULL;
-            cstr->size_allocated = cstr->size;
-            memcpy((char *)cstr + sizeof(CString), 
-                   cv->cstr->data, cstr->size);
+            cstr->size_allocated = -cstr->size;
+            memcpy(cstr->data, cv->cstr->data, cstr->size);
             len += nb_words;
         }
         break;
@@ -2543,9 +2585,10 @@ static Sym *label_push(Sym **ptop, int v, int flags)
 
 /* pop labels until element last is reached. Look if any labels are
    undefined. Define symbols if '&&label' was used. */
-static void label_pop(Sym **ptop, Sym *slast)
+static void label_pop(Sym **ptop, Sym *slast, int keep)
 {
     Sym *s, *s1;
+    (void)keep;
     for(s = *ptop; s != slast; s = s1) {
         s1 = s->prev;
         if (s->r == LABEL_DECLARED) {
@@ -3938,7 +3981,7 @@ static int *macro_arg_subst(Sym **nested_list, int *macro_str, Sym *args)
                     if (notfirst)
                         cstr_ccat(&cstr, ' ');
                     TOK_GET(t, st, cval);
-                    cstr_cat(&cstr, get_tok_str(t, &cval));
+                    cstr_cat(&cstr, get_tok_str(t, &cval), -1);
                     notfirst = 1;
                 }
                 cstr_ccat(&cstr, '\0');
@@ -4050,7 +4093,7 @@ static int macro_subst_tok(TokenString *tok_str,
         t1 = TOK_STR;
     add_cstr1:
         cstr_new(&cstr);
-        cstr_cat(&cstr, cstrval);
+        cstr_cat(&cstr, cstrval, -1);
         cstr_ccat(&cstr, '\0');
         cval.cstr = &cstr;
         tok_str_add2(tok_str, t1, &cval);
@@ -4209,10 +4252,10 @@ static inline int *macro_twosharps(const int *macro_str)
                 TOK_GET(t, ptr, cval);
                 cstr_reset(&cstr);
                 p1 = get_tok_str(tok, &tokc);
-                cstr_cat(&cstr, p1);
+                cstr_cat(&cstr, p1, -1);
                 n = cstr.size;
                 p2 = get_tok_str(t, &cval);
-                cstr_cat(&cstr, p2);
+                cstr_cat(&cstr, p2, -1);
                 cstr_ccat(&cstr, '\0');
 
                 if ((tok >= TOK_IDENT || tok == TOK_PPNUM) &&
@@ -7997,7 +8040,7 @@ static void block(int *bsym, int *csym, int *case_sym, int *def_sym,
             }
         }
         /* pop locally defined labels */
-        label_pop(&local_label_stack, llabel);
+        label_pop(&local_label_stack, llabel, 0);
         /* pop locally defined symbols */
         sym_pop(&local_stack, s);
         next();
@@ -8951,7 +8994,7 @@ static void gen_function(Sym *sym)
     gsym(rsym);
     gfunc_epilog();
     cur_text_section->data_offset = ind;
-    label_pop(&global_label_stack, NULL);
+    label_pop(&global_label_stack, NULL, 0);
     sym_pop(&local_stack, NULL); /* reset local stack */
     /* end of function */
     /* patch symbol size */
