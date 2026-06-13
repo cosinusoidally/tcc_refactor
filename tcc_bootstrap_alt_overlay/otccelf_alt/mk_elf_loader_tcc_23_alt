@@ -27,6 +27,7 @@ cp -f tccrun.c tccrun.c.orig_tcc23
 cp -f i386-gen.c i386-gen.c.orig_tcc23
 cp -f i386-asm.c i386-asm.c.orig_tcc23
 cp -f tccasm.c tccasm.c.orig_tcc23
+cp -f include/stddef.h include/stddef.h.orig_tcc23
 cp -f tcc_27_tcc23.h tcc.h
 cp -f tcc_27_libtcc_tcc23.h libtcc.h
 cp -f tcc_27_tcctok_tcc23.h tcctok.h
@@ -40,6 +41,7 @@ cp -f tcc_27_tccrun_tcc23.c tccrun.c
 cp -f tcc_27_i386-gen_tcc23.c i386-gen.c
 cp -f tcc_27_i386-asm_tcc23.c i386-asm.c
 cp -f tcc_27_tccasm_tcc23.c tccasm.c
+cp -f tcc_27_stddef_tcc23.h include/stddef.h
 
 ../otccelf/artifacts/elf_loader_otcc.exe -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o -I ../woody/usr/include/ -I ../tcc_26/include -c tcc_27_tcc23.c -DONE_SOURCE -o tcc.o
 ../otccelf/artifacts/elf_loader_otcc.exe -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o -c ../tcc_26/lib/libtcc1.c
@@ -63,6 +65,7 @@ mv -f tccasm.c.orig_tcc23 tccasm.c
 
 mv libtcc1_new.o libtcc1.o
 mv tcc_new.o tcc.o
+mv -f include/stddef.h.orig_tcc23 include/stddef.h
 
 cd ..
 sha256sum -c sum
