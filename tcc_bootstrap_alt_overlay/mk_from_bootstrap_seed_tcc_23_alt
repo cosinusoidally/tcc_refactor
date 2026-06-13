@@ -25,6 +25,7 @@ cp -f "$overlay_dir/tcc_27_tccrun_tcc23.c" "$workspace_dir/tcc_27/tcc_27_tccrun_
 cp -f "$overlay_dir/tcc_27_i386-gen_tcc23.c" "$workspace_dir/tcc_27/tcc_27_i386-gen_tcc23.c"
 cp -f "$overlay_dir/tcc_27_i386-asm_tcc23.c" "$workspace_dir/tcc_27/tcc_27_i386-asm_tcc23.c"
 cp -f "$overlay_dir/tcc_27_tccasm_tcc23.c" "$workspace_dir/tcc_27/tcc_27_tccasm_tcc23.c"
+cp -f "$overlay_dir/tcc_27_compat_tcc23.c" "$workspace_dir/tcc_27/tcc_27_compat_tcc23.c"
 
 (
     cd "$workspace_dir"
