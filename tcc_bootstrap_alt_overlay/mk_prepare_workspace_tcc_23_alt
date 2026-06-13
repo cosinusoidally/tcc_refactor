@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
+
+rm -rf "$workspace_dir/tcc_26"
+
+echo "$workspace_dir"
