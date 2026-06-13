@@ -277,7 +277,6 @@ typedef struct CString {
     int size; /* size in bytes */
     void *data; /* either 'char *' or 'nwchar_t *' */
     int size_allocated;
-    void *data_allocated; /* if non NULL, data has been malloced */
 } CString;
 
 /* type definition */
@@ -291,13 +290,11 @@ typedef union CValue {
     long double ld;
     double d;
     float f;
-    int i;
-    unsigned int ui;
-    unsigned int ul; /* address (should be unsigned long on 64 bit cpu) */
-    long long ll;
-    unsigned long long ull;
-    struct CString *cstr;
-    void *ptr;
+    uint64_t i;
+    struct {
+        int size;
+        const void *data;
+    } str;
     int tab[LDOUBLE_SIZE/4];
 } CValue;
 
@@ -455,8 +452,14 @@ typedef struct ParseState {
 typedef struct TokenString {
     int *str;
     int len;
+    int lastlen;
     int allocated_len;
     int last_line_num;
+    int save_line_num;
+    /* used to chain token-strings with begin/end_macro() */
+    struct TokenString *prev;
+    const int *prev_ptr;
+    char alloc;
 } TokenString;
 
 /* inline functions */
@@ -757,32 +760,38 @@ struct TCCState {
 #define TOK_DEC   0xa2
 #define TOK_MID   0xa3 /* inc/dec, to void constant */
 #define TOK_INC   0xa4
+#define TOK_TWODOTS 0xa8 /* C++ token ? */
 #define TOK_UDIV  0xb0 /* unsigned division */
 #define TOK_UMOD  0xb1 /* unsigned modulo */
 #define TOK_PDIV  0xb2 /* fast division with undefined rounding for pointers */
-#define TOK_CINT   0xb3 /* number in tokc */
-#define TOK_CCHAR 0xb4 /* char constant in tokc */
-#define TOK_STR   0xb5 /* pointer to string in tokc */
-#define TOK_TWOSHARPS 0xb6 /* ## preprocessing token */
-#define TOK_LCHAR    0xb7
-#define TOK_LSTR     0xb8
-#define TOK_CFLOAT   0xb9 /* float constant */
-#define TOK_LINENUM  0xba /* line number info */
-#define TOK_CDOUBLE  0xc0 /* double constant */
-#define TOK_CLDOUBLE 0xc1 /* long double constant */
+#define TOK_CCHAR   0xb3 /* char constant in tokc */
+#define TOK_LCHAR   0xb4
+#define TOK_CINT    0xb5 /* number in tokc */
+#define TOK_CUINT   0xb6 /* unsigned int constant */
+#define TOK_CLLONG  0xb7 /* long long constant */
+#define TOK_CULLONG 0xb8 /* unsigned long long constant */
+#define TOK_STR     0xb9 /* pointer to string in tokc */
+#define TOK_LSTR    0xba
+#define TOK_CFLOAT  0xbb /* float constant */
+#define TOK_CDOUBLE 0xbc /* double constant */
+#define TOK_CLDOUBLE 0xbd /* long double constant */
+#define TOK_PPNUM   0xbe /* preprocessor number */
+#define TOK_PPSTR   0xbf /* preprocessor string */
+#define TOK_LINENUM 0xc0 /* line number info */
 #define TOK_UMULL    0xc2 /* unsigned 32x32 -> 64 mul */
 #define TOK_ADDC1    0xc3 /* add with carry generation */
 #define TOK_ADDC2    0xc4 /* add with carry use */
 #define TOK_SUBC1    0xc5 /* add with carry generation */
 #define TOK_SUBC2    0xc6 /* add with carry use */
-#define TOK_CUINT    0xc8 /* unsigned int constant */
-#define TOK_CLLONG   0xc9 /* long long constant */
-#define TOK_CULLONG  0xca /* unsigned long long constant */
-#define TOK_ARROW    0xcb
-#define TOK_DOTS     0xcc /* three dots */
-#define TOK_SHR      0xcd /* unsigned shift right */
-#define TOK_PPNUM    0xce /* preprocessor number */
-#define TOK_NOSUBST  0xcf /* means following token has already been pp'd */
+#define TOK_ARROW    0xc7
+#define TOK_DOTS     0xc8 /* three dots */
+#define TOK_SHR      0xc9 /* unsigned shift right */
+#define TOK_TWOSHARPS 0xca /* ## preprocessing token */
+#define TOK_PLCHLDR  0xcb /* placeholder token as defined in C99 */
+#define TOK_NOSUBST  0xcc /* means following token has already been pp'd */
+#define TOK_PPJOIN   0xcd /* A '##' in the right position to mean pasting */
+#define TOK_CLONG    0xce /* long constant */
+#define TOK_CULONG   0xcf /* unsigned long constant */
 
 #define TOK_SHL   0x01 /* shift left */
 #define TOK_SAR   0x02 /* signed shift right */
@@ -1019,7 +1028,7 @@ PUB_FUNC void tcc_warning(const char *fmt, ...);
 ST_FUNC void dynarray_add(void ***ptab, int *nb_ptr, void *data);
 ST_FUNC void dynarray_reset(void *pp, int *n);
 ST_FUNC void cstr_ccat(CString *cstr, int ch);
-ST_FUNC void cstr_cat(CString *cstr, const char *str);
+ST_FUNC void cstr_cat(CString *cstr, const char *str, int len);
 ST_FUNC void cstr_wccat(CString *cstr, int ch);
 ST_FUNC void cstr_new(CString *cstr);
 ST_FUNC void cstr_free(CString *cstr);
@@ -1081,15 +1090,18 @@ ST_DATA TokenSym **table_ident;
 #define PARSE_FLAG_LINEFEED   0x0004 /* line feed is returned as a
                                         token. line feed is also
                                         returned at eof */
-#define PARSE_FLAG_ASM_COMMENTS 0x0008 /* '#' can be used for line comment */
+#define PARSE_FLAG_ASM_FILE    0x0008 /* we processing an asm file: '#' can be used for line comment, etc. */
 #define PARSE_FLAG_SPACES     0x0010 /* next() returns space tokens (for -E) */
+#define PARSE_FLAG_ACCEPT_STRAYS 0x0020 /* next() returns '\\' token */
+#define PARSE_FLAG_TOK_STR    0x0040 /* return parsed strings instead of TOK_PPSTR */
 
 ST_FUNC TokenSym *tok_alloc(const char *str, int len);
-ST_FUNC char *get_tok_str(int v, CValue *cv);
+ST_FUNC const char *get_tok_str(int v, CValue *cv);
 ST_FUNC void save_parse_state(ParseState *s);
 ST_FUNC void restore_parse_state(ParseState *s);
 ST_INLN void tok_str_new(TokenString *s);
-ST_FUNC void tok_str_free(int *str);
+ST_FUNC void tok_str_free(TokenString *s);
+ST_FUNC void tok_str_free_str(int *str);
 ST_FUNC void tok_str_add(TokenString *s, int t);
 ST_FUNC void tok_str_add_tok(TokenString *s);
 ST_INLN void define_push(int v, int macro_type, int *str, Sym *first_arg);
