@@ -600,6 +600,7 @@ struct TCCState {
 #define TOK_DOTS     0xcc /* three dots */
 #define TOK_SHR      0xcd /* unsigned shift right */
 #define TOK_PPNUM    0xce /* preprocessor number */
+#define TOK_NOSUBST  0xcf /* means following token has already been pp'd */
 
 #define TOK_SHL   0x01 /* shift left */
 #define TOK_SAR   0x02 /* signed shift right */
@@ -4162,51 +4163,54 @@ static int macro_subst_tok(TokenString *tok_str,
 static inline int *macro_twosharps(const int *macro_str)
 {
     TokenSym *ts;
-    const int *macro_ptr1, *start_macro_ptr, *ptr, *saved_macro_ptr;
-    int t;
-    const char *p1, *p2;
+    const int *ptr;
+    int t, n, start_of_nosubsts;
+    const char *p1, *p2, *str;
     CValue cval;
     TokenString macro_str1;
     CString cstr;
 
-    start_macro_ptr = macro_str;
     /* we search the first '##' */
-    for(;;) {
-        macro_ptr1 = macro_str;
-        TOK_GET(t, macro_str, cval);
+    for(ptr = macro_str;;) {
+        TOK_GET(t, ptr, cval);
         /* nothing more to do if end of string */
         if (t == 0)
             return NULL;
-        if (*macro_str == TOK_TWOSHARPS)
+        if (t == TOK_TWOSHARPS)
             break;
     }
 
     /* we saw '##', so we need more processing to handle it */
     cstr_new(&cstr);
     tok_str_new(&macro_str1);
-    tok = t;
-    tokc = cval;
-
-    /* add all tokens seen so far */
-    for(ptr = start_macro_ptr; ptr < macro_ptr1;) {
-        TOK_GET(t, ptr, cval);
-        tok_str_add2(&macro_str1, t, &cval);
-    }
-    saved_macro_ptr = macro_ptr;
-    /* XXX: get rid of the use of macro_ptr here */
-    macro_ptr = (int *)macro_str;
-    for(;;) {
-        while (*macro_ptr == TOK_TWOSHARPS) {
-            macro_ptr++;
-            macro_ptr1 = macro_ptr;
-            t = *macro_ptr;
+    start_of_nosubsts = -1;
+    for(ptr = macro_str;;) {
+        TOK_GET(tok, ptr, tokc);
+        if (tok == 0)
+            break;
+        if (tok == TOK_TWOSHARPS)
+            continue;
+        if (tok == TOK_NOSUBST && start_of_nosubsts < 0)
+            start_of_nosubsts = macro_str1.len;
+        while (*ptr == TOK_TWOSHARPS) {
+            if (start_of_nosubsts >= 0)
+                macro_str1.len = start_of_nosubsts;
+            t = *++ptr;
+            while (t == TOK_NOSUBST)
+                t = *++ptr;
             if (t && t != TOK_TWOSHARPS) {
-                TOK_GET(t, macro_ptr, cval);
-                /* We concatenate the two tokens if we have an
-                   identifier or a preprocessing number */
+                CValue saved_tokc, tokc1;
+                int saved_tok;
+                BufferedFile bf1, *bf = &bf1;
+                BufferedFile *saved_file;
+                char *buf;
+                const unsigned char *q;
+
+                TOK_GET(t, ptr, cval);
                 cstr_reset(&cstr);
                 p1 = get_tok_str(tok, &tokc);
                 cstr_cat(&cstr, p1);
+                n = cstr.size;
                 p2 = get_tok_str(t, &cval);
                 cstr_cat(&cstr, p2);
                 cstr_ccat(&cstr, '\0');
@@ -4214,13 +4218,8 @@ static inline int *macro_twosharps(const int *macro_str)
                 if ((tok >= TOK_IDENT || tok == TOK_PPNUM) &&
                     (t >= TOK_IDENT || t == TOK_PPNUM)) {
                     if (tok == TOK_PPNUM) {
-                        /* if number, then create a number token */
-                        /* NOTE: no need to allocate because
-                           tok_str_add2() does it */
                         tokc.cstr = &cstr;
                     } else {
-                        /* if identifier, we must do a test to
-                           validate we have a correct identifier */
                         if (t == TOK_PPNUM) {
                             const char *p;
                             int c;
@@ -4236,20 +4235,15 @@ static inline int *macro_twosharps(const int *macro_str)
                             }
                         }
                         ts = tok_alloc(cstr.data, strlen(cstr.data));
-                        tok = ts->tok; /* modify current token */
+                        tok = ts->tok;
                     }
                 } else {
-                    const char *str = cstr.data;
-                    const unsigned char *q;
-
-                    /* we look for a valid token */
-                    /* XXX: do more extensive checks */
+                    str = cstr.data;
                     if (!strcmp(str, ">>=")) {
                         tok = TOK_A_SAR;
                     } else if (!strcmp(str, "<<=")) {
                         tok = TOK_A_SHL;
                     } else if (strlen(str) == 2) {
-                        /* search in two bytes table */
                         q = tok_two_chars;
                         for(;;) {
                             if (!*q)
@@ -4260,13 +4254,7 @@ static inline int *macro_twosharps(const int *macro_str)
                         }
                         tok = q[2];
                     } else {
-                        BufferedFile bf1, *bf = &bf1;
-                        BufferedFile *saved_file;
-                        CValue saved_tokc;
-                        int saved_tok;
-                        char *buf;
-
-                    error_pasting:
+error_pasting:
                         buf = tcc_malloc(cstr.size);
                         memcpy(buf, cstr.data, cstr.size);
                         buf[cstr.size - 1] = CH_EOB;
@@ -4284,6 +4272,7 @@ static inline int *macro_twosharps(const int *macro_str)
                         saved_tok = tok;
                         saved_tokc = tokc;
                         next_nomacro1();
+                        tokc1 = tokc;
                         file = saved_file;
                         tcc_free(buf);
 
@@ -4291,30 +4280,21 @@ static inline int *macro_twosharps(const int *macro_str)
                             tok = saved_tok;
                             tokc = saved_tokc;
                         } else {
-                            /* NOTE: because get_tok_str use a static buffer,
-                               we must save it */
-                            cstr_reset(&cstr);
-                            p1 = get_tok_str(tok, &tokc);
-                            cstr_cat(&cstr, p1);
-                            cstr_ccat(&cstr, '\0');
-                            p2 = get_tok_str(t, &cval);
-                            warning("pasting \"%s\" and \"%s\" does not give a valid preprocessing token", cstr.data, p2);
-                            /* cannot merge tokens: just add them separately */
-                            tok_str_add2(&macro_str1, tok, &tokc);
-                            /* XXX: free associated memory ? */
+                            warning("pasting \"%.*s\" and \"%s\" does not give a valid preprocessing token",
+                                    n, cstr.data, (char *)cstr.data + n);
+                            tok_str_add2(&macro_str1, saved_tok, &saved_tokc);
                             tok = t;
                             tokc = cval;
+                            cval = tokc1;
                         }
                     }
                 }
             }
         }
+        if (tok != TOK_NOSUBST)
+            start_of_nosubsts = -1;
         tok_str_add2(&macro_str1, tok, &tokc);
-        next_nomacro();
-        if (tok == 0)
-            break;
     }
-    macro_ptr = (int *)saved_macro_ptr;
     cstr_free(&cstr);
     tok_str_add(&macro_str1, 0);
     return macro_str1.str;
@@ -4347,11 +4327,18 @@ static void macro_subst(TokenString *tok_str, Sym **nested_list,
         TOK_GET(t, ptr, cval);
         if (t == 0)
             break;
+        if (t == TOK_NOSUBST) {
+            tok_str_add(tok_str, TOK_NOSUBST);
+            TOK_GET(t, ptr, cval);
+            goto no_subst;
+        }
         s = define_find(t);
         if (s != NULL) {
             /* if nested substitution, do nothing */
-            if (sym_find2(*nested_list, t))
+            if (sym_find2(*nested_list, t)) {
+                tok_str_add(tok_str, TOK_NOSUBST);
                 goto no_subst;
+            }
             ml.p = macro_ptr;
             if (can_read_stream)
                 ml.prev = *can_read_stream, *can_read_stream = &ml;
@@ -4413,6 +4400,8 @@ static void next(void)
                 tok_str_free(macro_ptr_allocated);
                 macro_ptr = NULL;
             }
+            goto redo;
+        } else if (tok == TOK_NOSUBST) {
             goto redo;
         }
     }
