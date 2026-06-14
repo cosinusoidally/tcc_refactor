@@ -63,6 +63,7 @@ int reg_classes[NB_REGS] = {
 
 /* pointer size, in bytes */
 #define PTR_SIZE 4
+#define LONG_SIZE 4
 
 /* long double size and alignment, in bytes */
 #define LDOUBLE_SIZE  12
@@ -1014,4 +1015,3 @@ void gen_bounded_ptr_deref(void)
 
 /* end of X86 code generator */
 /*************************************************************/
-

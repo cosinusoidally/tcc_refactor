@@ -93,6 +93,11 @@
 
 /* target address type */
 #define addr_t ElfW(Addr)
+#if PTR_SIZE == 8 && !defined TCC_TARGET_PE
+# define LONG_SIZE 8
+#else
+# define LONG_SIZE 4
+#endif
 
 #include "stab.h"
 #include "libtcc.h"
@@ -253,6 +258,7 @@
 
 #define TOK_HASH_SIZE       8192 /* must be a power of two */
 #define TOK_ALLOC_INCR      512  /* must be a power of two */
+#define TOKSTR_MAX_SIZE     256
 #define TOK_MAX_SIZE        4 /* token max size in int unit when stored in string */
 
 /* token symbol management */
@@ -290,11 +296,18 @@ typedef union CValue {
     long double ld;
     double d;
     float f;
-    uint64_t i;
+    int i;
+    unsigned int ui;
+    unsigned int ul; /* address (should be unsigned long on 64 bit cpu) */
+    long long ll;
+    unsigned long long ull;
+    uint64_t i64;
+    struct CString *cstr;
     struct {
         int size;
         const void *data;
     } str;
+    void *ptr;
     int tab[LDOUBLE_SIZE/4];
 } CValue;
 
@@ -311,17 +324,18 @@ typedef struct SValue {
 /* symbol management */
 typedef struct Sym {
     int v;    /* symbol token */
-    char *asm_label;    /* associated asm label */
-    long r;    /* associated register */
-    union {
-        long c;    /* associated number */
-        int *d;   /* define token stream */
-    };
+    int r;    /* associated register */
+    int c;    /* associated number */
+    struct SymAttr a; /* symbol attributes */
+    struct FuncAttr f; /* function attributes */
+    int sym_scope;
+    int auxtype;
+    int *d;   /* define token stream */
+    long long enum_val;
     CType type;    /* associated type */
-    union {
-        struct Sym *next; /* next related symbol */
-        long jnext; /* next jump label */
-    };
+    struct Sym *next; /* next related symbol */
+    int jnext; /* next jump label */
+    int asm_label; /* associated asm label */
     struct Sym *prev; /* prev symbol in stack */
     struct Sym *prev_tok; /* previous symbol for this token */
 } Sym;
@@ -429,10 +443,14 @@ typedef struct BufferedFile {
     int fd;
     struct BufferedFile *prev;
     int line_num;    /* current line number - here to simplify code */
+    int line_ref;    /* tcc -E: last printed line */
     int ifndef_macro;  /* #ifndef macro / #endif search */
     int ifndef_macro_saved; /* saved ifndef_macro */
     int *ifdef_stack_ptr; /* ifdef_stack value at the start of the file */
+    int include_next_index; /* next search path */
     char filename[1024];    /* filename */
+    char *true_filename; /* filename not modified by # line directive */
+    unsigned char unget[4];
     unsigned char buffer[IO_BUF_SIZE + 1]; /* extra size for CH_EOB char */
 } BufferedFile;
 
@@ -473,6 +491,7 @@ typedef struct InlineFunc {
    inclusion if the include file is protected by #ifndef ... #endif */
 typedef struct CachedInclude {
     int ifndef_macro;
+    int once;
     int hash_next; /* -1 if none */
     char filename[1]; /* path specified in #include */
 } CachedInclude;
@@ -531,6 +550,9 @@ struct TCCState {
     /* C language options */
     int char_is_unsigned;
     int leading_underscore;
+    int ms_extensions;
+    int dollars_in_identifiers;
+    int ms_bitfields;
     
     /* warning switches */
     int warn_write_strings;
@@ -538,6 +560,7 @@ struct TCCState {
     int warn_error;
     int warn_none;
     int warn_implicit_function_declaration;
+    int warn_gcc_compat;
 
     /* compile with debug symbol (and use them if error during execution) */
     int do_debug;
@@ -545,6 +568,7 @@ struct TCCState {
     /* compile with built-in memory and bounds checker */
     int do_bounds_check;
 #endif
+    int run_test; /* nth test to run with -dt -run */
 
     addr_t text_addr; /* address of text section */
     int has_text_addr;
@@ -572,10 +596,16 @@ struct TCCState {
     /* library paths */
     char **library_paths;
     int nb_library_paths;
+    char **pragma_libs;
+    int nb_pragma_libs;
 
     /* crt?.o object path */
     char **crt_paths;
     int nb_crt_paths;
+
+    /* -include files */
+    char **cmd_include_files;
+    int nb_cmd_include_files;
 
     /* error handling */
     void *error_opaque;
@@ -586,6 +616,13 @@ struct TCCState {
 
     /* output file for preprocessing (-E) */
     FILE *ppfp;
+    enum {
+        LINE_MACRO_OUTPUT_FORMAT_GCC,
+        LINE_MACRO_OUTPUT_FORMAT_NONE,
+        LINE_MACRO_OUTPUT_FORMAT_STD,
+        LINE_MACRO_OUTPUT_FORMAT_P10 = 11
+    } Pflag; /* -P switch */
+    char dflag; /* -dX value */
 
     /* for -MD/-MF: collected dependencies for this compilation */
     char **target_deps;
@@ -1025,7 +1062,7 @@ PUB_FUNC void tcc_error(const char *fmt, ...);
 PUB_FUNC void tcc_warning(const char *fmt, ...);
 
 /* other utilities */
-ST_FUNC void dynarray_add(void ***ptab, int *nb_ptr, void *data);
+ST_FUNC void dynarray_add(void *ptab, int *nb_ptr, void *data);
 ST_FUNC void dynarray_reset(void *pp, int *n);
 ST_FUNC void cstr_ccat(CString *cstr, int ch);
 ST_FUNC void cstr_cat(CString *cstr, const char *str, int len);
@@ -1095,6 +1132,11 @@ ST_DATA TokenSym **table_ident;
 #define PARSE_FLAG_ACCEPT_STRAYS 0x0020 /* next() returns '\\' token */
 #define PARSE_FLAG_TOK_STR    0x0040 /* return parsed strings instead of TOK_PPSTR */
 
+/* isidnum_table flags: */
+#define IS_SPC 1
+#define IS_ID  2
+#define IS_NUM 4
+
 ST_FUNC TokenSym *tok_alloc(const char *str, int len);
 ST_FUNC const char *get_tok_str(int v, CValue *cv);
 ST_FUNC void save_parse_state(ParseState *s);
@@ -1150,7 +1192,7 @@ ST_DATA Sym *local_label_stack;
 ST_DATA Sym *global_label_stack;
 ST_DATA Sym *define_stack;
 ST_DATA CType char_pointer_type, func_old_type, int_type, size_type;
-ST_DATA SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE], *vtop;
+ST_DATA SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE], *vtop, *pvtop;
 #define vstack  (__vstack + 1)
 ST_DATA int rsym, anon_sym, ind, loc;
 
@@ -1160,7 +1202,7 @@ ST_DATA int global_expr;  /* true if compound literals must be allocated globall
 ST_DATA CType func_vt; /* current function return type (used by return instruction) */
 ST_DATA int func_vc;
 ST_DATA int last_line_num, last_ind, func_ind; /* debug last line number and pc */
-ST_DATA char *funcname;
+ST_DATA const char *funcname;
 
 ST_INLN int is_float(int t);
 ST_FUNC int ieee_finite(double d);
@@ -1198,7 +1240,7 @@ ST_FUNC void expr_prod(void);
 ST_FUNC void expr_sum(void);
 ST_FUNC void gexpr(void);
 ST_FUNC int expr_const(void);
-ST_FUNC void gen_inline_functions(void);
+ST_FUNC void gen_inline_functions(TCCState *s);
 ST_FUNC void decl(int l);
 #if defined CONFIG_TCC_BCHECK || defined TCC_TARGET_C67
 ST_FUNC Sym *get_sym_ref(CType *type, Section *sec, unsigned long offset, unsigned long size);

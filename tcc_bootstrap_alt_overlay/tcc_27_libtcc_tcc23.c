@@ -272,13 +272,15 @@ PUB_FUNC void tcc_memstats(void)
 /********************************************************/
 /* dynarrays */
 
-ST_FUNC void dynarray_add(void ***ptab, int *nb_ptr, void *data)
+ST_FUNC void dynarray_add(void *ptab, int *nb_ptr, void *data)
 {
     int nb, nb_alloc;
     void **pp;
+    void ***pptab;
     
+    pptab = ptab;
     nb = *nb_ptr;
-    pp = *ptab;
+    pp = *pptab;
     /* every power of two we double array size */
     if ((nb & (nb - 1)) == 0) {
         if (!nb)
@@ -286,7 +288,7 @@ ST_FUNC void dynarray_add(void ***ptab, int *nb_ptr, void *data)
         else
             nb_alloc = nb * 2;
         pp = tcc_realloc(pp, nb_alloc * sizeof(void *));
-        *ptab = pp;
+        *pptab = pp;
     }
     pp[nb++] = data;
     *nb_ptr = nb;

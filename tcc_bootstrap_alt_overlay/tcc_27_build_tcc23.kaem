@@ -24,9 +24,7 @@ cp -f tcc_27_tcctok_tcc23.h tcctok.h
 cp -f tcc_27_i386-tok_tcc23.h i386-tok.h
 cp -f tcc_27_i386-asm_tcc23.h i386-asm.h
 cp -f tcc_27_libtcc_tcc23.c libtcc.c
-cp -f tcc_27_tccpp_tcc23.c tccpp.c
 cp -f tcc_27_tccelf_tcc23.c tccelf.c
-cp -f tcc_27_tccgen_tcc23.c tccgen.c
 cp -f tcc_27_tccrun_tcc23.c tccrun.c
 cp -f tcc_27_i386-gen_tcc23.c i386-gen.c
 cp -f tcc_27_i386-asm_tcc23.c i386-asm.c

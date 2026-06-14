@@ -120,6 +120,7 @@ typedef int BOOL;
 
 #define TOK_HASH_SIZE       8192 /* must be a power of two */
 #define TOK_ALLOC_INCR      512  /* must be a power of two */
+#define TOKSTR_MAX_SIZE     256
 #define TOK_MAX_SIZE        4 /* token max size in int unit when stored in string */
 
 /* token symbol management */
@@ -176,13 +177,39 @@ typedef struct SValue {
     struct Sym *sym;       /* symbol, if (VT_SYM | VT_CONST) */
 } SValue;
 
+typedef struct SymAttr {
+    unsigned short
+    aligned     : 5,
+    packed      : 1,
+    weak        : 1,
+    visibility  : 2,
+    dllexport   : 1,
+    dllimport   : 1,
+    unused      : 5;
+} SymAttr;
+
+typedef struct FuncAttr {
+    unsigned
+    func_call   : 3,
+    func_type   : 2,
+    func_args   : 8;
+} FuncAttr;
+
 /* symbol management */
 typedef struct Sym {
     int v;    /* symbol token */
     int r;    /* associated register */
     int c;    /* associated number */
+    SymAttr a; /* symbol attributes */
+    FuncAttr f; /* function attributes */
+    int sym_scope;
+    int auxtype;
+    int *d; /* define token stream */
+    long long enum_val;
     CType type;    /* associated type */
     struct Sym *next; /* next related symbol */
+    int jnext; /* next jump label */
+    int asm_label; /* associated asm label */
     struct Sym *prev; /* prev symbol in stack */
     struct Sym *prev_tok; /* previous symbol for this token */
 } Sym;
@@ -264,13 +291,18 @@ typedef struct BufferedFile {
     uint8_t *buf_ptr;
     uint8_t *buf_end;
     int fd;
+    struct BufferedFile *prev;
     int line_num;    /* current line number - here to simplify code */
+    int line_ref;    /* last emitted line for -E style output */
     int ifndef_macro;  /* #ifndef macro / #endif search */
     int ifndef_macro_saved; /* saved ifndef_macro */
     int *ifdef_stack_ptr; /* ifdef_stack value at the start of the file */
+    int include_next_index; /* next include search path */
     char inc_type;          /* type of include */
     char inc_filename[512]; /* filename specified by the user */
     char filename[1024];    /* current filename - here to simplify code */
+    char *true_filename;    /* filename before #line remapping */
+    unsigned char unget[4];
     unsigned char buffer[IO_BUF_SIZE + 1]; /* extra size for CH_EOB char */
 } BufferedFile;
 
@@ -303,6 +335,7 @@ typedef struct TokenString {
    inclusion if the include file is protected by #ifndef ... #endif */
 typedef struct CachedInclude {
     int ifndef_macro;
+    int once;
     int hash_next; /* -1 if none */
     char type; /* '"' or '>' to give include type */
     char filename[1]; /* path specified in #include */
@@ -372,7 +405,7 @@ static int tok_ident;
 static TokenSym **table_ident;
 static TokenSym *hash_ident[TOK_HASH_SIZE];
 static char token_buf[STRING_MAX_SIZE + 1];
-static char *funcname;
+static const char *funcname;
 static Sym *global_stack, *local_stack;
 static Sym *define_stack;
 static Sym *global_label_stack, *local_label_stack;
@@ -380,11 +413,12 @@ static Sym *global_label_stack, *local_label_stack;
 #define SYM_POOL_NB (8192 / sizeof(Sym))
 static Sym *sym_free_first;
 
-static SValue vstack[VSTACK_SIZE], *vtop;
+static SValue vstack[VSTACK_SIZE], *vtop, *pvtop;
 /* some predefined types */
 static CType char_pointer_type, func_old_type, int_type;
 /* true if isid(c) || isnum(c) */
 static unsigned char isidnum_table[256];
+static int pp_counter;
 
 /* compile with debug symbol (and use them if error during execution) */
 static int do_debug = 0;
@@ -416,7 +450,17 @@ static struct TCCState *tcc_state;
 static const char *tcc_lib_path = CONFIG_TCCDIR;
 
 struct TCCState {
+    int verbose; /* if true, display some information during compilation */
     int output_type;
+    FILE *ppfp;
+    int run_test; /* nth self-test requested by -dt -run */
+    enum {
+        LINE_MACRO_OUTPUT_FORMAT_GCC,
+        LINE_MACRO_OUTPUT_FORMAT_NONE,
+        LINE_MACRO_OUTPUT_FORMAT_STD,
+        LINE_MACRO_OUTPUT_FORMAT_P10 = 11
+    } Pflag; /* preprocessing line-marker mode */
+    char dflag; /* -dX value */
  
     BufferedFile **include_stack_ptr;
     int *ifdef_stack_ptr;
@@ -426,11 +470,17 @@ struct TCCState {
     int nb_include_paths;
     char **sysinclude_paths;
     int nb_sysinclude_paths;
+    char **cmd_include_files;
+    int nb_cmd_include_files;
     CachedInclude **cached_includes;
     int nb_cached_includes;
 
     char **library_paths;
     int nb_library_paths;
+    char **pragma_libs;
+    int nb_pragma_libs;
+    char **target_deps;
+    int nb_target_deps;
 
     /* array of all loaded dlls (including those referenced by loaded
        dlls) */
@@ -478,6 +528,9 @@ struct TCCState {
     /* C language options */
     int char_is_unsigned;
     int leading_underscore;
+    int ms_extensions;
+    int dollars_in_identifiers;
+    int ms_bitfields;
     
     /* warning switches */
     int warn_write_strings;
@@ -485,6 +538,7 @@ struct TCCState {
     int warn_error;
     int warn_none;
     int warn_implicit_function_declaration;
+    int warn_gcc_compat;
 
     /* error handling */
     void *error_opaque;
@@ -770,7 +824,7 @@ static void block(int *bsym, int *csym, int *case_sym, int *def_sym,
 static int expr_const(void);
 static void expr_eq(void);
 static void gexpr(void);
-static void gen_inline_functions(void);
+static void gen_inline_functions(TCCState *s);
 static void decl(int l);
 static void decl_initializer(CType *type, Section *sec, unsigned long c, 
                              int first, int size_only);
@@ -1098,13 +1152,15 @@ static char *tcc_strdup(const char *str)
 #define malloc(s) use_tcc_malloc(s)
 #define realloc(p, s) use_tcc_realloc(p, s)
 
-static void dynarray_add(void ***ptab, int *nb_ptr, void *data)
+static void dynarray_add(void *ptab, int *nb_ptr, void *data)
 {
     int nb, nb_alloc;
     void **pp;
+    void ***pptab;
     
+    pptab = ptab;
     nb = *nb_ptr;
-    pp = *ptab;
+    pp = *pptab;
     /* every power of two we double array size */
     if ((nb & (nb - 1)) == 0) {
         if (!nb)
@@ -1114,7 +1170,7 @@ static void dynarray_add(void ***ptab, int *nb_ptr, void *data)
         pp = tcc_realloc(pp, nb_alloc * sizeof(void *));
         if (!pp)
             error("memory full");
-        *ptab = pp;
+        *pptab = pp;
     }
     pp[nb++] = data;
     *nb_ptr = nb;
@@ -4067,8 +4123,9 @@ static int macro_subst_tok(TokenString *tok_str,
     
     /* if symbol is a macro, prepare substitution */
     /* special macros */
-    if (tok == TOK___LINE__) {
-        snprintf(buf, sizeof(buf), "%d", file->line_num);
+    if (tok == TOK___LINE__ || tok == TOK___COUNTER__) {
+        snprintf(buf, sizeof(buf), "%d",
+                 tok == TOK___LINE__ ? file->line_num : pp_counter++);
         cstrval = buf;
         t1 = TOK_PPNUM;
         goto add_cstr1;
@@ -9008,11 +9065,13 @@ static void gen_function(Sym *sym)
     ind = 0; /* for safety */
 }
 
-static void gen_inline_functions(void)
+static void gen_inline_functions(TCCState *s)
 {
     Sym *sym;
     CType *type;
     int *str, inline_generated;
+
+    (void)s;
 
     /* iterate while inline function are referenced */
     for(;;) {
@@ -9337,7 +9396,7 @@ static int tcc_compile(TCCState *s1)
        they are undefined) */
     free_defines(define_start); 
 
-    gen_inline_functions();
+    gen_inline_functions(s1);
 
     sym_pop(&global_stack, NULL);
 
