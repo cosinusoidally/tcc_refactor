@@ -1,0 +1,1 @@
+int tcc27_stage1_min_symbol;

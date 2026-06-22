@@ -7,20 +7,6 @@ workspace_dir=$("$overlay_dir/mk_prepare_workspace_tcc_23_alt")
 
 cp -f "$overlay_dir/tcc_10_alt/build_tcc2.kaem" "$workspace_dir/tcc_10/build.kaem"
 cp -f "$overlay_dir/otccelf_alt/mk_elf_loader_tcc_23_alt" "$workspace_dir/otccelf/mk_elf_loader"
-cp -f "$overlay_dir/tcc_27_tcc23.h" "$workspace_dir/tcc_27/tcc_27_tcc23.h"
-cp -f "$overlay_dir/tcc_27_libtcc_tcc23.h" "$workspace_dir/tcc_27/tcc_27_libtcc_tcc23.h"
-cp -f "$overlay_dir/tcc_27_tcc23.c" "$workspace_dir/tcc_27/tcc_27_tcc23.c"
-cp -f "$overlay_dir/tcc_27_tcctok_tcc23.h" "$workspace_dir/tcc_27/tcc_27_tcctok_tcc23.h"
-cp -f "$overlay_dir/tcc_27_i386-tok_tcc23.h" "$workspace_dir/tcc_27/tcc_27_i386-tok_tcc23.h"
-cp -f "$overlay_dir/tcc_27_i386-asm_tcc23.h" "$workspace_dir/tcc_27/tcc_27_i386-asm_tcc23.h"
-cp -f "$overlay_dir/tcc_27_stddef_tcc23.h" "$workspace_dir/tcc_27/tcc_27_stddef_tcc23.h"
-cp -f "$overlay_dir/tcc_27_libtcc_tcc23.c" "$workspace_dir/tcc_27/tcc_27_libtcc_tcc23.c"
-cp -f "$overlay_dir/tcc_27_tccelf_tcc23.c" "$workspace_dir/tcc_27/tcc_27_tccelf_tcc23.c"
-cp -f "$overlay_dir/tcc_27_tccrun_tcc23.c" "$workspace_dir/tcc_27/tcc_27_tccrun_tcc23.c"
-cp -f "$overlay_dir/tcc_27_i386-gen_tcc23.c" "$workspace_dir/tcc_27/tcc_27_i386-gen_tcc23.c"
-cp -f "$overlay_dir/tcc_27_i386-asm_tcc23.c" "$workspace_dir/tcc_27/tcc_27_i386-asm_tcc23.c"
-cp -f "$overlay_dir/tcc_27_tccasm_tcc23.c" "$workspace_dir/tcc_27/tcc_27_tccasm_tcc23.c"
-cp -f "$overlay_dir/tcc_27_compat_tcc23.c" "$workspace_dir/tcc_27/tcc_27_compat_tcc23.c"
 
 (
     cd "$workspace_dir"
@@ -39,7 +25,11 @@ cp -f "$overlay_dir/tcc_27_compat_tcc23.c" "$workspace_dir/tcc_27/tcc_27_compat_
 )
 
 (
+    cd "$repo_root"
+    ./scripts/run-i386.sh "$overlay_dir/mk_build_tcc27_from_tcc23_alt" "$workspace_dir"
+)
+
+(
     cd "$workspace_dir"
-    test -s tcc_10/tcc.o
     sha256sum -c sum
 )

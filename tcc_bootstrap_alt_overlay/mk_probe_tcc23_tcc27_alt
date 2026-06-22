@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+exec "$overlay_dir/mk_test_tcc23_alt"

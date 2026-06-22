@@ -54,6 +54,49 @@
    the system header's decimal float constants with its broken strtod stub. */
 extern double ldexp(double __x, int __exp);
 
+static long double const_ull_to_ld(unsigned long long v)
+{
+    unsigned int lo, hi;
+
+    lo = (unsigned int)v;
+    hi = (unsigned int)(v >> 32);
+    return (long double)lo + (long double)ldexp((double)hi, 32);
+}
+
+static long double const_ll_to_ld(long long v)
+{
+    unsigned long long u;
+
+    if (v >= 0)
+        return const_ull_to_ld((unsigned long long)v);
+
+    u = (unsigned long long)(-(v + 1));
+    u = u + 1;
+    return -const_ull_to_ld(u);
+}
+
+static unsigned long long const_ld_to_ull(long double v)
+{
+    unsigned int hi, lo;
+    long double two32;
+
+    if (v <= 0)
+        return 0;
+
+    two32 = (long double)ldexp(1.0, 32);
+    hi = (unsigned int)(v / two32);
+    v = v - (long double)ldexp((double)hi, 32);
+    lo = (unsigned int)v;
+    return ((unsigned long long)hi << 32) | lo;
+}
+
+static long long const_ld_to_ll(long double v)
+{
+    if (v < 0)
+        return -(long long)const_ld_to_ull(-v);
+    return (long long)const_ld_to_ull(v);
+}
+
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
@@ -844,6 +887,7 @@ int get_reg_ex(int rc,int rc2);
 struct macro_level {
     struct macro_level *prev;
     int *p;
+    Sym *nested_sym;
 };
 
 static void macro_subst(TokenString *tok_str, Sym **nested_list, 
@@ -1157,7 +1201,7 @@ static void dynarray_add(void *ptab, int *nb_ptr, void *data)
     int nb, nb_alloc;
     void **pp;
     void ***pptab;
-    
+
     pptab = ptab;
     nb = *nb_ptr;
     pp = *pptab;
@@ -1231,7 +1275,7 @@ Section *new_section(TCCState *s1, const char *name, int sh_type, int sh_flags)
         sec->sh_addralign = 1;
         break;
     default:
-        sec->sh_addralign = 32; /* default conservative alignment */
+        sec->sh_addralign = PTR_SIZE; /* gcc/pcc default alignment */
         break;
     }
 
@@ -1429,31 +1473,34 @@ void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
 {
     char buf[2048];
     BufferedFile **f;
-    
-    buf[0] = '\0';
-    if (file) {
-        for(f = s1->include_stack; f < s1->include_stack_ptr; f++)
-            strcat_printf(buf, sizeof(buf), "In file included from %s:%d:\n", 
-                          (*f)->filename, (*f)->line_num);
-        if (file->line_num > 0) {
-            strcat_printf(buf, sizeof(buf), 
-                          "%s:%d: ", file->filename, file->line_num);
-        } else {
-            strcat_printf(buf, sizeof(buf),
-                          "%s: ", file->filename);
-        }
-    } else {
-        strcat_printf(buf, sizeof(buf),
-                      "tcc: ");
-    }
-    if (is_warning)
-        strcat_printf(buf, sizeof(buf), "warning: ");
-    strcat_vprintf(buf, sizeof(buf), fmt, ap);
 
     if (!s1->error_func) {
-        /* default case: stderr */
-        fprintf(stderr, "%s\n", buf);
+        if (file) {
+            for(f = s1->include_stack; f < s1->include_stack_ptr; f++)
+                fprintf(stderr, "In file included from %s:%d:\n",
+                        (*f)->filename, (*f)->line_num);
+            if (file->line_num > 0)
+                fprintf(stderr, "%s:%d: ", file->filename, file->line_num);
+            else
+                fprintf(stderr, "%s: ", file->filename);
+        } else {
+            fprintf(stderr, "tcc: ");
+        }
+        if (is_warning)
+            fprintf(stderr, "warning: ");
+        vfprintf(stderr, fmt, ap);
+        fprintf(stderr, "\n");
     } else {
+        buf[0] = '\0';
+        if (file) {
+            pstrcpy(buf, sizeof(buf), file->filename);
+            if (file->line_num > 0)
+                strcat_printf(buf, sizeof(buf), ":%d", file->line_num);
+        } else {
+            pstrcpy(buf, sizeof(buf), "tcc");
+        }
+        if (is_warning)
+            pstrcat(buf, sizeof(buf), ": warning");
         s1->error_func(s1->error_opaque, buf);
     }
     if (!is_warning || s1->warn_error)
@@ -4171,6 +4218,8 @@ static int macro_subst_tok(TokenString *tok_str,
                     macro_ptr = NULL;
                     if (ml)
                     {
+                        if (ml->nested_sym)
+                            ml->nested_sym->v = 0;
                         macro_ptr = ml->p;
                         ml->p = NULL;
                         *can_read_stream = ml -> prev;
@@ -4440,8 +4489,14 @@ static void macro_subst(TokenString *tok_str, Sym **nested_list,
                 goto no_subst;
             }
             ml.p = macro_ptr;
+            ml.nested_sym = NULL;
             if (can_read_stream)
                 ml.prev = *can_read_stream, *can_read_stream = &ml;
+            if (*nested_list) {
+                ml.nested_sym = *nested_list;
+                while (ml.nested_sym && ml.nested_sym->v == 0)
+                    ml.nested_sym = ml.nested_sym->prev;
+            }
             macro_ptr = (int *)ptr;
             tok = t;
             ret = macro_subst_tok(tok_str, nested_list, s, can_read_stream);
@@ -5864,7 +5919,7 @@ void force_charshort_cast(int t)
 /* cast 'vtop' to 'type'. Casting to bitfields is forbidden. */
 static void gen_cast(CType *type)
 {
-    int sbt, dbt, sf, df, c;
+    int sbt, dbt, sf, df, c, p;
 
     /* special delayed cast for char/short */
     /* XXX: in some cases (multiple cascaded casts), it may still
@@ -5882,114 +5937,102 @@ static void gen_cast(CType *type)
     dbt = type->t & (VT_BTYPE | VT_UNSIGNED);
     sbt = vtop->type.t & (VT_BTYPE | VT_UNSIGNED);
 
-    if (sbt != dbt && !nocode_wanted) {
+    if (sbt != dbt) {
         sf = is_float(sbt);
         df = is_float(dbt);
         c = (vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST;
-        if (sf && df) {
-            /* convert from fp to fp */
-            if (c) {
-                /* constant case: we can do it now */
-                /* XXX: in ISOC, cannot do it if error in convert */
-                if (dbt == VT_FLOAT && sbt == VT_DOUBLE) 
-                    vtop->c.f = (float)vtop->c.d;
-                else if (dbt == VT_FLOAT && sbt == VT_LDOUBLE) 
-                    vtop->c.f = (float)vtop->c.ld;
-                else if (dbt == VT_DOUBLE && sbt == VT_FLOAT) 
-                    vtop->c.d = (double)vtop->c.f;
-                else if (dbt == VT_DOUBLE && sbt == VT_LDOUBLE) 
-                    vtop->c.d = (double)vtop->c.ld;
-                else if (dbt == VT_LDOUBLE && sbt == VT_FLOAT) 
-                    vtop->c.ld = (long double)vtop->c.f;
-                else if (dbt == VT_LDOUBLE && sbt == VT_DOUBLE) 
-                    vtop->c.ld = (long double)vtop->c.d;
-            } else {
-                /* non constant case: generate code */
-                gen_cvt_ftof(dbt);
-            }
-        } else if (df) {
-            /* convert int to fp */
-            if (c) {
-                switch(sbt) {
-                case VT_LLONG | VT_UNSIGNED:
-                case VT_LLONG:
-                    /* XXX: add const cases for long long */
-                    goto do_itof;
-                case VT_INT | VT_UNSIGNED:
-                    switch(dbt) {
-                    case VT_FLOAT: vtop->c.f = (float)vtop->c.ui; break;
-                    case VT_DOUBLE: vtop->c.d = (double)vtop->c.ui; break;
-                    case VT_LDOUBLE: vtop->c.ld = (long double)vtop->c.ui; break;
-                    }
-                    break;
-                default:
-                    switch(dbt) {
-                    case VT_FLOAT: vtop->c.f = (float)vtop->c.i; break;
-                    case VT_DOUBLE: vtop->c.d = (double)vtop->c.i; break;
-                    case VT_LDOUBLE: vtop->c.ld = (long double)vtop->c.i; break;
-                    }
-                    break;
+        p = (vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == (VT_CONST | VT_SYM);
+        if (c) {
+            /* constant case: we can do it now */
+            /* XXX: in ISOC, cannot do it if error in convert */
+            if (sbt == VT_FLOAT)
+                vtop->c.ld = vtop->c.f;
+            else if (sbt == VT_DOUBLE)
+                vtop->c.ld = vtop->c.d;
+
+            if (df) {
+                if ((sbt & VT_BTYPE) == VT_LLONG) {
+                    if (sbt & VT_UNSIGNED)
+                        vtop->c.ld = const_ull_to_ld(vtop->c.ull);
+                    else
+                        vtop->c.ld = const_ll_to_ld(vtop->c.ll);
+                } else if (!sf) {
+                    if (sbt & VT_UNSIGNED)
+                        vtop->c.ld = vtop->c.ui;
+                    else
+                        vtop->c.ld = vtop->c.i;
                 }
+
+                if (dbt == VT_FLOAT)
+                    vtop->c.f = (float)vtop->c.ld;
+                else if (dbt == VT_DOUBLE)
+                    vtop->c.d = (double)vtop->c.ld;
+            } else if (sf && dbt == (VT_LLONG | VT_UNSIGNED)) {
+                vtop->c.ull = const_ld_to_ull(vtop->c.ld);
+            } else if (sf && dbt == VT_BOOL) {
+                vtop->c.i = (vtop->c.ld != 0);
             } else {
-            do_itof:
+                if (sf)
+                    vtop->c.ll = const_ld_to_ll(vtop->c.ld);
+                else if (sbt == (VT_LLONG | VT_UNSIGNED))
+                    vtop->c.ll = vtop->c.ull;
+                else if (sbt & VT_UNSIGNED)
+                    vtop->c.ll = vtop->c.ui;
+                else if (sbt != VT_LLONG)
+                    vtop->c.ll = vtop->c.i;
+
+                if (dbt == (VT_LLONG | VT_UNSIGNED))
+                    vtop->c.ull = vtop->c.ll;
+                else if (dbt == VT_BOOL)
+                    vtop->c.i = (vtop->c.ll != 0);
+                else if (dbt != VT_LLONG) {
+                    int s = 0;
+                    if ((dbt & VT_BTYPE) == VT_BYTE)
+                        s = 24;
+                    else if ((dbt & VT_BTYPE) == VT_SHORT)
+                        s = 16;
+
+                    if (dbt & VT_UNSIGNED)
+                        vtop->c.ui = ((unsigned int)vtop->c.ll << s) >> s;
+                    else
+                        vtop->c.i = ((int)vtop->c.ll << s) >> s;
+                }
+            }
+        } else if (p && dbt == VT_BOOL) {
+            vtop->r = VT_CONST;
+            vtop->c.i = 1;
+        } else if (!nocode_wanted) {
+            if (sf && df) {
+                /* convert from fp to fp */
+                gen_cvt_ftof(dbt);
+            } else if (df) {
+                /* convert int to fp */
 #if !defined(TCC_TARGET_ARM)
                 gen_cvt_itof1(dbt);
 #else
                 gen_cvt_itof(dbt);
 #endif
-            }
-        } else if (sf) {
-            /* convert fp to int */
-            if (dbt == VT_BOOL) {
-                 vpushi(0);
-                 gen_op(TOK_NE);
-            } else {
-                /* we handle char/short/etc... with generic code */
-                if (dbt != (VT_INT | VT_UNSIGNED) &&
-                    dbt != (VT_LLONG | VT_UNSIGNED) &&
-                    dbt != VT_LLONG)
-                    dbt = VT_INT;
-                if (c) {
-                    switch(dbt) {
-                    case VT_LLONG | VT_UNSIGNED:
-                    case VT_LLONG:
-                        /* XXX: add const cases for long long */
-                        goto do_ftoi;
-                    case VT_INT | VT_UNSIGNED:
-                        switch(sbt) {
-                        case VT_FLOAT: vtop->c.ui = (unsigned int)vtop->c.d; break;
-                        case VT_DOUBLE: vtop->c.ui = (unsigned int)vtop->c.d; break;
-                        case VT_LDOUBLE: vtop->c.ui = (unsigned int)vtop->c.d; break;
-                        }
-                        break;
-                    default:
-                        /* int case */
-                        switch(sbt) {
-                        case VT_FLOAT: vtop->c.i = (int)vtop->c.d; break;
-                        case VT_DOUBLE: vtop->c.i = (int)vtop->c.d; break;
-                        case VT_LDOUBLE: vtop->c.i = (int)vtop->c.d; break;
-                        }
-                        break;
-                    }
+            } else if (sf) {
+                /* convert fp to int */
+                if (dbt == VT_BOOL) {
+                    vpushi(0);
+                    gen_op(TOK_NE);
                 } else {
-                do_ftoi:
+                    /* we handle char/short/etc... with generic code */
+                    if (dbt != (VT_INT | VT_UNSIGNED) &&
+                        dbt != (VT_LLONG | VT_UNSIGNED) &&
+                        dbt != VT_LLONG)
+                        dbt = VT_INT;
                     gen_cvt_ftoi1(dbt);
+                    if (dbt == VT_INT && (type->t & (VT_BTYPE | VT_UNSIGNED)) != dbt) {
+                        /* additional cast for char/short... */
+                        vtop->type.t = dbt;
+                        gen_cast(type);
+                    }
                 }
-                if (dbt == VT_INT && (type->t & (VT_BTYPE | VT_UNSIGNED)) != dbt) {
-                    /* additional cast for char/short... */
-                    vtop->type.t = dbt;
-                    gen_cast(type);
-                }
-            }
-        } else if ((dbt & VT_BTYPE) == VT_LLONG) {
-            if ((sbt & VT_BTYPE) != VT_LLONG) {
-                /* scalar to long long */
-                if (c) {
-                    if (sbt == (VT_INT | VT_UNSIGNED))
-                        vtop->c.ll = vtop->c.ui;
-                    else
-                        vtop->c.ll = vtop->c.i;
-                } else {
+            } else if ((dbt & VT_BTYPE) == VT_LLONG) {
+                if ((sbt & VT_BTYPE) != VT_LLONG) {
+                    /* scalar to long long */
                     /* machine independent conversion */
                     gv(RC_INT);
                     /* generate high word */
@@ -6005,28 +6048,28 @@ static void gen_cast(CType *type)
                     vtop[-1].r2 = vtop->r;
                     vpop();
                 }
+            } else if (dbt == VT_BOOL) {
+                /* scalar to bool */
+                vpushi(0);
+                gen_op(TOK_NE);
+            } else if ((dbt & VT_BTYPE) == VT_BYTE ||
+                       (dbt & VT_BTYPE) == VT_SHORT) {
+                if (sbt == VT_PTR) {
+                    vtop->type.t = VT_INT;
+                    warning("nonportable conversion from pointer to char/short");
+                }
+                force_charshort_cast(dbt);
+            } else if ((dbt & VT_BTYPE) == VT_INT) {
+                /* scalar to int */
+                if (sbt == VT_LLONG) {
+                    /* from long long: just take low order word */
+                    lexpand();
+                    vpop();
+                }
+                /* if lvalue and single word type, nothing to do because
+                   the lvalue already contains the real type size (see
+                   VT_LVAL_xxx constants) */
             }
-        } else if (dbt == VT_BOOL) {
-            /* scalar to bool */
-            vpushi(0);
-            gen_op(TOK_NE);
-        } else if ((dbt & VT_BTYPE) == VT_BYTE || 
-                   (dbt & VT_BTYPE) == VT_SHORT) {
-            if (sbt == VT_PTR) {
-                vtop->type.t = VT_INT;
-                warning("nonportable conversion from pointer to char/short");
-            }
-            force_charshort_cast(dbt);
-        } else if ((dbt & VT_BTYPE) == VT_INT) {
-            /* scalar to int */
-            if (sbt == VT_LLONG) {
-                /* from long long: just take low order word */
-                lexpand();
-                vpop();
-            } 
-            /* if lvalue and single word type, nothing to do because
-               the lvalue already contains the real type size (see
-               VT_LVAL_xxx constants) */
         }
     } else if ((dbt & VT_BTYPE) == VT_PTR && !(vtop->r & VT_LVAL)) {
         /* if we are casting between pointer types,
@@ -9035,6 +9078,10 @@ static void func_decl_list(Sym *func_sym)
    'cur_text_section' */
 static void gen_function(Sym *sym)
 {
+    int saved_nocode_wanted;
+
+    saved_nocode_wanted = nocode_wanted;
+    nocode_wanted = 0;
     ind = cur_text_section->data_offset;
     /* NOTE: we patch the symbol size later */
     put_extern_sym(sym, cur_text_section, ind, 0);
@@ -9060,9 +9107,11 @@ static void gen_function(Sym *sym)
     if (do_debug) {
         put_stabn(N_FUN, 0, 0, ind - func_ind);
     }
+    cur_text_section = NULL;
     funcname = ""; /* for safety */
     func_vt.t = VT_VOID; /* for safety */
     ind = 0; /* for safety */
+    nocode_wanted = saved_nocode_wanted;
 }
 
 static void gen_inline_functions(TCCState *s)
@@ -9899,6 +9948,7 @@ TCCState *tcc_new(void)
     tcc_define_symbol(s, "__SIZE_TYPE__", "unsigned int");
     tcc_define_symbol(s, "__PTRDIFF_TYPE__", "int");
     tcc_define_symbol(s, "__WCHAR_TYPE__", "int");
+    tcc_define_symbol(s, "__WINT_TYPE__", "int");
     
     /* default library paths */
 #ifdef TCC_TARGET_PE
