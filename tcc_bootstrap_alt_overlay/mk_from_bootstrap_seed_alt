@@ -6,7 +6,6 @@ repo_root="$overlay_dir/.."
 workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
 
 cp -f "$overlay_dir/tcc_10_alt/build_tcc2.kaem" "$workspace_dir/tcc_10/build.kaem"
-cp -f "$overlay_dir/after_tcc23.kaem" "$workspace_dir/after.kaem"
 
 (
     cd "$workspace_dir"
