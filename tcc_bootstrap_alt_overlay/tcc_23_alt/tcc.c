@@ -752,6 +752,20 @@ struct TCCState {
 #define countof(tab) (sizeof(tab) / sizeof((tab)[0]))
 #endif
 
+static void cvalue_negate_float(CValue *c, int t)
+{
+    unsigned char *p;
+
+    p = (unsigned char *)c;
+    if (t == VT_FLOAT) {
+        p[3] ^= 0x80;
+    } else if (t == VT_DOUBLE) {
+        p[7] ^= 0x80;
+    } else {
+        p[9] ^= 0x80;
+    }
+}
+
 /* WARNING: the content of this string encodes token numbers */
 static char tok_two_chars[] = "<=\236>=\235!=\225&&\240||\241++\244--\242==\224<<\1>>\2+=\253-=\255*=\252/=\257%=\245&=\246^=\336|=\374->\313..\250##\266";
 
@@ -7625,8 +7639,15 @@ static void unary(void)
         break;
     case '-':
         next();
-        vpushi(0);
         unary();
+        t = vtop->type.t & VT_BTYPE;
+        if (is_float(t) &&
+            (vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST) {
+            cvalue_negate_float(&vtop->c, t);
+            break;
+        }
+        vpushi(0);
+        vswap();
         gen_op('-');
         break;
     case TOK_LAND:
