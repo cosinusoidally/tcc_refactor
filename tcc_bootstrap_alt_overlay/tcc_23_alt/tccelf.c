@@ -45,6 +45,17 @@ static unsigned long elf_hash(const unsigned char *name)
     return h;
 }
 
+static int elf_str_eq(const char *a, const char *b)
+{
+    while (*a && *b) {
+        if (*a != *b)
+            return 0;
+        ++a;
+        ++b;
+    }
+    return *a == *b;
+}
+
 /* rebuild hash table of section s */
 /* NOTE: we do factorize the hash table code to go faster */
 static void rebuild_hash(Section *s, unsigned int nb_buckets)
@@ -146,7 +157,7 @@ static int find_elf_sym(Section *s, const char *name)
     while (sym_index != 0) {
         sym = &((Elf32_Sym *)s->data)[sym_index];
         name1 = s->link->data + sym->st_name;
-        if (!strcmp(name, name1))
+        if (elf_str_eq(name, name1))
             return sym_index;
         sym_index = ((int *)hs->data)[2 + nbuckets + sym_index];
     }
@@ -208,8 +219,10 @@ static int add_elf_sym(Section *s, unsigned long value, unsigned long size,
                        sym_bind, sh_num, esym_bind, esym->st_shndx);
 #endif
                 /* NOTE: we accept that two DLL define the same symbol */
-                if (s != tcc_state->dynsymtab_section)
+                if (s != tcc_state->dynsymtab_section) {
+                    puts(name);
                     error_noabort("'%s' defined twice", name);
+                }
             }
         } else {
         do_patch:

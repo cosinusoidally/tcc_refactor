@@ -161,8 +161,10 @@ typedef int BOOL;
 #define STRING_MAX_SIZE     1024
 #define PACK_STACK_SIZE     8
 
-#define TOK_HASH_SIZE       8192 /* must be a power of two */
+#define TOK_HASH_SIZE       16384 /* must be a power of two */
 #define TOK_ALLOC_INCR      512  /* must be a power of two */
+#define TOKSYM_ARENA_SIZE   (768 * 1024)
+#define TABLE_IDENT_INIT    65536
 #define TOKSTR_MAX_SIZE     256
 #define TOK_MAX_SIZE        4 /* token max size in int unit when stored in string */
 
@@ -177,6 +179,13 @@ typedef struct TokenSym {
     int len;
     char str[1];
 } TokenSym;
+
+typedef struct TinySymAlloc {
+    unsigned long size;
+    char *buffer;
+    char *p;
+    struct TinySymAlloc *next;
+} TinySymAlloc;
 
 typedef struct CString {
     int size; /* size in bytes */
@@ -445,13 +454,16 @@ static CType func_vt; /* current function return type (used by return
 static int func_vc;
 static int last_line_num, last_ind, func_ind; /* debug last line number and pc */
 static int tok_ident;
+static int table_ident_alloc;
 static TokenSym **table_ident;
 static TokenSym *hash_ident[TOK_HASH_SIZE];
+static TinySymAlloc *toksym_alloc;
 static char token_buf[STRING_MAX_SIZE + 1];
 static const char *funcname;
 static Sym *global_stack, *local_stack;
 static Sym *define_stack;
 static Sym *global_label_stack, *local_label_stack;
+static int local_scope;
 /* symbol allocator */
 #define SYM_POOL_NB (8192 / sizeof(Sym))
 static Sym *sym_free_first;
@@ -922,6 +934,9 @@ char *get_tok_str(int v, CValue *cv);
 static Sym *get_sym_ref(CType *type, Section *sec, 
                         unsigned long offset, unsigned long size);
 static Sym *external_global_sym(int v, CType *type, int r);
+static void patch_type(Sym *sym, CType *type);
+static void patch_storage(Sym *sym, AttributeDef *ad, CType *type);
+static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
 
 /* section generation */
 static void section_realloc(Section *sec, unsigned long new_size);
@@ -1600,25 +1615,79 @@ static void test_lvalue(void)
         expect("lvalue");
 }
 
+static TinySymAlloc *toksym_arena_new(unsigned long size)
+{
+    TinySymAlloc *al;
+
+    al = tcc_malloc(sizeof(TinySymAlloc));
+    al->buffer = tcc_malloc(size);
+    al->p = al->buffer;
+    al->size = size;
+    al->next = NULL;
+    return al;
+}
+
+static void toksym_arena_delete(TinySymAlloc *al)
+{
+    TinySymAlloc *next;
+
+    while (al) {
+        next = al->next;
+        tcc_free(al->buffer);
+        tcc_free(al);
+        al = next;
+    }
+}
+
+static void *toksym_arena_alloc(unsigned long size)
+{
+    TinySymAlloc *al;
+    char *p;
+    unsigned long new_size;
+
+    size = (size + 3) & -4;
+    al = toksym_alloc;
+    for (;;) {
+        p = al->p;
+        if ((unsigned long)(p - al->buffer) + size <= al->size) {
+            al->p = p + size;
+            return p;
+        }
+        if (!al->next) {
+            new_size = al->size * 2;
+            if (new_size < size)
+                new_size = size * 2;
+            al->next = toksym_arena_new(new_size);
+        }
+        al = al->next;
+    }
+}
+
 /* allocate a new token */
-static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
+static TokenSym *tok_alloc_new(const char *str, int len)
 {
     TokenSym *ts, **ptable;
-    int i;
+    int i, new_alloc;
 
     if (tok_ident >= SYM_FIRST_ANOM) 
         error("memory full");
 
     /* expand token table if needed */
     i = tok_ident - TOK_IDENT;
-    if ((i % TOK_ALLOC_INCR) == 0) {
-        ptable = tcc_realloc(table_ident, (i + TOK_ALLOC_INCR) * sizeof(TokenSym *));
-        if (!ptable)
-            error("memory full");
+    if (i >= table_ident_alloc) {
+        new_alloc = table_ident_alloc * 2;
+        while (i >= new_alloc)
+            new_alloc *= 2;
+        ptable = tcc_malloc(new_alloc * sizeof(TokenSym *));
+        memcpy(ptable, table_ident, table_ident_alloc * sizeof(TokenSym *));
+        memset(ptable + table_ident_alloc, 0,
+               (new_alloc - table_ident_alloc) * sizeof(TokenSym *));
+        tcc_free(table_ident);
         table_ident = ptable;
+        table_ident_alloc = new_alloc;
     }
 
-    ts = tcc_malloc(sizeof(TokenSym) + len);
+    ts = toksym_arena_alloc(sizeof(TokenSym) + len);
     table_ident[i] = ts;
     ts->tok = tok_ident++;
     ts->sym_define = NULL;
@@ -1629,35 +1698,31 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
     ts->hash_next = NULL;
     memcpy(ts->str, str, len);
     ts->str[len] = '\0';
-    *pts = ts;
     return ts;
 }
 
 #define TOK_HASH_INIT 1
-#define TOK_HASH_FUNC(h, c) ((h) * 263 + (c))
+#define TOK_HASH_FUNC(h, c) ((h) + ((h) << 5) + ((h) >> 27) + (c))
 
 /* find a token and add it if not found */
 static TokenSym *tok_alloc(const char *str, int len)
 {
-    TokenSym *ts, **pts;
-    int i;
-    unsigned int h;
-    
-    h = TOK_HASH_INIT;
-    for(i=0;i<len;i++)
-        h = TOK_HASH_FUNC(h, ((unsigned char *)str)[i]);
-    h &= (TOK_HASH_SIZE - 1);
+    TokenSym *ts;
+    int i, j, n;
 
-    pts = &hash_ident[h];
-    for(;;) {
-        ts = *pts;
-        if (!ts)
-            break;
-        if (ts->len == len && !memcmp(ts->str, str, len))
-            return ts;
-        pts = &(ts->hash_next);
+    n = tok_ident - TOK_IDENT;
+    for (i = 0; i < n; ++i) {
+        ts = table_ident[i];
+        if (ts->len != len)
+            goto next_tok;
+        for (j = 0; j < len; ++j) {
+            if (ts->str[j] != str[j])
+                goto next_tok;
+        }
+        return ts;
+    next_tok:;
     }
-    return tok_alloc_new(pts, str, len);
+    return tok_alloc_new(str, len);
 }
 
 /* CString handling */
@@ -1882,6 +1947,8 @@ static Sym *sym_push2(Sym **ps, int v, int t, int c)
     s->type.t = t;
     s->c = c;
     s->next = NULL;
+    s->sym_scope = 0;
+    s->prev_tok = NULL;
     /* add in stack */
     s->prev = *ps;
     *ps = s;
@@ -1942,6 +2009,7 @@ static Sym *sym_push(int v, CType *type, int r, int c)
             ps = &ts->sym_identifier;
         s->prev_tok = *ps;
         *ps = s;
+        s->sym_scope = local_scope;
     }
     return s;
 }
@@ -1956,18 +2024,21 @@ static Sym *global_identifier_push(int v, int t, int c)
         ps = &table_ident[v - TOK_IDENT]->sym_identifier;
         /* modify the top most local identifier, so that
            sym_identifier will point to 's' when popped */
-        while (*ps != NULL)
+        while (*ps != NULL && (*ps)->sym_scope)
             ps = &(*ps)->prev_tok;
-        s->prev_tok = NULL;
+        s->prev_tok = *ps;
         *ps = s;
     }
     return s;
 }
 
-/* pop symbols until top reaches 'b' */
-static void sym_pop(Sym **ptop, Sym *b)
+/* pop symbols until top reaches 'b'. If 'keep' is non zero, remove
+   them from token lookup tables now, but keep them linked on the
+   symbol stack for any statement-expression value still referring to
+   them. */
+static void sym_pop(Sym **ptop, Sym *b, int keep)
 {
-    Sym *s, *ss, *ass, **ps;
+    Sym *s, *ss, **ps;
     TokenSym *ts;
     int v;
 
@@ -1985,10 +2056,12 @@ static void sym_pop(Sym **ptop, Sym *b)
                 ps = &ts->sym_identifier;
             *ps = s->prev_tok;
         }
-        sym_free(s);
+        if (!keep)
+            sym_free(s);
         s = ss;
     }
-    *ptop = b;
+    if (!keep)
+        *ptop = b;
 }
 
 /* I/O layer */
@@ -3035,7 +3108,19 @@ static void preprocess(int is_bof)
                 /* check syntax and remove '<>' */
                 if (len < 2 || buf[0] != '<' || buf[len - 1] != '>')
                     goto include_syntax;
-                memmove(buf, buf + 1, len - 2);
+                {
+                    char *dst;
+                    char *src;
+                    int count;
+
+                    dst = buf;
+                    src = buf + 1;
+                    count = len - 2;
+                    while (count > 0) {
+                        *dst++ = *src++;
+                        --count;
+                    }
+                }
                 buf[len - 2] = '\0';
                 c = '>';
             }
@@ -3777,24 +3862,12 @@ static inline void next_nomacro1(void)
             p++;
         }
         if (c != '\\') {
-            TokenSym **pts;
-            int len;
-
-            /* fast case : no stray found, so we have the full token
-               and we have already hashed it */
-            len = p - p1;
-            h &= (TOK_HASH_SIZE - 1);
-            pts = &hash_ident[h];
-            for(;;) {
-                ts = *pts;
-                if (!ts)
-                    break;
-                if (ts->len == len && !memcmp(ts->str, p1, len))
-                    goto token_found;
-                pts = &(ts->hash_next);
+            cstr_reset(&tokcstr);
+            while (p1 < p) {
+                cstr_ccat(&tokcstr, *p1);
+                p1++;
             }
-            ts = tok_alloc_new(pts, p1, len);
-        token_found: ;
+            ts = tok_alloc(tokcstr.data, tokcstr.size);
         } else {
             /* slower case */
             cstr_reset(&tokcstr);
@@ -4689,8 +4762,51 @@ static Sym *external_global_sym(int v, CType *type, int r)
     return s;
 }
 
+static void patch_type(Sym *sym, CType *type)
+{
+    if (!(type->t & VT_EXTERN)) {
+        if (!(sym->type.t & VT_EXTERN) &&
+            (sym->type.t & VT_BTYPE) != VT_FUNC)
+            error("redefinition of '%s'", get_tok_str(sym->v, NULL));
+        sym->type.t &= ~VT_EXTERN;
+    }
+
+    if (!is_compatible_types(&sym->type, type)) {
+        error("incompatible types for redefinition of '%s'",
+              get_tok_str(sym->v, NULL));
+    } else if ((sym->type.t & VT_BTYPE) == VT_FUNC) {
+        int static_proto;
+
+        static_proto = sym->type.t & VT_STATIC;
+        if (!(type->t & VT_EXTERN)) {
+            sym->type.t = (type->t & ~VT_STATIC) | static_proto;
+            if (type->t & VT_INLINE)
+                sym->type.t = type->t;
+            sym->type.ref = type->ref;
+        }
+    } else {
+        if ((sym->type.t & VT_ARRAY) && type->ref->c >= 0) {
+            if (sym->type.ref->c < 0)
+                sym->type.ref->c = type->ref->c;
+            else if (sym->type.ref->c != type->ref->c)
+                error("conflicting type for '%s'", get_tok_str(sym->v, NULL));
+        }
+    }
+}
+
+static void patch_storage(Sym *sym, AttributeDef *ad, CType *type)
+{
+    if (type)
+        patch_type(sym, type);
+
+    if (ad->func_call &&
+        (sym->type.t & VT_BTYPE) == VT_FUNC &&
+        sym->type.ref->r == FUNC_CDECL)
+        sym->type.ref->r = ad->func_call;
+}
+
 /* define a new external reference to a symbol 'v' of type 'u' */
-static Sym *external_sym(int v, CType *type, int r)
+static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
 {
     Sym *s;
 
@@ -4699,10 +4815,14 @@ static Sym *external_sym(int v, CType *type, int r)
         /* push forward reference */
         s = sym_push(v, type, r | VT_CONST | VT_SYM, 0);
         s->type.t |= VT_EXTERN;
+        s->sym_scope = 0;
     } else {
-        if (!is_compatible_types(&s->type, type))
-            error("incompatible types for redefinition of '%s'", 
-                  get_tok_str(v, NULL));
+        if (s->type.ref == func_old_type.ref) {
+            s->type.ref = type->ref;
+            s->r = r | VT_CONST | VT_SYM;
+            s->type.t |= VT_EXTERN;
+        }
+        patch_storage(s, ad, type);
     }
     return s;
 }
@@ -8129,7 +8249,9 @@ static void block(int *bsym, int *csym, int *case_sym, int *def_sym,
         skip(')');
         a = gtst(1, 0);
         b = 0;
+        ++local_scope;
         block(&a, &b, case_sym, def_sym, case_reg, 0);
+        --local_scope;
         gjmp_addr(d);
         gsym(a);
         gsym_addr(b, d);
@@ -8140,6 +8262,7 @@ static void block(int *bsym, int *csym, int *case_sym, int *def_sym,
         /* record local declaration stack position */
         s = local_stack;
         llabel = local_label_stack;
+        ++local_scope;
         /* handle local labels declarations */
         if (tok == TOK_LABEL) {
             next();
@@ -8165,9 +8288,10 @@ static void block(int *bsym, int *csym, int *case_sym, int *def_sym,
             }
         }
         /* pop locally defined labels */
-        label_pop(&local_label_stack, llabel, 0);
+        label_pop(&local_label_stack, llabel, is_expr);
         /* pop locally defined symbols */
-        sym_pop(&local_stack, s);
+        --local_scope;
+        sym_pop(&local_stack, s, is_expr);
         next();
     } else if (tok == TOK_RETURN) {
         next();
@@ -8212,6 +8336,8 @@ static void block(int *bsym, int *csym, int *case_sym, int *def_sym,
         int e;
         next();
         skip('(');
+        s = local_stack;
+        ++local_scope;
         if (tok != ';') {
             gexpr();
             vpop();
@@ -8239,6 +8365,8 @@ static void block(int *bsym, int *csym, int *case_sym, int *def_sym,
         gjmp_addr(c);
         gsym(a);
         gsym_addr(b, c);
+        --local_scope;
+        sym_pop(&local_stack, s, 0);
     } else 
     if (tok == TOK_DO) {
         next();
@@ -9117,14 +9245,17 @@ static void gen_function(Sym *sym)
         put_func_debug(sym);
     /* push a dummy symbol to enable local sym storage */
     sym_push2(&local_stack, SYM_FIELD, 0, 0);
+    local_scope = 1; /* function parameters */
     gfunc_prolog(&sym->type);
+    local_scope = 0;
     rsym = 0;
     block(NULL, NULL, NULL, NULL, 0, 0);
     gsym(rsym);
     gfunc_epilog();
     cur_text_section->data_offset = ind;
     label_pop(&global_label_stack, NULL, 0);
-    sym_pop(&local_stack, NULL); /* reset local stack */
+    local_scope = 0;
+    sym_pop(&local_stack, NULL, 0); /* reset local stack */
     /* end of function */
     /* patch symbol size */
     ((Elf32_Sym *)symtab_section->data)[sym->c].st_size = 
@@ -9258,28 +9389,9 @@ static void decl(int l)
                 if ((type.t & (VT_EXTERN | VT_INLINE)) == (VT_EXTERN | VT_INLINE))
                     type.t = (type.t & ~VT_EXTERN) | VT_STATIC;
                 
-                sym = sym_find(v);
-                if (sym) {
-                    if ((sym->type.t & VT_BTYPE) != VT_FUNC)
-                        goto func_error1;
-                    /* specific case: if not func_call defined, we put
-                       the one of the prototype */
-                    /* XXX: should have default value */
-                    if (sym->type.ref->r != FUNC_CDECL &&
-                        type.ref->r == FUNC_CDECL)
-                        type.ref->r = sym->type.ref->r;
-                    if (!is_compatible_types(&sym->type, &type)) {
-                    func_error1:
-                        error("incompatible types for redefinition of '%s'", 
-                              get_tok_str(v, NULL));
-                    }
-                    /* if symbol is already defined, then put complete type */
-                    sym->type = type;
-                } else {
-                    /* put function symbol */
-                    sym = global_identifier_push(v, type.t, 0);
-                    sym->type.ref = type.ref;
-                }
+                sym = external_global_sym(v, &type, 0);
+                type.t &= ~VT_EXTERN;
+                patch_storage(sym, &ad, &type);
 
                 /* static inline functions are just recorded as a kind
                    of macro. Their code will be emitted at the end of
@@ -9335,7 +9447,7 @@ static void decl(int l)
                     /* specific case for func_call attribute */
                     if (ad.func_call)
                         type.ref->r = ad.func_call;
-                    external_sym(v, &type, 0);
+                    external_sym(v, &type, 0, &ad);
                 } else {
                     /* not lvalue if array */
                     r = 0;
@@ -9349,7 +9461,7 @@ static void decl(int l)
                         /* NOTE: as GCC, uninitialized global static
                            arrays of null size are considered as
                            extern */
-                        external_sym(v, &type, r);
+                        external_sym(v, &type, r, &ad);
                     } else {
                         if (type.t & VT_STATIC)
                             r |= VT_CONST;
@@ -9472,7 +9584,7 @@ static int tcc_compile(TCCState *s1)
 
     gen_inline_functions(s1);
 
-    sym_pop(&global_stack, NULL);
+    sym_pop(&global_stack, NULL, 0);
 
     return s1->nb_errors != 0 ? -1 : 0;
 }
@@ -9924,7 +10036,9 @@ TCCState *tcc_new(void)
         isidnum_table[i] = isid(i) || isnum(i);
 
     /* add all tokens */
-    table_ident = NULL;
+    table_ident_alloc = TABLE_IDENT_INIT;
+    table_ident = tcc_mallocz(table_ident_alloc * sizeof(TokenSym *));
+    toksym_alloc = toksym_arena_new(TOKSYM_ARENA_SIZE);
     memset(hash_ident, 0, TOK_HASH_SIZE * sizeof(TokenSym *));
     
     tok_ident = TOK_IDENT;
@@ -10027,9 +10141,10 @@ void tcc_delete(TCCState *s1)
 
     /* free tokens */
     n = tok_ident - TOK_IDENT;
-    for(i = 0; i < n; i++)
-        tcc_free(table_ident[i]);
     tcc_free(table_ident);
+    table_ident_alloc = 0;
+    toksym_arena_delete(toksym_alloc);
+    toksym_alloc = NULL;
 
     /* free all sections */
 
