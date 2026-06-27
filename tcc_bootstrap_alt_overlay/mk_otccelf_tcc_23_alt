@@ -25,13 +25,6 @@ cp -f "$overlay_dir/otccelf_alt/mk_elf_loader_tcc_23_alt" "$workspace_dir/otccel
 )
 
 (
-    cd "$repo_root"
-    ./scripts/run-i386.sh /bin/sh -c \
-        "cd '$repo_root' && TCC23_ALT_LOADER='../otccelf/artifacts/elf_loader_otcc.exe' \
-        '$overlay_dir/mk_build_tcc27_from_tcc23_alt' '$workspace_dir'"
-)
-
-(
     cd "$workspace_dir"
     sha256sum -c sum
 )

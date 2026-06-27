@@ -9,7 +9,7 @@ workspace_dir="$workspace_root/tcc_bootstrap_alt"
 rm -rf "$workspace_root"
 mkdir -p "$workspace_root"
 cp -a "$upstream_dir" "$workspace_dir"
-rm -rf "$workspace_dir/tcc_3" "$workspace_dir/tcc_3_orig" "$workspace_dir/tcc_24"
+rm -rf "$workspace_dir/tcc_3" "$workspace_dir/tcc_3_orig" "$workspace_dir/tcc_24" "$workspace_dir/tcc_26"
 if [ -d "$overlay_dir/tcc_10_alt" ]; then
     rm -rf "$workspace_dir/tcc_10"
     cp -a "$upstream_dir/tcc_10" "$workspace_dir/tcc_10"
@@ -30,9 +30,6 @@ if [ -f "$overlay_dir/after.kaem" ]; then
 fi
 rm -rf "$workspace_dir/tcc_23"
 cp -a "$overlay_dir/tcc_23_alt" "$workspace_dir/tcc_23"
-if [ -f "$overlay_dir/tcc_26_build.kaem" ]; then
-    cp -f "$overlay_dir/tcc_26_build.kaem" "$workspace_dir/tcc_26/build.kaem"
-fi
 (
     cd "$workspace_dir"
     ./mk_really_clean >/dev/null 2>&1 || true

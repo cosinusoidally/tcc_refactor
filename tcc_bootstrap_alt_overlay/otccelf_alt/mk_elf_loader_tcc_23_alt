@@ -13,3 +13,15 @@ rm -f ./*.o
 
 ../otccelf/artifacts/elf_loader_otcc.exe -l libtcc1_min.o -l tcc.o -c libtcc1.c
 ../otccelf/artifacts/elf_loader_otcc.exe -l libtcc1_min.o -l tcc.o -I ../woody/usr/include/ -I . -c tcc.c
+
+cd ../tcc_27/
+rm -f ./*.o
+
+../otccelf/artifacts/elf_loader_otcc.exe -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE
+../otccelf/artifacts/elf_loader_otcc.exe -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o -c ./lib/libtcc1.c
+
+../otccelf/artifacts/elf_loader_otcc.exe -l libtcc1.o -l tcc.o -c ./lib/libtcc1.c -o libtcc1_new.o
+../otccelf/artifacts/elf_loader_otcc.exe -l libtcc1.o -l tcc.o -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE -o tcc_new.o
+
+mv libtcc1_new.o libtcc1.o
+mv tcc_new.o tcc.o
