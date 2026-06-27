@@ -6,6 +6,23 @@ int int2str();
 int fputs();
 int fputc();
 
+int strcmp(const char *a, const char *b)
+{
+    unsigned char ca;
+    unsigned char cb;
+
+    for (;;) {
+        ca = *a;
+        cb = *b;
+        if (ca != cb)
+            return (int)ca - (int)cb;
+        if (ca == 0)
+            return 0;
+        ++a;
+        ++b;
+    }
+}
+
 static int boot_copy_rel_name(int dst, int suffix)
 {
     int o;
