@@ -1,0 +1,44 @@
+#!/bin/sh
+set -eu
+
+overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root="$overlay_dir/.."
+workspace_dir=$("$overlay_dir/mk_prepare_workspace_tcc_23_alt")
+
+cp -f "$overlay_dir/tcc_10_alt/build_tcc2.kaem" "$workspace_dir/tcc_10/build.kaem"
+cp -f "$overlay_dir/after_tcc23.kaem" "$workspace_dir/after.kaem"
+
+(
+    cd "$workspace_dir"
+    ./mk_really_clean >/dev/null 2>&1 || true
+    bash ./mk_seeds
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir' && ./x86/artifact/kaem-optional-seed"
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -c '$overlay_dir/tcc_23_alt/tests/negative_zero_data_min.c' \
+            -o negative_zero_data_min.o"
+)
+
+objcopy --dump-section .data="$workspace_dir/tcc_27/negative_zero_data_min.data" \
+    "$workspace_dir/tcc_27/negative_zero_data_min.o"
+
+data_hex=$(xxd -p -c 12 "$workspace_dir/tcc_27/negative_zero_data_min.data" | tr -d '\n')
+
+case "$data_hex" in
+    000000800000000000000080*)
+        ;;
+    *)
+        echo "negative_zero_data_min.o lost float/double negative-zero sign bits" >&2
+        echo "data=$data_hex" >&2
+        exit 1
+        ;;
+esac
