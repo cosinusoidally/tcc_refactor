@@ -1027,9 +1027,9 @@ static void subst_asm_operand(CString *add_str,
         reg = r & VT_VALMASK;
         if (reg >= VT_CONST)
             error("internal compiler error");
-        snprintf(buf, sizeof(buf), "(%%%s)", 
-                 get_tok_str(TOK_ASM_eax + reg, NULL));
-        cstr_cat(add_str, buf, -1);
+        cstr_cat(add_str, "(%", 2);
+        cstr_cat(add_str, get_tok_str(TOK_ASM_eax + reg, NULL), -1);
+        cstr_ccat(add_str, ')');
     } else {
         /* register case */
         reg = r & VT_VALMASK;

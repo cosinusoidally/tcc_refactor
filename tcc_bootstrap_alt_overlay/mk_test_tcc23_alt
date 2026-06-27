@@ -24,6 +24,38 @@ cp -f "$overlay_dir/after_tcc23.kaem" "$workspace_dir/after.kaem"
     ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
         ../x86/bin/elf_loader_cc_x86.exe \
             -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -c '$overlay_dir/phase1_support/qsort_boot.c' \
+            -o qsort_boot.o"
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -c '$overlay_dir/tcc_23_alt/tests/i386_asm_lval_operand_min.c' \
+            -o i386_asm_lval_operand_min.o"
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -c '$overlay_dir/tcc_23_alt/tests/function_proto_reloc_min.c' \
+            -o function_proto_reloc_min.o"
+)
+
+if ! objdump -dr "$workspace_dir/tcc_27/function_proto_reloc_min.o" | grep -q 'R_386_PC32[[:space:]]*foo$'; then
+    echo "function_proto_reloc_min.o does not relocate call sites to foo" >&2
+    exit 1
+fi
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
             -I include \
             -c '$overlay_dir/tcc_23_alt/tests/tcc27_need_wint_type.c' \
             -o tcc27_need_wint_type.o"
@@ -40,7 +72,7 @@ cp -f "$overlay_dir/after_tcc23.kaem" "$workspace_dir/after.kaem"
             -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
             -c ./lib/libtcc1.c -o libtcc1_from23_direct.o && \
         ../x86/bin/elf_loader_cc_x86.exe \
-            -l ../tcc_23/libc_boot2.o -l libtcc1_from23_direct.o -l tcc_from23_direct.o \
+            -l ../tcc_23/libc_boot2.o -l qsort_boot.o -l libtcc1_from23_direct.o -l tcc_from23_direct.o \
             -c '$overlay_dir/tcc_23_alt/tests/tcc27_stage1_min.c' \
             -o tcc27_stage1_min.o"
 )

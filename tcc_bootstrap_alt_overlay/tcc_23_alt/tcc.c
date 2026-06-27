@@ -1469,6 +1469,22 @@ static void strcat_printf(char *buf, int buf_size, const char *fmt, ...)
     va_end(ap);
 }
 
+static void tcc_fputs(const char *s, FILE *stream)
+{
+    while (*s != '\0') {
+        fputc(*s, stream);
+        ++s;
+    }
+}
+
+static void tcc_fputi(int v, FILE *stream)
+{
+    char buf[32];
+
+    sprintf(buf, "%d", v);
+    tcc_fputs(buf, stream);
+}
+
 void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
 {
     char buf[2048];
@@ -1476,20 +1492,29 @@ void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
 
     if (!s1->error_func) {
         if (file) {
-            for(f = s1->include_stack; f < s1->include_stack_ptr; f++)
-                fprintf(stderr, "In file included from %s:%d:\n",
-                        (*f)->filename, (*f)->line_num);
-            if (file->line_num > 0)
-                fprintf(stderr, "%s:%d: ", file->filename, file->line_num);
-            else
-                fprintf(stderr, "%s: ", file->filename);
+            for(f = s1->include_stack; f < s1->include_stack_ptr; f++) {
+                tcc_fputs("In file included from ", stderr);
+                tcc_fputs((*f)->filename, stderr);
+                fputc(':', stderr);
+                tcc_fputi((*f)->line_num, stderr);
+                tcc_fputs(":\n", stderr);
+            }
+            if (file->line_num > 0) {
+                tcc_fputs(file->filename, stderr);
+                fputc(':', stderr);
+                tcc_fputi(file->line_num, stderr);
+                tcc_fputs(": ", stderr);
+            } else {
+                tcc_fputs(file->filename, stderr);
+                tcc_fputs(": ", stderr);
+            }
         } else {
-            fprintf(stderr, "tcc: ");
+            tcc_fputs("tcc: ", stderr);
         }
         if (is_warning)
-            fprintf(stderr, "warning: ");
-        vfprintf(stderr, fmt, ap);
-        fprintf(stderr, "\n");
+            tcc_fputs("warning: ", stderr);
+        tcc_fputs(fmt, stderr);
+        fputc('\n', stderr);
     } else {
         buf[0] = '\0';
         if (file) {
