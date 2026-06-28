@@ -1,0 +1,12 @@
+# build tcc_27 using tcc_23
+
+../x86/bin/elf_loader_cc_x86.exe -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o -c ../phase1_support/qsort_boot.c -o qsort_boot.o
+
+../x86/bin/elf_loader_cc_x86.exe -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE -o tcc_from23_direct.o
+../x86/bin/elf_loader_cc_x86.exe -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o -c ./lib/libtcc1.c -o libtcc1_from23_direct.o
+
+../x86/bin/elf_loader_cc_x86.exe -l qsort_boot.o -l ../tcc_23/libc_boot2.o -l libtcc1_from23_direct.o -l tcc_from23_direct.o -c ./lib/libtcc1.c -o libtcc1_self1.o
+../x86/bin/elf_loader_cc_x86.exe -l qsort_boot.o -l ../tcc_23/libc_boot2.o -l libtcc1_from23_direct.o -l tcc_from23_direct.o -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE -o tcc_self1.o
+
+../x86/bin/elf_loader_cc_x86.exe -l qsort_boot.o -l ../tcc_23/libc_boot2.o -l libtcc1_self1.o -l tcc_self1.o -c ./lib/libtcc1.c -o libtcc1.o
+../x86/bin/elf_loader_cc_x86.exe -l qsort_boot.o -l ../tcc_23/libc_boot2.o -l libtcc1_self1.o -l tcc_self1.o -I ../woody/usr/include/ -I include -c tcc.c -DONE_SOURCE -o tcc.o

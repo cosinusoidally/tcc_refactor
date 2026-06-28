@@ -19,16 +19,6 @@ cp -f "$overlay_dir/tcc_10_alt/build_tcc2.kaem" "$workspace_dir/tcc_10/build.kae
 )
 
 (
-    cd "$repo_root"
-    ./scripts/run-i386.sh "$overlay_dir/mk_build_tcc27_from_tcc23_alt" "$workspace_dir"
-)
-
-(
-    cd "$repo_root"
-    ./scripts/run-i386.sh "$overlay_dir/mk_build_tcc27_boot_static_from_tcc23_alt" "$workspace_dir"
-)
-
-(
     cd "$workspace_dir"
     sha256sum -c sum
 )

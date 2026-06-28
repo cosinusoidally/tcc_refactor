@@ -28,8 +28,18 @@ chmod +x "$workspace_dir/otccelf/mk_loader"
 if [ -f "$overlay_dir/after.kaem" ]; then
     cp -f "$overlay_dir/after.kaem" "$workspace_dir/after.kaem"
 fi
+if [ -d "$overlay_dir/phase1_support" ]; then
+    rm -rf "$workspace_dir/phase1_support"
+    cp -a "$overlay_dir/phase1_support" "$workspace_dir/phase1_support"
+fi
 rm -rf "$workspace_dir/tcc_23"
 cp -a "$overlay_dir/tcc_23_alt" "$workspace_dir/tcc_23"
+if [ -f "$overlay_dir/tcc_27_build_from_tcc23.kaem" ]; then
+    cp -f "$overlay_dir/tcc_27_build_from_tcc23.kaem" "$workspace_dir/tcc_27/build_from_tcc23.kaem"
+fi
+if [ -f "$overlay_dir/tcc_27_run_27_static_from_tcc23.kaem" ]; then
+    cp -f "$overlay_dir/tcc_27_run_27_static_from_tcc23.kaem" "$workspace_dir/tcc_27/run_27_static_from_tcc23.kaem"
+fi
 (
     cd "$workspace_dir"
     ./mk_really_clean >/dev/null 2>&1 || true
