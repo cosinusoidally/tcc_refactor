@@ -63,6 +63,7 @@ int reg_classes[NB_REGS] = {
 
 /* pointer size, in bytes */
 #define PTR_SIZE 4
+#define LONG_SIZE 4
 
 /* long double size and alignment, in bytes */
 #define LDOUBLE_SIZE  12
@@ -89,10 +90,27 @@ static unsigned long func_sub_sp_offset;
 static unsigned long func_bound_offset;
 static int func_ret_sub;
 
+static unsigned int read32(unsigned char *ptr)
+{
+    return ptr[0] | (ptr[1] << 8) | (ptr[2] << 16) | (ptr[3] << 24);
+}
+
+static void write32(unsigned char *ptr, unsigned int v)
+{
+    ptr[0] = v;
+    ptr[1] = v >> 8;
+    ptr[2] = v >> 16;
+    ptr[3] = v >> 24;
+}
+
 /* XXX: make it faster ? */
 void g(int c)
 {
     int ind1;
+    if (!cur_text_section)
+        error("code generation outside of function");
+    if (nocode_wanted)
+        return;
     ind1 = ind + 1;
     if (ind1 > cur_text_section->data_allocated)
         section_realloc(cur_text_section, ind1);
@@ -119,11 +137,12 @@ void gen_le32(int c)
 /* output a symbol and patch all calls to it */
 void gsym_addr(int t, int a)
 {
-    int n, *ptr;
+    unsigned char *ptr;
+    unsigned int n;
     while (t) {
-        ptr = (int *)(cur_text_section->data + t);
-        n = *ptr; /* next value */
-        *ptr = a - t - 4;
+        ptr = cur_text_section->data + t;
+        n = read32(ptr); /* next value */
+        write32(ptr, a - t - 4);
         t = n;
     }
 }
@@ -140,16 +159,13 @@ void gsym(int t)
 /* instruction + 4 bytes data. Return the address of the data */
 static int oad(int c, int s)
 {
-    int ind1;
-
+    int t;
+    if (nocode_wanted)
+        return s;
     o(c);
-    ind1 = ind + 4;
-    if (ind1 > cur_text_section->data_allocated)
-        section_realloc(cur_text_section, ind1);
-    *(int *)(cur_text_section->data + ind) = s;
-    s = ind;
-    ind = ind1;
-    return s;
+    t = ind;
+    gen_le32(s);
+    return t;
 }
 
 /* output constant with relocation if 'r & VT_SYM' is true */
@@ -564,10 +580,14 @@ void gjmp_addr(int a)
 /* generate a test. set 'inv' to invert test. Stack entry is popped */
 int gtst(int inv, int t)
 {
-    int v, *p;
+    int v;
+    unsigned int n;
+    unsigned int n1;
 
     v = vtop->r & VT_VALMASK;
-    if (v == VT_CMP) {
+    if (nocode_wanted) {
+        ;
+    } else if (v == VT_CMP) {
         /* fast case : can jump directly since flags are set */
         g(0x0f);
         t = psym((vtop->c.i - 16) ^ inv, t);
@@ -575,11 +595,13 @@ int gtst(int inv, int t)
         /* && or || optimization */
         if ((v & 1) == inv) {
             /* insert vtop->c jump list in t */
-            p = &vtop->c.i;
-            while (*p != 0)
-                p = (int *)(cur_text_section->data + *p);
-            *p = t;
-            t = vtop->c.i;
+            n = vtop->c.i;
+            if (n) {
+                while ((n1 = read32(cur_text_section->data + n)) != 0)
+                    n = n1;
+                write32(cur_text_section->data + n, t);
+                t = vtop->c.i;
+            }
         } else {
             t = gjmp(t);
             gsym(vtop->c.i);
@@ -1014,4 +1036,3 @@ void gen_bounded_ptr_deref(void)
 
 /* end of X86 code generator */
 /*************************************************************/
-

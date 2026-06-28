@@ -1,0 +1,183 @@
+#!/bin/sh
+set -eu
+
+overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root="$overlay_dir/.."
+workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
+
+cp -f "$overlay_dir/after_tcc23.kaem" "$workspace_dir/after.kaem"
+
+(
+    cd "$workspace_dir"
+    ./mk_really_clean >/dev/null 2>&1 || true
+    bash ./mk_seeds
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir' && ./x86/artifact/kaem-optional-seed"
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -c '$overlay_dir/phase1_support/qsort_boot.c' \
+            -o qsort_boot.o"
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -c '$overlay_dir/tcc_23_alt/tests/i386_asm_lval_operand_min.c' \
+            -o i386_asm_lval_operand_min.o"
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -c '$overlay_dir/tcc_23_alt/tests/function_proto_reloc_min.c' \
+            -o function_proto_reloc_min.o"
+)
+
+if ! objdump -dr "$workspace_dir/tcc_27/function_proto_reloc_min.o" | grep -q 'R_386_PC32[[:space:]]*foo$'; then
+    echo "function_proto_reloc_min.o does not relocate call sites to foo" >&2
+    exit 1
+fi
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -c '$overlay_dir/tcc_23_alt/tests/prefix_function_call_reloc_min.c' \
+            -o prefix_function_call_reloc_min.o"
+)
+
+if ! objdump -dr "$workspace_dir/tcc_27/prefix_function_call_reloc_min.o" \
+    | sed -n '/<probe>/,/<alpha_long>/p' \
+    | grep -q 'R_386_PC32[[:space:]]*alpha_long$'; then
+    echo "prefix_function_call_reloc_min.o does not relocate probe to alpha_long" >&2
+    exit 1
+fi
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -c '$overlay_dir/tcc_23_alt/tests/memcpy_prefix_reloc_min.c' \
+            -o memcpy_prefix_reloc_min.o"
+)
+
+if ! objdump -dr "$workspace_dir/tcc_27/memcpy_prefix_reloc_min.o" \
+    | sed -n '/<probe>/,/<[^>]*>:/p' \
+    | grep -q 'R_386_PC32[[:space:]]*memcpy$'; then
+    echo "memcpy_prefix_reloc_min.o does not relocate probe to memcpy" >&2
+    exit 1
+fi
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -I '$overlay_dir/tcc_23_alt/tests' \
+            -c '$overlay_dir/tcc_23_alt/tests/one_source_proto_reloc_driver.c' \
+            -o one_source_proto_reloc_driver.o"
+)
+
+if ! objdump -dr "$workspace_dir/tcc_27/one_source_proto_reloc_driver.o" \
+    | sed -n '/<bar>/,/<[^>]*>:/p' \
+    | grep -q 'R_386_PC32[[:space:]]*foo$'; then
+    echo "one_source_proto_reloc_driver.o does not relocate call sites to foo" >&2
+    exit 1
+fi
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -I ../woody/usr/include/ -I . -I include \
+            -c '$overlay_dir/tcc_23_alt/tests/one_source_malloc_reloc_min.c' \
+            -o one_source_malloc_reloc_min.o"
+)
+
+if ! objdump -dr "$workspace_dir/tcc_27/one_source_malloc_reloc_min.o" \
+    | sed -n '/<tcc_mallocz>/,/<tcc_realloc>/p' \
+    | grep -q 'R_386_PC32[[:space:]]*tcc_malloc$'; then
+    echo "one_source_malloc_reloc_min.o does not relocate tcc_mallocz to tcc_malloc" >&2
+    exit 1
+fi
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -c '$overlay_dir/tcc_23_alt/tests/tcc27_malloc_cluster_min.c' \
+            -o tcc27_malloc_cluster_min.o"
+)
+
+if ! objdump -dr "$workspace_dir/tcc_27/tcc27_malloc_cluster_min.o" \
+    | sed -n '/<tcc_mallocz>/,/<tcc_realloc>/p' \
+    | grep -q 'R_386_PC32[[:space:]]*tcc_malloc$'; then
+    echo "tcc27_malloc_cluster_min.o does not relocate tcc_mallocz to tcc_malloc" >&2
+    exit 1
+fi
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -I include \
+            -c '$overlay_dir/tcc_23_alt/tests/tcc27_need_wint_type.c' \
+            -o tcc27_need_wint_type.o"
+)
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -I ../woody/usr/include/ -I include \
+            -c tcc.c -DONE_SOURCE -o tcc_from23_direct.o"
+)
+
+if ! objdump -dr "$workspace_dir/tcc_27/tcc_from23_direct.o" \
+    | sed -n '/<tcc_mallocz>/,/<tcc_realloc>/p' \
+    | grep -q 'R_386_PC32[[:space:]]*tcc_malloc$'; then
+    echo "tcc_from23_direct.o does not relocate tcc_mallocz to tcc_malloc" >&2
+    exit 1
+fi
+
+(
+    cd "$repo_root"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir/tcc_27' && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l ../tcc_23/libc_boot2.o -l ../tcc_23/libtcc1.o -l ../tcc_23/tcc.o \
+            -c ./lib/libtcc1.c -o libtcc1_from23_direct.o && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l qsort_boot.o -l ../tcc_23/libc_boot2.o -l libtcc1_from23_direct.o -l tcc_from23_direct.o \
+            -I ../woody/usr/include/ -I . -I include \
+            -c '$overlay_dir/tcc_23_alt/tests/one_source_malloc_reloc_elf_min.c' \
+            -o one_source_malloc_reloc_elf_min.self1.o && \
+        ../x86/bin/elf_loader_cc_x86.exe \
+            -l qsort_boot.o -l ../tcc_23/libc_boot2.o -l libtcc1_from23_direct.o -l tcc_from23_direct.o \
+            -c '$overlay_dir/tcc_23_alt/tests/tcc27_stage1_min.c' \
+            -o tcc27_stage1_min.o"
+)
+
+if ! objdump -dr "$workspace_dir/tcc_27/one_source_malloc_reloc_elf_min.self1.o" \
+    | sed -n '/<tcc_mallocz>/,/<tcc_realloc>/p' \
+    | grep -q 'R_386_PC32[[:space:]]*tcc_malloc$'; then
+    echo "one_source_malloc_reloc_elf_min.self1.o does not relocate tcc_mallocz to tcc_malloc" >&2
+    exit 1
+fi

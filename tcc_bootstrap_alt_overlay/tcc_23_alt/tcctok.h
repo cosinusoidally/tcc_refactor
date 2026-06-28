@@ -81,6 +81,7 @@
      DEF(TOK___TIME__, "__TIME__")
      DEF(TOK___FUNCTION__, "__FUNCTION__")
      DEF(TOK___VA_ARGS__, "__VA_ARGS__")
+     DEF(TOK___COUNTER__, "__COUNTER__")
      
 /* special identifiers */
      DEF(TOK___FUNC__, "__func__")
@@ -116,9 +117,16 @@
      DEF(TOK_ASM_push, "push")
      DEF(TOK_ASM_pop, "pop")
 #endif
+     DEF(TOK_comment, "comment")
+     DEF(TOK_lib, "lib")
+     DEF(TOK_push_macro, "push_macro")
+     DEF(TOK_pop_macro, "pop_macro")
+     DEF(TOK_once, "once")
+     DEF(TOK_option, "option")
 
 /* builtin functions or variables */
      DEF(TOK_memcpy, "memcpy")
+     DEF(TOK_memmove, "memmove")
      DEF(TOK_memset, "memset")
      DEF(TOK_alloca, "alloca")
      DEF(TOK___divdi3, "__divdi3")
@@ -188,7 +196,6 @@
      DEF(TOK_realloc, "realloc")
      DEF(TOK_memalign, "memalign")
      DEF(TOK_calloc, "calloc")
-     DEF(TOK_memmove, "memmove")
      DEF(TOK_strlen, "strlen")
      DEF(TOK_strcpy, "strcpy")
 #endif

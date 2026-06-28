@@ -1,8 +1,10 @@
+#!/bin/sh
+set -eu
+
 ./mk_loader
 ./artifacts/otccelf_js.exe elf_loader.c artifacts/elf_loader_otcc.exe
 chmod +x artifacts/elf_loader_otcc.exe
 
-pushd .
 cd ../tcc_23/
 rm -f ./*.o
 
@@ -23,6 +25,3 @@ rm -f ./*.o
 
 mv libtcc1_new.o libtcc1.o
 mv tcc_new.o tcc.o
-
-cd ..
-sha256sum -c sum

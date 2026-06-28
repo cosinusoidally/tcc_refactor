@@ -1008,7 +1008,7 @@ static void subst_asm_operand(CString *add_str,
         if (!(r & VT_LVAL) && modifier != 'c' && modifier != 'n')
             cstr_ccat(add_str, '$');
         if (r & VT_SYM) {
-            cstr_cat(add_str, get_tok_str(sv->sym->v, NULL));
+            cstr_cat(add_str, get_tok_str(sv->sym->v, NULL), -1);
             if (sv->c.i != 0) {
                 cstr_ccat(add_str, '+');
             } else {
@@ -1019,17 +1019,17 @@ static void subst_asm_operand(CString *add_str,
         if (modifier == 'n')
             val = -val;
         snprintf(buf, sizeof(buf), "%d", sv->c.i);
-        cstr_cat(add_str, buf);
+        cstr_cat(add_str, buf, -1);
     } else if ((r & VT_VALMASK) == VT_LOCAL) {
         snprintf(buf, sizeof(buf), "%d(%%ebp)", sv->c.i);
-        cstr_cat(add_str, buf);
+        cstr_cat(add_str, buf, -1);
     } else if (r & VT_LVAL) {
         reg = r & VT_VALMASK;
         if (reg >= VT_CONST)
             error("internal compiler error");
-        snprintf(buf, sizeof(buf), "(%%%s)", 
-                 get_tok_str(TOK_ASM_eax + reg, NULL));
-        cstr_cat(add_str, buf);
+        cstr_cat(add_str, "(%", 2);
+        cstr_cat(add_str, get_tok_str(TOK_ASM_eax + reg, NULL), -1);
+        cstr_ccat(add_str, ')');
     } else {
         /* register case */
         reg = r & VT_VALMASK;
@@ -1073,7 +1073,7 @@ static void subst_asm_operand(CString *add_str,
             break;
         }
         snprintf(buf, sizeof(buf), "%%%s", get_tok_str(reg, NULL));
-        cstr_cat(add_str, buf);
+        cstr_cat(add_str, buf, -1);
     }
 }
 
