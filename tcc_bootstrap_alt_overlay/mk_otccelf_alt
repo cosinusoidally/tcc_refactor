@@ -13,12 +13,7 @@ workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
 
 (
     cd "$repo_root"
-    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir' && ./x86/artifact/kaem-optional-seed ./alt_kaem.x86"
-)
-
-(
-    cd "$repo_root"
-    ./scripts/run-i386.sh /bin/bash -c "cd '$workspace_dir/otccelf' && ./mk_elf_loader"
+    ./scripts/run-i386.sh /bin/sh -c "cd '$workspace_dir' && ./x86/artifact/kaem-optional-seed ./alt_kaem.x86 && cd ./otccelf && ./mk_elf_loader"
 )
 
 (
