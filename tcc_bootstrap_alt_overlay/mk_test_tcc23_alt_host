@@ -2,17 +2,11 @@
 set -eu
 
 overlay_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-workspace_dir=$("$overlay_dir/mk_prepare_workspace_tcc_23_alt")
+workspace_dir=$("$overlay_dir/mk_prepare_workspace_alt")
 host_dir="$workspace_dir/host_debug"
 host_tcc23="$host_dir/tcc23_host.exe"
 
 mkdir -p "$host_dir"
-
-(
-    cd "$workspace_dir"
-    ./mk_really_clean >/dev/null 2>&1 || true
-    bash ./mk_seeds
-)
 
 (
     cd "$workspace_dir/tcc_23"
