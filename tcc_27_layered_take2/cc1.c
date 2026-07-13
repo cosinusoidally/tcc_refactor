@@ -85,6 +85,9 @@ var CC1_SYMBOL_COUNT;
 var CC1_SCOPE_MARKERS;
 var CC1_SCOPE_CAPACITY;
 var CC1_SCOPE_DEPTH;
+var CC1_NORMALIZED_SOURCE;
+var CC1_NORMALIZED_CAPACITY;
+var CC1_NORMALIZED_LENGTH;
 
 function cc1_token_record(index)
 {
@@ -845,10 +848,115 @@ function cc1_preprocessed_consume()
     return cc1_preprocessed_consume_(0);
 }
 
+function cc1_normalized_reserve_(extra, needed, capacity, source)
+{
+    needed = add(CC1_NORMALIZED_LENGTH, extra);
+    if (le(needed, CC1_NORMALIZED_CAPACITY)) {
+        return 0;
+    }
+    capacity = CC1_NORMALIZED_CAPACITY;
+    if (eq(capacity, 0)) {
+        capacity = 256;
+    }
+    while (lt(capacity, needed)) {
+        capacity = shl(capacity, 1);
+    }
+    source = malloc(capacity);
+    if (eq(source, 0)) {
+        return 1;
+    }
+    if (not(eq(CC1_NORMALIZED_SOURCE, 0))) {
+        cc1_token_copy_bytes(source, CC1_NORMALIZED_SOURCE,
+            CC1_NORMALIZED_LENGTH);
+    }
+    CC1_NORMALIZED_SOURCE = source;
+    CC1_NORMALIZED_CAPACITY = capacity;
+    return 0;
+}
+
+function cc1_normalized_reserve(extra)
+{
+    return cc1_normalized_reserve_(extra, 0, 0, 0);
+}
+
+function cc1_normalized_byte(value)
+{
+    if (cc1_normalized_reserve(1)) {
+        return 1;
+    }
+    wi8(add(CC1_NORMALIZED_SOURCE, CC1_NORMALIZED_LENGTH), value);
+    CC1_NORMALIZED_LENGTH = add(CC1_NORMALIZED_LENGTH, 1);
+    return 0;
+}
+
+function cc1_normalized_text_(text, length, index)
+{
+    if (cc1_normalized_reserve(length)) {
+        return 1;
+    }
+    index = 0;
+    while (lt(index, length)) {
+        wi8(add(CC1_NORMALIZED_SOURCE, CC1_NORMALIZED_LENGTH),
+            ri8(add(text, index)));
+        CC1_NORMALIZED_LENGTH = add(CC1_NORMALIZED_LENGTH, 1);
+        index = add(index, 1);
+    }
+    return 0;
+}
+
+function cc1_normalized_text(text, length)
+{
+    return cc1_normalized_text_(text, length, 0);
+}
+
+function cc1_normalize_tokens_(index, token, kind, text, length)
+{
+    CC1_NORMALIZED_LENGTH = 0;
+    index = 0;
+    while (lt(index, CC1_PREPROCESSED_COUNT)) {
+        token = ri32(add(CC1_PREPROCESSED_TOKENS, shl(index, 2)));
+        kind = ri32(add(token, CC1_TOKEN_KIND_OFFSET));
+        if (eq(kind, CC1_TOKEN_EOF)) {
+            return 0;
+        }
+        if (cc1_normalized_byte(32)) {
+            return 1;
+        }
+        text = ri32(add(token, CC1_TOKEN_TEXT_OFFSET));
+        length = ri32(add(token, CC1_TOKEN_LENGTH_OFFSET));
+        if (eq(kind, 4)) {
+            if (cc1_normalized_byte(34)) {
+                return 1;
+            }
+        }
+        if (cc1_normalized_text(text, length)) {
+            return 1;
+        }
+        if (eq(kind, 4)) {
+            if (cc1_normalized_byte(34)) {
+                return 1;
+            }
+        }
+        index = add(index, 1);
+    }
+    return 1;
+}
+
+function cc1_normalize_tokens()
+{
+    return cc1_normalize_tokens_(0, 0, 0, 0, 0);
+}
+
 /* This is the permanent frontend dispatch point replaced by cc1_stubs in cc0. */
 function cc1_compile(source, length)
 {
-    return cc0_compile(source, length);
+    if (cc1_preprocess(source, length, mks("<cc1>"))) {
+        return 1;
+    }
+    if (cc1_normalize_tokens()) {
+        return 1;
+    }
+    return cc0_compile(CC1_NORMALIZED_SOURCE, CC1_NORMALIZED_LENGTH);
 }
 
 function cc1_product_(left, right, result, index)

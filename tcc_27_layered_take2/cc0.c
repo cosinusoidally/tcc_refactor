@@ -907,78 +907,125 @@ function cc0_elf_put_undefined_function(name, length)
         CC0_ELF_SYMBOL_GLOBAL_FUNCTION, 0, 0);
 }
 
-/* Generated cc0 objects depend only on the small libc surface used below. */
+/* External symbols are created lazily when a relocation actually uses them. */
 function cc0_elf_emit_external_symbols()
 {
-    CC0_ELF_MALLOC_SYMBOL = cc0_elf_put_undefined_function(mks("malloc"), 6);
-    CC0_ELF_OPEN_SYMBOL = cc0_elf_put_undefined_function(mks("open"), 4);
-    CC0_ELF_LSEEK_SYMBOL = cc0_elf_put_undefined_function(mks("lseek"), 5);
-    CC0_ELF_READ_SYMBOL = cc0_elf_put_undefined_function(mks("read"), 4);
-    CC0_ELF_WRITE_SYMBOL = cc0_elf_put_undefined_function(mks("write"), 5);
-    CC0_ELF_CLOSE_SYMBOL = cc0_elf_put_undefined_function(mks("close"), 5);
-    CC0_ELF_SYSTEM_SYMBOL = cc0_elf_put_undefined_function(mks("system"), 6);
-    CC0_ELF_CC1_LINK_SYMBOL = cc0_elf_put_undefined_function(
-        mks("cc1_link"), 8);
-    CC0_ELF_CHMOD_SYMBOL = cc0_elf_put_undefined_function(mks("chmod"), 5);
-    CC0_ELF_LEXER_START_SYMBOL = cc0_elf_put_undefined_function(
-        mks("cc0_lexer_start"), 15);
-    CC0_ELF_LEXER_ADVANCE_SYMBOL = cc0_elf_put_undefined_function(
-        mks("cc0_lexer_advance"), 17);
-    CC0_ELF_LEXER_FIELD_SYMBOL = cc0_elf_put_undefined_function(
-        mks("cc0_lexer_field"), 15);
-    CC0_ELF_CC0_COMPILE_SYMBOL = cc0_elf_put_undefined_function(
-        mks("cc0_compile"), 11);
-    CC0_ELF_CC1_COMPILE_SYMBOL = cc0_elf_put_undefined_function(
-        mks("cc1_compile"), 11);
-    if (lt(CC0_ELF_CC1_COMPILE_SYMBOL, 0)) {
-        return cc0_compiler_fail();
-    }
+    CC0_ELF_MALLOC_SYMBOL = 0;
+    CC0_ELF_OPEN_SYMBOL = 0;
+    CC0_ELF_LSEEK_SYMBOL = 0;
+    CC0_ELF_READ_SYMBOL = 0;
+    CC0_ELF_WRITE_SYMBOL = 0;
+    CC0_ELF_CLOSE_SYMBOL = 0;
+    CC0_ELF_SYSTEM_SYMBOL = 0;
+    CC0_ELF_CC1_LINK_SYMBOL = 0;
+    CC0_ELF_CHMOD_SYMBOL = 0;
+    CC0_ELF_LEXER_START_SYMBOL = 0;
+    CC0_ELF_LEXER_ADVANCE_SYMBOL = 0;
+    CC0_ELF_LEXER_FIELD_SYMBOL = 0;
+    CC0_ELF_CC0_COMPILE_SYMBOL = 0;
+    CC0_ELF_CC1_COMPILE_SYMBOL = 0;
     return CC0_FALSE;
 }
 
 function cc0_elf_external_symbol(name, length)
 {
     if (cc0_compiler_slice_equal(name, length, mks("malloc"), 6)) {
+        if (eq(CC0_ELF_MALLOC_SYMBOL, 0)) {
+            CC0_ELF_MALLOC_SYMBOL = cc0_elf_put_undefined_function(
+                mks("malloc"), 6);
+        }
         return CC0_ELF_MALLOC_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("open"), 4)) {
+        if (eq(CC0_ELF_OPEN_SYMBOL, 0)) {
+            CC0_ELF_OPEN_SYMBOL = cc0_elf_put_undefined_function(
+                mks("open"), 4);
+        }
         return CC0_ELF_OPEN_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("lseek"), 5)) {
+        if (eq(CC0_ELF_LSEEK_SYMBOL, 0)) {
+            CC0_ELF_LSEEK_SYMBOL = cc0_elf_put_undefined_function(
+                mks("lseek"), 5);
+        }
         return CC0_ELF_LSEEK_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("read"), 4)) {
+        if (eq(CC0_ELF_READ_SYMBOL, 0)) {
+            CC0_ELF_READ_SYMBOL = cc0_elf_put_undefined_function(
+                mks("read"), 4);
+        }
         return CC0_ELF_READ_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("write"), 5)) {
+        if (eq(CC0_ELF_WRITE_SYMBOL, 0)) {
+            CC0_ELF_WRITE_SYMBOL = cc0_elf_put_undefined_function(
+                mks("write"), 5);
+        }
         return CC0_ELF_WRITE_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("close"), 5)) {
+        if (eq(CC0_ELF_CLOSE_SYMBOL, 0)) {
+            CC0_ELF_CLOSE_SYMBOL = cc0_elf_put_undefined_function(
+                mks("close"), 5);
+        }
         return CC0_ELF_CLOSE_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("system"), 6)) {
+        if (eq(CC0_ELF_SYSTEM_SYMBOL, 0)) {
+            CC0_ELF_SYSTEM_SYMBOL = cc0_elf_put_undefined_function(
+                mks("system"), 6);
+        }
         return CC0_ELF_SYSTEM_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("cc1_link"), 8)) {
+        if (eq(CC0_ELF_CC1_LINK_SYMBOL, 0)) {
+            CC0_ELF_CC1_LINK_SYMBOL = cc0_elf_put_undefined_function(
+                mks("cc1_link"), 8);
+        }
         return CC0_ELF_CC1_LINK_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("chmod"), 5)) {
+        if (eq(CC0_ELF_CHMOD_SYMBOL, 0)) {
+            CC0_ELF_CHMOD_SYMBOL = cc0_elf_put_undefined_function(
+                mks("chmod"), 5);
+        }
         return CC0_ELF_CHMOD_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("cc0_lexer_start"), 15)) {
+        if (eq(CC0_ELF_LEXER_START_SYMBOL, 0)) {
+            CC0_ELF_LEXER_START_SYMBOL = cc0_elf_put_undefined_function(
+                mks("cc0_lexer_start"), 15);
+        }
         return CC0_ELF_LEXER_START_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length,
         mks("cc0_lexer_advance"), 17)) {
+        if (eq(CC0_ELF_LEXER_ADVANCE_SYMBOL, 0)) {
+            CC0_ELF_LEXER_ADVANCE_SYMBOL = cc0_elf_put_undefined_function(
+                mks("cc0_lexer_advance"), 17);
+        }
         return CC0_ELF_LEXER_ADVANCE_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("cc0_lexer_field"), 15)) {
+        if (eq(CC0_ELF_LEXER_FIELD_SYMBOL, 0)) {
+            CC0_ELF_LEXER_FIELD_SYMBOL = cc0_elf_put_undefined_function(
+                mks("cc0_lexer_field"), 15);
+        }
         return CC0_ELF_LEXER_FIELD_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("cc0_compile"), 11)) {
+        if (eq(CC0_ELF_CC0_COMPILE_SYMBOL, 0)) {
+            CC0_ELF_CC0_COMPILE_SYMBOL = cc0_elf_put_undefined_function(
+                mks("cc0_compile"), 11);
+        }
         return CC0_ELF_CC0_COMPILE_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("cc1_compile"), 11)) {
+        if (eq(CC0_ELF_CC1_COMPILE_SYMBOL, 0)) {
+            CC0_ELF_CC1_COMPILE_SYMBOL = cc0_elf_put_undefined_function(
+                mks("cc1_compile"), 11);
+        }
         return CC0_ELF_CC1_COMPILE_SYMBOL;
     }
     return sub(0, 1);

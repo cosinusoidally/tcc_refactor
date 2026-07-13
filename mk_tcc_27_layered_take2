@@ -111,6 +111,10 @@ diff -u -s cc1_stubs.o cc1_stubs_self.o
 ./cc0.exe -c ../tcc_27_layered_take2/cc2_stubs.c -o cc2_stubs.o
 ./cc0.exe cc0.o cc1.o cc2_stubs.o -o cc1.exe
 ./cc1.exe -c ../tcc_27_layered_take2/cc2_stubs.c -o cc2_by_cc1.o
+./cc1.exe -c ../tcc_27_layered_take2/tests/layered/cc1_compile_smoke.c \
+    -o cc1_compile_smoke.o
+./cc1.exe cc1_compile_smoke.o -o cc1_compile_smoke.exe
+./cc1_compile_smoke.exe
 
 # Both front ends expose help and source locations without host-side parsing.
 ./cc0.exe --help >cc0_help.txt
