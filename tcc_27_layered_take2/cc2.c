@@ -5624,6 +5624,79 @@ function unary_builtin_expression(token)
     return 0;
 }
 
+function unary_builtin_frame(token)
+{
+    var level;
+    var type;
+    next();
+    skip(40);
+    if (not(eq(ri32(tok_address), 181))) {
+        if (eq(token, 377)) {
+            tcc_error(mks("__builtin_return_address only takes positive integers"),
+                0);
+        } else {
+            tcc_error(mks("__builtin_frame_address only takes positive integers"),
+                0);
+        }
+    }
+    level = ri32(tokc_address);
+    next();
+    skip(41);
+    type = malloc(8);
+    wi32(type, CC2_TCC_VOID_TYPE);
+    wi32(add(type, 4), 0);
+    mk_pointer(type);
+    vset(type, CC2_VALUE_LOCAL, 0);
+    while (level) {
+        level = sub(level, 1);
+        mk_pointer(vtop);
+        indir();
+    }
+    if (eq(token, 377)) {
+        vpushi(4);
+        gen_op(CC2_ASCII_PLUS);
+        mk_pointer(vtop);
+        indir();
+    }
+    free(type);
+    return 0;
+}
+
+function unary_label_address(token)
+{
+    var symbol;
+    var registers;
+    if (eq(ri32(gnu_ext_address), 0)) {
+        unary_identifier(token);
+        return 0;
+    }
+    next();
+    if (lt(ri32(tok_address), 314)) {
+        expect(mks("label identifier"));
+    }
+    symbol = label_find(ri32(tok_address));
+    if (not(symbol)) {
+        symbol = label_push(global_label_stack_address,
+            ri32(tok_address), 1);
+    } else {
+        registers = ri32(add(symbol, 4));
+        if (eq(and(registers, 65535), 2)) {
+            wi32(add(symbol, 4), or(and(registers, bnot(65535)), 1));
+        }
+    }
+    if (eq(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)), 0)) {
+        wi32(add(symbol, CC2_SYM_TYPE_OFFSET), CC2_TCC_VOID_TYPE);
+        wi32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET), 0);
+        mk_pointer(add(symbol, CC2_SYM_TYPE_OFFSET));
+        wi32(add(symbol, CC2_SYM_TYPE_OFFSET),
+            or(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)),
+            CC2_TCC_STATIC_STORAGE));
+    }
+    vpushsym(add(symbol, CC2_SYM_TYPE_OFFSET), symbol);
+    next();
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {

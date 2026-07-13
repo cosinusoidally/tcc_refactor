@@ -66,6 +66,8 @@ void unary_prefix(int operator);
 void unary_literal(int token);
 void unary_postfix_increment(int operator);
 void unary_builtin_expression(int token);
+void unary_builtin_frame(int token);
+void unary_label_address(int token);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1145,35 +1147,7 @@ void unary(void)
         break;
     case TOK_builtin_frame_address:
     case TOK_builtin_return_address:
-        {
-            int tok1 = tok;
-            int level;
-            next();
-            skip('(');
-            if (tok != TOK_CINT) {
-                tcc_error("%s only takes positive integers",
-                          tok1 == TOK_builtin_return_address ?
-                          "__builtin_return_address" :
-                          "__builtin_frame_address");
-            }
-            level = (uint32_t)tokc.i;
-            next();
-            skip(')');
-            type.t = VT_VOID;
-            mk_pointer(&type);
-            vset(&type, VT_LOCAL, 0);       /* local frame */
-            while (level--) {
-                mk_pointer(&vtop->type);
-                indir();                    /* -> parent frame */
-            }
-            if (tok1 == TOK_builtin_return_address) {
-                // assume return address is just above frame pointer on stack
-                vpushi(PTR_SIZE);
-                gen_op('+');
-                mk_pointer(&vtop->type);
-                indir();
-            }
-        }
+        unary_builtin_frame(tok);
         break;
 #ifdef TCC_TARGET_X86_64
 #ifdef TCC_TARGET_PE
@@ -1251,26 +1225,7 @@ void unary(void)
 	gen_op('-');
         break;
     case TOK_LAND:
-        if (!gnu_ext)
-            goto tok_identifier;
-        next();
-        /* allow to take the address of a label */
-        if (tok < TOK_UIDENT)
-            expect("label identifier");
-        s = label_find(tok);
-        if (!s) {
-            s = label_push(&global_label_stack, tok, LABEL_FORWARD);
-        } else {
-            if (s->r == LABEL_DECLARED)
-                s->r = LABEL_FORWARD;
-        }
-        if (!s->type.t) {
-            s->type.t = VT_VOID;
-            mk_pointer(&s->type);
-            s->type.t |= VT_STATIC;
-        }
-        vpushsym(&s->type, s);
-        next();
+        unary_label_address(tok);
         break;
 
     case TOK_GENERIC:
