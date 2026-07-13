@@ -164,6 +164,13 @@ var CC2_ASSIGNMENT_SHIFT_LEFT;
 var CC2_ASSIGNMENT_SHIFT_RIGHT;
 var CC2_ASSIGNMENT_XOR;
 var CC2_ASSIGNMENT_OR;
+var CC2_ASSIGNMENT_AND;
+var CC2_ASSIGNMENT_ADD;
+var CC2_ASSIGNMENT_SUBTRACT;
+var CC2_ASSIGNMENT_MULTIPLY;
+var CC2_TOKEN_INCREMENT;
+var CC2_TOKEN_DECREMENT;
+var CC2_TOKEN_ARROW;
 var CC2_TOKEN_OPERATOR_MASK;
 var CC2_TOKEN_SIGNED_LESS;
 var CC2_TOKEN_SIGNED_GREATER_EQUAL;
@@ -1052,6 +1059,182 @@ function parse_comment_(pointer, source_file, character)
 function parse_comment(pointer)
 {
     return parse_comment_(pointer, 0, 0);
+}
+
+/* PEEKC may cross a refilled buffer, so return TCC's normalized pointer. */
+function cc2_lex_peek_(pointer, source_file)
+{
+    pointer = add(pointer, 1);
+    if (eq(ri8(pointer), CC2_CHARACTER_END_OF_BUFFER)) {
+        handle_stray1(pointer);
+        source_file = ri32(file_address);
+        pointer = ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET));
+    }
+    return pointer;
+}
+
+function cc2_lex_peek(pointer)
+{
+    return cc2_lex_peek_(pointer, 0);
+}
+
+/* Scan operators here so next_nomacro1 no longer owns token policy. */
+function cc2_lex_operator_(pointer, character, token)
+{
+    if (eq(character, mkC("<"))) {
+        pointer = cc2_lex_peek(pointer);
+        character = ri8(pointer);
+        if (eq(character, mkC("="))) {
+            pointer = add(pointer, 1);
+            token = CC2_TOKEN_SIGNED_LESS_EQUAL;
+        } else if (eq(character, mkC("<"))) {
+            pointer = cc2_lex_peek(pointer);
+            if (eq(ri8(pointer), mkC("="))) {
+                pointer = add(pointer, 1);
+                token = CC2_ASSIGNMENT_SHIFT_LEFT;
+            } else {
+                token = CC2_TOKEN_SHIFT_LEFT;
+            }
+        } else {
+            token = CC2_TOKEN_SIGNED_LESS;
+        }
+    } else if (eq(character, mkC(">"))) {
+        pointer = cc2_lex_peek(pointer);
+        character = ri8(pointer);
+        if (eq(character, mkC("="))) {
+            pointer = add(pointer, 1);
+            token = CC2_TOKEN_SIGNED_GREATER_EQUAL;
+        } else if (eq(character, mkC(">"))) {
+            pointer = cc2_lex_peek(pointer);
+            if (eq(ri8(pointer), mkC("="))) {
+                pointer = add(pointer, 1);
+                token = CC2_ASSIGNMENT_SHIFT_RIGHT;
+            } else {
+                token = CC2_TOKEN_SHIFT_RIGHT;
+            }
+        } else {
+            token = CC2_TOKEN_SIGNED_GREATER;
+        }
+    } else if (eq(character, mkC("&"))) {
+        pointer = cc2_lex_peek(pointer);
+        character = ri8(pointer);
+        if (eq(character, mkC("&"))) {
+            pointer = add(pointer, 1);
+            token = CC2_TOKEN_LOGICAL_AND;
+        } else if (eq(character, mkC("="))) {
+            pointer = add(pointer, 1);
+            token = CC2_ASSIGNMENT_AND;
+        } else {
+            token = mkC("&");
+        }
+    } else if (eq(character, mkC("|"))) {
+        pointer = cc2_lex_peek(pointer);
+        character = ri8(pointer);
+        if (eq(character, mkC("|"))) {
+            pointer = add(pointer, 1);
+            token = CC2_TOKEN_LOGICAL_OR;
+        } else if (eq(character, mkC("="))) {
+            pointer = add(pointer, 1);
+            token = CC2_ASSIGNMENT_OR;
+        } else {
+            token = mkC("|");
+        }
+    } else if (eq(character, mkC("+"))) {
+        pointer = cc2_lex_peek(pointer);
+        character = ri8(pointer);
+        if (eq(character, mkC("+"))) {
+            pointer = add(pointer, 1);
+            token = CC2_TOKEN_INCREMENT;
+        } else if (eq(character, mkC("="))) {
+            pointer = add(pointer, 1);
+            token = CC2_ASSIGNMENT_ADD;
+        } else {
+            token = mkC("+");
+        }
+    } else if (eq(character, mkC("-"))) {
+        pointer = cc2_lex_peek(pointer);
+        character = ri8(pointer);
+        if (eq(character, mkC("-"))) {
+            pointer = add(pointer, 1);
+            token = CC2_TOKEN_DECREMENT;
+        } else if (eq(character, mkC("="))) {
+            pointer = add(pointer, 1);
+            token = CC2_ASSIGNMENT_SUBTRACT;
+        } else if (eq(character, mkC(">"))) {
+            pointer = add(pointer, 1);
+            token = CC2_TOKEN_ARROW;
+        } else {
+            token = mkC("-");
+        }
+    } else if (eq(character, mkC("!"))) {
+        pointer = cc2_lex_peek(pointer);
+        if (eq(ri8(pointer), mkC("="))) {
+            pointer = add(pointer, 1);
+            token = CC2_TOKEN_NOT_EQUAL;
+        } else {
+            token = mkC("!");
+        }
+    } else if (eq(character, mkC("="))) {
+        pointer = cc2_lex_peek(pointer);
+        if (eq(ri8(pointer), mkC("="))) {
+            pointer = add(pointer, 1);
+            token = CC2_TOKEN_EQUAL;
+        } else {
+            token = mkC("=");
+        }
+    } else if (eq(character, mkC("*"))) {
+        pointer = cc2_lex_peek(pointer);
+        if (eq(ri8(pointer), mkC("="))) {
+            pointer = add(pointer, 1);
+            token = CC2_ASSIGNMENT_MULTIPLY;
+        } else {
+            token = mkC("*");
+        }
+    } else if (eq(character, mkC("%"))) {
+        pointer = cc2_lex_peek(pointer);
+        if (eq(ri8(pointer), mkC("="))) {
+            pointer = add(pointer, 1);
+            token = CC2_ASSIGNMENT_MODULO;
+        } else {
+            token = mkC("%");
+        }
+    } else if (eq(character, mkC("^"))) {
+        pointer = cc2_lex_peek(pointer);
+        if (eq(ri8(pointer), mkC("="))) {
+            pointer = add(pointer, 1);
+            token = CC2_ASSIGNMENT_XOR;
+        } else {
+            token = mkC("^");
+        }
+    } else if (eq(character, mkC("/"))) {
+        pointer = cc2_lex_peek(pointer);
+        character = ri8(pointer);
+        if (eq(character, mkC("*"))) {
+            pointer = parse_comment(pointer);
+            wi32(tok_address, mkC(" "));
+            return pointer;
+        } else if (eq(character, mkC("/"))) {
+            pointer = parse_line_comment(pointer);
+            wi32(tok_address, mkC(" "));
+            return pointer;
+        } else if (eq(character, mkC("="))) {
+            pointer = add(pointer, 1);
+            token = CC2_ASSIGNMENT_DIVIDE;
+        } else {
+            token = mkC("/");
+        }
+    } else {
+        token = character;
+        pointer = add(pointer, 1);
+    }
+    wi32(tok_address, token);
+    wi32(tok_flags_address, 0);
+    return pointer;
+}
+
+function cc2_lex_operator(pointer, character)
+{
+    return cc2_lex_operator_(pointer, character, 0);
 }
 
 function skip_spaces()
@@ -14107,6 +14290,13 @@ function cc2_init_constants()
     CC2_ASSIGNMENT_SHIFT_RIGHT = 130;
     CC2_ASSIGNMENT_XOR = 222;
     CC2_ASSIGNMENT_OR = 252;
+    CC2_ASSIGNMENT_AND = 166;
+    CC2_ASSIGNMENT_ADD = 171;
+    CC2_ASSIGNMENT_SUBTRACT = 173;
+    CC2_ASSIGNMENT_MULTIPLY = 170;
+    CC2_TOKEN_INCREMENT = 164;
+    CC2_TOKEN_DECREMENT = 162;
+    CC2_TOKEN_ARROW = 199;
     CC2_TOKEN_OPERATOR_MASK = 127;
     CC2_TOKEN_SIGNED_LESS = 156;
     CC2_TOKEN_SIGNED_GREATER_EQUAL = 157;

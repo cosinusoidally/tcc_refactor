@@ -622,17 +622,6 @@ static void parse_number(const char *p)
 }
 
 
-#define PARSE2(c1, tok1, c2, tok2)              \
-    case c1:                                    \
-        PEEKC(c, p);                            \
-        if (c == c2) {                          \
-            p++;                                \
-            tok = tok2;                         \
-        } else {                                \
-            tok = tok1;                         \
-        }                                       \
-        break;
-
 /* return next token without macro substitution */
 void next_nomacro1(void)
 {
@@ -893,120 +882,19 @@ maybe_newline:
         break;
 
     case '<':
-        PEEKC(c, p);
-        if (c == '=') {
-            p++;
-            tok = TOK_LE;
-        } else if (c == '<') {
-            PEEKC(c, p);
-            if (c == '=') {
-                p++;
-                tok = TOK_A_SHL;
-            } else {
-                tok = TOK_SHL;
-            }
-        } else {
-            tok = TOK_LT;
-        }
-        break;
     case '>':
-        PEEKC(c, p);
-        if (c == '=') {
-            p++;
-            tok = TOK_GE;
-        } else if (c == '>') {
-            PEEKC(c, p);
-            if (c == '=') {
-                p++;
-                tok = TOK_A_SAR;
-            } else {
-                tok = TOK_SAR;
-            }
-        } else {
-            tok = TOK_GT;
-        }
-        break;
-        
     case '&':
-        PEEKC(c, p);
-        if (c == '&') {
-            p++;
-            tok = TOK_LAND;
-        } else if (c == '=') {
-            p++;
-            tok = TOK_A_AND;
-        } else {
-            tok = '&';
-        }
-        break;
-        
     case '|':
-        PEEKC(c, p);
-        if (c == '|') {
-            p++;
-            tok = TOK_LOR;
-        } else if (c == '=') {
-            p++;
-            tok = TOK_A_OR;
-        } else {
-            tok = '|';
-        }
-        break;
-
     case '+':
-        PEEKC(c, p);
-        if (c == '+') {
-            p++;
-            tok = TOK_INC;
-        } else if (c == '=') {
-            p++;
-            tok = TOK_A_ADD;
-        } else {
-            tok = '+';
-        }
-        break;
-        
     case '-':
-        PEEKC(c, p);
-        if (c == '-') {
-            p++;
-            tok = TOK_DEC;
-        } else if (c == '=') {
-            p++;
-            tok = TOK_A_SUB;
-        } else if (c == '>') {
-            p++;
-            tok = TOK_ARROW;
-        } else {
-            tok = '-';
-        }
-        break;
-
-    PARSE2('!', '!', '=', TOK_NE)
-    PARSE2('=', '=', '=', TOK_EQ)
-    PARSE2('*', '*', '=', TOK_A_MUL)
-    PARSE2('%', '%', '=', TOK_A_MOD)
-    PARSE2('^', '^', '=', TOK_A_XOR)
-        
-        /* comments or operator */
+    case '!':
+    case '=':
+    case '*':
+    case '%':
+    case '^':
     case '/':
-        PEEKC(c, p);
-        if (c == '*') {
-            p = parse_comment(p);
-            /* comments replaced by a blank */
-            tok = ' ';
-            goto keep_tok_flags;
-        } else if (c == '/') {
-            p = parse_line_comment(p);
-            tok = ' ';
-            goto keep_tok_flags;
-        } else if (c == '=') {
-            p++;
-            tok = TOK_A_DIV;
-        } else {
-            tok = '/';
-        }
-        break;
+        p = (uint8_t *)cc2_lex_operator((int)p, c);
+        goto keep_tok_flags;
         
         /* simple tokens */
     case '(':
