@@ -1362,7 +1362,7 @@ Sym *label_push(Sym **ptop, int v, int flags)
 
 /* pop labels until element last is reached. Look if any labels are
    undefined. Define symbols if '&&label' was used. */
-ST_FUNC void label_pop(Sym **ptop, Sym *slast, int keep)
+void label_pop(Sym **ptop, Sym *slast, int keep)
 {
     Sym *s, *s1;
     for(s = *ptop; s != slast; s = s1) {
@@ -3562,6 +3562,7 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
     func_vt_address = &func_vt;
     local_stack_address = &local_stack;
     global_label_stack_address = &global_label_stack;
+    local_label_stack_address = &local_label_stack;
     ptrdiff_type_address = &ptrdiff_type;
     tok_address = &tok;
     gnu_ext_address = &gnu_ext;

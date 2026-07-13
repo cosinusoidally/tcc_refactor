@@ -57,6 +57,8 @@ void block_after_label(int *break_symbol, int *continue_symbol,
                        int is_expression);
 void block_label(int label, int *break_symbol, int *continue_symbol,
                  int is_expression);
+void block_compound(int *break_symbol, int *continue_symbol,
+                    int is_expression);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -64,7 +66,7 @@ void init_putv(CType *type, Section *sec, unsigned long c);
 static void decl_initializer(CType *type, Section *sec, unsigned long c, int first, int size_only);
 void block(int *bsym, int *csym, int is_expr);
 static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
-static void decl(int l);
+void decl(int l);
 int decl0(int l, int is_for_loop_init, Sym *);
 void expr_eq(void);
 static inline int64_t expr_const64(void);
@@ -1712,63 +1714,7 @@ void block(int *bsym, int *csym, int is_expr)
     } else if (tok == TOK_WHILE) {
         block_while();
     } else if (tok == '{') {
-        Sym *llabel;
-        int block_vla_sp_loc = vla_sp_loc, saved_vlas_in_scope = vlas_in_scope;
-
-        next();
-        /* record local declaration stack position */
-        s = local_stack;
-        llabel = local_label_stack;
-        ++local_scope;
-        
-        /* handle local labels declarations */
-        if (tok == TOK_LABEL) {
-            next();
-            for(;;) {
-                if (tok < TOK_UIDENT)
-                    expect("label identifier");
-                label_push(&local_label_stack, tok, LABEL_DECLARED);
-                next();
-                if (tok == ',') {
-                    next();
-                } else {
-                    skip(';');
-                    break;
-                }
-            }
-        }
-        while (tok != '}') {
-        if ((a = is_label(TOK_UIDENT)))
-		unget_tok(a);
-	    else
-	        decl(VT_LOCAL);
-            if (tok != '}') {
-                if (is_expr)
-                    vpop();
-                block(bsym, csym, is_expr);
-            }
-        }
-        /* pop locally defined labels */
-        label_pop(&local_label_stack, llabel, is_expr);
-        /* pop locally defined symbols */
-        --local_scope;
-	/* In the is_expr case (a statement expression is finished here),
-	   vtop might refer to symbols on the local_stack.  Either via the
-	   type or via vtop->sym.  We can't pop those nor any that in turn
-	   might be referred to.  To make it easier we don't roll back
-	   any symbols in that case; some upper level call to block() will
-	   do that.  We do have to remove such symbols from the lookup
-	   tables, though.  sym_pop will do that.  */
-	sym_pop(&local_stack, s, is_expr);
-
-        /* Pop VLA frames and restore stack pointer if required */
-        if (vlas_in_scope > saved_vlas_in_scope) {
-            vla_sp_loc = saved_vlas_in_scope ? block_vla_sp_loc : vla_sp_root_loc;
-            vla_sp_restore();
-        }
-        vlas_in_scope = saved_vlas_in_scope;
-        
-        next();
+        block_compound(bsym, csym, is_expr);
     } else if (tok == TOK_RETURN) {
         block_return();
     } else if (tok == TOK_BREAK) {
@@ -2872,11 +2818,6 @@ found:
         }
     }
     return 0;
-}
-
-static void decl(int l)
-{
-    decl0(l, 0, NULL);
 }
 
 /* ------------------------------------------------------------------------- */

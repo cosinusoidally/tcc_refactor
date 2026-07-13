@@ -294,6 +294,11 @@ function label_push(stack_pointer, token, flags)
     return malloc(36);
 }
 
+function label_pop(stack_pointer, boundary, keep)
+{
+    return 0;
+}
+
 function ggoto()
 {
     return 0;

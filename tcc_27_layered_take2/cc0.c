@@ -1143,6 +1143,9 @@ function cc0_elf_external_symbol(name, length)
     if (cc0_compiler_slice_equal(name, length, mks("label_push"), 10)) {
         return cc0_elf_put_undefined_function(name, length);
     }
+    if (cc0_compiler_slice_equal(name, length, mks("label_pop"), 9)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
     if (cc0_compiler_slice_equal(name, length, mks("ggoto"), 5)) {
         return cc0_elf_put_undefined_function(name, length);
     }
@@ -3697,6 +3700,9 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("label_push"))) {
         return 3;
     }
+    if (cc0_text_equal(name, length, mks("label_pop"))) {
+        return 3;
+    }
     if (cc0_text_equal(name, length, mks("ggoto"))) {
         return 0;
     }
@@ -3994,6 +4000,9 @@ function cc0_compiler_external_arity(name, length)
         return 1;
     }
     if (cc0_text_equal(name, length, mks("label_push"))) {
+        return 3;
+    }
+    if (cc0_text_equal(name, length, mks("label_pop"))) {
         return 3;
     }
     if (cc0_text_equal(name, length, mks("ggoto"))) {

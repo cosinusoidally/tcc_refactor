@@ -323,6 +323,7 @@ var define_stack;
 var global_label_stack;
 var global_label_stack_address;
 var local_label_stack;
+var local_label_stack_address;
 var vtop;
 var pvtop;
 var vstack_base;
@@ -5244,6 +5245,70 @@ function block_label(label, break_symbol, continue_symbol, is_expression)
     wi32(add(symbol, CC2_SYM_JUMP_NEXT_OFFSET), ind);
     vla_sp_restore();
     block_after_label(break_symbol, continue_symbol, is_expression);
+    return 0;
+}
+
+function decl(scope)
+{
+    return decl0(scope, 0, 0);
+}
+
+function block_compound(break_symbol, continue_symbol, is_expression)
+{
+    var saved_symbols;
+    var saved_labels;
+    var saved_vla_location;
+    var saved_vla_count;
+    var label;
+    saved_vla_location = vla_sp_loc;
+    saved_vla_count = vlas_in_scope;
+    next();
+    saved_symbols = local_stack;
+    saved_labels = local_label_stack;
+    local_scope = add(local_scope, 1);
+    if (eq(ri32(tok_address), 310)) {
+        next();
+        while (1) {
+            if (lt(ri32(tok_address), 314)) {
+                expect(mks("label identifier"));
+            }
+            label_push(local_label_stack_address, ri32(tok_address), 2);
+            next();
+            if (eq(ri32(tok_address), 44)) {
+                next();
+            } else {
+                skip(59);
+                break;
+            }
+        }
+    }
+    while (not(eq(ri32(tok_address), 125))) {
+        label = is_label(314);
+        if (label) {
+            unget_tok(label);
+        } else {
+            decl(CC2_VALUE_LOCAL);
+        }
+        if (not(eq(ri32(tok_address), 125))) {
+            if (is_expression) {
+                vpop();
+            }
+            block(break_symbol, continue_symbol, is_expression);
+        }
+    }
+    label_pop(local_label_stack_address, saved_labels, is_expression);
+    local_scope = sub(local_scope, 1);
+    sym_pop(local_stack_address, saved_symbols, is_expression);
+    if (lt(saved_vla_count, vlas_in_scope)) {
+        if (saved_vla_count) {
+            vla_sp_loc = saved_vla_location;
+        } else {
+            vla_sp_loc = vla_sp_root_loc;
+        }
+        vla_sp_restore();
+    }
+    vlas_in_scope = saved_vla_count;
+    next();
     return 0;
 }
 
