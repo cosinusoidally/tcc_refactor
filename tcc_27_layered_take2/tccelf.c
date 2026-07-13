@@ -613,7 +613,7 @@ ST_FUNC void put_elf_reloc(Section *symtab, Section *s, unsigned long offset,
 /* Remove relocations for section S->reloc starting at oldrelocoffset
    that are to the same place, retaining the last of them.  As side effect
    the relocations are sorted.  Possibly reduces the number of relocs.  */
-ST_FUNC void squeeze_multi_relocs(Section *s, size_t oldrelocoffset)
+void squeeze_multi_relocs(Section *s, size_t oldrelocoffset)
 {
     Section *sr = s->reloc;
     ElfW_Rel *r, *dest;

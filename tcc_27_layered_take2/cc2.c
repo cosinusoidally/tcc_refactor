@@ -277,6 +277,14 @@ var CC2_ATTRIBUTE_SECTION_OFFSET = 8;
 var CC2_ATTRIBUTE_ALIAS_OFFSET = 12;
 var CC2_ATTRIBUTE_MODE_OFFSET = 20;
 var CC2_ATTRIBUTE_BYTES = 24;
+var CC2_ATTRIBUTE_ASM_LABEL_OFFSET = 16;
+var CC2_SYM_ATTRIBUTES_OFFSET = 6;
+var CC2_SYM_ATTRIBUTES_BYTES = 2;
+var CC2_SECTION_RELOCATION_OFFSET = 60;
+var CC2_TCC_STATE_NOCOMMON_OFFSET = 12;
+var CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET = 14;
+var CC2_NO_DATA_STATIC = 1073741824;
+var CC2_DATA_STATIC = 2147483648;
 var CC2_CSTRING_SIZE_OFFSET = 0;
 var CC2_CSTRING_DATA_OFFSET = 4;
 var CC2_CSTRING_BYTES = 12;
@@ -336,6 +344,8 @@ var tok_address;
 var tokc_address;
 var data_section_address;
 var cur_text_section_address;
+var bss_section_address;
+var common_section_address;
 var tcc_state_address;
 var gnu_ext_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
@@ -5237,6 +5247,231 @@ function decl_initializer(type, section, offset, first, size_only)
         }
         init_putv(type, section, offset);
     }
+    return 0;
+}
+
+function decl_initializer_alloc(type, attributes, storage, has_initializer,
+    value, scope)
+{
+    var size;
+    var alignment;
+    var address;
+    var section;
+    var flexible_array;
+    var field;
+    var symbol;
+    var initializer_holder;
+    var initializer_stream;
+    var saved_no_code;
+    var specified_alignment;
+    var asm_label;
+    var reg;
+    var relocation_section;
+    var old_relocation_offset;
+    var skip_allocation;
+    saved_no_code = nocode_wanted;
+    alignment = malloc(4);
+    initializer_holder = malloc(4);
+    wi32(initializer_holder, 0);
+    symbol = 0;
+    skip_allocation = 0;
+    if (not(eq(and(ri32(type), CC2_TCC_STATIC_STORAGE), 0))) {
+        if (lt(0, nocode_wanted)) {
+            nocode_wanted = or(nocode_wanted, CC2_NO_DATA_STATIC);
+        } else {
+            nocode_wanted = or(nocode_wanted, CC2_DATA_STATIC);
+        }
+    }
+    flexible_array = 0;
+    if (eq(and(ri32(type), CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_STRUCT_TYPE)) {
+        field = ri32(add(ri32(add(type, 4)), CC2_SYM_NEXT_OFFSET));
+        if (field) {
+            while (ri32(add(field, CC2_SYM_NEXT_OFFSET))) {
+                field = ri32(add(field, CC2_SYM_NEXT_OFFSET));
+            }
+            if (not(eq(and(ri32(add(field, CC2_SYM_TYPE_OFFSET)),
+                CC2_TCC_ARRAY_TYPE), 0))) {
+                symbol = ri32(add(field, CC2_SYM_TYPE_REFERENCE_OFFSET));
+                if (lt(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), 0)) {
+                    flexible_array = field;
+                }
+            }
+        }
+    }
+    symbol = 0;
+    size = type_size(type, alignment);
+    if (or(lt(size, 0), and(not(eq(flexible_array, 0)),
+        not(eq(has_initializer, 0))))) {
+        if (not(has_initializer)) {
+            tcc_error(mks("unknown type size"), 0);
+        }
+        if (eq(has_initializer, 2)) {
+            initializer_stream = tok_str_alloc();
+            wi32(initializer_holder, initializer_stream);
+            while (or(eq(ri32(tok_address), CC2_TOKEN_STRING),
+                eq(ri32(tok_address), CC2_TOKEN_WIDE_STRING))) {
+                tok_str_add_tok(initializer_stream);
+                next();
+            }
+            tok_str_add(initializer_stream, sub(0, 1));
+            tok_str_add(initializer_stream, 0);
+        } else {
+            skip_or_save_block(initializer_holder);
+            initializer_stream = ri32(initializer_holder);
+        }
+        unget_tok(0);
+        begin_macro(initializer_stream, 1);
+        next();
+        decl_initializer(type, 0, 0, 1, 1);
+        initializer_rewind(initializer_stream);
+        next();
+        size = type_size(type, alignment);
+        if (lt(size, 0)) {
+            tcc_error(mks("unknown type size"), 0);
+        }
+    }
+    if (flexible_array) {
+        field = ri32(add(flexible_array, CC2_SYM_TYPE_REFERENCE_OFFSET));
+        if (lt(0, ri32(add(field, CC2_SYM_CONSTANT_OFFSET)))) {
+            size = add(size, mul(ri32(add(field, CC2_SYM_CONSTANT_OFFSET)),
+                pointed_size(add(flexible_array, CC2_SYM_TYPE_OFFSET))));
+        }
+    }
+    specified_alignment = and(ri32(attributes),
+        CC2_ATTRIBUTE_ALIGNED_MASK);
+    if (specified_alignment) {
+        specified_alignment = shl(1, sub(specified_alignment, 1));
+        if (lt(ri32(alignment), specified_alignment)) {
+            wi32(alignment, specified_alignment);
+        }
+    } else if (not(eq(and(ri32(attributes), CC2_ATTRIBUTE_PACKED), 0))) {
+        wi32(alignment, 1);
+    }
+    if (lt(0, nocode_wanted)) {
+        size = 0;
+        wi32(alignment, 1);
+    }
+    if (eq(and(storage, CC2_VALUE_LOCATION_MASK), CC2_VALUE_LOCAL)) {
+        section = 0;
+        loc = and(sub(loc, size), sub(0, ri32(alignment)));
+        address = loc;
+        if (value) {
+            asm_label = ri32(add(attributes,
+                CC2_ATTRIBUTE_ASM_LABEL_OFFSET));
+            if (asm_label) {
+                reg = asm_parse_regvar(asm_label);
+                if (not(lt(reg, 0))) {
+                    storage = or(and(storage,
+                        bnot(CC2_VALUE_LOCATION_MASK)), reg);
+                }
+            }
+            symbol = sym_push(value, type, storage, address);
+            cc2_copy_bytes(add(symbol, CC2_SYM_ATTRIBUTES_OFFSET),
+                attributes, CC2_SYM_ATTRIBUTES_BYTES);
+        } else {
+            vset(type, storage, address);
+        }
+    } else {
+        if (value) {
+            if (eq(scope, CC2_VALUE_CONSTANT)) {
+                symbol = sym_find(value);
+                if (symbol) {
+                    patch_storage(symbol, attributes, type);
+                    if (and(not(has_initializer), not(eq(ri32(add(symbol,
+                        CC2_SYM_CONSTANT_OFFSET)), 0)))) {
+                        field = elfsym(symbol);
+                        if (or(ri8(add(field,
+                            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)),
+                            ri8(add(field, add(
+                            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1))))) {
+                            skip_allocation = 1;
+                        }
+                    }
+                }
+            }
+        }
+        if (not(skip_allocation)) {
+            section = ri32(add(attributes, CC2_ATTRIBUTE_SECTION_OFFSET));
+            if (not(section)) {
+                if (has_initializer) {
+                    section = ri32(data_section_address);
+                } else if (ri32(add(tcc_state_address,
+                    CC2_TCC_STATE_NOCOMMON_OFFSET))) {
+                    section = ri32(bss_section_address);
+                }
+            }
+            if (section) {
+                address = section_add(section, size, ri32(alignment));
+            } else {
+                address = ri32(alignment);
+                section = ri32(common_section_address);
+            }
+            if (value) {
+                if (not(symbol)) {
+                    symbol = sym_push(value, type,
+                        or(storage, CC2_TCC_SYMBOL_VALUE), 0);
+                    patch_storage(symbol, attributes, 0);
+                }
+                wi32(add(symbol, CC2_SYM_SCOPE_OFFSET), 0);
+                put_extern_sym(symbol, section, address, size);
+            } else {
+                symbol = get_sym_ref(type, section, address, size);
+                vpushsym(type, symbol);
+                cc2_set_value_register(vtop, or(and(ri32(add(vtop,
+                    CC2_SVALUE_REGISTER_OFFSET)), 65535), storage));
+            }
+        }
+    }
+    if (and(not(skip_allocation),
+        not(eq(and(ri32(type), CC2_TCC_VLA_TYPE), 0)))) {
+        if (not(lt(0, nocode_wanted))) {
+            if (eq(vlas_in_scope, 0)) {
+                if (eq(vla_sp_root_loc, sub(0, 1))) {
+                    loc = sub(loc, 4);
+                    vla_sp_root_loc = loc;
+                }
+                gen_vla_sp_save(vla_sp_root_loc);
+            }
+            vla_runtime_type_size(type, alignment);
+            gen_vla_alloc(type, ri32(alignment));
+            gen_vla_sp_save(address);
+            vla_sp_loc = address;
+            vlas_in_scope = add(vlas_in_scope, 1);
+        }
+    } else if (and(not(skip_allocation),
+        not(eq(has_initializer, 0)))) {
+        old_relocation_offset = 0;
+        if (section) {
+            relocation_section = ri32(add(section,
+                CC2_SECTION_RELOCATION_OFFSET));
+            if (relocation_section) {
+                old_relocation_offset = ri32(add(relocation_section,
+                    CC2_SECTION_DATA_OFFSET));
+            }
+        }
+        decl_initializer(type, section, address, 1, 0);
+        if (section) {
+            relocation_section = ri32(add(section,
+                CC2_SECTION_RELOCATION_OFFSET));
+            if (relocation_section) {
+                squeeze_multi_relocs(section, old_relocation_offset);
+            }
+        }
+        if (flexible_array) {
+            field = ri32(add(flexible_array,
+                CC2_SYM_TYPE_REFERENCE_OFFSET));
+            wi32(add(field, CC2_SYM_CONSTANT_OFFSET), sub(0, 1));
+        }
+    }
+    initializer_stream = ri32(initializer_holder);
+    if (initializer_stream) {
+        end_macro();
+        next();
+    }
+    nocode_wanted = saved_no_code;
+    free(initializer_holder);
+    free(alignment);
     return 0;
 }
 

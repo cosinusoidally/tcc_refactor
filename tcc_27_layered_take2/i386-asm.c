@@ -1197,7 +1197,7 @@ static const char *skip_constraint_modifiers(const char *p)
 
 /* If T (a token) is of the form "%reg" returns the register
    number and type, otherwise return -1.  */
-ST_FUNC int asm_parse_regvar (int t)
+int asm_parse_regvar (int t)
 {
     const char *s;
     Operand op;

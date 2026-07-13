@@ -1126,7 +1126,7 @@ ST_FUNC void gen_bounded_ptr_deref(void)
 #endif
 
 /* Save the stack pointer onto the stack */
-ST_FUNC void gen_vla_sp_save(int addr) {
+void gen_vla_sp_save(int addr) {
     /* mov %esp,addr(%ebp)*/
     o(0x89);
     gen_modrm(TREG_ESP, VT_LOCAL, NULL, addr);
@@ -1139,7 +1139,7 @@ void gen_vla_sp_restore(int addr) {
 }
 
 /* Subtract from the stack pointer, and push the resulting value onto the stack */
-ST_FUNC void gen_vla_alloc(CType *type, int align) {
+void gen_vla_alloc(CType *type, int align) {
 #ifdef TCC_TARGET_PE
     /* alloca does more than just adjust %rsp on Windows */
     vpush_global_sym(&func_old_type, TOK_alloca);

@@ -1276,6 +1276,8 @@ extern CType *char_pointer_type_address;
 extern CType *ptrdiff_type_address;
 extern Section **data_section_address;
 extern Section **cur_text_section_address;
+extern Section **bss_section_address;
+extern Section **common_section_address;
 extern TCCState *tcc_state_address;
 extern CValue *tokc_address;
 extern SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE];
@@ -1500,7 +1502,7 @@ ST_FUNC void tcc_add_runtime(TCCState *s1);
 
 ST_FUNC void build_got_entries(TCCState *s1);
 ST_FUNC struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc);
-ST_FUNC void squeeze_multi_relocs(Section *sec, size_t oldrelocoffset);
+void squeeze_multi_relocs(Section *sec, size_t oldrelocoffset);
 
 ST_FUNC addr_t get_elf_sym_addr(TCCState *s, const char *name, int err);
 #if defined TCC_IS_NATIVE || defined TCC_TARGET_PE
@@ -1576,9 +1578,9 @@ extern void o(unsigned int c);
 #ifndef TCC_TARGET_ARM
 void gen_cvt_itof(int t);
 #endif
-ST_FUNC void gen_vla_sp_save(int addr);
+void gen_vla_sp_save(int addr);
 void gen_vla_sp_restore(int addr);
-ST_FUNC void gen_vla_alloc(CType *type, int align);
+void gen_vla_alloc(CType *type, int align);
 
 static inline uint16_t read16le(unsigned char *p) {
     return p[0] | (uint16_t)p[1] << 8;
@@ -1673,7 +1675,7 @@ ST_FUNC void gen_expr32(ExprValue *pe);
 ST_FUNC void gen_expr64(ExprValue *pe);
 #endif
 ST_FUNC void asm_opcode(TCCState *s1, int opcode);
-ST_FUNC int asm_parse_regvar(int t);
+int asm_parse_regvar(int t);
 ST_FUNC void asm_compute_constraints(ASMOperand *operands, int nb_operands, int nb_outputs, const uint8_t *clobber_regs, int *pout_reg);
 ST_FUNC void subst_asm_operand(CString *add_str, SValue *sv, int modifier);
 ST_FUNC void asm_gen_code(ASMOperand *operands, int nb_operands, int nb_outputs, int is_output, uint8_t *clobber_regs, int out_reg);
