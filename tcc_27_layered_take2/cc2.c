@@ -5566,6 +5566,64 @@ function unary_postfix_increment(operator)
     return 0;
 }
 
+function unary_builtin_expression(token)
+{
+    var compatible;
+    var condition_words;
+    var condition;
+    var registers;
+    if (eq(token, 378)) {
+        parse_builtin_params(0, mks("ee"));
+        vpop();
+    } else if (eq(token, 373)) {
+        parse_builtin_params(0, mks("tt"));
+        wi32(sub(vtop, CC2_SVALUE_BYTES),
+            and(ri32(sub(vtop, CC2_SVALUE_BYTES)),
+            bnot(or(CC2_TCC_CONST_QUALIFIER,
+            CC2_TCC_VOLATILE_QUALIFIER))));
+        wi32(vtop, and(ri32(vtop), bnot(or(CC2_TCC_CONST_QUALIFIER,
+            CC2_TCC_VOLATILE_QUALIFIER))));
+        compatible = is_compatible_types(sub(vtop, CC2_SVALUE_BYTES), vtop);
+        vtop = sub(vtop, mul(2, CC2_SVALUE_BYTES));
+        vpushi(compatible);
+    } else if (eq(token, 374)) {
+        next();
+        skip(40);
+        condition_words = malloc(8);
+        expr_const64_words(condition_words);
+        condition = not(eq(or(ri32(condition_words),
+            ri32(add(condition_words, 4))), 0));
+        skip(44);
+        if (not(condition)) {
+            nocode_wanted = add(nocode_wanted, 1);
+        }
+        expr_eq();
+        if (not(condition)) {
+            vpop();
+            nocode_wanted = sub(nocode_wanted, 1);
+        }
+        skip(44);
+        if (condition) {
+            nocode_wanted = add(nocode_wanted, 1);
+        }
+        expr_eq();
+        if (condition) {
+            vpop();
+            nocode_wanted = sub(nocode_wanted, 1);
+        }
+        skip(41);
+        free(condition_words);
+    } else if (eq(token, 375)) {
+        parse_builtin_params(1, mks("e"));
+        registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+        compatible = eq(and(registers, CC2_VALUE_TEST_MASK),
+            CC2_VALUE_CONSTANT);
+        vtop = sub(vtop, CC2_SVALUE_BYTES);
+        vpushi(compatible);
+    }
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {

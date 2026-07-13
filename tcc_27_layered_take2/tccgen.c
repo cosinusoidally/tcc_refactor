@@ -65,6 +65,7 @@ void unary_postfix_index(void);
 void unary_prefix(int operator);
 void unary_literal(int token);
 void unary_postfix_increment(int operator);
+void unary_builtin_expression(int token);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1137,50 +1138,10 @@ void unary(void)
         break;
 
     case TOK_builtin_expect:
-	/* __builtin_expect is a no-op for now */
-	parse_builtin_params(0, "ee");
-	vpop();
-        break;
     case TOK_builtin_types_compatible_p:
-	parse_builtin_params(0, "tt");
-	vtop[-1].type.t &= ~(VT_CONSTANT | VT_VOLATILE);
-	vtop[0].type.t &= ~(VT_CONSTANT | VT_VOLATILE);
-	n = is_compatible_types(&vtop[-1].type, &vtop[0].type);
-	vtop -= 2;
-	vpushi(n);
-        break;
     case TOK_builtin_choose_expr:
-	{
-	    int64_t c;
-	    next();
-	    skip('(');
-	    c = expr_const64();
-	    skip(',');
-	    if (!c) {
-		nocode_wanted++;
-	    }
-	    expr_eq();
-	    if (!c) {
-		vpop();
-		nocode_wanted--;
-	    }
-	    skip(',');
-	    if (c) {
-		nocode_wanted++;
-	    }
-	    expr_eq();
-	    if (c) {
-		vpop();
-		nocode_wanted--;
-	    }
-	    skip(')');
-	}
-        break;
     case TOK_builtin_constant_p:
-	parse_builtin_params(1, "e");
-	n = (vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST;
-	vtop--;
-	vpushi(n);
+        unary_builtin_expression(tok);
         break;
     case TOK_builtin_frame_address:
     case TOK_builtin_return_address:
