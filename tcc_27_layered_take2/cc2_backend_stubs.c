@@ -88,3 +88,13 @@ function gvtst(inverted, jump_chain)
 {
     return jump_chain;
 }
+
+function gen_cast(type)
+{
+    return 0;
+}
+
+function gen_assign_cast(type)
+{
+    return 0;
+}

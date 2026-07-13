@@ -130,6 +130,8 @@ var CC2_TOKEN_LOGICAL_OR = 161;
 var CC2_VALUE_TEST_MASK = 831;
 var CC2_VALUE_JUMP_FALSE = 53;
 var CC2_TRUE = 1;
+var CC2_TCC_BITFIELD = 128;
+var CC2_TCC_ELLIPSIS_FUNCTION = 3;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -1421,6 +1423,72 @@ function expr_lor_(jump_chain)
 function expr_lor()
 {
     return expr_lor_(0);
+}
+
+function condition_3way_(registers, symbol, attributes, result)
+{
+    registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+    result = sub(0, 1);
+    if (eq(and(registers, or(CC2_VALUE_LOCATION_MASK, CC2_TCC_LVALUE)),
+        CC2_VALUE_CONSTANT)) {
+        symbol = ri32(add(vtop, CC2_SVALUE_SYMBOL_OFFSET));
+        attributes = 0;
+        if (not(eq(and(registers, CC2_TCC_SYMBOL_VALUE), 0))) {
+            if (not(eq(symbol, 0))) {
+                attributes = and(ushr(ri32(add(symbol, 4)), 16), 65535);
+            }
+        }
+        if (or(eq(and(registers, CC2_TCC_SYMBOL_VALUE), 0),
+            eq(and(attributes, CC2_SYM_ATTRIBUTE_WEAK), 0))) {
+            vdup();
+            gen_cast_s(CC2_TCC_BOOLEAN_TYPE);
+            result = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
+            vpop();
+        }
+    }
+    return result;
+}
+
+function condition_3way()
+{
+    return condition_3way_(0, 0, 0, 0);
+}
+
+function gfunc_param_typed_(function_symbol, argument_symbol, function_type,
+    value_type, temporary)
+{
+    function_type = and(ushr(ri32(add(function_symbol,
+        CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET)), 3), 3);
+    if (or(eq(function_type, CC2_TCC_OLD_FUNCTION),
+        and(eq(function_type, CC2_TCC_ELLIPSIS_FUNCTION),
+        eq(argument_symbol, 0)))) {
+        value_type = ri32(vtop);
+        if (eq(and(value_type, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_FLOAT_TYPE)) {
+            gen_cast_s(CC2_TCC_DOUBLE_TYPE);
+        } else if (not(eq(and(value_type, CC2_TCC_BITFIELD), 0))) {
+            temporary = cc2_svalue_temporary();
+            wi32(temporary, and(value_type,
+                or(CC2_TCC_BASIC_TYPE_MASK, CC2_TCC_UNSIGNED_TYPE)));
+            wi32(add(temporary, 4), ri32(add(vtop, 4)));
+            gen_cast(temporary);
+        }
+    } else if (eq(argument_symbol, 0)) {
+        tcc_error(mks("too many arguments to function"), 0);
+    } else {
+        temporary = cc2_svalue_temporary();
+        wi32(temporary, and(ri32(add(argument_symbol, CC2_SYM_TYPE_OFFSET)),
+            bnot(CC2_TCC_CONST_QUALIFIER)));
+        wi32(add(temporary, 4), ri32(add(argument_symbol,
+            CC2_SYM_TYPE_REFERENCE_OFFSET)));
+        gen_assign_cast(temporary);
+    }
+    return 0;
+}
+
+function gfunc_param_typed(function_symbol, argument_symbol)
+{
+    return gfunc_param_typed_(function_symbol, argument_symbol, 0, 0, 0);
 }
 
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)

@@ -34,7 +34,7 @@ ST_DATA CType func_vt; /* current function return type (used by return instructi
 
 /* ------------------------------------------------------------------------- */
 
-static void gen_cast(CType *type);
+void gen_cast(CType *type);
 void gen_cast_s(int t);
 static int parse_btype(CType *type, AttributeDef *ad);
 static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
@@ -1724,7 +1724,7 @@ void gen_cast_s(int t)
     gen_cast(&type);
 }
 
-static void gen_cast(CType *type)
+void gen_cast(CType *type)
 {
     int sbt, dbt, sf, df, c, p;
 
@@ -2050,7 +2050,7 @@ static void type_to_str(char *buf, int buf_size,
 
 /* verify type compatibility to store vtop in 'dt' type, and generate
    casts if needed. */
-static void gen_assign_cast(CType *dt)
+void gen_assign_cast(CType *dt)
 {
     CType *st, *type1, *type2;
     char buf1[256], buf2[256];
@@ -3489,31 +3489,6 @@ ST_FUNC void indir(void)
 }
 
 /* pass a parameter to a function and do type checking and casting */
-static void gfunc_param_typed(Sym *func, Sym *arg)
-{
-    int func_type;
-    CType type;
-
-    func_type = func->f.func_type;
-    if (func_type == FUNC_OLD ||
-        (func_type == FUNC_ELLIPSIS && arg == NULL)) {
-        /* default casting : only need to convert float to double */
-        if ((vtop->type.t & VT_BTYPE) == VT_FLOAT) {
-            gen_cast_s(VT_DOUBLE);
-        } else if (vtop->type.t & VT_BITFIELD) {
-            type.t = vtop->type.t & (VT_BTYPE | VT_UNSIGNED);
-	    type.ref = vtop->type.ref;
-            gen_cast(&type);
-        }
-    } else if (arg == NULL) {
-        tcc_error("too many arguments to function");
-    } else {
-        type = arg->type;
-        type.t &= ~VT_CONSTANT; /* need to do that to avoid false warning */
-        gen_assign_cast(&type);
-    }
-}
-
 /* parse an expression and return its type without any side effect. */
 static void expr_type(CType *type, void (*expr_fn)(void))
 {
@@ -4262,22 +4237,6 @@ void unary(void)
             break;
         }
     }
-}
-
-/* Assuming vtop is a value used in a conditional context
-   (i.e. compared with zero) return 0 if it's false, 1 if
-   true and -1 if it can't be statically determined.  */
-static int condition_3way(void)
-{
-    int c = -1;
-    if ((vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST &&
-	(!(vtop->r & VT_SYM) || !vtop->sym->a.weak)) {
-	vdup();
-        gen_cast_s(VT_BOOL);
-	c = vtop->c.i;
-	vpop();
-    }
-    return c;
 }
 
 static void expr_cond(void)
