@@ -33,6 +33,31 @@ var CC0_ASCII_UPPER_Z;
 var CC0_ASCII_UNDERSCORE;
 var CC0_ASCII_LOWER_A;
 var CC0_ASCII_LOWER_Z;
+var CC0_ASCII_SLASH;
+var CC0_ASCII_STAR;
+var CC0_ASCII_BACKSLASH;
+var CC0_ASCII_QUOTE;
+
+/* Standalone compiler lexer state and its deliberately small token set. */
+var CC0_SOURCE;
+var CC0_SOURCE_LENGTH;
+var CC0_SOURCE_POSITION;
+var CC0_TOKEN;
+var CC0_TOKEN_START;
+var CC0_TOKEN_LENGTH;
+var CC0_TOKEN_NUMBER;
+var CC0_TOKEN_EOF;
+var CC0_TOKEN_ERROR;
+var CC0_TOKEN_IDENTIFIER;
+var CC0_TOKEN_NUMBER_LITERAL;
+var CC0_TOKEN_STRING_LITERAL;
+var CC0_TOKEN_FUNCTION;
+var CC0_TOKEN_VAR;
+var CC0_TOKEN_RETURN;
+var CC0_TOKEN_IF;
+var CC0_TOKEN_ELSE;
+var CC0_TOKEN_WHILE;
+var CC0_TOKEN_BREAK;
 
 function cc0_init()
 {
@@ -62,6 +87,22 @@ function cc0_init()
     CC0_ASCII_UNDERSCORE = 95;
     CC0_ASCII_LOWER_A = 97;
     CC0_ASCII_LOWER_Z = 122;
+    CC0_ASCII_SLASH = 47;
+    CC0_ASCII_STAR = 42;
+    CC0_ASCII_BACKSLASH = 92;
+    CC0_ASCII_QUOTE = 34;
+    CC0_TOKEN_EOF = 0;
+    CC0_TOKEN_ERROR = 1;
+    CC0_TOKEN_IDENTIFIER = 2;
+    CC0_TOKEN_NUMBER_LITERAL = 3;
+    CC0_TOKEN_STRING_LITERAL = 4;
+    CC0_TOKEN_FUNCTION = 5;
+    CC0_TOKEN_VAR = 6;
+    CC0_TOKEN_RETURN = 7;
+    CC0_TOKEN_IF = 8;
+    CC0_TOKEN_ELSE = 9;
+    CC0_TOKEN_WHILE = 10;
+    CC0_TOKEN_BREAK = 11;
     return CC0_FALSE;
 }
 
@@ -278,4 +319,208 @@ function cc0_number_lshift_(number, shift, low_bits, index, address, value)
 function cc0_number_lshift(number, shift, low_bits)
 {
     return cc0_number_lshift_(number, shift, low_bits, 0, 0, 0);
+}
+
+function cc0_text_equal_(source, length, text, index, left, right)
+{
+    index = 0;
+    while (lt(index, length)) {
+        left = ri8(add(source, index));
+        right = ri8(add(text, index));
+        if (not(eq(left, right))) {
+            return CC0_FALSE;
+        }
+        index = add(index, 1);
+    }
+    return eq(ri8(add(text, length)), 0);
+}
+
+function cc0_text_equal(source, length, text)
+{
+    return cc0_text_equal_(source, length, text, 0, 0, 0);
+}
+
+function cc0_compiler_set_source(source, length)
+{
+    CC0_SOURCE = source;
+    CC0_SOURCE_LENGTH = length;
+    CC0_SOURCE_POSITION = 0;
+    CC0_TOKEN = CC0_TOKEN_EOF;
+    CC0_TOKEN_START = source;
+    CC0_TOKEN_LENGTH = 0;
+    CC0_TOKEN_NUMBER = 0;
+    return CC0_FALSE;
+}
+
+function cc0_compiler_skip_layout_(character, next_character, closed)
+{
+    while (lt(CC0_SOURCE_POSITION, CC0_SOURCE_LENGTH)) {
+        character = ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION));
+        if (cc0_is_horizontal_space(character)) {
+            CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+        } else if (cc0_is_line_space(character)) {
+            CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+        } else if (eq(character, CC0_ASCII_VERTICAL_TAB)) {
+            CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+        } else if (eq(character, CC0_ASCII_SLASH)) {
+            if (not(lt(add(CC0_SOURCE_POSITION, 1), CC0_SOURCE_LENGTH))) {
+                return CC0_TRUE;
+            }
+            next_character = ri8(add(CC0_SOURCE, add(CC0_SOURCE_POSITION, 1)));
+            if (eq(next_character, CC0_ASCII_SLASH)) {
+                CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 2);
+                while (lt(CC0_SOURCE_POSITION, CC0_SOURCE_LENGTH)) {
+                    character = ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION));
+                    if (eq(character, CC0_ASCII_LINE_FEED)) {
+                        break;
+                    }
+                    CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+                }
+            } else if (eq(next_character, CC0_ASCII_STAR)) {
+                CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 2);
+                closed = CC0_FALSE;
+                while (lt(add(CC0_SOURCE_POSITION, 1), CC0_SOURCE_LENGTH)) {
+                    character = ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION));
+                    next_character = ri8(add(CC0_SOURCE, add(CC0_SOURCE_POSITION, 1)));
+                    if (eq(character, CC0_ASCII_STAR)) {
+                        if (eq(next_character, CC0_ASCII_SLASH)) {
+                            CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 2);
+                            closed = CC0_TRUE;
+                            break;
+                        }
+                    }
+                    CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+                }
+                if (not(closed)) {
+                    CC0_TOKEN = CC0_TOKEN_ERROR;
+                    return CC0_FALSE;
+                }
+            } else {
+                return CC0_TRUE;
+            }
+        } else {
+            return CC0_TRUE;
+        }
+    }
+    return CC0_TRUE;
+}
+
+function cc0_compiler_skip_layout()
+{
+    return cc0_compiler_skip_layout_(0, 0, 0);
+}
+
+function cc0_compiler_keyword_(text, length)
+{
+    if (cc0_text_equal(text, length, mks("function"))) {
+        return CC0_TOKEN_FUNCTION;
+    }
+    if (cc0_text_equal(text, length, mks("var"))) {
+        return CC0_TOKEN_VAR;
+    }
+    if (cc0_text_equal(text, length, mks("return"))) {
+        return CC0_TOKEN_RETURN;
+    }
+    if (cc0_text_equal(text, length, mks("if"))) {
+        return CC0_TOKEN_IF;
+    }
+    if (cc0_text_equal(text, length, mks("else"))) {
+        return CC0_TOKEN_ELSE;
+    }
+    if (cc0_text_equal(text, length, mks("while"))) {
+        return CC0_TOKEN_WHILE;
+    }
+    if (cc0_text_equal(text, length, mks("break"))) {
+        return CC0_TOKEN_BREAK;
+    }
+    return CC0_TOKEN_IDENTIFIER;
+}
+
+function cc0_compiler_scan_name_(character)
+{
+    CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+    while (lt(CC0_SOURCE_POSITION, CC0_SOURCE_LENGTH)) {
+        character = ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION));
+        if (not(cc0_is_name_continue(character))) {
+            break;
+        }
+        CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+    }
+    CC0_TOKEN_LENGTH = sub(add(CC0_SOURCE, CC0_SOURCE_POSITION), CC0_TOKEN_START);
+    CC0_TOKEN = cc0_compiler_keyword_(CC0_TOKEN_START, CC0_TOKEN_LENGTH);
+    return CC0_TOKEN;
+}
+
+function cc0_compiler_scan_number_(character, digit)
+{
+    CC0_TOKEN_NUMBER = 0;
+    while (lt(CC0_SOURCE_POSITION, CC0_SOURCE_LENGTH)) {
+        character = ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION));
+        if (not(cc0_is_decimal_digit(character))) {
+            break;
+        }
+        digit = sub(character, CC0_ASCII_ZERO);
+        CC0_TOKEN_NUMBER = add(shl(CC0_TOKEN_NUMBER, 3),
+            add(shl(CC0_TOKEN_NUMBER, 1), digit));
+        CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+    }
+    CC0_TOKEN_LENGTH = sub(add(CC0_SOURCE, CC0_SOURCE_POSITION), CC0_TOKEN_START);
+    CC0_TOKEN = CC0_TOKEN_NUMBER_LITERAL;
+    return CC0_TOKEN;
+}
+
+function cc0_compiler_scan_string_(character, escaped)
+{
+    CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+    CC0_TOKEN_START = add(CC0_SOURCE, CC0_SOURCE_POSITION);
+    escaped = CC0_FALSE;
+    while (lt(CC0_SOURCE_POSITION, CC0_SOURCE_LENGTH)) {
+        character = ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION));
+        if (escaped) {
+            escaped = CC0_FALSE;
+        } else if (eq(character, CC0_ASCII_BACKSLASH)) {
+            escaped = CC0_TRUE;
+        } else if (eq(character, CC0_ASCII_QUOTE)) {
+            CC0_TOKEN_LENGTH = sub(add(CC0_SOURCE, CC0_SOURCE_POSITION), CC0_TOKEN_START);
+            CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+            CC0_TOKEN = CC0_TOKEN_STRING_LITERAL;
+            return CC0_TOKEN;
+        }
+        CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+    }
+    CC0_TOKEN = CC0_TOKEN_ERROR;
+    return CC0_TOKEN;
+}
+
+function cc0_compiler_next_token_(character)
+{
+    cc0_compiler_skip_layout();
+    if (eq(CC0_TOKEN, CC0_TOKEN_ERROR)) {
+        return CC0_TOKEN;
+    }
+    CC0_TOKEN_START = add(CC0_SOURCE, CC0_SOURCE_POSITION);
+    CC0_TOKEN_LENGTH = 1;
+    if (not(lt(CC0_SOURCE_POSITION, CC0_SOURCE_LENGTH))) {
+        CC0_TOKEN_LENGTH = 0;
+        CC0_TOKEN = CC0_TOKEN_EOF;
+        return CC0_TOKEN;
+    }
+    character = ri8(CC0_TOKEN_START);
+    if (cc0_is_name_start(character)) {
+        return cc0_compiler_scan_name_(0);
+    }
+    if (cc0_is_decimal_digit(character)) {
+        return cc0_compiler_scan_number_(0, 0);
+    }
+    if (eq(character, CC0_ASCII_QUOTE)) {
+        return cc0_compiler_scan_string_(0, 0);
+    }
+    CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+    CC0_TOKEN = character;
+    return CC0_TOKEN;
+}
+
+function cc0_compiler_next_token()
+{
+    return cc0_compiler_next_token_(0);
 }

@@ -15,6 +15,26 @@ function ushr(value, count) { return (value >>> count) | 0; }
 /* This byte array models the flat address space used by cc0 host tests. */
 var CC0_SUPPORT_MEMORY_SIZE = 65536;
 var cc0_support_memory = new Uint8Array(CC0_SUPPORT_MEMORY_SIZE);
+var cc0_support_string_top = 32768;
+var cc0_support_string_cache = {};
+
+function mks(value) {
+    var index;
+    var pointer;
+    if (Object.prototype.hasOwnProperty.call(cc0_support_string_cache, value)) {
+        return cc0_support_string_cache[value];
+    }
+    pointer = cc0_support_string_top;
+    index = 0;
+    while (index < value.length) {
+        cc0_support_memory[pointer + index] = value.charCodeAt(index) & 255;
+        index = index + 1;
+    }
+    cc0_support_memory[pointer + index] = 0;
+    cc0_support_string_top = pointer + index + 1;
+    cc0_support_string_cache[value] = pointer;
+    return pointer;
+}
 
 function ri8(address) {
     return cc0_support_memory[address] | 0;
