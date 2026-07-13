@@ -29,6 +29,11 @@ function gsym(jump_chain)
     return 0;
 }
 
+function gsym_addr(jump_chain, address)
+{
+    return 0;
+}
+
 function gjmp(jump_chain)
 {
     return jump_chain;

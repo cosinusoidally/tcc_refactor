@@ -1531,7 +1531,7 @@ ST_FUNC void relocate_plt(TCCState *s1);
 
 ST_DATA const int reg_classes[NB_REGS];
 
-ST_FUNC void gsym_addr(int t, int a);
+void gsym_addr(int t, int a);
 extern void gsym(int t);
 extern void load(int r, SValue *sv);
 extern void move_reg(int destination, int source, int type);

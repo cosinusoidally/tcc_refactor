@@ -45,6 +45,8 @@ void block_return(void);
 void block_break(int *break_symbol);
 void block_continue(int *continue_symbol);
 void block_if(int *break_symbol, int *continue_symbol);
+void block_while(void);
+void block_do(void);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1698,24 +1700,7 @@ void block(int *bsym, int *csym, int is_expr)
     if (tok == TOK_IF) {
         block_if(bsym, csym);
     } else if (tok == TOK_WHILE) {
-	int saved_nocode_wanted;
-	nocode_wanted &= ~0x20000000;
-        next();
-        d = ind;
-        vla_sp_restore();
-        skip('(');
-        gexpr();
-        skip(')');
-        a = gvtst(1, 0);
-        b = 0;
-        ++local_scope;
-	saved_nocode_wanted = nocode_wanted;
-        block(&a, &b, 0);
-	nocode_wanted = saved_nocode_wanted;
-        --local_scope;
-        gjmp_addr(d);
-        gsym(a);
-        gsym_addr(b, d);
+        block_while();
     } else if (tok == '{') {
         Sym *llabel;
         int block_vla_sp_loc = vla_sp_loc, saved_vlas_in_scope = vlas_in_scope;
@@ -1828,25 +1813,7 @@ void block(int *bsym, int *csym, int is_expr)
 
     } else 
     if (tok == TOK_DO) {
-	int saved_nocode_wanted;
-	nocode_wanted &= ~0x20000000;
-        next();
-        a = 0;
-        b = 0;
-        d = ind;
-        vla_sp_restore();
-	saved_nocode_wanted = nocode_wanted;
-        block(&a, &b, 0);
-        skip(TOK_WHILE);
-        skip('(');
-        gsym(b);
-	gexpr();
-	c = gvtst(0, 0);
-	gsym_addr(c, d);
-	nocode_wanted = saved_nocode_wanted;
-        skip(')');
-        gsym(a);
-        skip(';');
+        block_do();
     } else
     if (tok == TOK_SWITCH) {
         struct switch_t *saved, sw;

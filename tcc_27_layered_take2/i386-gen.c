@@ -130,7 +130,7 @@ ST_FUNC void gen_le32(int c)
 }
 
 /* output a symbol and patch all calls to it */
-ST_FUNC void gsym_addr(int t, int a)
+void gsym_addr(int t, int a)
 {
     while (t) {
         unsigned char *ptr = cur_text_section->data + t;

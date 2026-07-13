@@ -4928,6 +4928,62 @@ function block_if(break_symbol, continue_symbol)
     return 0;
 }
 
+function block_while()
+{
+    var symbols;
+    var loop_address;
+    var saved_nocode;
+    nocode_wanted = and(nocode_wanted, bnot(536870912));
+    next();
+    loop_address = ind;
+    vla_sp_restore();
+    skip(40);
+    gexpr();
+    skip(41);
+    symbols = malloc(8);
+    wi32(symbols, gvtst(1, 0));
+    wi32(add(symbols, 4), 0);
+    local_scope = add(local_scope, 1);
+    saved_nocode = nocode_wanted;
+    block(symbols, add(symbols, 4), 0);
+    nocode_wanted = saved_nocode;
+    local_scope = sub(local_scope, 1);
+    gjmp_addr(loop_address);
+    gsym(ri32(symbols));
+    gsym_addr(ri32(add(symbols, 4)), loop_address);
+    free(symbols);
+    return 0;
+}
+
+function block_do()
+{
+    var symbols;
+    var loop_address;
+    var condition_jump;
+    var saved_nocode;
+    nocode_wanted = and(nocode_wanted, bnot(536870912));
+    next();
+    symbols = malloc(8);
+    wi32(symbols, 0);
+    wi32(add(symbols, 4), 0);
+    loop_address = ind;
+    vla_sp_restore();
+    saved_nocode = nocode_wanted;
+    block(symbols, add(symbols, 4), 0);
+    skip(261);
+    skip(40);
+    gsym(ri32(add(symbols, 4)));
+    gexpr();
+    condition_jump = gvtst(0, 0);
+    gsym_addr(condition_jump, loop_address);
+    nocode_wanted = saved_nocode;
+    skip(41);
+    gsym(ri32(symbols));
+    skip(59);
+    free(symbols);
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {
