@@ -10,6 +10,10 @@ var CC0_TRUE;
 var CC0_CHARACTER_EOF;
 var CC0_BYTE_VALUE_COUNT;
 var CC0_CHARACTER_SPACE_FLAG;
+var CC0_TOKEN_HASH_INITIAL;
+var CC0_TOKEN_HASH_LEFT_SHIFT;
+var CC0_TOKEN_HASH_RIGHT_SHIFT;
+var CC0_TOKEN_HASH_BUCKET_MASK;
 
 /* Named ASCII values keep character classification independent of literals. */
 var CC0_ASCII_TAB;
@@ -34,6 +38,10 @@ function cc0_init()
     CC0_CHARACTER_EOF = sub(0, 1);
     CC0_BYTE_VALUE_COUNT = 256;
     CC0_CHARACTER_SPACE_FLAG = 1;
+    CC0_TOKEN_HASH_INITIAL = 1;
+    CC0_TOKEN_HASH_LEFT_SHIFT = 5;
+    CC0_TOKEN_HASH_RIGHT_SHIFT = 27;
+    CC0_TOKEN_HASH_BUCKET_MASK = 16383;
     CC0_ASCII_TAB = 9;
     CC0_ASCII_LINE_FEED = 10;
     CC0_ASCII_VERTICAL_TAB = 11;
@@ -179,4 +187,26 @@ function cc0_check_space_(table, token, space_pointer, address, flags)
 function cc0_check_space(table, token, space_pointer)
 {
     return cc0_check_space_(table, token, space_pointer, 0, 0);
+}
+
+/* This is TCC's identifier hash with explicit 32-bit wrapping primitives. */
+function cc0_token_hash_(text, length, index, hash, character, left_part, right_part)
+{
+    index = 0;
+    hash = CC0_TOKEN_HASH_INITIAL;
+    while (lt(index, length)) {
+        character = ri8(add(text, index));
+        left_part = shl(hash, CC0_TOKEN_HASH_LEFT_SHIFT);
+        right_part = ushr(hash, CC0_TOKEN_HASH_RIGHT_SHIFT);
+        hash = add(hash, left_part);
+        hash = add(hash, right_part);
+        hash = add(hash, character);
+        index = add(index, 1);
+    }
+    return and(hash, CC0_TOKEN_HASH_BUCKET_MASK);
+}
+
+function cc0_token_hash(text, length)
+{
+    return cc0_token_hash_(text, length, 0, 0, 0, 0, 0);
 }

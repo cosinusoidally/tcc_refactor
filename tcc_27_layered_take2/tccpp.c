@@ -448,13 +448,9 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
 ST_FUNC TokenSym *tok_alloc(const char *str, int len)
 {
     TokenSym *ts, **pts;
-    int i;
     unsigned int h;
-    
-    h = TOK_HASH_INIT;
-    for(i=0;i<len;i++)
-        h = TOK_HASH_FUNC(h, ((unsigned char *)str)[i]);
-    h &= (TOK_HASH_SIZE - 1);
+
+    h = cc0_token_hash((int)str, len);
 
     pts = &hash_ident[h];
     for(;;) {

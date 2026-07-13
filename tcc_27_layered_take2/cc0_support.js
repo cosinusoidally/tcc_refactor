@@ -9,6 +9,8 @@ function lt(left, right) { return left < right ? 1 : 0; }
 function le(left, right) { return left <= right ? 1 : 0; }
 function not(value) { return value ? 0 : 1; }
 function and(left, right) { return (left & right) | 0; }
+function shl(value, count) { return (value << count) | 0; }
+function ushr(value, count) { return (value >>> count) | 0; }
 
 /* This byte array models the flat address space used by cc0 host tests. */
 var CC0_SUPPORT_MEMORY_SIZE = 65536;
