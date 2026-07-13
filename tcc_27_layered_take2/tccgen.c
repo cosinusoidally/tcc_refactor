@@ -63,6 +63,8 @@ void unary_identifier(int token);
 void unary_postfix_field(int operator);
 void unary_postfix_index(void);
 void unary_prefix(int operator);
+void unary_literal(int token);
+void unary_postfix_increment(int operator);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1000,42 +1002,18 @@ void unary(void)
         next();
         goto tok_next;
     case TOK_LCHAR:
-#ifdef TCC_TARGET_PE
-        t = VT_SHORT|VT_UNSIGNED;
-        goto push_tokc;
-#endif
     case TOK_CINT:
     case TOK_CCHAR: 
-	t = VT_INT;
- push_tokc:
-	type.t = t;
-	vsetc(&type, VT_CONST, &tokc);
-        next();
-        break;
     case TOK_CUINT:
-        t = VT_INT | VT_UNSIGNED;
-        goto push_tokc;
     case TOK_CLLONG:
-        t = VT_LLONG;
-	goto push_tokc;
     case TOK_CULLONG:
-        t = VT_LLONG | VT_UNSIGNED;
-	goto push_tokc;
     case TOK_CFLOAT:
-        t = VT_FLOAT;
-	goto push_tokc;
     case TOK_CDOUBLE:
-        t = VT_DOUBLE;
-	goto push_tokc;
     case TOK_CLDOUBLE:
-        t = VT_LDOUBLE;
-	goto push_tokc;
     case TOK_CLONG:
-        t = (LONG_SIZE == 8 ? VT_LLONG : VT_INT) | VT_LONG;
-	goto push_tokc;
     case TOK_CULONG:
-        t = (LONG_SIZE == 8 ? VT_LLONG : VT_INT) | VT_LONG | VT_UNSIGNED;
-	goto push_tokc;
+        unary_literal(tok);
+        break;
     case TOK___FUNCTION__:
         if (!gnu_ext)
             goto tok_identifier;
@@ -1419,8 +1397,7 @@ void unary(void)
     /* post operations */
     while (1) {
         if (tok == TOK_INC || tok == TOK_DEC) {
-            inc(1, tok);
-            next();
+            unary_postfix_increment(tok);
         } else if (tok == '.' || tok == TOK_ARROW || tok == TOK_CDOUBLE) {
             unary_postfix_field(tok);
         } else if (tok == '[') {

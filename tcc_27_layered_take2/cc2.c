@@ -333,6 +333,7 @@ var funcname;
 var cur_switch;
 var tok_ident;
 var tok_address;
+var tokc_address;
 var data_section_address;
 var tcc_state_address;
 var gnu_ext_address;
@@ -5523,6 +5524,45 @@ function unary_prefix(operator)
     } else if (or(eq(operator, 164), eq(operator, 162))) {
         inc(0, operator);
     }
+    return 0;
+}
+
+function unary_literal(token)
+{
+    var type;
+    var type_value;
+    type = malloc(8);
+    type_value = CC2_TCC_INT_TYPE;
+    if (eq(token, 182)) {
+        type_value = or(CC2_TCC_INT_TYPE, CC2_TCC_UNSIGNED_TYPE);
+    } else if (eq(token, 183)) {
+        type_value = CC2_TCC_LONG_LONG_TYPE;
+    } else if (eq(token, 184)) {
+        type_value = or(CC2_TCC_LONG_LONG_TYPE, CC2_TCC_UNSIGNED_TYPE);
+    } else if (eq(token, 187)) {
+        type_value = CC2_TCC_FLOAT_TYPE;
+    } else if (eq(token, 188)) {
+        type_value = CC2_TCC_DOUBLE_TYPE;
+    } else if (eq(token, 189)) {
+        type_value = CC2_TCC_LONG_DOUBLE_TYPE;
+    } else if (eq(token, 206)) {
+        type_value = or(CC2_TCC_INT_TYPE, CC2_TCC_LONG_MODIFIER);
+    } else if (eq(token, 207)) {
+        type_value = or(or(CC2_TCC_INT_TYPE, CC2_TCC_LONG_MODIFIER),
+            CC2_TCC_UNSIGNED_TYPE);
+    }
+    wi32(type, type_value);
+    wi32(add(type, 4), 0);
+    vsetc(type, CC2_VALUE_CONSTANT, tokc_address);
+    next();
+    free(type);
+    return 0;
+}
+
+function unary_postfix_increment(operator)
+{
+    inc(1, operator);
+    next();
     return 0;
 }
 

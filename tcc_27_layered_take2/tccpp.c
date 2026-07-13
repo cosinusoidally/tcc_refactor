@@ -29,7 +29,7 @@ ST_DATA int parse_flags;
 ST_DATA struct BufferedFile *file;
 ST_DATA int ch;
 int tok;
-ST_DATA CValue tokc;
+CValue tokc;
 ST_DATA const int *macro_ptr;
 ST_DATA CString tokcstr; /* current parsed string, if any */
 
@@ -3566,6 +3566,7 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
     local_label_stack_address = &local_label_stack;
     ptrdiff_type_address = &ptrdiff_type;
     tok_address = &tok;
+    tokc_address = &tokc;
     gnu_ext_address = &gnu_ext;
     data_section_address = &data_section;
     tcc_state_address = tcc_state;
