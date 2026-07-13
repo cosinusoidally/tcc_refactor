@@ -44,12 +44,13 @@ void init_putz(Section *sec, unsigned long c, int size);
 void block_return(void);
 void block_break(int *break_symbol);
 void block_continue(int *continue_symbol);
+void block_if(int *break_symbol, int *continue_symbol);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
 void init_putv(CType *type, Section *sec, unsigned long c);
 static void decl_initializer(CType *type, Section *sec, unsigned long c, int first, int size_only);
-static void block(int *bsym, int *csym, int is_expr);
+void block(int *bsym, int *csym, int is_expr);
 static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
 static void decl(int l);
 static int decl0(int l, int is_for_loop_init, Sym *);
@@ -1679,7 +1680,7 @@ void expr_const64_words(int *words)
    return zero */
 
 
-static void block(int *bsym, int *csym, int is_expr)
+void block(int *bsym, int *csym, int is_expr)
 {
     int a, b, c, d, cond;
     Sym *s;
@@ -1695,35 +1696,7 @@ static void block(int *bsym, int *csym, int is_expr)
     }
 
     if (tok == TOK_IF) {
-        /* if test */
-	int saved_nocode_wanted = nocode_wanted;
-        next();
-        skip('(');
-        gexpr();
-        skip(')');
-	cond = condition_3way();
-        if (cond == 1)
-            a = 0, vpop();
-        else
-            a = gvtst(1, 0);
-        if (cond == 0)
-	    nocode_wanted |= 0x20000000;
-        block(bsym, csym, 0);
-	if (cond != 1)
-	    nocode_wanted = saved_nocode_wanted;
-        c = tok;
-        if (c == TOK_ELSE) {
-            next();
-            d = gjmp(0);
-            gsym(a);
-	    if (cond == 1)
-	        nocode_wanted |= 0x20000000;
-            block(bsym, csym, 0);
-            gsym(d); /* patch else jmp */
-	    if (cond != 0)
-		nocode_wanted = saved_nocode_wanted;
-        } else
-            gsym(a);
+        block_if(bsym, csym);
     } else if (tok == TOK_WHILE) {
 	int saved_nocode_wanted;
 	nocode_wanted &= ~0x20000000;

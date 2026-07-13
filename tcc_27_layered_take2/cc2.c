@@ -4885,6 +4885,49 @@ function block_continue(continue_symbol)
     return 0;
 }
 
+function block_if(break_symbol, continue_symbol)
+{
+    var false_jump;
+    var end_jump;
+    var condition;
+    var saved_nocode;
+    saved_nocode = nocode_wanted;
+    next();
+    skip(40);
+    gexpr();
+    skip(41);
+    condition = condition_3way();
+    if (eq(condition, 1)) {
+        false_jump = 0;
+        vpop();
+    } else {
+        false_jump = gvtst(1, 0);
+    }
+    if (eq(condition, 0)) {
+        nocode_wanted = or(nocode_wanted, 536870912);
+    }
+    block(break_symbol, continue_symbol, 0);
+    if (not(eq(condition, 1))) {
+        nocode_wanted = saved_nocode;
+    }
+    if (eq(ri32(tok_address), 260)) {
+        next();
+        end_jump = gjmp(0);
+        gsym(false_jump);
+        if (eq(condition, 1)) {
+            nocode_wanted = or(nocode_wanted, 536870912);
+        }
+        block(break_symbol, continue_symbol, 0);
+        gsym(end_jump);
+        if (not(eq(condition, 0))) {
+            nocode_wanted = saved_nocode;
+        }
+    } else {
+        gsym(false_jump);
+    }
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {

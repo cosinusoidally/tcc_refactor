@@ -1287,6 +1287,7 @@ extern int last_line_num, last_ind, func_ind; /* debug last line number and pc *
 extern const char *funcname;
 extern int g_debug;
 extern int local_scope, in_sizeof, section_sym;
+void block(int *break_symbol, int *continue_symbol, int is_expression);
 extern int vlas_in_scope, vla_sp_root_loc, vla_sp_loc;
 
 struct case_t {

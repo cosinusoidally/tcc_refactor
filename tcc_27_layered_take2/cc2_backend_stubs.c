@@ -253,3 +253,8 @@ function unget_tok(token)
 {
     return 0;
 }
+
+function block(break_symbol, continue_symbol, is_expression)
+{
+    return 0;
+}
