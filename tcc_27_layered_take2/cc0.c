@@ -58,6 +58,14 @@ var CC0_TOKEN_IF;
 var CC0_TOKEN_ELSE;
 var CC0_TOKEN_WHILE;
 var CC0_TOKEN_BREAK;
+var CC0_COMPILER_ERROR;
+var CC0_PUNCTUATION_LEFT_PARENTHESIS;
+var CC0_PUNCTUATION_RIGHT_PARENTHESIS;
+var CC0_PUNCTUATION_LEFT_BRACE;
+var CC0_PUNCTUATION_RIGHT_BRACE;
+var CC0_PUNCTUATION_SEMICOLON;
+var CC0_PUNCTUATION_COMMA;
+var CC0_PUNCTUATION_ASSIGN;
 
 function cc0_init()
 {
@@ -103,6 +111,14 @@ function cc0_init()
     CC0_TOKEN_ELSE = 9;
     CC0_TOKEN_WHILE = 10;
     CC0_TOKEN_BREAK = 11;
+    CC0_COMPILER_ERROR = CC0_FALSE;
+    CC0_PUNCTUATION_LEFT_PARENTHESIS = 40;
+    CC0_PUNCTUATION_RIGHT_PARENTHESIS = 41;
+    CC0_PUNCTUATION_LEFT_BRACE = 123;
+    CC0_PUNCTUATION_RIGHT_BRACE = 125;
+    CC0_PUNCTUATION_SEMICOLON = 59;
+    CC0_PUNCTUATION_COMMA = 44;
+    CC0_PUNCTUATION_ASSIGN = 61;
     return CC0_FALSE;
 }
 
@@ -523,4 +539,217 @@ function cc0_compiler_next_token_(character)
 function cc0_compiler_next_token()
 {
     return cc0_compiler_next_token_(0);
+}
+
+function cc0_compiler_fail()
+{
+    CC0_COMPILER_ERROR = CC0_TRUE;
+    return CC0_TRUE;
+}
+
+function cc0_compiler_expect(token)
+{
+    if (not(eq(CC0_TOKEN, token))) {
+        return cc0_compiler_fail();
+    }
+    cc0_compiler_next_token();
+    return CC0_FALSE;
+}
+
+function cc0_compiler_parse_expression_()
+{
+    if (eq(CC0_TOKEN, CC0_TOKEN_NUMBER_LITERAL)) {
+        cc0_compiler_next_token();
+        return CC0_FALSE;
+    }
+    if (eq(CC0_TOKEN, CC0_TOKEN_STRING_LITERAL)) {
+        cc0_compiler_next_token();
+        return CC0_FALSE;
+    }
+    if (eq(CC0_TOKEN, CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
+        cc0_compiler_next_token();
+        cc0_compiler_parse_expression_();
+        return cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS);
+    }
+    if (not(eq(CC0_TOKEN, CC0_TOKEN_IDENTIFIER))) {
+        return cc0_compiler_fail();
+    }
+    cc0_compiler_next_token();
+    if (eq(CC0_TOKEN, CC0_PUNCTUATION_ASSIGN)) {
+        cc0_compiler_next_token();
+        return cc0_compiler_parse_expression_();
+    }
+    if (eq(CC0_TOKEN, CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
+        cc0_compiler_next_token();
+        if (not(eq(CC0_TOKEN, CC0_PUNCTUATION_RIGHT_PARENTHESIS))) {
+            cc0_compiler_parse_expression_();
+            while (eq(CC0_TOKEN, CC0_PUNCTUATION_COMMA)) {
+                cc0_compiler_next_token();
+                cc0_compiler_parse_expression_();
+            }
+        }
+        return cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_parse_expression()
+{
+    if (CC0_COMPILER_ERROR) {
+        return CC0_TRUE;
+    }
+    return cc0_compiler_parse_expression_();
+}
+
+function cc0_compiler_parse_block_()
+{
+    if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_BRACE)) {
+        return CC0_TRUE;
+    }
+    while (not(eq(CC0_TOKEN, CC0_PUNCTUATION_RIGHT_BRACE))) {
+        if (eq(CC0_TOKEN, CC0_TOKEN_EOF)) {
+            return cc0_compiler_fail();
+        }
+        if (cc0_compiler_parse_statement()) {
+            return CC0_TRUE;
+        }
+    }
+    return cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_BRACE);
+}
+
+function cc0_compiler_parse_if_()
+{
+    cc0_compiler_next_token();
+    if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_parse_expression()) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_parse_statement()) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_TOKEN, CC0_TOKEN_ELSE)) {
+        cc0_compiler_next_token();
+        return cc0_compiler_parse_statement();
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_parse_while_()
+{
+    cc0_compiler_next_token();
+    if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_parse_expression()) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    return cc0_compiler_parse_statement();
+}
+
+function cc0_compiler_parse_statement()
+{
+    if (CC0_COMPILER_ERROR) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_TOKEN, CC0_PUNCTUATION_LEFT_BRACE)) {
+        return cc0_compiler_parse_block_();
+    }
+    if (eq(CC0_TOKEN, CC0_TOKEN_RETURN)) {
+        cc0_compiler_next_token();
+        if (cc0_compiler_parse_expression()) {
+            return CC0_TRUE;
+        }
+        return cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON);
+    }
+    if (eq(CC0_TOKEN, CC0_TOKEN_IF)) {
+        return cc0_compiler_parse_if_();
+    }
+    if (eq(CC0_TOKEN, CC0_TOKEN_WHILE)) {
+        return cc0_compiler_parse_while_();
+    }
+    if (eq(CC0_TOKEN, CC0_TOKEN_BREAK)) {
+        cc0_compiler_next_token();
+        return cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON);
+    }
+    if (cc0_compiler_parse_expression()) {
+        return CC0_TRUE;
+    }
+    return cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON);
+}
+
+function cc0_compiler_parse_parameters_()
+{
+    if (eq(CC0_TOKEN, CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
+        return CC0_FALSE;
+    }
+    if (cc0_compiler_expect(CC0_TOKEN_IDENTIFIER)) {
+        return CC0_TRUE;
+    }
+    while (eq(CC0_TOKEN, CC0_PUNCTUATION_COMMA)) {
+        cc0_compiler_next_token();
+        if (cc0_compiler_expect(CC0_TOKEN_IDENTIFIER)) {
+            return CC0_TRUE;
+        }
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_parse_function_()
+{
+    cc0_compiler_next_token();
+    if (cc0_compiler_expect(CC0_TOKEN_IDENTIFIER)) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_parse_parameters_()) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    return cc0_compiler_parse_block_();
+}
+
+function cc0_compiler_parse_global_()
+{
+    cc0_compiler_next_token();
+    if (cc0_compiler_expect(CC0_TOKEN_IDENTIFIER)) {
+        return CC0_TRUE;
+    }
+    return cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON);
+}
+
+function cc0_compiler_parse_program_(source, length)
+{
+    CC0_COMPILER_ERROR = CC0_FALSE;
+    cc0_compiler_set_source(source, length);
+    cc0_compiler_next_token();
+    while (not(eq(CC0_TOKEN, CC0_TOKEN_EOF))) {
+        if (eq(CC0_TOKEN, CC0_TOKEN_VAR)) {
+            cc0_compiler_parse_global_();
+        } else if (eq(CC0_TOKEN, CC0_TOKEN_FUNCTION)) {
+            cc0_compiler_parse_function_();
+        } else {
+            return cc0_compiler_fail();
+        }
+        if (CC0_COMPILER_ERROR) {
+            return CC0_TRUE;
+        }
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_parse_program(source, length)
+{
+    return cc0_compiler_parse_program_(source, length);
 }
