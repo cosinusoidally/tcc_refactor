@@ -174,6 +174,42 @@ var CC0_X86_STORE_EBX_ABSOLUTE;
 var CC0_X86_MOV_EAX_ECX;
 var CC0_X86_INTERRUPT_OPCODE;
 var CC0_X86_LINUX_INTERRUPT;
+var CC0_SECTION_ENTRY_ADDRESS_SHIFT;
+var CC0_SECTION_CAPACITY;
+var CC0_SECTION_TABLE_BYTES;
+var CC0_SECTIONS;
+var CC0_SECTION_COUNT;
+var CC0_SECTION_NAME_OFFSET;
+var CC0_SECTION_NAME_LENGTH_OFFSET;
+var CC0_SECTION_TYPE_OFFSET;
+var CC0_SECTION_FLAGS_OFFSET;
+var CC0_SECTION_ALIGNMENT_OFFSET;
+var CC0_SECTION_ENTRY_SIZE_OFFSET;
+var CC0_SECTION_LINK_OFFSET;
+var CC0_SECTION_INFO_OFFSET;
+var CC0_SECTION_DATA_OFFSET;
+var CC0_SECTION_CAPACITY_OFFSET;
+var CC0_SECTION_SIZE_OFFSET;
+var CC0_SECTION_FILE_OFFSET;
+var CC0_SECTION_NUMBER_OFFSET;
+var CC0_SECTION_INITIAL_DATA_CAPACITY;
+var CC0_ELF_SECTION_PROGBITS;
+var CC0_ELF_SECTION_SYMTAB;
+var CC0_ELF_SECTION_STRTAB;
+var CC0_ELF_SECTION_NOBITS;
+var CC0_ELF_SECTION_REL;
+var CC0_ELF_FLAG_WRITE;
+var CC0_ELF_FLAG_ALLOC;
+var CC0_ELF_FLAG_EXECUTE;
+var CC0_ELF_SYMBOL_BYTES;
+var CC0_ELF_SYMBOL_ADDRESS_SHIFT;
+var CC0_ELF_RELOCATION_BYTES;
+var CC0_ELF_SYMBOL_NAME_OFFSET;
+var CC0_ELF_SYMBOL_VALUE_OFFSET;
+var CC0_ELF_SYMBOL_SIZE_OFFSET;
+var CC0_ELF_SYMBOL_INFO_OFFSET;
+var CC0_ELF_SYMBOL_OTHER_OFFSET;
+var CC0_ELF_SYMBOL_SECTION_OFFSET;
 
 function cc0_init()
 {
@@ -229,8 +265,8 @@ function cc0_init()
     CC0_PUNCTUATION_COMMA = 44;
     CC0_PUNCTUATION_ASSIGN = 61;
     CC0_SYMBOL_ENTRY_ADDRESS_SHIFT = 4;
-    CC0_SYMBOL_CAPACITY = 1024;
-    CC0_SYMBOL_TABLE_BYTES = 16384;
+    CC0_SYMBOL_CAPACITY = 2048;
+    CC0_SYMBOL_TABLE_BYTES = 32768;
     CC0_SYMBOL_NAME_OFFSET = 0;
     CC0_SYMBOL_LENGTH_OFFSET = 4;
     CC0_SYMBOL_VALUE_OFFSET = 8;
@@ -335,7 +371,235 @@ function cc0_init()
     CC0_X86_MOV_EAX_ECX = 200;
     CC0_X86_INTERRUPT_OPCODE = 205;
     CC0_X86_LINUX_INTERRUPT = 128;
+    CC0_SECTION_ENTRY_ADDRESS_SHIFT = 6;
+    CC0_SECTION_CAPACITY = 64;
+    CC0_SECTION_TABLE_BYTES = 4096;
+    CC0_SECTIONS = 0;
+    CC0_SECTION_COUNT = 0;
+    CC0_SECTION_NAME_OFFSET = 0;
+    CC0_SECTION_NAME_LENGTH_OFFSET = 4;
+    CC0_SECTION_TYPE_OFFSET = 8;
+    CC0_SECTION_FLAGS_OFFSET = 12;
+    CC0_SECTION_ALIGNMENT_OFFSET = 16;
+    CC0_SECTION_ENTRY_SIZE_OFFSET = 20;
+    CC0_SECTION_LINK_OFFSET = 24;
+    CC0_SECTION_INFO_OFFSET = 28;
+    CC0_SECTION_DATA_OFFSET = 32;
+    CC0_SECTION_CAPACITY_OFFSET = 36;
+    CC0_SECTION_SIZE_OFFSET = 40;
+    CC0_SECTION_FILE_OFFSET = 44;
+    CC0_SECTION_NUMBER_OFFSET = 48;
+    CC0_SECTION_INITIAL_DATA_CAPACITY = 256;
+    CC0_ELF_SECTION_PROGBITS = 1;
+    CC0_ELF_SECTION_SYMTAB = 2;
+    CC0_ELF_SECTION_STRTAB = 3;
+    CC0_ELF_SECTION_NOBITS = 8;
+    CC0_ELF_SECTION_REL = 9;
+    CC0_ELF_FLAG_WRITE = 1;
+    CC0_ELF_FLAG_ALLOC = 2;
+    CC0_ELF_FLAG_EXECUTE = 4;
+    CC0_ELF_SYMBOL_BYTES = 16;
+    CC0_ELF_SYMBOL_ADDRESS_SHIFT = 4;
+    CC0_ELF_RELOCATION_BYTES = 8;
+    CC0_ELF_SYMBOL_NAME_OFFSET = 0;
+    CC0_ELF_SYMBOL_VALUE_OFFSET = 4;
+    CC0_ELF_SYMBOL_SIZE_OFFSET = 8;
+    CC0_ELF_SYMBOL_INFO_OFFSET = 12;
+    CC0_ELF_SYMBOL_OTHER_OFFSET = 13;
+    CC0_ELF_SYMBOL_SECTION_OFFSET = 14;
     return CC0_FALSE;
+}
+
+/* Flat section records mirror the fields cc0 needs from TCC's Section. */
+function cc0_elf_section_entry(index)
+{
+    return add(CC0_SECTIONS, shl(index, CC0_SECTION_ENTRY_ADDRESS_SHIFT));
+}
+
+function cc0_compiler_copy_bytes_(destination, source, count, index)
+{
+    index = 0;
+    while (lt(index, count)) {
+        wi8(add(destination, index), ri8(add(source, index)));
+        index = add(index, 1);
+    }
+    return destination;
+}
+
+function cc0_compiler_copy_bytes(destination, source, count)
+{
+    return cc0_compiler_copy_bytes_(destination, source, count, 0);
+}
+
+function cc0_elf_prepare_sections()
+{
+    if (eq(CC0_SECTIONS, 0)) {
+        CC0_SECTIONS = alloc(CC0_SECTION_TABLE_BYTES);
+    }
+    if (eq(CC0_SECTIONS, 0)) {
+        return cc0_compiler_fail();
+    }
+    CC0_SECTION_COUNT = 1;
+    return CC0_FALSE;
+}
+
+function cc0_elf_new_section_(name, length, type, flags, section, alignment)
+{
+    if (not(lt(CC0_SECTION_COUNT, CC0_SECTION_CAPACITY))) {
+        return 0;
+    }
+    section = cc0_elf_section_entry(CC0_SECTION_COUNT);
+    alignment = CC0_WORD_BYTES;
+    if (eq(type, CC0_ELF_SECTION_STRTAB)) {
+        alignment = 1;
+    }
+    wi32(add(section, CC0_SECTION_NAME_OFFSET), name);
+    wi32(add(section, CC0_SECTION_NAME_LENGTH_OFFSET), length);
+    wi32(add(section, CC0_SECTION_TYPE_OFFSET), type);
+    wi32(add(section, CC0_SECTION_FLAGS_OFFSET), flags);
+    wi32(add(section, CC0_SECTION_ALIGNMENT_OFFSET), alignment);
+    wi32(add(section, CC0_SECTION_ENTRY_SIZE_OFFSET), 0);
+    wi32(add(section, CC0_SECTION_LINK_OFFSET), 0);
+    wi32(add(section, CC0_SECTION_INFO_OFFSET), 0);
+    wi32(add(section, CC0_SECTION_DATA_OFFSET), 0);
+    wi32(add(section, CC0_SECTION_CAPACITY_OFFSET), 0);
+    wi32(add(section, CC0_SECTION_SIZE_OFFSET), 0);
+    wi32(add(section, CC0_SECTION_FILE_OFFSET), 0);
+    wi32(add(section, CC0_SECTION_NUMBER_OFFSET), CC0_SECTION_COUNT);
+    CC0_SECTION_COUNT = add(CC0_SECTION_COUNT, 1);
+    return section;
+}
+
+function cc0_elf_new_section(name, length, type, flags)
+{
+    return cc0_elf_new_section_(name, length, type, flags, 0, 0);
+}
+
+/* TCC's section_realloc grows payload storage geometrically. */
+function cc0_elf_section_reserve_(section, needed, capacity, new_capacity,
+    old_data, new_data)
+{
+    capacity = ri32(add(section, CC0_SECTION_CAPACITY_OFFSET));
+    if (le(needed, capacity)) {
+        return CC0_FALSE;
+    }
+    new_capacity = capacity;
+    if (eq(new_capacity, 0)) {
+        new_capacity = CC0_SECTION_INITIAL_DATA_CAPACITY;
+    }
+    while (lt(new_capacity, needed)) {
+        new_capacity = shl(new_capacity, 1);
+    }
+    new_data = alloc(new_capacity);
+    if (eq(new_data, 0)) {
+        return cc0_compiler_fail();
+    }
+    old_data = ri32(add(section, CC0_SECTION_DATA_OFFSET));
+    if (not(eq(old_data, 0))) {
+        cc0_compiler_copy_bytes(new_data, old_data,
+            ri32(add(section, CC0_SECTION_SIZE_OFFSET)));
+    }
+    wi32(add(section, CC0_SECTION_DATA_OFFSET), new_data);
+    wi32(add(section, CC0_SECTION_CAPACITY_OFFSET), new_capacity);
+    return CC0_FALSE;
+}
+
+function cc0_elf_section_reserve(section, needed)
+{
+    return cc0_elf_section_reserve_(section, needed, 0, 0, 0, 0);
+}
+
+/* This is the cc0 form of TCC's section_ptr_add. */
+function cc0_elf_section_ptr_add_(section, size, old_size, new_size, pointer)
+{
+    old_size = ri32(add(section, CC0_SECTION_SIZE_OFFSET));
+    new_size = add(old_size, size);
+    if (not(eq(ri32(add(section, CC0_SECTION_TYPE_OFFSET)),
+        CC0_ELF_SECTION_NOBITS))) {
+        if (cc0_elf_section_reserve(section, new_size)) {
+            return 0;
+        }
+    }
+    wi32(add(section, CC0_SECTION_SIZE_OFFSET), new_size);
+    pointer = ri32(add(section, CC0_SECTION_DATA_OFFSET));
+    if (eq(pointer, 0)) {
+        return 0;
+    }
+    return add(pointer, old_size);
+}
+
+function cc0_elf_section_ptr_add(section, size)
+{
+    return cc0_elf_section_ptr_add_(section, size, 0, 0, 0);
+}
+
+function cc0_elf_put_string_(section, value, length, offset, destination)
+{
+    offset = ri32(add(section, CC0_SECTION_SIZE_OFFSET));
+    destination = cc0_elf_section_ptr_add(section, add(length, 1));
+    if (eq(destination, 0)) {
+        return sub(0, 1);
+    }
+    cc0_compiler_copy_bytes(destination, value, length);
+    wi8(add(destination, length), 0);
+    return offset;
+}
+
+function cc0_elf_put_string(section, value, length)
+{
+    return cc0_elf_put_string_(section, value, length, 0, 0);
+}
+
+/* Emit the Elf32_Sym byte layout used by TCC's put_elf_sym. */
+function cc0_elf_put_symbol_(symtab, strtab, name, length, value, size, info,
+    other, section_number, symbol, name_offset, symbol_offset)
+{
+    name_offset = 0;
+    if (not(eq(length, 0))) {
+        name_offset = cc0_elf_put_string(strtab, name, length);
+        if (lt(name_offset, 0)) {
+            return sub(0, 1);
+        }
+    }
+    symbol_offset = ri32(add(symtab, CC0_SECTION_SIZE_OFFSET));
+    symbol = cc0_elf_section_ptr_add(symtab, CC0_ELF_SYMBOL_BYTES);
+    if (eq(symbol, 0)) {
+        return sub(0, 1);
+    }
+    wi32(add(symbol, CC0_ELF_SYMBOL_NAME_OFFSET), name_offset);
+    wi32(add(symbol, CC0_ELF_SYMBOL_VALUE_OFFSET), value);
+    wi32(add(symbol, CC0_ELF_SYMBOL_SIZE_OFFSET), size);
+    wi8(add(symbol, CC0_ELF_SYMBOL_INFO_OFFSET), info);
+    wi8(add(symbol, CC0_ELF_SYMBOL_OTHER_OFFSET), other);
+    wi8(add(symbol, CC0_ELF_SYMBOL_SECTION_OFFSET), and(section_number, 255));
+    wi8(add(add(symbol, CC0_ELF_SYMBOL_SECTION_OFFSET), 1),
+        ushr(section_number, 8));
+    return ushr(symbol_offset, CC0_ELF_SYMBOL_ADDRESS_SHIFT);
+}
+
+function cc0_elf_put_symbol(symtab, strtab, name, length, value, size, info,
+    other, section_number)
+{
+    return cc0_elf_put_symbol_(symtab, strtab, name, length, value, size,
+        info, other, section_number, 0, 0, 0);
+}
+
+/* i386 ET_REL objects use Elf32_Rel, with the addend stored in .text. */
+function cc0_elf_put_relocation_(section, offset, symbol, type, record, info)
+{
+    record = cc0_elf_section_ptr_add(section, CC0_ELF_RELOCATION_BYTES);
+    if (eq(record, 0)) {
+        return cc0_compiler_fail();
+    }
+    info = add(shl(symbol, 8), type);
+    wi32(record, offset);
+    wi32(add(record, CC0_WORD_BYTES), info);
+    return CC0_FALSE;
+}
+
+function cc0_elf_put_relocation(section, offset, symbol, type)
+{
+    return cc0_elf_put_relocation_(section, offset, symbol, type, 0, 0);
 }
 
 function cc0_is_decimal_digit(value)
