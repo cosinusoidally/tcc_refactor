@@ -424,6 +424,10 @@ var CC2_CACHED_INCLUDE_ONCE_OFFSET;
 var CC2_CACHED_INCLUDE_HASH_NEXT_OFFSET;
 var CC2_CACHED_INCLUDE_FILENAME_OFFSET;
 var CC2_CACHED_INCLUDE_BYTES;
+var CC2_TOKEN_ASSEMBLER_POP;
+var CC2_TOKEN_ASSEMBLER_PUSH;
+var CC2_TCC_STATE_PACK_STACK_OFFSET;
+var CC2_PACK_STACK_ENTRIES;
 var CC2_TOKEN_CHARACTER;
 var CC2_TOKEN_WIDE_CHARACTER;
 var CC2_TOKEN_INTEGER_CONSTANT;
@@ -1620,6 +1624,58 @@ function search_cached_include(state, filename, create)
     wi32(add(entry, CC2_CACHED_INCLUDE_HASH_NEXT_OFFSET), ri32(bucket));
     wi32(bucket, ri32(add(state, CC2_TCC_STATE_INCLUDE_COUNT_OFFSET)));
     return entry;
+}
+
+/* Apply #pragma pack using TCC's state-resident stack.  A false result means
+   malformed syntax; stack underflow and overflow remain fatal diagnostics. */
+function pragma_parse_pack(state)
+{
+    var token;
+    var pointer;
+    var stack_base;
+    var value;
+    next();
+    skip(40);
+    token = ri32(tok_address);
+    stack_base = add(state, CC2_TCC_STATE_PACK_STACK_OFFSET);
+    pointer = ri32(add(state, CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET));
+    if (eq(token, CC2_TOKEN_ASSEMBLER_POP)) {
+        next();
+        if (le(pointer, stack_base)) {
+            tcc_error(mks("out of pack stack"), 0);
+        }
+        pointer = sub(pointer, CC2_I386_WORD_BYTES);
+        wi32(add(state, CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET), pointer);
+    } else {
+        value = 0;
+        if (not(eq(token, 41))) {
+            if (eq(token, CC2_TOKEN_ASSEMBLER_PUSH)) {
+                next();
+                if (not(lt(pointer, add(stack_base, mul(sub(
+                    CC2_PACK_STACK_ENTRIES, 1), CC2_I386_WORD_BYTES))))) {
+                    tcc_error(mks("out of pack stack"), 0);
+                }
+                pointer = add(pointer, CC2_I386_WORD_BYTES);
+                wi32(add(state, CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET),
+                    pointer);
+                skip(44);
+            }
+            if (not(eq(ri32(tok_address), CC2_TOKEN_INTEGER_CONSTANT))) {
+                return 0;
+            }
+            value = ri32(tokc_address);
+            if (or(or(lt(value, 1), lt(16, value)), not(eq(and(value,
+                sub(value, 1)), 0)))) {
+                return 0;
+            }
+            next();
+        }
+        wi32(pointer, value);
+    }
+    if (not(eq(ri32(tok_address), 41))) {
+        return 0;
+    }
+    return 1;
 }
 
 function tok_str_add2(stream, token, value)
@@ -13177,6 +13233,10 @@ function cc2_init_constants()
     CC2_CACHED_INCLUDE_HASH_NEXT_OFFSET = 8;
     CC2_CACHED_INCLUDE_FILENAME_OFFSET = 12;
     CC2_CACHED_INCLUDE_BYTES = 16;
+    CC2_TOKEN_ASSEMBLER_POP = 649;
+    CC2_TOKEN_ASSEMBLER_PUSH = 646;
+    CC2_TCC_STATE_PACK_STACK_OFFSET = 904;
+    CC2_PACK_STACK_ENTRIES = 8;
     return 0;
 }
 

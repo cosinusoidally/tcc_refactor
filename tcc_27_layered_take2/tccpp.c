@@ -596,40 +596,7 @@ static void pragma_parse(TCCState *s1)
         unget_tok(TOK_LINEFEED);
 
     } else if (tok == TOK_pack) {
-        /* This may be:
-           #pragma pack(1) // set
-           #pragma pack() // reset to default
-           #pragma pack(push,1) // push & set
-           #pragma pack(pop) // restore previous */
-        next();
-        skip('(');
-        if (tok == TOK_ASM_pop) {
-            next();
-            if (s1->pack_stack_ptr <= s1->pack_stack) {
-            stk_error:
-                tcc_error("out of pack stack");
-            }
-            s1->pack_stack_ptr--;
-        } else {
-            int val = 0;
-            if (tok != ')') {
-                if (tok == TOK_ASM_push) {
-                    next();
-                    if (s1->pack_stack_ptr >= s1->pack_stack + PACK_STACK_SIZE - 1)
-                        goto stk_error;
-                    s1->pack_stack_ptr++;
-                    skip(',');
-                }
-                if (tok != TOK_CINT)
-                    goto pragma_err;
-                val = tokc.i;
-                if (val < 1 || val > 16 || (val & (val - 1)) != 0)
-                    goto pragma_err;
-                next();
-            }
-            *s1->pack_stack_ptr = val;
-        }
-        if (tok != ')')
+        if (!pragma_parse_pack(s1))
             goto pragma_err;
 
     } else if (tok == TOK_comment) {

@@ -1543,6 +1543,7 @@ int expr_preprocess(void);
 void next_nomacro_spc(void);
 CachedInclude *search_cached_include(TCCState *state, const char *filename,
                                      int create);
+int pragma_parse_pack(TCCState *state);
 #endif
 
 /* ------------ xxx-link.c ------------ */
