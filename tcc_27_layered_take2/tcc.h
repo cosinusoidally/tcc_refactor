@@ -1222,7 +1222,7 @@ Sym *label_find(int v);
 Sym *label_push(Sym **ptop, int v, int flags);
 void label_pop(Sym **ptop, Sym *slast, int keep);
 void parse_define(void);
-ST_FUNC void preprocess(int is_bof);
+void preprocess(int is_bof);
 void next_nomacro(void);
 void next_nomacro1(void);
 extern void next(void);

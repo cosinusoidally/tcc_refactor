@@ -413,6 +413,8 @@ var CC2_TOKEN_PREPROCESSOR_JOIN;
 var CC2_PARSE_FLAG_SPACES;
 var CC2_PARSE_FLAG_LINE_FEED;
 var CC2_PARSE_FLAG_PREPROCESS;
+var CC2_PARSE_FLAG_TOKEN_NUMBERS;
+var CC2_PARSE_FLAG_TOKEN_STRINGS;
 var CC2_CHARACTER_EOF;
 var CC2_CHARACTER_CLASS_SPACE;
 var CC2_INCLUDE_HASH_INITIAL;
@@ -2285,6 +2287,97 @@ function preprocess_include(state, directive)
         index = add(index, 1);
     }
     tcc_error(mks("include file '%s' not found"), name);
+    return 0;
+}
+
+function preprocess(is_beginning)
+{
+    var state;
+    var saved_flags;
+    var token;
+    var restart;
+    var source_file;
+    var pointer;
+    state = tcc_state_address;
+    saved_flags = ri32(parse_flags_address);
+    wi32(parse_flags_address, or(CC2_PARSE_FLAG_PREPROCESS,
+        or(CC2_PARSE_FLAG_TOKEN_NUMBERS, or(CC2_PARSE_FLAG_TOKEN_STRINGS,
+        or(CC2_PARSE_FLAG_LINE_FEED, and(saved_flags,
+        CC2_PARSE_FLAG_ASM_FILE))))));
+    next_nomacro();
+    restart = 1;
+    while (restart) {
+        restart = 0;
+        token = ri32(tok_address);
+        if (or(eq(token, CC2_TOKEN_DEFINE_DIRECTIVE),
+            eq(token, CC2_TOKEN_UNDEF_DIRECTIVE))) {
+            preprocess_macro_directive(token);
+        } else if (or(eq(token, CC2_TOKEN_INCLUDE_DIRECTIVE),
+            eq(token, CC2_TOKEN_INCLUDE_NEXT_DIRECTIVE))) {
+            if (preprocess_include(state, token)) {
+                wi32(parse_flags_address, saved_flags);
+                return 0;
+            }
+        } else if (eq(token, CC2_TOKEN_IFNDEF)) {
+            if (preprocess_conditional_if(state, is_beginning, 1, 0)) {
+                is_beginning = 0;
+                restart = 1;
+            }
+        } else if (eq(token, CC2_TOKEN_IF)) {
+            if (preprocess_conditional_if(state, is_beginning, 0, 1)) {
+                is_beginning = 0;
+                restart = 1;
+            }
+        } else if (eq(token, CC2_TOKEN_IFDEF)) {
+            if (preprocess_conditional_if(state, is_beginning, 0, 0)) {
+                is_beginning = 0;
+                restart = 1;
+            }
+        } else if (eq(token, CC2_TOKEN_ELSE)) {
+            if (preprocess_conditional_else(state, 0)) {
+                is_beginning = 0;
+                restart = 1;
+            }
+        } else if (eq(token, CC2_TOKEN_ELIF)) {
+            if (preprocess_conditional_else(state, 1)) {
+                is_beginning = 0;
+                restart = 1;
+            }
+        } else if (eq(token, CC2_TOKEN_ENDIF)) {
+            if (preprocess_conditional_endif(state)) {
+                wi32(parse_flags_address, saved_flags);
+                return 0;
+            }
+        } else if (or(eq(token, CC2_TOKEN_PREPROCESSOR_NUMBER),
+            eq(token, CC2_TOKEN_LINE_DIRECTIVE))) {
+            preprocess_line_directive(state, token);
+        } else if (or(eq(token, CC2_TOKEN_ERROR_DIRECTIVE),
+            eq(token, CC2_TOKEN_WARNING_DIRECTIVE))) {
+            preprocess_diagnostic_directive(token);
+        } else if (eq(token, CC2_TOKEN_PRAGMA)) {
+            pragma_parse(state);
+        } else if (eq(token, CC2_TOKEN_LINE_FEED)) {
+            wi32(parse_flags_address, saved_flags);
+            return 0;
+        } else {
+            if (not(and(saved_flags, CC2_PARSE_FLAG_ASM_FILE))) {
+                if (not(and(eq(token, 33), is_beginning))) {
+                    tcc_warning(mks("Ignoring unknown preprocessing directive #%s"),
+                        get_tok_str(token, tokc_address));
+                }
+            }
+            source_file = ri32(file_address);
+            pointer = parse_line_comment(sub(ri32(add(source_file,
+                CC2_BUFFERED_FILE_POINTER_OFFSET)), 1));
+            wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
+            wi32(parse_flags_address, saved_flags);
+            return 0;
+        }
+    }
+    while (not(eq(ri32(tok_address), CC2_TOKEN_LINE_FEED))) {
+        next_nomacro();
+    }
+    wi32(parse_flags_address, saved_flags);
     return 0;
 }
 
@@ -13832,6 +13925,8 @@ function cc2_init_constants()
     CC2_PARSE_FLAG_SPACES = 16;
     CC2_PARSE_FLAG_LINE_FEED = 4;
     CC2_PARSE_FLAG_PREPROCESS = 1;
+    CC2_PARSE_FLAG_TOKEN_NUMBERS = 2;
+    CC2_PARSE_FLAG_TOKEN_STRINGS = 64;
     CC2_CHARACTER_EOF = sub(0, 1);
     CC2_CHARACTER_CLASS_SPACE = 1;
     CC2_INCLUDE_HASH_INITIAL = 1;
