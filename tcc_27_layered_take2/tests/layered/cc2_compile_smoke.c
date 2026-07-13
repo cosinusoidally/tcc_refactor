@@ -11,6 +11,8 @@ result_kind global_result = RESULT_THREE;
 int main()
 {
     result_kind local_result = RESULT_FOUR;
+    int values[3];
+    values[1] = local_result;
     return (global_result - 3) + (local_result - 4) + RESULT_ZERO
-        + (sizeof(result_transform) - 4);
+        + (sizeof(result_transform) - 4) + (values[1] - 4);
 }
