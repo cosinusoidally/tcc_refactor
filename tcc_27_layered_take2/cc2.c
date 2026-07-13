@@ -370,6 +370,7 @@ var CC2_CSTRING_SIZE_OFFSET = 0;
 var CC2_CSTRING_DATA_OFFSET = 4;
 var CC2_CSTRING_CAPACITY_OFFSET = 8;
 var CC2_CSTRING_BYTES = 12;
+var CC2_CVALUE_BYTES = 12;
 var CC2_TOKEN_SYMBOL_TOKEN_OFFSET = 20;
 /* TokenString is nine i386 words; alloc is the low byte of the last word. */
 var CC2_TOKEN_STRING_DATA_OFFSET = 0;
@@ -457,6 +458,7 @@ var global_stack;
 var local_stack;
 var local_stack_address;
 var define_stack;
+var define_stack_address;
 var global_label_stack;
 var global_label_stack_address;
 var local_label_stack;
@@ -864,7 +866,7 @@ function tok_str_add_tok(stream)
     if (not(eq(line,
         ri32(add(stream, CC2_TOKEN_STRING_LAST_LINE_OFFSET))))) {
         wi32(add(stream, CC2_TOKEN_STRING_LAST_LINE_OFFSET), line);
-        value = malloc(12);
+        value = malloc(CC2_CVALUE_BYTES);
         cc2_zero_bytes(value, 12);
         wi32(value, line);
         tok_str_add2(stream, CC2_TOKEN_LINE_NUMBER, value);
@@ -1076,6 +1078,75 @@ function define_find_(value, token_symbol)
 function define_find(value)
 {
     return define_find_(value, 0);
+}
+
+function macro_is_equal_(first, second, first_pointer, second_pointer,
+    token_pointer, value, string, result)
+{
+    if (or(eq(first, 0), eq(second, 0))) {
+        return 1;
+    }
+    first_pointer = malloc(CC2_I386_WORD_BYTES);
+    second_pointer = malloc(CC2_I386_WORD_BYTES);
+    token_pointer = malloc(CC2_I386_WORD_BYTES);
+    value = malloc(CC2_CVALUE_BYTES);
+    string = malloc(CC2_CSTRING_BYTES);
+    cstr_new(string);
+    wi32(first_pointer, first);
+    wi32(second_pointer, second);
+    result = 1;
+    while (and(not(eq(ri32(ri32(first_pointer)), 0)),
+        not(eq(ri32(ri32(second_pointer)), 0)))) {
+        cstr_reset(string);
+        tok_get(token_pointer, first_pointer, value);
+        cstr_cat(string, get_tok_str(ri32(token_pointer), value), 0);
+        tok_get(token_pointer, second_pointer, value);
+        if (not(eq(strcmp(ri32(add(string, CC2_CSTRING_DATA_OFFSET)),
+            get_tok_str(ri32(token_pointer), value)), 0))) {
+            result = 0;
+            break;
+        }
+    }
+    if (or(not(eq(ri32(ri32(first_pointer)), 0)),
+        not(eq(ri32(ri32(second_pointer)), 0)))) {
+        result = 0;
+    }
+    cstr_free(string);
+    free(string);
+    free(value);
+    free(token_pointer);
+    free(second_pointer);
+    free(first_pointer);
+    return result;
+}
+
+function macro_is_equal(first, second)
+{
+    return macro_is_equal_(first, second, 0, 0, 0, 0, 0, 0);
+}
+
+function define_push_(value, macro_type, stream, first_argument,
+    old_definition, symbol, token_symbol)
+{
+    old_definition = define_find(value);
+    symbol = sym_push2(define_stack_address, value, macro_type, 0);
+    wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET), stream);
+    wi32(add(symbol, CC2_SYM_NEXT_OFFSET), first_argument);
+    token_symbol = cc2_token_symbol(value);
+    wi32(add(token_symbol, CC2_TOKEN_SYMBOL_DEFINE_OFFSET), symbol);
+    if (not(eq(old_definition, 0))) {
+        if (not(macro_is_equal(ri32(add(old_definition,
+            CC2_SYM_CONSTANT_OFFSET)), stream))) {
+            tcc_warning(mks("%s redefined"), get_tok_str(value, 0));
+        }
+    }
+    return 0;
+}
+
+function define_push(value, macro_type, stream, first_argument)
+{
+    return define_push_(value, macro_type, stream, first_argument,
+        0, 0, 0);
 }
 
 function define_undef_(symbol, value, token_symbol)
