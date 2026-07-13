@@ -40,7 +40,9 @@ static int nb_states;
 #include "cc0_support.c"
 #define function int
 #define var int
+#define main cc0_main
 #include "cc0.c"
+#undef main
 #undef var
 #undef function
 #include "cc1.c"

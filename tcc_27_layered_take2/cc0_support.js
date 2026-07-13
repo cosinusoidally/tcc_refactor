@@ -79,3 +79,62 @@ function wi32(address, value) {
     cc0_support_memory[address + 3] = (value >>> 24) & 255;
     return value | 0;
 }
+
+var cc0_support_files = {};
+var cc0_support_next_file = 3;
+
+function cc0_support_path(address) {
+    var value = "";
+    while (ri8(address) !== 0) {
+        value = value + String.fromCharCode(ri8(address));
+        address = address + 1;
+    }
+    return value;
+}
+
+function file_open_read(path) {
+    var descriptor = cc0_support_next_file++;
+    cc0_support_files[descriptor] = {
+        data: os.file.readFile(cc0_support_path(path)),
+        position: 0,
+        output: false
+    };
+    return descriptor;
+}
+
+function file_open_write(path) {
+    var descriptor = cc0_support_next_file++;
+    cc0_support_files[descriptor] = {
+        data: [],
+        path: cc0_support_path(path),
+        position: 0,
+        output: true
+    };
+    return descriptor;
+}
+
+function file_size(descriptor) {
+    return cc0_support_files[descriptor].data.length | 0;
+}
+
+function file_read_byte(descriptor) {
+    var file = cc0_support_files[descriptor];
+    if (file.position >= file.data.length) {
+        return -1;
+    }
+    return file.data.charCodeAt(file.position++) & 255;
+}
+
+function file_write_byte(descriptor, value) {
+    cc0_support_files[descriptor].data.push(value & 255);
+    return 1;
+}
+
+function file_close(descriptor) {
+    var file = cc0_support_files[descriptor];
+    if (file.output) {
+        os.file.writeTypedArrayToFile(file.path, new Uint8Array(file.data));
+    }
+    delete cc0_support_files[descriptor];
+    return 0;
+}

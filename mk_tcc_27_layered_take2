@@ -62,7 +62,10 @@ gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int -c ../tcc_27_layered_take2/cc0.c -o
 ./tcc_27_layered_take2 -std=cc0 -c ../tcc_27_layered_take2/cc0.c -o cc0_tcc_dialect.o
 diff -u -s cc0_tcc.o cc0_tcc_dialect.o
 
-gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int ../tcc_27_layered_take2/cc0_support.c ../tcc_27_layered_take2/cc0.c ../tcc_27_layered_take2/tests/layered/cc0_c_smoke.c -o cc0_c_smoke
+gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int -Dmain=cc0_smoke_main \
+    -c ../tcc_27_layered_take2/cc0.c -o cc0_smoke.o
+gcc -m32 ../tcc_27_layered_take2/cc0_support.c cc0_smoke.o \
+    ../tcc_27_layered_take2/tests/layered/cc0_c_smoke.c -o cc0_c_smoke
 ./cc0_c_smoke
 
 js ../tcc_27_layered_take2/tests/layered/cc0_js_smoke.js
@@ -70,17 +73,13 @@ js ../tcc_27_layered_take2/tests/layered/cc0_js_smoke.js
 # cc0 writes a TCC-style i386 object, then that object rebuilds itself
 gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
     ../tcc_27_layered_take2/cc0_support.c \
-    ../tcc_27_layered_take2/cc0.c \
-    ../tcc_27_layered_take2/cc0_driver.c -o cc0_stage0
-./cc0_stage0 ../tcc_27_layered_take2/cc0.c cc0_self_1.o
-./tcc_27_layered_take2 -I ../tcc_27_layered_take2/include \
-    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
-    -c ../tcc_27_layered_take2/cc0_driver.c -U__linux__ -o cc0_driver.o
+    ../tcc_27_layered_take2/cc0.c -o cc0_stage0
+./cc0_stage0 -c ../tcc_27_layered_take2/cc0.c -o cc0_self_1.o
 ./tcc_27_layered_take2 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
-    cc0_self_1.o cc0_driver.o "$HOST_LIBC" "$HOST_LIBGCC" \
+    cc0_self_1.o "$HOST_LIBC" "$HOST_LIBGCC" \
     "$CRTEND" "$CRTN" -o cc0_stage1
 chmod +x cc0_stage1
-./cc0_stage1 ../tcc_27_layered_take2/cc0.c cc0_self_2.o
+./cc0_stage1 -c ../tcc_27_layered_take2/cc0.c -o cc0_self_2.o
 diff -u -s cc0_self_1.o cc0_self_2.o
 
 # build some test files
