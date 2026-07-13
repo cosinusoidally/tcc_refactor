@@ -128,6 +128,10 @@ diff -u -s cc2.o cc2_self.o
     -o cc2_compile_smoke.o
 ./cc2.exe cc2_compile_smoke.o -o cc2_compile_smoke.exe
 ./cc2_compile_smoke.exe
+./cc2.exe -c ../tcc_27_layered_take2/tests/layered/cc2_compile_smoke.c \
+    -o cc2_typed_smoke.o
+./cc2.exe cc2_typed_smoke.o -o cc2_typed_smoke.exe
+./cc2_typed_smoke.exe
 
 # Both front ends expose help and source locations without host-side parsing.
 ./cc0.exe --help >cc0_help.txt

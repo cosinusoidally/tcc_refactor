@@ -3104,6 +3104,64 @@ function cc1_compile_preprocessed(source, length)
     return cc1_compile_preprocessed_(source, length, 0, 0, 0, 0, 0, 0);
 }
 
+/* Higher layers use this API instead of depending on cc1's token storage. */
+function cc1_layer_begin(source, length, file)
+{
+    if (cc1_preprocess(source, length, file)) {
+        cc1_remap_frontend_error(source, length);
+        return 1;
+    }
+    return 0;
+}
+
+function cc1_layer_finish(source, length)
+{
+    return cc1_compile_preprocessed(source, length);
+}
+
+function cc1_layer_fail(source, length)
+{
+    cc1_remap_frontend_error(source, length);
+    return 1;
+}
+
+function cc1_layer_token_count()
+{
+    return CC1_PREPROCESSED_COUNT;
+}
+
+function cc1_layer_token_at(index)
+{
+    return ri32(add(CC1_PREPROCESSED_TOKENS, shl(index, 2)));
+}
+
+function cc1_layer_replace_tokens(tokens, count)
+{
+    CC1_PREPROCESSED_TOKENS = tokens;
+    CC1_PREPROCESSED_COUNT = count;
+    return 0;
+}
+
+function cc1_layer_token_field(token, field)
+{
+    return ri32(add(token, shl(field, 2)));
+}
+
+function cc1_layer_token_new(origin, kind, text, length, number)
+{
+    var token;
+    token = malloc(shl(1, CC1_TOKEN_RECORD_SHIFT));
+    if (eq(token, 0)) {
+        return 0;
+    }
+    cc1_token_copy_bytes(token, origin, shl(1, CC1_TOKEN_RECORD_SHIFT));
+    wi32(add(token, CC1_TOKEN_KIND_OFFSET), kind);
+    wi32(add(token, CC1_TOKEN_TEXT_OFFSET), text);
+    wi32(add(token, CC1_TOKEN_LENGTH_OFFSET), length);
+    wi32(add(token, CC1_TOKEN_NUMBER_OFFSET), number);
+    return token;
+}
+
 /* This is the permanent frontend dispatch point replaced by cc1_stubs in cc0. */
 function cc1_compile_(source, length, file)
 {

@@ -1063,6 +1063,9 @@ function cc0_elf_external_symbol(name, length)
         }
         return CC0_ELF_MALLOC_SYMBOL;
     }
+    if (cc0_compiler_slice_equal(name, length, mks("alloc"), 5)) {
+        return cc0_elf_put_undefined_function(mks("alloc"), 5);
+    }
     if (cc0_compiler_slice_equal(name, length, mks("open"), 4)) {
         if (eq(CC0_ELF_OPEN_SYMBOL, 0)) {
             CC0_ELF_OPEN_SYMBOL = cc0_elf_put_undefined_function(
@@ -1185,6 +1188,12 @@ function cc0_elf_external_symbol(name, length)
                 mks("cc0_remap_error_location"), 24);
         }
         return CC0_ELF_REMAP_LOCATION_SYMBOL;
+    }
+    /* Layer APIs are explicit unresolved calls supplied by the cc1 object. */
+    if (not(lt(length, 10))) {
+        if (cc0_compiler_slice_equal(name, 10, mks("cc1_layer_"), 10)) {
+            return cc0_elf_put_undefined_function(name, length);
+        }
     }
     return sub(0, 1);
 }
@@ -3365,6 +3374,30 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("cc0_remap_error_location"))) {
         return 6;
     }
+    if (cc0_text_equal(name, length, mks("cc1_layer_begin"))) {
+        return 3;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_finish"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_fail"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_token_count"))) {
+        return 0;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_token_at"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_replace_tokens"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_token_field"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_token_new"))) {
+        return 5;
+    }
     return sub(0, 1);
 }
 
@@ -3426,6 +3459,30 @@ function cc0_compiler_external_arity(name, length)
     }
     if (cc0_text_equal(name, length, mks("cc0_remap_error_location"))) {
         return 6;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_begin"))) {
+        return 3;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_finish"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_fail"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_token_count"))) {
+        return 0;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_token_at"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_replace_tokens"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_token_field"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_layer_token_new"))) {
+        return 5;
     }
     return sub(0, 1);
 }
