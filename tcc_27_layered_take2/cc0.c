@@ -112,6 +112,30 @@ var CC0_X86_JUMP_RELATIVE;
 var CC0_X86_CALL_RELATIVE;
 var CC0_X86_ADD_IMMEDIATE_OPCODE;
 var CC0_X86_ADD_ESP_IMMEDIATE;
+var CC0_X86_MOV_ECX_EAX;
+var CC0_X86_MOV_EAX_EBX;
+var CC0_X86_ADD_REGISTER_OPCODE;
+var CC0_X86_ADD_EAX_EBX;
+var CC0_X86_SUB_REGISTER_OPCODE;
+var CC0_X86_SUB_EAX_ECX;
+var CC0_X86_AND_REGISTER_OPCODE;
+var CC0_X86_AND_EAX_EBX;
+var CC0_X86_SHIFT_BY_CL_OPCODE;
+var CC0_X86_SHIFT_LEFT_EBX;
+var CC0_X86_SHIFT_RIGHT_EBX;
+var CC0_X86_COMPARE_OPCODE;
+var CC0_X86_COMPARE_EBX_EAX;
+var CC0_X86_SET_EQUAL;
+var CC0_X86_SET_LESS;
+var CC0_X86_SET_LESS_EQUAL;
+var CC0_X86_SET_EAX_BYTE;
+var CC0_X86_ZERO_EXTEND_OPCODE;
+var CC0_X86_ZERO_EXTEND_EAX_BYTE;
+var CC0_X86_LOAD_EAX_ADDRESS;
+var CC0_X86_LOAD_EAX_BYTE_ADDRESS;
+var CC0_X86_STORE_EAX_ADDRESS;
+var CC0_X86_STORE_EAX_BYTE_ADDRESS_OPCODE;
+var CC0_X86_STORE_EAX_BYTE_ADDRESS;
 
 function cc0_init()
 {
@@ -211,6 +235,30 @@ function cc0_init()
     CC0_X86_CALL_RELATIVE = 232;
     CC0_X86_ADD_IMMEDIATE_OPCODE = 129;
     CC0_X86_ADD_ESP_IMMEDIATE = 196;
+    CC0_X86_MOV_ECX_EAX = 193;
+    CC0_X86_MOV_EAX_EBX = 216;
+    CC0_X86_ADD_REGISTER_OPCODE = 1;
+    CC0_X86_ADD_EAX_EBX = 216;
+    CC0_X86_SUB_REGISTER_OPCODE = 41;
+    CC0_X86_SUB_EAX_ECX = 200;
+    CC0_X86_AND_REGISTER_OPCODE = 33;
+    CC0_X86_AND_EAX_EBX = 216;
+    CC0_X86_SHIFT_BY_CL_OPCODE = 211;
+    CC0_X86_SHIFT_LEFT_EBX = 227;
+    CC0_X86_SHIFT_RIGHT_EBX = 235;
+    CC0_X86_COMPARE_OPCODE = 57;
+    CC0_X86_COMPARE_EBX_EAX = 195;
+    CC0_X86_SET_EQUAL = 148;
+    CC0_X86_SET_LESS = 156;
+    CC0_X86_SET_LESS_EQUAL = 158;
+    CC0_X86_SET_EAX_BYTE = 192;
+    CC0_X86_ZERO_EXTEND_OPCODE = 182;
+    CC0_X86_ZERO_EXTEND_EAX_BYTE = 192;
+    CC0_X86_LOAD_EAX_ADDRESS = 0;
+    CC0_X86_LOAD_EAX_BYTE_ADDRESS = 0;
+    CC0_X86_STORE_EAX_ADDRESS = 3;
+    CC0_X86_STORE_EAX_BYTE_ADDRESS_OPCODE = 136;
+    CC0_X86_STORE_EAX_BYTE_ADDRESS = 3;
     return CC0_FALSE;
 }
 
@@ -879,6 +927,143 @@ function cc0_compiler_emit_drop_arguments(argument_bytes)
     cc0_compiler_emit_byte(CC0_X86_ADD_IMMEDIATE_OPCODE);
     cc0_compiler_emit_byte(CC0_X86_ADD_ESP_IMMEDIATE);
     return cc0_compiler_emit_word(argument_bytes);
+}
+
+function cc0_compiler_emit_compare(condition)
+{
+    cc0_compiler_emit_byte(CC0_X86_COMPARE_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_COMPARE_EBX_EAX);
+    cc0_compiler_emit_byte(CC0_X86_TWO_BYTE_OPCODE);
+    cc0_compiler_emit_byte(condition);
+    cc0_compiler_emit_byte(CC0_X86_SET_EAX_BYTE);
+    cc0_compiler_emit_byte(CC0_X86_TWO_BYTE_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_ZERO_EXTEND_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_ZERO_EXTEND_EAX_BYTE);
+}
+
+function cc0_compiler_emit_not()
+{
+    cc0_compiler_emit_test_result();
+    cc0_compiler_emit_byte(CC0_X86_TWO_BYTE_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_SET_EQUAL);
+    cc0_compiler_emit_byte(CC0_X86_SET_EAX_BYTE);
+    cc0_compiler_emit_byte(CC0_X86_TWO_BYTE_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_ZERO_EXTEND_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_ZERO_EXTEND_EAX_BYTE);
+}
+
+function cc0_compiler_emit_add()
+{
+    cc0_compiler_emit_byte(CC0_X86_ADD_REGISTER_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_ADD_EAX_EBX);
+}
+
+function cc0_compiler_emit_subtract()
+{
+    cc0_compiler_emit_byte(CC0_X86_MOV_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_MOV_ECX_EAX);
+    cc0_compiler_emit_byte(CC0_X86_MOV_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_MOV_EAX_EBX);
+    cc0_compiler_emit_byte(CC0_X86_SUB_REGISTER_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_SUB_EAX_ECX);
+}
+
+function cc0_compiler_emit_and()
+{
+    cc0_compiler_emit_byte(CC0_X86_AND_REGISTER_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_AND_EAX_EBX);
+}
+
+function cc0_compiler_emit_shift_left()
+{
+    cc0_compiler_emit_byte(CC0_X86_MOV_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_MOV_ECX_EAX);
+    cc0_compiler_emit_byte(CC0_X86_SHIFT_BY_CL_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_SHIFT_LEFT_EBX);
+    cc0_compiler_emit_byte(CC0_X86_MOV_REGISTER_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_MOV_EAX_EBX);
+}
+
+function cc0_compiler_emit_shift_right()
+{
+    cc0_compiler_emit_byte(CC0_X86_MOV_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_MOV_ECX_EAX);
+    cc0_compiler_emit_byte(CC0_X86_SHIFT_BY_CL_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_SHIFT_RIGHT_EBX);
+    cc0_compiler_emit_byte(CC0_X86_MOV_REGISTER_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_MOV_EAX_EBX);
+}
+
+function cc0_compiler_emit_read_word()
+{
+    cc0_compiler_emit_byte(CC0_X86_LOAD_REGISTER_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_LOAD_EAX_ADDRESS);
+}
+
+function cc0_compiler_emit_read_byte()
+{
+    cc0_compiler_emit_byte(CC0_X86_TWO_BYTE_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_ZERO_EXTEND_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_LOAD_EAX_BYTE_ADDRESS);
+}
+
+function cc0_compiler_emit_write_word()
+{
+    cc0_compiler_emit_byte(CC0_X86_STORE_REGISTER_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_STORE_EAX_ADDRESS);
+}
+
+function cc0_compiler_emit_write_byte()
+{
+    cc0_compiler_emit_byte(CC0_X86_STORE_EAX_BYTE_ADDRESS_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_STORE_EAX_BYTE_ADDRESS);
+    cc0_compiler_emit_byte(CC0_X86_TWO_BYTE_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_ZERO_EXTEND_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_ZERO_EXTEND_EAX_BYTE);
+}
+
+function cc0_compiler_emit_builtin(name, length)
+{
+    if (cc0_text_equal(name, length, mks("not"))) {
+        return cc0_compiler_emit_not();
+    }
+    if (cc0_text_equal(name, length, mks("ri8"))) {
+        return cc0_compiler_emit_read_byte();
+    }
+    if (cc0_text_equal(name, length, mks("ri32"))) {
+        return cc0_compiler_emit_read_word();
+    }
+    if (cc0_text_equal(name, length, mks("add"))) {
+        return cc0_compiler_emit_add();
+    }
+    if (cc0_text_equal(name, length, mks("sub"))) {
+        return cc0_compiler_emit_subtract();
+    }
+    if (cc0_text_equal(name, length, mks("eq"))) {
+        return cc0_compiler_emit_compare(CC0_X86_SET_EQUAL);
+    }
+    if (cc0_text_equal(name, length, mks("lt"))) {
+        return cc0_compiler_emit_compare(CC0_X86_SET_LESS);
+    }
+    if (cc0_text_equal(name, length, mks("le"))) {
+        return cc0_compiler_emit_compare(CC0_X86_SET_LESS_EQUAL);
+    }
+    if (cc0_text_equal(name, length, mks("and"))) {
+        return cc0_compiler_emit_and();
+    }
+    if (cc0_text_equal(name, length, mks("shl"))) {
+        return cc0_compiler_emit_shift_left();
+    }
+    if (cc0_text_equal(name, length, mks("ushr"))) {
+        return cc0_compiler_emit_shift_right();
+    }
+    if (cc0_text_equal(name, length, mks("wi8"))) {
+        return cc0_compiler_emit_write_byte();
+    }
+    if (cc0_text_equal(name, length, mks("wi32"))) {
+        return cc0_compiler_emit_write_word();
+    }
+    return cc0_compiler_fail();
 }
 
 function cc0_compiler_name_exists(name, length)
