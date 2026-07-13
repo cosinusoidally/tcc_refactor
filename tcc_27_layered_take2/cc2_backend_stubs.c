@@ -72,6 +72,11 @@ function cc2_put_stabs_number(type, other, description, value)
     return 0;
 }
 
+function section_realloc(section, size)
+{
+    return 0;
+}
+
 function neg_zero(basic_type)
 {
     return 0;
@@ -119,21 +124,6 @@ function vstack_overflow_error(top, limit)
 }
 
 function gv(register_class)
-{
-    return 0;
-}
-
-function o(instruction)
-{
-    return 0;
-}
-
-function gsym(jump_chain)
-{
-    return 0;
-}
-
-function gsym_addr(jump_chain, address)
 {
     return 0;
 }

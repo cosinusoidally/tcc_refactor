@@ -94,86 +94,8 @@ static addr_t func_bound_offset;
 static unsigned long func_bound_ind;
 #endif
 
-/* XXX: make it faster ? */
-ST_FUNC void g(int c)
-{
-    int ind1;
-    if (nocode_wanted)
-        return;
-    ind1 = ind + 1;
-    if (ind1 > cur_text_section->data_allocated)
-        section_realloc(cur_text_section, ind1);
-    cur_text_section->data[ind] = c;
-    ind = ind1;
-}
-
-void o(unsigned int c)
-{
-    while (c) {
-        g(c);
-        c = c >> 8;
-    }
-}
-
-ST_FUNC void gen_le16(int v)
-{
-    g(v);
-    g(v >> 8);
-}
-
-ST_FUNC void gen_le32(int c)
-{
-    g(c);
-    g(c >> 8);
-    g(c >> 16);
-    g(c >> 24);
-}
-
-/* output a symbol and patch all calls to it */
-void gsym_addr(int t, int a)
-{
-    while (t) {
-        unsigned char *ptr = cur_text_section->data + t;
-        uint32_t n = read32le(ptr); /* next value */
-        write32le(ptr, a - t - 4);
-        t = n;
-    }
-}
-
-void gsym(int t)
-{
-    gsym_addr(t, ind);
-}
-
-/* instruction + 4 bytes data. Return the address of the data */
-static int oad(int c, int s)
-{
-    int t;
-    if (nocode_wanted)
-        return s;
-    o(c);
-    t = ind;
-    gen_le32(s);
-    return t;
-}
-
 /* generate jmp to a label */
 #define gjmp2(instr,lbl) oad(instr,lbl)
-
-/* output constant with relocation if 'r & VT_SYM' is true */
-ST_FUNC void gen_addr32(int r, Sym *sym, int c)
-{
-    if (r & VT_SYM)
-        greloc(cur_text_section, sym, ind, R_386_32);
-    gen_le32(c);
-}
-
-ST_FUNC void gen_addrpc32(int r, Sym *sym, int c)
-{
-    if (r & VT_SYM)
-        greloc(cur_text_section, sym, ind, R_386_PC32);
-    gen_le32(c - 4);
-}
 
 /* generate a modrm reference. 'op_reg' contains the additional 3
    opcode bits */

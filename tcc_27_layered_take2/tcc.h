@@ -1470,7 +1470,7 @@ ST_FUNC void tccelf_begin_file(TCCState *s1);
 ST_FUNC void tccelf_end_file(TCCState *s1);
 
 ST_FUNC Section *new_section(TCCState *s1, const char *name, int sh_type, int sh_flags);
-ST_FUNC void section_realloc(Section *sec, unsigned long new_size);
+extern void section_realloc(Section *sec, unsigned long new_size);
 size_t section_add(Section *sec, addr_t size, int align);
 void *section_ptr_add(Section *sec, addr_t size);
 void section_reserve(Section *sec, unsigned long size);
@@ -1584,6 +1584,7 @@ void gen_cvt_ftof(int t);
 void ggoto(void);
 #ifndef TCC_TARGET_C67
 extern void o(unsigned int c);
+extern int oad(int instruction, int value);
 #endif
 #ifndef TCC_TARGET_ARM
 void gen_cvt_itof(int t);
@@ -1619,11 +1620,12 @@ static inline void add64le(unsigned char *p, int64_t x) {
 
 /* ------------ i386-gen.c ------------ */
 #if defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64
-ST_FUNC void g(int c);
-ST_FUNC void gen_le16(int c);
-ST_FUNC void gen_le32(int c);
-ST_FUNC void gen_addr32(int r, Sym *sym, int c);
-ST_FUNC void gen_addrpc32(int r, Sym *sym, int c);
+/* Implemented by the unconditional cc2 target-emission layer. */
+extern void g(int c);
+extern void gen_le16(int c);
+extern void gen_le32(int c);
+extern void gen_addr32(int r, Sym *sym, int c);
+extern void gen_addrpc32(int r, Sym *sym, int c);
 #endif
 
 #ifdef CONFIG_TCC_BCHECK

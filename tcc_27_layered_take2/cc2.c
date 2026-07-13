@@ -310,6 +310,7 @@ var CC2_BUFFERED_FILE_LINE_OFFSET = 16;
 var CC2_BUFFERED_FILE_FILENAME_OFFSET = 40;
 var CC2_SECTION_NUMBER_OFFSET = 16;
 var CC2_SECTION_DATA_POINTER_OFFSET = 4;
+var CC2_SECTION_DATA_ALLOCATED_OFFSET = 8;
 var CC2_STABS_SOURCE_FILE = 100;
 var CC2_STABS_FUNCTION = 36;
 var CC2_STABS_SOURCE_LINE = 68;
@@ -329,6 +330,7 @@ var CC2_ELF_RELOCATION_INFO_OFFSET = 4;
 var CC2_ELF_RELOCATION_TYPE_MASK = 255;
 var CC2_ELF_RELOCATION_SYMBOL_SHIFT = 8;
 var CC2_I386_DATA_POINTER_RELOCATION = 1;
+var CC2_I386_PC_RELATIVE_RELOCATION = 2;
 var CC2_INITIALIZER_SYMBOL_CONSTANT = 560;
 var CC2_TYPE_ERROR_BUFFER_BYTES = 256;
 var CC2_TCC_ENUM_KIND = 2097152;
@@ -6191,6 +6193,104 @@ function greloca(section, symbol, offset, type, addend)
 function greloc(section, symbol, offset, type)
 {
     return greloca(section, symbol, offset, type, 0);
+}
+
+/* i386 target-byte emission belongs to cc2, not the typed C remainder. */
+function g(byte_value)
+{
+    var section;
+    var next_offset;
+    if (nocode_wanted) {
+        return 0;
+    }
+    section = ri32(cur_text_section_address);
+    next_offset = add(ind, 1);
+    if (lt(ri32(add(section, CC2_SECTION_DATA_ALLOCATED_OFFSET)),
+        next_offset)) {
+        section_realloc(section, next_offset);
+    }
+    wi8(add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)), ind),
+        byte_value);
+    ind = next_offset;
+    return 0;
+}
+
+function o(instruction)
+{
+    while (instruction) {
+        g(instruction);
+        instruction = ushr(instruction, 8);
+    }
+    return 0;
+}
+
+function gen_le16(value)
+{
+    g(value);
+    g(ushr(value, 8));
+    return 0;
+}
+
+function gen_le32(value)
+{
+    g(value);
+    g(ushr(value, 8));
+    g(ushr(value, 16));
+    g(ushr(value, 24));
+    return 0;
+}
+
+function gsym_addr(jump_chain, address)
+{
+    var section;
+    var patch;
+    var next;
+    section = ri32(cur_text_section_address);
+    while (jump_chain) {
+        patch = add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)),
+            jump_chain);
+        next = ri32(patch);
+        wi32(patch, sub(sub(address, jump_chain), 4));
+        jump_chain = next;
+    }
+    return 0;
+}
+
+function gsym(jump_chain)
+{
+    return gsym_addr(jump_chain, ind);
+}
+
+function oad(instruction, value)
+{
+    var immediate_offset;
+    if (nocode_wanted) {
+        return value;
+    }
+    o(instruction);
+    immediate_offset = ind;
+    gen_le32(value);
+    return immediate_offset;
+}
+
+function gen_addr32(registers, symbol, value)
+{
+    if (and(registers, CC2_TCC_SYMBOL_VALUE)) {
+        greloc(ri32(cur_text_section_address), symbol, ind,
+            CC2_I386_DATA_POINTER_RELOCATION);
+    }
+    gen_le32(value);
+    return 0;
+}
+
+function gen_addrpc32(registers, symbol, value)
+{
+    if (and(registers, CC2_TCC_SYMBOL_VALUE)) {
+        greloc(ri32(cur_text_section_address), symbol, ind,
+            CC2_I386_PC_RELATIVE_RELOCATION);
+    }
+    gen_le32(sub(value, 4));
+    return 0;
 }
 
 function init_putv(type, section, offset)
