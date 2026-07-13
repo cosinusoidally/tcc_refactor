@@ -299,6 +299,7 @@ var CC2_ASCII_SEMICOLON = 59;
 var CC2_ASCII_OPEN_BRACE = 123;
 var CC2_ELF_SYMBOL_VALUE_OFFSET = 4;
 var CC2_ELF_SYMBOL_SIZE_OFFSET = 8;
+var CC2_PARSE_TRANSLATION_UNIT = 67;
 var CC2_CSTRING_SIZE_OFFSET = 0;
 var CC2_CSTRING_DATA_OFFSET = 4;
 var CC2_CSTRING_BYTES = 12;
@@ -363,6 +364,7 @@ var common_section_address;
 var text_section_address;
 var tcc_state_address;
 var gnu_ext_address;
+var parse_flags_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET = 80;
 var CC2_TCC_STATE_WARN_IMPLICIT_FUNCTION_OFFSET = 92;
@@ -5846,6 +5848,46 @@ function decl0(scope, is_for_loop_initializer, function_symbol)
     free(base_type);
     free(type);
     return result;
+}
+
+function tccgen_compile(state)
+{
+    var symbol;
+    var packed_function;
+    wi32(cur_text_section_address, 0);
+    funcname = mks("");
+    anon_sym = CC2_SYMBOL_FIRST_ANONYMOUS;
+    section_sym = 0;
+    const_wanted = 0;
+    nocode_wanted = shl(1, 31);
+
+    wi32(int_type_address, CC2_TCC_INT_TYPE);
+    wi32(add(int_type_address, 4), 0);
+    wi32(char_pointer_type_address, CC2_TCC_BYTE_TYPE);
+    wi32(add(char_pointer_type_address, 4), 0);
+    mk_pointer(char_pointer_type_address);
+    wi32(size_type_address, or(CC2_TCC_INT_TYPE,
+        CC2_TCC_UNSIGNED_TYPE));
+    wi32(add(size_type_address, 4), 0);
+    wi32(ptrdiff_type_address, CC2_TCC_INT_TYPE);
+    wi32(add(ptrdiff_type_address, 4), 0);
+    wi32(func_old_type_address, CC2_TCC_FUNCTION_TYPE);
+    symbol = sym_push(CC2_SYMBOL_FIELD_FLAG, int_type_address, 0, 0);
+    wi32(add(func_old_type_address, 4), symbol);
+    packed_function = ri32(add(symbol, CC2_SYM_SCOPE_OFFSET));
+    packed_function = or(and(packed_function,
+        bnot(CC2_FUNCTION_TYPE_MASK)), shl(CC2_FUNCTION_OLD,
+        CC2_FUNCTION_TYPE_SHIFT));
+    wi32(add(symbol, CC2_SYM_SCOPE_OFFSET), packed_function);
+
+    tcc_debug_start(state);
+    wi32(parse_flags_address, CC2_PARSE_TRANSLATION_UNIT);
+    next();
+    decl(CC2_VALUE_CONSTANT);
+    gen_inline_functions(state);
+    check_vstack();
+    tcc_debug_end(state);
+    return 0;
 }
 
 function block_return()

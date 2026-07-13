@@ -1156,6 +1156,7 @@ ST_DATA int ch;
 extern int tok;
 extern int *tok_address;
 extern int *gnu_ext_address;
+extern int *parse_flags_address;
 extern CValue tokc;
 ST_DATA const int *macro_ptr;
 ST_DATA int parse_flags;
@@ -1313,13 +1314,14 @@ int case_cmp(const void *first, const void *second);
 void gcase(struct case_t **base, int length, int *break_symbol);
 extern struct switch_t *cur_switch;
 
-ST_FUNC void tcc_debug_start(TCCState *s1);
-ST_FUNC void tcc_debug_end(TCCState *s1);
+void tcc_debug_start(TCCState *s1);
+void tcc_debug_end(TCCState *s1);
 void tcc_debug_funcstart(TCCState *s1, Sym *sym);
 void tcc_debug_funcend(TCCState *s1, int size);
 void tcc_debug_line(TCCState *s1);
 
-ST_FUNC int tccgen_compile(TCCState *s1);
+int tccgen_compile(TCCState *s1);
+void gen_inline_functions(TCCState *s);
 ST_FUNC void free_inline_functions(TCCState *s);
 extern void check_vstack(void);
 

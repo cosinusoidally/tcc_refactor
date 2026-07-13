@@ -89,7 +89,7 @@ void expr_eq(void);
 static inline int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
 int gvtst(int inv, int t);
-static void gen_inline_functions(TCCState *s);
+void gen_inline_functions(TCCState *s);
 void skip_or_save_block(TokenString **str);
 
 /* we use our own 'finite' function to avoid potential problems with
@@ -125,7 +125,7 @@ void pv (const char *lbl, int a, int b)
 
 /* ------------------------------------------------------------------------- */
 /* start of translation unit info */
-ST_FUNC void tcc_debug_start(TCCState *s1)
+void tcc_debug_start(TCCState *s1)
 {
     if (s1->do_debug) {
         char buf[512];
@@ -155,7 +155,7 @@ ST_FUNC void tcc_debug_start(TCCState *s1)
 }
 
 /* put end of translation unit info */
-ST_FUNC void tcc_debug_end(TCCState *s1)
+void tcc_debug_end(TCCState *s1)
 {
     if (!s1->do_debug)
         return;
@@ -203,55 +203,6 @@ void tcc_debug_funcend(TCCState *s1, int size)
     if (!s1->do_debug)
         return;
     put_stabn(N_FUN, 0, 0, size);
-}
-
-/* ------------------------------------------------------------------------- */
-ST_FUNC int tccgen_compile(TCCState *s1)
-{
-    cur_text_section = NULL;
-    funcname = "";
-    anon_sym = SYM_FIRST_ANOM;
-    section_sym = 0;
-    const_wanted = 0;
-    nocode_wanted = 0x80000000;
-
-    /* define some often used types */
-    int_type.t = VT_INT;
-    char_pointer_type.t = VT_BYTE;
-    mk_pointer(&char_pointer_type);
-#if PTR_SIZE == 4
-    size_type.t = VT_INT | VT_UNSIGNED;
-    ptrdiff_type.t = VT_INT;
-#elif LONG_SIZE == 4
-    size_type.t = VT_LLONG | VT_UNSIGNED;
-    ptrdiff_type.t = VT_LLONG;
-#else
-    size_type.t = VT_LONG | VT_LLONG | VT_UNSIGNED;
-    ptrdiff_type.t = VT_LONG | VT_LLONG;
-#endif
-    func_old_type.t = VT_FUNC;
-    func_old_type.ref = sym_push(SYM_FIELD, &int_type, 0, 0);
-    func_old_type.ref->f.func_call = FUNC_CDECL;
-    func_old_type.ref->f.func_type = FUNC_OLD;
-
-    tcc_debug_start(s1);
-
-#ifdef TCC_TARGET_ARM
-    arm_init(s1);
-#endif
-
-#ifdef INC_DEBUG
-    printf("%s: **** new file\n", file->filename);
-#endif
-
-    parse_flags = PARSE_FLAG_PREPROCESS | PARSE_FLAG_TOK_NUM | PARSE_FLAG_TOK_STR;
-    next();
-    decl(VT_CONST);
-    gen_inline_functions(s1);
-    check_vstack();
-    /* end of translation unit info */
-    tcc_debug_end(s1);
-    return 0;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1275,7 +1226,7 @@ void init_putv(CType *type, Section *sec, unsigned long c)
    allocation. 'first' is true if array '{' must be read (multi
    dimension implicit array init handling). 'size_only' is true if
    size only evaluation is wanted (only for arrays). */
-static void gen_inline_functions(TCCState *s)
+void gen_inline_functions(TCCState *s)
 {
     Sym *sym;
     int inline_generated, i, ln;

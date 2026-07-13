@@ -19,6 +19,21 @@ function put_extern_sym2(symbol, section_index, value, size, add_underscore)
     return 0;
 }
 
+function gen_inline_functions(state)
+{
+    return 0;
+}
+
+function tcc_debug_start(state)
+{
+    return 0;
+}
+
+function tcc_debug_end(state)
+{
+    return 0;
+}
+
 function neg_zero(basic_type)
 {
     return 0;
