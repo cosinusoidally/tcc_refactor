@@ -592,6 +592,28 @@ function external_global_sym(value, type, reg)
     return external_global_sym_(value, type, reg, 0, 0);
 }
 
+function vpush(type)
+{
+    return vset(type, CC2_VALUE_CONSTANT, 0);
+}
+
+function vpushsym(type, symbol)
+{
+    vset(type, or(CC2_VALUE_CONSTANT, CC2_TCC_SYMBOL_VALUE), 0);
+    wi32(add(vtop, CC2_SVALUE_SYMBOL_OFFSET), symbol);
+    return 0;
+}
+
+function vpush_ref(type, section, offset, size)
+{
+    return vpushsym(type, get_sym_ref(type, section, offset, size));
+}
+
+function vpush_global_sym(type, value)
+{
+    return vpushsym(type, external_global_sym(value, type, 0));
+}
+
 function vpushv_(value, limit)
 {
     limit = vstack_limit;

@@ -51,7 +51,6 @@ static void vla_runtime_type_size(CType *type, int *a);
 static int is_compatible_unqualified_types(CType *type1, CType *type2);
 static inline int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
-static void vpush(CType *type);
 static int gvtst(int inv, int t);
 static void gen_inline_functions(TCCState *s);
 static void skip_or_save_block(TokenString **str);
@@ -404,12 +403,6 @@ ST_FUNC void greloc(Section *s, Sym *sym, unsigned long offset, int type)
 
 /* ------------------------------------------------------------------------- */
 
-/* push constant of type "type" with useless value */
-ST_FUNC void vpush(CType *type)
-{
-    vset(type, VT_CONST, 0);
-}
-
 /* push integer constant */
 ST_FUNC void vpushi(int v)
 {
@@ -449,21 +442,6 @@ static void vseti(int r, int v)
     type.t = VT_INT;
     type.ref = NULL;
     vset(&type, r, v);
-}
-
-/* push a symbol value of TYPE */
-static inline void vpushsym(CType *type, Sym *sym)
-{
-    CValue cval;
-    cval.i = 0;
-    vsetc(type, VT_CONST | VT_SYM, &cval);
-    vtop->sym = sym;
-}
-
-/* push a reference to a section offset by adding a dummy symbol */
-static void vpush_ref(CType *type, Section *sec, unsigned long offset, unsigned long size)
-{
-    vpushsym(type, get_sym_ref(type, sec, offset, size));  
 }
 
 
@@ -565,12 +543,6 @@ static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
         patch_storage(s, ad, type);
     }
     return s;
-}
-
-/* push a reference to global symbol v */
-ST_FUNC void vpush_global_sym(CType *type, int v)
-{
-    vpushsym(type, external_global_sym(v, type, 0));
 }
 
 /* save registers up to (vtop - n) stack entry */
