@@ -667,76 +667,37 @@ ST_FUNC void preprocess(int is_bof)
 include_done:
         break;
     case TOK_IFNDEF:
-        c = 1;
-        goto do_ifdef;
+        if (preprocess_conditional_if(s1, is_bof, 1, 0)) {
+            is_bof = 0;
+            goto redo;
+        }
+        break;
     case TOK_IF:
-        c = expr_preprocess();
-        goto do_if;
+        if (preprocess_conditional_if(s1, is_bof, 0, 1)) {
+            is_bof = 0;
+            goto redo;
+        }
+        break;
     case TOK_IFDEF:
-        c = 0;
-    do_ifdef:
-        next_nomacro();
-        if (tok < TOK_IDENT)
-            tcc_error("invalid argument for '#if%sdef'", c ? "n" : "");
-        if (is_bof) {
-            if (c) {
-#ifdef INC_DEBUG
-                printf("#ifndef %s\n", get_tok_str(tok, NULL));
-#endif
-                file->ifndef_macro = tok;
-            }
+        if (preprocess_conditional_if(s1, is_bof, 0, 0)) {
+            is_bof = 0;
+            goto redo;
         }
-        c = (define_find(tok) != 0) ^ c;
-    do_if:
-        if (s1->ifdef_stack_ptr >= s1->ifdef_stack + IFDEF_STACK_SIZE)
-            tcc_error("memory full (ifdef)");
-        *s1->ifdef_stack_ptr++ = c;
-        goto test_skip;
+        break;
     case TOK_ELSE:
-        if (s1->ifdef_stack_ptr == s1->ifdef_stack)
-            tcc_error("#else without matching #if");
-        if (s1->ifdef_stack_ptr[-1] & 2)
-            tcc_error("#else after #else");
-        c = (s1->ifdef_stack_ptr[-1] ^= 3);
-        goto test_else;
-    case TOK_ELIF:
-        if (s1->ifdef_stack_ptr == s1->ifdef_stack)
-            tcc_error("#elif without matching #if");
-        c = s1->ifdef_stack_ptr[-1];
-        if (c > 1)
-            tcc_error("#elif after #else");
-        /* last #if/#elif expression was true: we skip */
-        if (c == 1) {
-            c = 0;
-        } else {
-            c = expr_preprocess();
-            s1->ifdef_stack_ptr[-1] = c;
+        if (preprocess_conditional_else(s1, 0)) {
+            is_bof = 0;
+            goto redo;
         }
-    test_else:
-        if (s1->ifdef_stack_ptr == file->ifdef_stack_ptr + 1)
-            file->ifndef_macro = 0;
-    test_skip:
-        if (!(c & 1)) {
-            preprocess_skip();
+        break;
+    case TOK_ELIF:
+        if (preprocess_conditional_else(s1, 1)) {
             is_bof = 0;
             goto redo;
         }
         break;
     case TOK_ENDIF:
-        if (s1->ifdef_stack_ptr <= file->ifdef_stack_ptr)
-            tcc_error("#endif without matching #if");
-        s1->ifdef_stack_ptr--;
-        /* '#ifndef macro' was at the start of file. Now we check if
-           an '#endif' is exactly at the end of file */
-        if (file->ifndef_macro &&
-            s1->ifdef_stack_ptr == file->ifdef_stack_ptr) {
-            file->ifndef_macro_saved = file->ifndef_macro;
-            /* need to set to zero to avoid false matches if another
-               #ifndef at middle of file */
-            file->ifndef_macro = 0;
-            while (tok != TOK_LINEFEED)
-                next_nomacro();
-            tok_flags |= TOK_FLAG_ENDIF;
+        if (preprocess_conditional_endif(s1)) {
             goto the_end;
         }
         break;
@@ -2410,6 +2371,7 @@ ST_FUNC void tccpp_new(TCCState *s)
     pp_debug_tok_address = &pp_debug_tok;
     pp_debug_symv_address = &pp_debug_symv;
     pp_once_address = &pp_once;
+    tok_flags_address = &tok_flags;
 
     /* cc0 owns the character classes used to initialize this lexer. */
     cc0_init();

@@ -440,6 +440,13 @@ var CC2_TOKEN_LINE_FEED;
 var CC2_OUTPUT_PREPROCESS;
 var CC2_TCC_STATE_PRAGMA_LIBRARIES_OFFSET;
 var CC2_TCC_STATE_PRAGMA_LIBRARY_COUNT_OFFSET;
+var CC2_TCC_STATE_IFDEF_STACK_OFFSET;
+var CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET;
+var CC2_IFDEF_STACK_ENTRIES;
+var CC2_BUFFERED_FILE_IFDEF_STACK_POINTER_OFFSET;
+var CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET;
+var CC2_BUFFERED_FILE_IFNDEF_MACRO_SAVED_OFFSET;
+var CC2_TOKEN_FLAG_ENDIF;
 var CC2_TOKEN_CHARACTER;
 var CC2_TOKEN_WIDE_CHARACTER;
 var CC2_TOKEN_INTEGER_CONSTANT;
@@ -551,6 +558,7 @@ var isidnum_table_address;
 var pp_debug_tok_address;
 var pp_debug_symv_address;
 var pp_once_address;
+var tok_flags_address;
 var symtab_section_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET;
@@ -1800,6 +1808,133 @@ function pragma_parse(state)
     } else if (ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
         tcc_warning(mks("#pragma %s is ignored"),
             get_tok_str(ri32(tok_address), tokc_address));
+    }
+    return 0;
+}
+
+/* Conditional directives share one stack discipline.  Return one when the
+   caller must restart after preprocess_skip(), otherwise return zero. */
+function preprocess_conditional_if(state, is_beginning, negated,
+    evaluate_expression)
+{
+    var condition;
+    var token;
+    var stack_pointer;
+    var stack_end;
+    var source_file;
+    if (evaluate_expression) {
+        condition = expr_preprocess();
+    } else {
+        next_nomacro();
+        token = ri32(tok_address);
+        if (lt(token, CC2_TOKEN_IDENTIFIER_BASE)) {
+            if (negated) {
+                tcc_error(mks("invalid argument for '#ifndef'"), 0);
+            } else {
+                tcc_error(mks("invalid argument for '#ifdef'"), 0);
+            }
+        }
+        source_file = ri32(file_address);
+        if (and(is_beginning, negated)) {
+            wi32(add(source_file, CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET),
+                token);
+        }
+        condition = not(eq(define_find(token), 0));
+        if (negated) {
+            condition = not(condition);
+        }
+    }
+    stack_pointer = ri32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET));
+    stack_end = add(state, add(CC2_TCC_STATE_IFDEF_STACK_OFFSET,
+        mul(CC2_IFDEF_STACK_ENTRIES, CC2_I386_WORD_BYTES)));
+    if (not(lt(stack_pointer, stack_end))) {
+        tcc_error(mks("memory full (ifdef)"), 0);
+    }
+    wi32(stack_pointer, condition);
+    wi32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET),
+        add(stack_pointer, CC2_I386_WORD_BYTES));
+    if (not(and(condition, 1))) {
+        preprocess_skip();
+        return 1;
+    }
+    return 0;
+}
+
+function preprocess_conditional_else(state, is_elif)
+{
+    var stack_base;
+    var stack_pointer;
+    var top;
+    var condition;
+    var source_file;
+    stack_base = add(state, CC2_TCC_STATE_IFDEF_STACK_OFFSET);
+    stack_pointer = ri32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET));
+    if (eq(stack_pointer, stack_base)) {
+        if (is_elif) {
+            tcc_error(mks("#elif without matching #if"), 0);
+        } else {
+            tcc_error(mks("#else without matching #if"), 0);
+        }
+    }
+    top = sub(stack_pointer, CC2_I386_WORD_BYTES);
+    condition = ri32(top);
+    if (is_elif) {
+        if (lt(1, condition)) {
+            tcc_error(mks("#elif after #else"), 0);
+        }
+        if (eq(condition, 1)) {
+            condition = 0;
+        } else {
+            condition = expr_preprocess();
+            wi32(top, condition);
+        }
+    } else {
+        if (and(condition, 2)) {
+            tcc_error(mks("#else after #else"), 0);
+        }
+        condition = xor(condition, 3);
+        wi32(top, condition);
+    }
+    source_file = ri32(file_address);
+    if (eq(stack_pointer, add(ri32(add(source_file,
+        CC2_BUFFERED_FILE_IFDEF_STACK_POINTER_OFFSET)),
+        CC2_I386_WORD_BYTES))) {
+        wi32(add(source_file, CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET), 0);
+    }
+    if (not(and(condition, 1))) {
+        preprocess_skip();
+        return 1;
+    }
+    return 0;
+}
+
+/* Return one when an include-guard #endif reaches the physical line end. */
+function preprocess_conditional_endif(state)
+{
+    var stack_pointer;
+    var file_stack_pointer;
+    var source_file;
+    var guard;
+    source_file = ri32(file_address);
+    stack_pointer = ri32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET));
+    file_stack_pointer = ri32(add(source_file,
+        CC2_BUFFERED_FILE_IFDEF_STACK_POINTER_OFFSET));
+    if (le(stack_pointer, file_stack_pointer)) {
+        tcc_error(mks("#endif without matching #if"), 0);
+    }
+    stack_pointer = sub(stack_pointer, CC2_I386_WORD_BYTES);
+    wi32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET), stack_pointer);
+    guard = ri32(add(source_file, CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET));
+    if (and(guard, eq(stack_pointer, file_stack_pointer))) {
+        wi32(add(source_file, CC2_BUFFERED_FILE_IFNDEF_MACRO_SAVED_OFFSET),
+            guard);
+        wi32(add(source_file, CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET), 0);
+        while (not(eq(ri32(tok_address), CC2_TOKEN_LINE_FEED))) {
+            next_nomacro();
+        }
+        wi32(tok_flags_address, or(ri32(tok_flags_address),
+            CC2_TOKEN_FLAG_ENDIF));
+        return 1;
     }
     return 0;
 }
@@ -13375,6 +13510,13 @@ function cc2_init_constants()
     CC2_OUTPUT_PREPROCESS = 5;
     CC2_TCC_STATE_PRAGMA_LIBRARIES_OFFSET = 940;
     CC2_TCC_STATE_PRAGMA_LIBRARY_COUNT_OFFSET = 944;
+    CC2_TCC_STATE_IFDEF_STACK_OFFSET = 508;
+    CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET = 764;
+    CC2_IFDEF_STACK_ENTRIES = 64;
+    CC2_BUFFERED_FILE_IFDEF_STACK_POINTER_OFFSET = 32;
+    CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET = 24;
+    CC2_BUFFERED_FILE_IFNDEF_MACRO_SAVED_OFFSET = 28;
+    CC2_TOKEN_FLAG_ENDIF = 4;
     return 0;
 }
 
