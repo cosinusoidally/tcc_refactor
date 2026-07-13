@@ -171,6 +171,8 @@ var CC2_ASSIGNMENT_MULTIPLY;
 var CC2_TOKEN_INCREMENT;
 var CC2_TOKEN_DECREMENT;
 var CC2_TOKEN_ARROW;
+var CC2_CHARACTER_SPACE_CLASS;
+var CC2_LEX_RESTART;
 var CC2_TOKEN_OPERATOR_MASK;
 var CC2_TOKEN_SIGNED_LESS;
 var CC2_TOKEN_SIGNED_GREATER_EQUAL;
@@ -1235,6 +1237,54 @@ function cc2_lex_operator_(pointer, character, token)
 function cc2_lex_operator(pointer, character)
 {
     return cc2_lex_operator_(pointer, character, 0);
+}
+
+/* Layout scanning reports whether next_nomacro1 should restart immediately. */
+function cc2_lex_layout_(pointer, character, source_file, flags)
+{
+    CC2_LEX_RESTART = 0;
+    source_file = ri32(file_address);
+    if (or(eq(character, mkC(" ")), eq(character, mkC("\t")))) {
+        wi32(tok_address, character);
+        pointer = add(pointer, 1);
+        flags = ri32(parse_flags_address);
+        if (not(eq(and(flags, CC2_PARSE_FLAG_SPACES), 0))) {
+            return pointer;
+        }
+        while (not(eq(and(ri8(add(isidnum_table_address,
+            sub(ri8(pointer), CC2_CHARACTER_END_OF_FILE))),
+            CC2_CHARACTER_SPACE_CLASS), 0))) {
+            pointer = add(pointer, 1);
+        }
+        CC2_LEX_RESTART = 1;
+        return pointer;
+    }
+    if (or(eq(character, mkC("\f")), or(eq(character, mkC("\v")),
+        eq(character, mkC("\r"))))) {
+        CC2_LEX_RESTART = 1;
+        return add(pointer, 1);
+    }
+    wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), add(ri32(add(
+        source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+    wi32(tok_flags_address, or(ri32(tok_flags_address),
+        CC2_TOKEN_FLAG_BEGINNING_OF_LINE));
+    pointer = add(pointer, 1);
+    if (eq(and(ri32(parse_flags_address), CC2_PARSE_FLAG_LINE_FEED), 0)) {
+        CC2_LEX_RESTART = 1;
+        return pointer;
+    }
+    wi32(tok_address, CC2_TOKEN_LINE_FEED);
+    return pointer;
+}
+
+function cc2_lex_layout(pointer, character)
+{
+    return cc2_lex_layout_(pointer, character, 0, 0);
+}
+
+function cc2_lex_should_restart()
+{
+    return CC2_LEX_RESTART;
 }
 
 function skip_spaces()
@@ -14297,6 +14347,8 @@ function cc2_init_constants()
     CC2_TOKEN_INCREMENT = 164;
     CC2_TOKEN_DECREMENT = 162;
     CC2_TOKEN_ARROW = 199;
+    CC2_CHARACTER_SPACE_CLASS = 1;
+    CC2_LEX_RESTART = 0;
     CC2_TOKEN_OPERATOR_MASK = 127;
     CC2_TOKEN_SIGNED_LESS = 156;
     CC2_TOKEN_SIGNED_GREATER_EQUAL = 157;

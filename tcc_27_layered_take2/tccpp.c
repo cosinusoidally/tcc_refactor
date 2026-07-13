@@ -636,18 +636,15 @@ void next_nomacro1(void)
     switch(c) {
     case ' ':
     case '\t':
-        tok = c;
-        p++;
-        if (parse_flags & PARSE_FLAG_SPACES)
-            goto keep_tok_flags;
-        while (isidnum_table[*p - CH_EOF] & IS_SPC)
-            ++p;
-        goto redo_no_start;
     case '\f':
     case '\v':
     case '\r':
-        p++;
-        goto redo_no_start;
+    case '\n':
+        p = (uint8_t *)cc2_lex_layout((int)p, c);
+        if (cc2_lex_should_restart()) {
+            goto redo_no_start;
+        }
+        goto keep_tok_flags;
     case '\\':
         /* first look if it is in fact an end of buffer */
         c = handle_stray1(p);
@@ -700,10 +697,6 @@ void next_nomacro1(void)
         }
         break;
 
-    case '\n':
-        file->line_num++;
-        tok_flags |= TOK_FLAG_BOL;
-        p++;
 maybe_newline:
         if (0 == (parse_flags & PARSE_FLAG_LINEFEED))
             goto redo_no_start;
