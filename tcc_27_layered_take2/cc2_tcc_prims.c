@@ -394,6 +394,35 @@ void cc2_tcc_close(void)
     tcc_close();
 }
 
+/* Bind legacy typed storage while cc2 owns its initialization policy. */
+int cc2_bind_preprocessor_state(void)
+{
+    define_stack_address = &define_stack;
+    file_address = &file;
+    parse_flags_address = &parse_flags;
+    tok_address = &tok;
+    tokc_address = &tokc;
+    gnu_ext_address = &gnu_ext;
+    tokstr_buf_address = &tokstr_buf;
+    isidnum_table_address = isidnum_table;
+    pp_debug_tok_address = &pp_debug_tok;
+    pp_debug_symv_address = &pp_debug_symv;
+    pp_once_address = &pp_once;
+    tok_flags_address = &tok_flags;
+    total_lines_address = &total_lines;
+    tokcstr_address = &tokcstr;
+    hash_ident_address = hash_ident;
+    cstr_buf_address = &cstr_buf;
+    tok_two_chars_address = tok_two_chars;
+    return 0;
+}
+
+int cc2_preprocessor_set_stdout(TCCState *state)
+{
+    state->ppfp = stdout;
+    return 0;
+}
+
 void *cc2_toksym_alloc(int size)
 {
     return tcc_malloc(size);

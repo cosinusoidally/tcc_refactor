@@ -174,6 +174,9 @@ var CC2_TOKEN_ARROW;
 var CC2_CHARACTER_SPACE_CLASS;
 var CC2_CHARACTER_IDENTIFIER_CLASS;
 var CC2_CHARACTER_NUMBER_CLASS;
+var CC2_TOKEN_HASH_BUCKETS;
+var CC2_STRING_BUFFER_CAPACITY;
+var CC2_TOKEN_STREAM_INITIAL_CAPACITY;
 var CC2_LEX_RESTART;
 var CC2_TOKEN_OPERATOR_MASK;
 var CC2_TOKEN_SIGNED_LESS;
@@ -1776,6 +1779,53 @@ function tccpp_delete(state)
     cstr_free(cstr_buf_address);
     tok_str_free_str(ri32(add(tokstr_buf_address,
         CC2_TOKEN_STRING_DATA_OFFSET)));
+    return 0;
+}
+
+function cc2_tccpp_new(state, keywords)
+{
+    var character;
+    var flags;
+    var pointer;
+    var end;
+    wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
+        add(state, CC2_TCC_STATE_INCLUDE_STACK_OFFSET));
+    cc0_init();
+    character = CC2_CHARACTER_END_OF_FILE;
+    while (lt(character, 128)) {
+        flags = 0;
+        if (cc0_is_space(character)) {
+            flags = CC2_CHARACTER_SPACE_CLASS;
+        } else if (cc0_is_name_start(character)) {
+            flags = CC2_CHARACTER_IDENTIFIER_CLASS;
+        } else if (cc0_is_decimal_digit(character)) {
+            flags = CC2_CHARACTER_NUMBER_CLASS;
+        }
+        cc0_set_idnum(isidnum_table_address, character, flags);
+        character = add(character, 1);
+    }
+    while (lt(character, 256)) {
+        cc0_set_idnum(isidnum_table_address, character,
+            CC2_CHARACTER_IDENTIFIER_CLASS);
+        character = add(character, 1);
+    }
+    memset(hash_ident_address, 0,
+        mul(CC2_TOKEN_HASH_BUCKETS, CC2_I386_WORD_BYTES));
+    cstr_new(cstr_buf_address);
+    cstr_realloc(cstr_buf_address, CC2_STRING_BUFFER_CAPACITY);
+    tok_str_new(tokstr_buf_address);
+    tok_str_realloc(tokstr_buf_address,
+        CC2_TOKEN_STREAM_INITIAL_CAPACITY);
+    tok_ident = CC2_TOKEN_IDENTIFIER_BASE;
+    pointer = keywords;
+    while (ri8(pointer)) {
+        end = pointer;
+        while (ri8(end)) {
+            end = add(end, 1);
+        }
+        tok_alloc(pointer, sub(end, pointer));
+        pointer = add(end, 1);
+    }
     return 0;
 }
 
@@ -14906,6 +14956,9 @@ function cc2_init_constants()
     CC2_CHARACTER_SPACE_CLASS = 1;
     CC2_CHARACTER_IDENTIFIER_CLASS = 2;
     CC2_CHARACTER_NUMBER_CLASS = 4;
+    CC2_TOKEN_HASH_BUCKETS = 16384;
+    CC2_STRING_BUFFER_CAPACITY = 1024;
+    CC2_TOKEN_STREAM_INITIAL_CAPACITY = 256;
     CC2_LEX_RESTART = 0;
     CC2_TOKEN_OPERATOR_MASK = 127;
     CC2_TOKEN_SIGNED_LESS = 156;

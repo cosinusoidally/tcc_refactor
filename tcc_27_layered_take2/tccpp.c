@@ -1046,63 +1046,9 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
 
 ST_FUNC void tccpp_new(TCCState *s)
 {
-    int i, c;
-    const char *p, *r;
-
-    define_stack_address = &define_stack;
-    file_address = &file;
-    parse_flags_address = &parse_flags;
-    tok_address = &tok;
-    tokc_address = &tokc;
-    gnu_ext_address = &gnu_ext;
-    tokstr_buf_address = &tokstr_buf;
-    isidnum_table_address = isidnum_table;
-    pp_debug_tok_address = &pp_debug_tok;
-    pp_debug_symv_address = &pp_debug_symv;
-    pp_once_address = &pp_once;
-    tok_flags_address = &tok_flags;
-    total_lines_address = &total_lines;
-    tokcstr_address = &tokcstr;
-    hash_ident_address = hash_ident;
-    cstr_buf_address = &cstr_buf;
-    tok_two_chars_address = tok_two_chars;
-
-    /* cc0 owns the character classes used to initialize this lexer. */
-    cc0_init();
-
-    /* might be used in error() before preprocess_start() */
-    s->include_stack_ptr = s->include_stack;
-    s->ppfp = stdout;
-
-    /* init isid table */
-    for(i = CH_EOF; i<128; i++)
-        cc0_set_idnum((int)isidnum_table, i,
-            is_space(i) ? IS_SPC
-            : isid(i) ? IS_ID
-            : isnum(i) ? IS_NUM
-            : 0);
-
-    for(i = 128; i<256; i++)
-        cc0_set_idnum((int)isidnum_table, i, IS_ID);
-
-    memset(hash_ident, 0, TOK_HASH_SIZE * sizeof(TokenSym *));
-    cstr_new(&cstr_buf);
-    cstr_realloc(&cstr_buf, STRING_MAX_SIZE);
-    tok_str_new(&tokstr_buf);
-    tok_str_realloc(&tokstr_buf, TOKSTR_MAX_SIZE);
-    
-    tok_ident = TOK_IDENT;
-    p = tcc_keywords;
-    while (*p) {
-        r = p;
-        for(;;) {
-            c = *r++;
-            if (c == '\0')
-                break;
-        }
-        tok_alloc(p, r - p - 1);
-        p = r;
-    }
+    cc2_bind_preprocessor_state();
+    cc2_preprocessor_set_stdout(s);
+    cc2_tccpp_new((int)s, (int)tcc_keywords);
 }
 
 /* ------------------------------------------------------------------------- */
