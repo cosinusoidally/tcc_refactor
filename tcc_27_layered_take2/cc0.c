@@ -1156,6 +1156,19 @@ function cc0_elf_external_symbol(name, length)
         return cc0_elf_put_undefined_function(name, length);
     }
     if (cc0_compiler_slice_equal(name, length,
+        mks("gen_cast_constant"), 17)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("gen_cvt_ftof"), 12)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("gen_cvt_itof1"), 13)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("gen_cvt_ftoi1"), 13)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length,
         mks("gen_assign_cast"), 15)) {
         return cc0_elf_put_undefined_function(name, length);
     }
@@ -3588,6 +3601,18 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("gen_cast"))) {
         return 1;
     }
+    if (cc0_text_equal(name, length, mks("gen_cast_constant"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gen_cvt_ftof"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gen_cvt_itof1"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gen_cvt_ftoi1"))) {
+        return 1;
+    }
     if (cc0_text_equal(name, length, mks("gen_assign_cast"))) {
         return 1;
     }
@@ -3771,6 +3796,18 @@ function cc0_compiler_external_arity(name, length)
         return 2;
     }
     if (cc0_text_equal(name, length, mks("gen_cast"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gen_cast_constant"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gen_cvt_ftof"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gen_cvt_itof1"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gen_cvt_ftoi1"))) {
         return 1;
     }
     if (cc0_text_equal(name, length, mks("gen_assign_cast"))) {

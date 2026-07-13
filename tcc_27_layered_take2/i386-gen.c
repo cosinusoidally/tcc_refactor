@@ -1050,7 +1050,7 @@ ST_FUNC void gen_cvt_ftoi(int t)
 }
 
 /* convert from one floating point type to another */
-ST_FUNC void gen_cvt_ftof(int t)
+void gen_cvt_ftof(int t)
 {
     /* all we have to do on i386 is to put the float in a register */
     gv(RC_FLOAT);

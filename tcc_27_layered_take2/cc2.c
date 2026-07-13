@@ -134,6 +134,7 @@ var CC2_VALUE_TEST_MASK = 831;
 var CC2_VALUE_JUMP_FALSE = 53;
 var CC2_TRUE = 1;
 var CC2_TCC_BITFIELD = 128;
+var CC2_TCC_MUST_CAST = 1024;
 var CC2_TCC_ELLIPSIS_FUNCTION = 3;
 var CC2_ASCII_COMMA = 44;
 var CC2_ASCII_ASSIGN = 61;
@@ -2558,6 +2559,125 @@ function gen_cast_s_(type_value, type)
 function gen_cast_s(type_value)
 {
     return gen_cast_s_(type_value, 0);
+}
+
+/* Apply TCC's cast policy. Exact 64-bit and floating constant conversion is
+   delegated to a representation primitive; all target-code decisions remain
+   in this layer. */
+function gen_cast_(type, source_type, destination_type, source_float,
+    destination_float, location, symbolic_constant, registers, target_symbol,
+    target_value)
+{
+    registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+    if (not(eq(and(registers, CC2_TCC_MUST_CAST), 0))) {
+        cc2_set_value_register(vtop, and(registers,
+            bnot(CC2_TCC_MUST_CAST)));
+        force_charshort_cast(ri32(vtop));
+    }
+    if (not(eq(and(ri32(vtop), CC2_TCC_BITFIELD), 0))) {
+        gv(CC2_INTEGER_REGISTER_CLASS);
+    }
+
+    destination_type = and(ri32(type), or(CC2_TCC_BASIC_TYPE_MASK,
+        CC2_TCC_UNSIGNED_TYPE));
+    source_type = and(ri32(vtop), or(CC2_TCC_BASIC_TYPE_MASK,
+        CC2_TCC_UNSIGNED_TYPE));
+    if (not(eq(source_type, destination_type))) {
+        source_float = is_float(source_type);
+        destination_float = is_float(destination_type);
+        location = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+            CC2_VALUE_TEST_MASK);
+        symbolic_constant = eq(location,
+            or(CC2_VALUE_CONSTANT, CC2_TCC_SYMBOL_VALUE));
+        if (eq(location, CC2_VALUE_CONSTANT)) {
+            gen_cast_constant(type);
+        } else if (and(symbolic_constant,
+            eq(destination_type, CC2_TCC_BOOLEAN_TYPE))) {
+            cc2_set_value_register(vtop, CC2_VALUE_CONSTANT);
+            wi32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET), 1);
+            wi32(add(vtop, add(CC2_SVALUE_CONSTANT_OFFSET, 4)), 0);
+        } else if (and(source_float, destination_float)) {
+            gen_cvt_ftof(destination_type);
+        } else if (destination_float) {
+            gen_cvt_itof1(destination_type);
+        } else if (source_float) {
+            if (eq(destination_type, CC2_TCC_BOOLEAN_TYPE)) {
+                vpushi(0);
+                gen_op(CC2_TOKEN_NOT_EQUAL);
+            } else {
+                target_value = destination_type;
+                if (and(not(eq(destination_type, or(CC2_TCC_INT_TYPE,
+                    CC2_TCC_UNSIGNED_TYPE))), and(not(eq(destination_type,
+                    or(CC2_TCC_LONG_LONG_TYPE, CC2_TCC_UNSIGNED_TYPE))),
+                    not(eq(destination_type, CC2_TCC_LONG_LONG_TYPE))))) {
+                    destination_type = CC2_TCC_INT_TYPE;
+                }
+                gen_cvt_ftoi1(destination_type);
+                if (and(eq(destination_type, CC2_TCC_INT_TYPE),
+                    not(eq(target_value, destination_type)))) {
+                    wi32(vtop, destination_type);
+                    gen_cast(type);
+                }
+            }
+        } else if (eq(and(destination_type, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_LONG_LONG_TYPE)) {
+            if (not(eq(and(source_type, CC2_TCC_BASIC_TYPE_MASK),
+                CC2_TCC_LONG_LONG_TYPE))) {
+                gv(CC2_INTEGER_REGISTER_CLASS);
+                if (eq(source_type, or(CC2_TCC_INT_TYPE,
+                    CC2_TCC_UNSIGNED_TYPE))) {
+                    vpushi(0);
+                    gv(CC2_INTEGER_REGISTER_CLASS);
+                } else {
+                    if (eq(source_type, CC2_TCC_POINTER_TYPE)) {
+                        gen_cast_s(CC2_TCC_INT_TYPE);
+                    }
+                    gv_dup();
+                    vpushi(31);
+                    gen_op(CC2_TOKEN_SHIFT_RIGHT);
+                }
+                registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+                cc2_set_value_second_register(sub(vtop, CC2_SVALUE_BYTES),
+                    and(registers, 65535));
+                vpop();
+            }
+        } else if (eq(destination_type, CC2_TCC_BOOLEAN_TYPE)) {
+            vpushi(0);
+            gen_op(CC2_TOKEN_NOT_EQUAL);
+        } else if (or(eq(and(destination_type, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_BYTE_TYPE), eq(and(destination_type,
+            CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_SHORT_TYPE))) {
+            if (eq(source_type, CC2_TCC_POINTER_TYPE)) {
+                wi32(vtop, CC2_TCC_INT_TYPE);
+                tcc_warning(mks("nonportable conversion from pointer to char/short"), 0);
+            }
+            force_charshort_cast(destination_type);
+        } else if (eq(and(destination_type, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_INT_TYPE)) {
+            if (eq(and(source_type, CC2_TCC_BASIC_TYPE_MASK),
+                CC2_TCC_LONG_LONG_TYPE)) {
+                lexpand();
+                vpop();
+            }
+        }
+    } else if (and(eq(and(destination_type, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_POINTER_TYPE), eq(and(ri32(add(vtop,
+        CC2_SVALUE_REGISTER_OFFSET)), CC2_TCC_LVALUE), 0))) {
+        registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+        target_symbol = ri32(add(type, 4));
+        cc2_set_value_register(vtop, or(and(registers,
+            bnot(CC2_VALUE_LVALUE_TYPE_MASK)), and(lvalue_type(ri32(add(
+            target_symbol, CC2_SYM_TYPE_OFFSET))),
+            CC2_VALUE_LVALUE_TYPE_MASK)));
+    }
+    wi32(vtop, ri32(type));
+    wi32(add(vtop, 4), ri32(add(type, 4)));
+    return 0;
+}
+
+function gen_cast(type)
+{
+    return gen_cast_(type, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function is_label_(identifier_floor, saved_token)

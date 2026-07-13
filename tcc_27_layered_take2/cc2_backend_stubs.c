@@ -84,6 +84,26 @@ function gen_cast(type)
     return 0;
 }
 
+function gen_cast_constant(type)
+{
+    return 0;
+}
+
+function gen_cvt_ftof(type)
+{
+    return 0;
+}
+
+function gen_cvt_itof1(type)
+{
+    return 0;
+}
+
+function gen_cvt_ftoi1(type)
+{
+    return 0;
+}
+
 function expr_cond()
 {
     return 0;

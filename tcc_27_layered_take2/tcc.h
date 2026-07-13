@@ -1545,7 +1545,7 @@ ST_FUNC void gtst_addr(int inv, int a);
 ST_FUNC void gen_opi(int op);
 ST_FUNC void gen_opf(int op);
 ST_FUNC void gen_cvt_ftoi(int t);
-ST_FUNC void gen_cvt_ftof(int t);
+void gen_cvt_ftof(int t);
 ST_FUNC void ggoto(void);
 #ifndef TCC_TARGET_C67
 extern void o(unsigned int c);
