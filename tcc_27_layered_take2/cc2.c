@@ -41,6 +41,7 @@ var CC2_TCC_LONG_DOUBLE_TYPE = 10;
 var CC2_TCC_QUAD_FLOAT_TYPE = 14;
 var CC2_I386_FLOAT_RETURN_CLASS = 8;
 var CC2_I386_FLOAT_RETURN_REGISTER = 4;
+var CC2_I386_FLOAT_REGISTER_CLASS = 2;
 /* TCC's i386 Sym layout and its existing 8192-byte allocation policy. */
 var CC2_SYM_BYTES = 36;
 var CC2_SYM_POOL_BYTES = 8192;
@@ -1917,6 +1918,172 @@ function struct_layout(type, attributes, pcc, pragma_pack)
     return struct_layout_access_(type,
         struct_layout_place(type, attributes, pcc, pragma_pack),
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, sub(0, 2), 0, 0);
+}
+
+function cc2_set_value_register(value, reg)
+{
+    wi32(add(value, CC2_SVALUE_REGISTER_OFFSET),
+        or(and(ri32(add(value, CC2_SVALUE_REGISTER_OFFSET)), bnot(65535)),
+        and(reg, 65535)));
+    return 0;
+}
+
+function cc2_set_value_second_register(value, reg)
+{
+    wi32(add(value, CC2_SVALUE_REGISTER_OFFSET),
+        or(and(ri32(add(value, CC2_SVALUE_REGISTER_OFFSET)), 65535),
+        shl(and(reg, 65535), 16)));
+    return 0;
+}
+
+/* i386 represents a long long as two ordinary integer stack values while an
+   operation is generated, then joins their registers again afterwards. */
+function lexpand_(sign, location, previous, registers)
+{
+    sign = and(ri32(vtop),
+        or(CC2_TCC_DEFAULT_SIGN, CC2_TCC_UNSIGNED_TYPE));
+    registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+    location = and(registers,
+        or(CC2_VALUE_LOCATION_MASK, CC2_TCC_LVALUE));
+    previous = vtop;
+    if (eq(location, CC2_VALUE_CONSTANT)) {
+        vdup();
+        cc2_write_signed_constant(add(vtop, CC2_SVALUE_CONSTANT_OFFSET),
+            ri32(add(previous, add(CC2_SVALUE_CONSTANT_OFFSET, 4))));
+    } else if (or(eq(location, or(CC2_TCC_LVALUE, CC2_VALUE_CONSTANT)),
+        eq(location, or(CC2_TCC_LVALUE, CC2_VALUE_LOCAL)))) {
+        vdup();
+        cc2_write_signed_constant(add(vtop, CC2_SVALUE_CONSTANT_OFFSET),
+            add(ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET)), 4));
+    } else {
+        gv(CC2_INTEGER_REGISTER_CLASS);
+        previous = vtop;
+        registers = ri32(add(previous, CC2_SVALUE_REGISTER_OFFSET));
+        vdup();
+        cc2_set_value_register(vtop, and(ushr(registers, 16), 65535));
+        cc2_set_value_second_register(vtop, CC2_VALUE_CONSTANT);
+        cc2_set_value_second_register(previous, CC2_VALUE_CONSTANT);
+    }
+    wi32(vtop, or(CC2_TCC_INT_TYPE, sign));
+    wi32(sub(vtop, CC2_SVALUE_BYTES), or(CC2_TCC_INT_TYPE, sign));
+    return 0;
+}
+
+function lexpand()
+{
+    return lexpand_(0, 0, 0, 0);
+}
+
+function lbuild(type)
+{
+    gv2(CC2_INTEGER_REGISTER_CLASS, CC2_INTEGER_REGISTER_CLASS);
+    cc2_set_value_second_register(sub(vtop, CC2_SVALUE_BYTES),
+        and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)), 65535));
+    wi32(sub(vtop, CC2_SVALUE_BYTES), type);
+    vpop();
+    return 0;
+}
+
+function gv_dup_(type, register_class, source_register, destination_register,
+    temporary)
+{
+    type = ri32(vtop);
+    if (eq(and(type, CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_LONG_LONG_TYPE)) {
+        if (not(eq(and(type, CC2_TCC_BITFIELD), 0))) {
+            gv(CC2_INTEGER_REGISTER_CLASS);
+            type = ri32(vtop);
+        }
+        lexpand();
+        gv_dup();
+        vswap();
+        vrotb(3);
+        gv_dup();
+        vrotb(4);
+        lbuild(type);
+        vrotb(3);
+        vrotb(3);
+        vswap();
+        lbuild(type);
+        vswap();
+    } else {
+        register_class = CC2_INTEGER_REGISTER_CLASS;
+        temporary = cc2_svalue_temporary();
+        cc2_zero_bytes(temporary, CC2_SVALUE_BYTES);
+        wi32(temporary, CC2_TCC_INT_TYPE);
+        if (is_float(type)) {
+            register_class = CC2_I386_FLOAT_REGISTER_CLASS;
+            wi32(temporary, type);
+        }
+        source_register = gv(register_class);
+        destination_register = get_reg(register_class);
+        cc2_set_value_register(temporary, source_register);
+        cc2_write_signed_constant(add(temporary,
+            CC2_SVALUE_CONSTANT_OFFSET), 0);
+        load(destination_register, temporary);
+        vdup();
+        if (not(eq(source_register, destination_register))) {
+            cc2_set_value_register(vtop, destination_register);
+        }
+    }
+    return 0;
+}
+
+function gv_dup()
+{
+    return gv_dup_(0, 0, 0, 0, 0);
+}
+
+function inc(post, token)
+{
+    test_lvalue();
+    vdup();
+    if (post) {
+        gv_dup();
+        vrotb(3);
+        vrotb(3);
+    }
+    vpushi(sub(token, 163));
+    gen_op(CC2_ASCII_PLUS);
+    vstore();
+    if (post) {
+        vpop();
+    }
+    return 0;
+}
+
+function indir_(type_value, registers, target_type)
+{
+    type_value = ri32(vtop);
+    if (not(eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_POINTER_TYPE))) {
+        if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_FUNCTION_TYPE)) {
+            return 0;
+        }
+        expect(mks("pointer"));
+    }
+    registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+    if (not(eq(and(registers, CC2_TCC_LVALUE), 0))) {
+        gv(CC2_INTEGER_REGISTER_CLASS);
+    }
+    target_type = pointed_type(vtop);
+    wi32(vtop, ri32(target_type));
+    wi32(add(vtop, 4), ri32(add(target_type, 4)));
+    type_value = ri32(vtop);
+    if (and(and(eq(and(type_value, CC2_TCC_ARRAY_TYPE), 0),
+        eq(and(type_value, CC2_TCC_VLA_TYPE), 0)),
+        not(eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_FUNCTION_TYPE)))) {
+        registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+        cc2_set_value_register(vtop, or(and(registers, 65535),
+            lvalue_type(type_value)));
+    }
+    return 0;
+}
+
+function indir()
+{
+    return indir_(0, 0, 0);
 }
 
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)

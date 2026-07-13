@@ -113,3 +113,8 @@ function expect(message)
 {
     return 0;
 }
+
+function gv2(first_class, second_class)
+{
+    return 0;
+}

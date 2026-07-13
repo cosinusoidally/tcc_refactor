@@ -51,7 +51,6 @@ static void vpush64(int ty, unsigned long long v);
 int gvtst(int inv, int t);
 static void gen_inline_functions(TCCState *s);
 static void skip_or_save_block(TokenString **str);
-static void gv_dup(void);
 
 /* we use our own 'finite' function to avoid potential problems with
    non standard math libs */
@@ -736,7 +735,7 @@ int gv(int rc)
 }
 
 /* generate vtop[-1] and vtop[0] in resp. classes rc1 and rc2 */
-ST_FUNC void gv2(int rc1, int rc2)
+void gv2(int rc1, int rc2)
 {
     int v;
 
@@ -769,25 +768,6 @@ ST_FUNC void gv2(int rc1, int rc2)
 
 #if PTR_SIZE == 4
 /* expand 64bit on stack in two ints */
-static void lexpand(void)
-{
-    int u, v;
-    u = vtop->type.t & (VT_DEFSIGN | VT_UNSIGNED);
-    v = vtop->r & (VT_VALMASK | VT_LVAL);
-    if (v == VT_CONST) {
-        vdup();
-        vtop[0].c.i >>= 32;
-    } else if (v == (VT_LVAL|VT_CONST) || v == (VT_LVAL|VT_LOCAL)) {
-        vdup();
-        vtop[0].c.i += 4;
-    } else {
-        gv(RC_INT);
-        vdup();
-        vtop[0].r = vtop[-1].r2;
-        vtop[0].r2 = vtop[-1].r2 = VT_CONST;
-    }
-    vtop[0].type.t = vtop[-1].type.t = VT_INT | u;
-}
 #endif
 
 #ifdef TCC_TARGET_ARM
@@ -820,68 +800,10 @@ ST_FUNC void lexpand_nr(void)
 
 #if PTR_SIZE == 4
 /* build a long long from two ints */
-static void lbuild(int t)
-{
-    gv2(RC_INT, RC_INT);
-    vtop[-1].r2 = vtop[0].r;
-    vtop[-1].type.t = t;
-    vpop();
-}
 #endif
 
 /* convert stack entry to register and duplicate its value in another
    register */
-static void gv_dup(void)
-{
-    int rc, t, r, r1;
-    SValue sv;
-
-    t = vtop->type.t;
-#if PTR_SIZE == 4
-    if ((t & VT_BTYPE) == VT_LLONG) {
-        if (t & VT_BITFIELD) {
-            gv(RC_INT);
-            t = vtop->type.t;
-        }
-        lexpand();
-        gv_dup();
-        vswap();
-        vrotb(3);
-        gv_dup();
-        vrotb(4);
-        /* stack: H L L1 H1 */
-        lbuild(t);
-        vrotb(3);
-        vrotb(3);
-        vswap();
-        lbuild(t);
-        vswap();
-    } else
-#endif
-    {
-        /* duplicate value */
-        rc = RC_INT;
-        sv.type.t = VT_INT;
-        if (is_float(t)) {
-            rc = RC_FLOAT;
-#ifdef TCC_TARGET_X86_64
-            if ((t & VT_BTYPE) == VT_LDOUBLE) {
-                rc = RC_ST0;
-            }
-#endif
-            sv.type.t = t;
-        }
-        r = gv(rc);
-        r1 = get_reg(rc);
-        sv.r = r;
-        sv.c.i = 0;
-        load(r1, &sv); /* move r to r1 */
-        vdup();
-        /* duplicates value */
-        if (r != r1)
-            vtop->r = r1;
-    }
-}
 
 /* Generate value test
  *
@@ -2305,22 +2227,6 @@ void vstore(void)
 }
 
 /* post defines POST/PRE add. c is the token ++ or -- */
-ST_FUNC void inc(int post, int c)
-{
-    test_lvalue();
-    vdup(); /* save lvalue */
-    if (post) {
-        gv_dup(); /* duplicate value */
-        vrotb(3);
-        vrotb(3);
-    }
-    /* add constant */
-    vpushi(c - TOK_MID); 
-    gen_op('+');
-    vstore(); /* store value */
-    if (post)
-        vpop(); /* if post op, return saved value */
-}
 
 ST_FUNC void parse_mult_str (CString *astr, const char *msg)
 {
@@ -3182,27 +3088,6 @@ static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
 }
 
 /* indirection with full error checking and bound check */
-ST_FUNC void indir(void)
-{
-    if ((vtop->type.t & VT_BTYPE) != VT_PTR) {
-        if ((vtop->type.t & VT_BTYPE) == VT_FUNC)
-            return;
-        expect("pointer");
-    }
-    if (vtop->r & VT_LVAL)
-        gv(RC_INT);
-    vtop->type = *pointed_type(&vtop->type);
-    /* Arrays and functions are never lvalues */
-    if (!(vtop->type.t & VT_ARRAY) && !(vtop->type.t & VT_VLA)
-        && (vtop->type.t & VT_BTYPE) != VT_FUNC) {
-        vtop->r |= lvalue_type(vtop->type.t);
-        /* if bound checking, the referenced pointer must be checked */
-#ifdef CONFIG_TCC_BCHECK
-        if (tcc_state->do_bounds_check)
-            vtop->r |= VT_MUSTBOUND;
-#endif
-    }
-}
 
 /* pass a parameter to a function and do type checking and casting */
 /* parse an expression and return its type without any side effect. */

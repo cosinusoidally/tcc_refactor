@@ -1168,6 +1168,9 @@ function cc0_elf_external_symbol(name, length)
     if (cc0_compiler_slice_equal(name, length, mks("expect"), 6)) {
         return cc0_elf_put_undefined_function(name, length);
     }
+    if (cc0_compiler_slice_equal(name, length, mks("gv2"), 3)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
     if (cc0_compiler_slice_equal(name, length, mks("open"), 4)) {
         if (eq(CC0_ELF_OPEN_SYMBOL, 0)) {
             CC0_ELF_OPEN_SYMBOL = cc0_elf_put_undefined_function(
@@ -3578,6 +3581,9 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("expect"))) {
         return 1;
     }
+    if (cc0_text_equal(name, length, mks("gv2"))) {
+        return 2;
+    }
     return sub(0, 1);
 }
 
@@ -3741,6 +3747,9 @@ function cc0_compiler_external_arity(name, length)
     }
     if (cc0_text_equal(name, length, mks("expect"))) {
         return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gv2"))) {
+        return 2;
     }
     return sub(0, 1);
 }
