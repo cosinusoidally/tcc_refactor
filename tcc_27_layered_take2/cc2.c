@@ -2274,6 +2274,54 @@ function next_argstream(nested_list, whitespace)
     return next_argstream_(nested_list, whitespace, 0, 0, 0, 0, 0);
 }
 
+/* Re-lex the spelling formed by ##.  Macro stream reduction stays separate
+   from this lexer operation so invalid pastes retain TCC's fallback tokens. */
+function paste_tokens(first_token, first_value, second_token, second_value)
+{
+    var string;
+    var first_length;
+    var result;
+    var source_file;
+    string = malloc(CC2_CSTRING_BYTES);
+    cstr_new(string);
+    if (not(eq(first_token, CC2_TOKEN_PLACEHOLDER))) {
+        cstr_cat(string, get_tok_str(first_token, first_value), sub(0, 1));
+    }
+    first_length = ri32(add(string, CC2_CSTRING_SIZE_OFFSET));
+    if (not(eq(second_token, CC2_TOKEN_PLACEHOLDER))) {
+        cstr_cat(string, get_tok_str(second_token, second_value), sub(0, 1));
+    }
+    cstr_ccat(string, 0);
+    cc2_open_buffer(tcc_state_address, mks(":paste:"),
+        ri32(add(string, CC2_CSTRING_SIZE_OFFSET)));
+    source_file = ri32(file_address);
+    memcpy(add(source_file, CC2_BUFFERED_FILE_BUFFER_OFFSET),
+        ri32(add(string, CC2_CSTRING_DATA_OFFSET)),
+        ri32(add(string, CC2_CSTRING_SIZE_OFFSET)));
+    wi32(tok_flags_address, 0);
+    result = 1;
+    while (1) {
+        next_nomacro1();
+        source_file = ri32(file_address);
+        if (eq(ri8(ri32(add(source_file,
+            CC2_BUFFERED_FILE_POINTER_OFFSET))), 0)) {
+            break;
+        }
+        if (cc2_token_is_space(ri32(tok_address))) {
+            continue;
+        }
+        tcc_warning(mks("pasting %.*s and %s does not give a valid preprocessing token"),
+            first_length, ri32(add(string, CC2_CSTRING_DATA_OFFSET)),
+            add(ri32(add(string, CC2_CSTRING_DATA_OFFSET)), first_length));
+        result = 0;
+        break;
+    }
+    cc2_tcc_close();
+    cstr_free(string);
+    free(string);
+    return result;
+}
+
 /* Keep preprocessor output tokens textually separate where concatenation
    would change their meaning. */
 function pp_need_space(first, second)

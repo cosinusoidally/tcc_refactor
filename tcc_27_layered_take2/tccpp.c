@@ -534,39 +534,6 @@ static char const ab_month_name[12][4] =
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 };
 
-static int paste_tokens(int t1, CValue *v1, int t2, CValue *v2)
-{
-    CString cstr;
-    int n, ret = 1;
-
-    cstr_new(&cstr);
-    if (t1 != TOK_PLCHLDR)
-        cstr_cat(&cstr, get_tok_str(t1, v1), -1);
-    n = cstr.size;
-    if (t2 != TOK_PLCHLDR)
-        cstr_cat(&cstr, get_tok_str(t2, v2), -1);
-    cstr_ccat(&cstr, '\0');
-
-    tcc_open_bf(tcc_state, ":paste:", cstr.size);
-    memcpy(file->buffer, cstr.data, cstr.size);
-    tok_flags = 0;
-    for (;;) {
-        next_nomacro1();
-        if (0 == *file->buf_ptr)
-            break;
-        if (is_space(tok))
-            continue;
-        tcc_warning("pasting \"%.*s\" and \"%s\" does not give a valid"
-            " preprocessing token", n, cstr.data, (char*)cstr.data + n);
-        ret = 0;
-        break;
-    }
-    tcc_close();
-    //printf("paste <%s>\n", (char*)cstr.data);
-    cstr_free(&cstr);
-    return ret;
-}
-
 /* handle the '##' operator. Return NULL if no '##' seen. Otherwise
    return the resulting string (which must be freed). */
 static inline int *macro_twosharps(const int *ptr0)
