@@ -7110,6 +7110,27 @@ function gen_opic(operation)
     return 0;
 }
 
+function gen_opif(operation)
+{
+    var first;
+    var first_registers;
+    var second_registers;
+    first = sub(vtop, CC2_SVALUE_BYTES);
+    first_registers = and(ri32(add(first,
+        CC2_SVALUE_REGISTER_OFFSET)), 65535);
+    second_registers = and(ri32(add(vtop,
+        CC2_SVALUE_REGISTER_OFFSET)), 65535);
+    if (and(eq(and(first_registers, CC2_VALUE_TEST_MASK),
+        CC2_VALUE_CONSTANT), eq(and(second_registers,
+        CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT))) {
+        if (gen_opif_fold_constant(operation)) {
+            return 0;
+        }
+    }
+    gen_opf(operation);
+    return 0;
+}
+
 function unary_postfix_call()
 {
     var function_symbol;

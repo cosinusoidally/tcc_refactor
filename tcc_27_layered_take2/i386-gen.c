@@ -889,7 +889,7 @@ void gen_opi(int op)
 /* generate a floating point operation 'v = t1 op t2' instruction. The
    two operands are guaranteed to have the same floating point type */
 /* XXX: need to use ST1 too */
-ST_FUNC void gen_opf(int op)
+void gen_opf(int op)
 {
     int a, ft, fc, swapped, r;
 

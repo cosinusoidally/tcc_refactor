@@ -382,6 +382,16 @@ function gen_opif(operation)
     return 0;
 }
 
+function gen_opf(operation)
+{
+    return 0;
+}
+
+function gen_opif_fold_constant(operation)
+{
+    return 0;
+}
+
 function unget_tok(token)
 {
     return 0;

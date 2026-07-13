@@ -445,69 +445,48 @@ int gen_opic_merge_addend(int op)
     return 1;
 }
 
-void gen_opif(int op)
+int gen_opif_fold_constant(int op)
 {
-    int c1, c2;
-    SValue *v1, *v2;
-#if defined _MSC_VER && defined _AMD64_
-    /* avoid bad optimization with f1 -= f2 for f1:-0.0, f2:0.0 */
-    volatile
-#endif
+    SValue *v1 = vtop - 1;
+    SValue *v2 = vtop;
     long double f1, f2;
 
-    v1 = vtop - 1;
-    v2 = vtop;
-    /* currently, we cannot do computations with forward symbols */
-    c1 = (v1->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST;
-    c2 = (v2->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST;
-    if (c1 && c2) {
-        if (v1->type.t == VT_FLOAT) {
-            f1 = v1->c.f;
-            f2 = v2->c.f;
-        } else if (v1->type.t == VT_DOUBLE) {
-            f1 = v1->c.d;
-            f2 = v2->c.d;
-        } else {
-            f1 = v1->c.ld;
-            f2 = v2->c.ld;
-        }
-
-        /* NOTE: we only do constant propagation if finite number (not
-           NaN or infinity) (ANSI spec) */
-        if (!ieee_finite(f1) || !ieee_finite(f2))
-            goto general_case;
-
-        switch(op) {
-        case '+': f1 += f2; break;
-        case '-': f1 -= f2; break;
-        case '*': f1 *= f2; break;
-        case '/': 
-            if (f2 == 0.0) {
-                if (const_wanted)
-                    tcc_error("division by zero in constant");
-                goto general_case;
-            }
-            f1 /= f2; 
-            break;
-            /* XXX: also handles tests ? */
-        default:
-            goto general_case;
-        }
-        /* XXX: overflow test ? */
-        if (v1->type.t == VT_FLOAT) {
-            v1->c.f = f1;
-        } else if (v1->type.t == VT_DOUBLE) {
-            v1->c.d = f1;
-        } else {
-            v1->c.ld = f1;
-        }
-        vtop--;
+    if (v1->type.t == VT_FLOAT) {
+        f1 = v1->c.f;
+        f2 = v2->c.f;
+    } else if (v1->type.t == VT_DOUBLE) {
+        f1 = v1->c.d;
+        f2 = v2->c.d;
     } else {
-    general_case:
-        gen_opf(op);
+        f1 = v1->c.ld;
+        f2 = v2->c.ld;
     }
+    if (!ieee_finite(f1) || !ieee_finite(f2))
+        return 0;
+    switch (op) {
+    case '+': f1 += f2; break;
+    case '-': f1 -= f2; break;
+    case '*': f1 *= f2; break;
+    case '/':
+        if (f2 == 0.0) {
+            if (const_wanted)
+                tcc_error("division by zero in constant");
+            return 0;
+        }
+        f1 /= f2;
+        break;
+    default:
+        return 0;
+    }
+    if (v1->type.t == VT_FLOAT)
+        v1->c.f = f1;
+    else if (v1->type.t == VT_DOUBLE)
+        v1->c.d = f1;
+    else
+        v1->c.ld = f1;
+    vtop--;
+    return 1;
 }
-
 /* Convert an already-classified constant without generating target code.
    cc2 owns cast policy; this primitive only accesses C's 64-bit and floating
    representations, which the scalar cc0 dialect cannot express directly. */
