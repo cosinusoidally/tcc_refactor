@@ -7,6 +7,14 @@
 
 CType func_vt; /* C storage for cc2's current function return type. */
 
+extern int case_cmp(const void *first, const void *second);
+
+/* The cc2 dialect cannot pass its comparator as a C function pointer. */
+void case_sort(void **base, int count)
+{
+    qsort(base, count, sizeof(void *), case_cmp);
+}
+
 /* Translate TCC's compact symbol-table index into its ELF record address. */
 ElfSym *elfsym(Sym *s)
 {

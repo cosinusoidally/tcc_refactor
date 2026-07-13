@@ -510,6 +510,48 @@ function cc2_zero_bytes(address, length)
     return cc2_zero_bytes_(address, length, 0);
 }
 
+function dynarray_add(table_pointer, count_pointer, data)
+{
+    var count;
+    var capacity;
+    var table;
+    count = ri32(count_pointer);
+    table = ri32(table_pointer);
+    if (eq(and(count, sub(count, 1)), 0)) {
+        if (eq(count, 0)) {
+            capacity = 1;
+        } else {
+            capacity = mul(count, 2);
+        }
+        table = realloc(table, mul(capacity, CC2_I386_WORD_BYTES));
+        wi32(table_pointer, table);
+    }
+    wi32(add(table, mul(count, CC2_I386_WORD_BYTES)), data);
+    wi32(count_pointer, add(count, 1));
+    return 0;
+}
+
+function dynarray_reset(table_pointer, count_pointer)
+{
+    var table;
+    var count;
+    var entry;
+    table = ri32(table_pointer);
+    count = ri32(count_pointer);
+    entry = table;
+    while (not(eq(count, 0))) {
+        if (not(eq(ri32(entry), 0))) {
+            free(ri32(entry));
+        }
+        entry = add(entry, CC2_I386_WORD_BYTES);
+        count = sub(count, 1);
+    }
+    free(table);
+    wi32(table_pointer, 0);
+    wi32(count_pointer, 0);
+    return 0;
+}
+
 /* Grow the pool pointer vector with the same power-of-two rule as TCC. */
 function cc2_add_sym_pool_(pool, count, capacity, pools)
 {

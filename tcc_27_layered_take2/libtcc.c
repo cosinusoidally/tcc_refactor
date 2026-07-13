@@ -379,47 +379,6 @@ PUB_FUNC void tcc_memcheck(void)
 #define malloc(s) use_tcc_malloc(s)
 #define realloc(p, s) use_tcc_realloc(p, s)
 
-/********************************************************/
-/* dynarrays */
-
-void dynarray_add(void *ptab, int *nb_ptr, void *data)
-{
-    int nb, nb_alloc;
-    void **pp;
-
-    nb = *nb_ptr;
-    pp = *(void ***)ptab;
-    /* every power of two we double array size */
-    if ((nb & (nb - 1)) == 0) {
-        if (!nb)
-            nb_alloc = 1;
-        else
-            nb_alloc = nb * 2;
-        pp = tcc_realloc(pp, nb_alloc * sizeof(void *));
-        *(void***)ptab = pp;
-    }
-    pp[nb++] = data;
-    *nb_ptr = nb;
-}
-
-void dynarray_reset(void *pp, int *n)
-{
-    void **p;
-    for (p = *(void***)pp; *n; ++p, --*n)
-        if (*p)
-            tcc_free(*p);
-    tcc_free(*(void**)pp);
-    *(void**)pp = NULL;
-}
-
-extern int case_cmp(const void *first, const void *second);
-
-/* cc0 cannot express qsort's function-pointer argument. */
-void case_sort(void **base, int count)
-{
-    qsort(base, count, sizeof(void *), case_cmp);
-}
-
 static void tcc_split_path(TCCState *s, void *p_ary, int *p_nb_ary, const char *in)
 {
     const char *p;

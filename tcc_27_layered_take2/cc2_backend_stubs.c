@@ -347,21 +347,6 @@ function decl0(scope, is_for_initializer, function_symbol)
     return 0;
 }
 
-function dynarray_add(table_pointer, count_pointer, data)
-{
-    return 0;
-}
-
-function dynarray_reset(table_pointer, count_pointer)
-{
-    return 0;
-}
-
-function case_sort(base, count)
-{
-    return 0;
-}
-
 function label_find(token)
 {
     return 0;
@@ -383,6 +368,11 @@ function tcc_debug_funcstart(state, symbol)
 }
 
 function tcc_debug_funcend(state, size)
+{
+    return 0;
+}
+
+function case_sort(base, count)
 {
     return 0;
 }
