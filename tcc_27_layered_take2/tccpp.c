@@ -48,7 +48,6 @@ static TokenString tokstr_buf;
 static unsigned char isidnum_table[256 - CH_EOF];
 static int pp_debug_tok, pp_debug_symv;
 static int pp_once;
-static int pp_expr;
 static int pp_counter;
 static void tok_print(const char *msg, const int *str);
 
@@ -556,67 +555,6 @@ static inline int tok_size(const int *p)
 #endif
 
 /* label lookup */
-/* fake the nth "#if defined test_..." for tcc -dt -run */
-static void maybe_run_test(TCCState *s)
-{
-    const char *p;
-    if (s->include_stack_ptr != s->include_stack)
-        return;
-    p = get_tok_str(tok, NULL);
-    if (0 != memcmp(p, "test_", 5))
-        return;
-    if (0 != --s->run_test)
-        return;
-    fprintf(s->ppfp, "\n[%s]\n" + !(s->dflag & 32), p), fflush(s->ppfp);
-    define_push(tok, MACRO_OBJ, NULL, NULL);
-}
-
-/* eval an expression for #if/#elif */
-static int expr_preprocess(void)
-{
-    int c, t;
-    TokenString *str;
-    
-    str = tok_str_alloc();
-    pp_expr = 1;
-    while (tok != TOK_LINEFEED && tok != TOK_EOF) {
-        next(); /* do macro subst */
-        if (tok == TOK_DEFINED) {
-            next_nomacro();
-            t = tok;
-            if (t == '(') 
-                next_nomacro();
-            if (tok < TOK_IDENT)
-                expect("identifier");
-            if (tcc_state->run_test)
-                maybe_run_test(tcc_state);
-            c = define_find(tok) != 0;
-            if (t == '(') {
-                next_nomacro();
-                if (tok != ')')
-                    expect("')'");
-            }
-            tok = TOK_CINT;
-            tokc.i = c;
-        } else if (tok >= TOK_IDENT) {
-            /* if undefined macro */
-            tok = TOK_CINT;
-            tokc.i = 0;
-        }
-        tok_str_add_tok(str);
-    }
-    pp_expr = 0;
-    tok_str_add(str, -1); /* simulate end of file */
-    tok_str_add(str, 0);
-    /* now evaluate C constant expression */
-    begin_macro(str, 1);
-    next();
-    c = expr_const();
-    end_macro();
-    return c != 0;
-}
-
-
 /* parse after #define */
 ST_FUNC void parse_define(void)
 {

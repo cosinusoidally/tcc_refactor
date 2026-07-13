@@ -312,10 +312,6 @@ redo:
     tcc_set_output_type(s, s->output_type);
     s->ppfp = ppfp;
 
-    if ((s->output_type == TCC_OUTPUT_MEMORY
-      || s->output_type == TCC_OUTPUT_PREPROCESS) && (s->dflag & 16))
-        s->dflag |= t ? 32 : 0, s->run_test = ++t, n = s->nb_files;
-
     /* compile or add each files or library */
     for (first_file = NULL, ret = 0;;) {
         struct filespec *f = s->files[s->nb_files - n];
@@ -339,9 +335,7 @@ redo:
             break;
     }
 
-    if (s->run_test) {
-        t = 0;
-    } else if (s->output_type == TCC_OUTPUT_PREPROCESS) {
+    if (s->output_type == TCC_OUTPUT_PREPROCESS) {
         ;
     } else if (0 == ret) {
         if (s->output_type != TCC_OUTPUT_MEMORY) {

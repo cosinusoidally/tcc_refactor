@@ -406,6 +406,7 @@ var CC2_TOKEN_ELIF;
 var CC2_TOKEN_ENDIF;
 var CC2_TOKEN_ERROR;
 var CC2_TOKEN_WARNING;
+var CC2_TOKEN_DEFINED;
 var CC2_TOKEN_CHARACTER;
 var CC2_TOKEN_WIDE_CHARACTER;
 var CC2_TOKEN_INTEGER_CONSTANT;
@@ -511,6 +512,7 @@ var macro_ptr;
 var macro_stack;
 var ch;
 var total_bytes;
+var pp_expr;
 var symtab_section_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET;
@@ -1175,6 +1177,55 @@ function preprocess_skip_(source_file, pointer, depth, start_of_line,
 function preprocess_skip()
 {
     return preprocess_skip_(0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function expr_preprocess_(stream, token, value)
+{
+    stream = tok_str_alloc();
+    pp_expr = 1;
+    while (and(not(eq(ri32(tok_address), CC2_CHARACTER_LINE_FEED)),
+        not(eq(ri32(tok_address), CC2_CHARACTER_END_OF_FILE)))) {
+        next();
+        token = ri32(tok_address);
+        if (eq(token, CC2_TOKEN_DEFINED)) {
+            next_nomacro();
+            token = ri32(tok_address);
+            if (eq(token, 40)) {
+                next_nomacro();
+            }
+            if (lt(ri32(tok_address), CC2_TOKEN_IDENTIFIER_BASE)) {
+                expect(mks("identifier"));
+            }
+            value = not(eq(define_find(ri32(tok_address)), 0));
+            if (eq(token, 40)) {
+                next_nomacro();
+                if (not(eq(ri32(tok_address), 41))) {
+                    expect(mks("')'"));
+                }
+            }
+            wi32(tok_address, CC2_TOKEN_INTEGER_CONSTANT);
+            wi32(tokc_address, value);
+            wi32(add(tokc_address, CC2_I386_WORD_BYTES), 0);
+        } else if (not(lt(token, CC2_TOKEN_IDENTIFIER_BASE))) {
+            wi32(tok_address, CC2_TOKEN_INTEGER_CONSTANT);
+            wi32(tokc_address, 0);
+            wi32(add(tokc_address, CC2_I386_WORD_BYTES), 0);
+        }
+        tok_str_add_tok(stream);
+    }
+    pp_expr = 0;
+    tok_str_add(stream, CC2_CHARACTER_END_OF_FILE);
+    tok_str_add(stream, 0);
+    begin_macro(stream, 1);
+    next();
+    value = expr_const();
+    end_macro();
+    return not(eq(value, 0));
+}
+
+function expr_preprocess()
+{
+    return expr_preprocess_(0, 0, 0);
 }
 
 function tok_str_new(stream)
@@ -12881,6 +12932,7 @@ function cc2_init_constants()
     CC2_TOKEN_ENDIF = 320;
     CC2_TOKEN_ERROR = 323;
     CC2_TOKEN_WARNING = 324;
+    CC2_TOKEN_DEFINED = 321;
     return 0;
 }
 

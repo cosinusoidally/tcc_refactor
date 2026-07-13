@@ -1169,6 +1169,7 @@ ST_DATA CString tokcstr; /* current parsed string, if any */
 /* display benchmark infos */
 ST_DATA int total_lines;
 extern int total_bytes;
+extern int pp_expr;
 extern int tok_ident;
 extern TokenSym **table_ident;
 
@@ -1535,6 +1536,7 @@ uint8_t *parse_line_comment(uint8_t *p);
 void skip_spaces(void);
 uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str);
 void preprocess_skip(void);
+int expr_preprocess(void);
 #endif
 
 /* ------------ xxx-link.c ------------ */
