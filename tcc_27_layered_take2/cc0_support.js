@@ -12,16 +12,30 @@ function and(left, right) { return (left & right) | 0; }
 function shl(value, count) { return (value << count) | 0; }
 function ushr(value, count) { return (value >>> count) | 0; }
 
-/* This byte array models the flat address space used by cc0 host tests. */
-var CC0_SUPPORT_MEMORY_SIZE = 2097152;
+/* Integer addresses remain stable when the backing typed array grows. */
+var CC0_SUPPORT_MEMORY_SIZE = 4096;
 var cc0_support_memory = new Uint8Array(CC0_SUPPORT_MEMORY_SIZE);
-var cc0_support_heap_top = 4096;
-var cc0_support_string_top = 1572864;
+var cc0_support_heap_top = 4;
 var cc0_support_string_cache = {};
+
+function cc0_support_reserve(needed) {
+    var grown = CC0_SUPPORT_MEMORY_SIZE;
+    var memory;
+    while (grown < needed) {
+        grown = grown * 2;
+    }
+    if (grown !== CC0_SUPPORT_MEMORY_SIZE) {
+        memory = new Uint8Array(grown);
+        memory.set(cc0_support_memory);
+        cc0_support_memory = memory;
+        CC0_SUPPORT_MEMORY_SIZE = grown;
+    }
+}
 
 function alloc(size) {
     var pointer = cc0_support_heap_top;
     cc0_support_heap_top = (pointer + size + 3) & -4;
+    cc0_support_reserve(cc0_support_heap_top);
     return pointer;
 }
 
@@ -31,14 +45,13 @@ function mks(value) {
     if (Object.prototype.hasOwnProperty.call(cc0_support_string_cache, value)) {
         return cc0_support_string_cache[value];
     }
-    pointer = cc0_support_string_top;
+    pointer = alloc(value.length + 1);
     index = 0;
     while (index < value.length) {
         cc0_support_memory[pointer + index] = value.charCodeAt(index) & 255;
         index = index + 1;
     }
     cc0_support_memory[pointer + index] = 0;
-    cc0_support_string_top = pointer + index + 1;
     cc0_support_string_cache[value] = pointer;
     return pointer;
 }
