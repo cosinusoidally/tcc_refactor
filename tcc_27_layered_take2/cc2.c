@@ -4862,6 +4862,158 @@ function init_putz(section, offset, size)
     return 0;
 }
 
+function decl_designator(type, section, offset, current_field, size_only,
+    initialized_length)
+{
+    var original_offset;
+    var element_size;
+    var element_count;
+    var index;
+    var last_index;
+    var alignment;
+    var symbol;
+    var field;
+    var field_token;
+    var cursor;
+    original_offset = offset;
+    element_size = 0;
+    element_count = 1;
+    alignment = malloc(4);
+    field_token = 0;
+    if (ri32(gnu_ext_address)) {
+        field_token = is_label(CC2_TOKEN_UNNAMED_IDENTIFIER);
+    }
+    while (or(field_token, and(eq(element_count, 1),
+        or(eq(ri32(tok_address), 91), eq(ri32(tok_address), 46))))) {
+        if (and(not(field_token), eq(ri32(tok_address), 91))) {
+            if (eq(and(ri32(type), CC2_TCC_ARRAY_TYPE), 0)) {
+                expect(mks("array type"));
+            }
+            next();
+            index = expr_const();
+            last_index = index;
+            if (and(eq(ri32(tok_address), CC2_TOKEN_DOTS),
+                ri32(gnu_ext_address))) {
+                next();
+                last_index = expr_const();
+            }
+            skip(93);
+            symbol = ri32(add(type, 4));
+            if (lt(index, 0)) {
+                tcc_error(mks("invalid index"), 0);
+            }
+            if (not(lt(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), 0))) {
+                if (not(lt(last_index,
+                    ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET))))) {
+                    tcc_error(mks("invalid index"), 0);
+                }
+            }
+            if (lt(last_index, index)) {
+                tcc_error(mks("invalid index"), 0);
+            }
+            if (current_field) {
+                wi32(add(ri32(current_field), CC2_SYM_CONSTANT_OFFSET),
+                    last_index);
+            }
+            type = pointed_type(type);
+            element_size = type_size(type, alignment);
+            offset = add(offset, mul(index, element_size));
+            element_count = add(sub(last_index, index), 1);
+        } else {
+            if (field_token) {
+                field = field_token;
+            } else {
+                next();
+                field = ri32(tok_address);
+            }
+            next();
+            if (not(eq(and(ri32(type), CC2_TCC_BASIC_TYPE_MASK),
+                CC2_TCC_STRUCT_TYPE))) {
+                expect(mks("struct/union type"));
+            }
+            symbol = find_field(type, field);
+            if (not(symbol)) {
+                expect(mks("field"));
+            }
+            if (current_field) {
+                wi32(current_field, symbol);
+            }
+            type = add(symbol, CC2_SYM_TYPE_OFFSET);
+            offset = add(offset,
+                ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)));
+            field_token = 0;
+        }
+        current_field = 0;
+    }
+    if (not(current_field)) {
+        if (eq(ri32(tok_address), 61)) {
+            next();
+        } else if (not(ri32(gnu_ext_address))) {
+            expect(mks("="));
+        }
+    } else if (not(eq(and(ri32(type), CC2_TCC_ARRAY_TYPE), 0))) {
+        field = ri32(current_field);
+        index = ri32(add(field, CC2_SYM_CONSTANT_OFFSET));
+        symbol = ri32(add(type, 4));
+        if (not(lt(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), 0))) {
+            if (not(lt(index,
+                ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET))))) {
+                tcc_error(mks("index too large"), 0);
+            }
+        }
+        type = pointed_type(type);
+        offset = add(offset, mul(index, type_size(type, alignment)));
+    } else {
+        field = ri32(current_field);
+        while (field) {
+            if (eq(and(ri32(add(field, CC2_SYM_VALUE_OFFSET)),
+                CC2_FIRST_ANONYMOUS_SYMBOL), 0)) {
+                break;
+            }
+            if (eq(and(ri32(add(field, CC2_SYM_TYPE_OFFSET)),
+                CC2_TCC_BITFIELD), 0)) {
+                break;
+            }
+            field = ri32(add(field, CC2_SYM_NEXT_OFFSET));
+            wi32(current_field, field);
+        }
+        if (not(field)) {
+            tcc_error(mks("too many field init"), 0);
+        }
+        type = add(field, CC2_SYM_TYPE_OFFSET);
+        offset = add(offset, ri32(add(field, CC2_SYM_CONSTANT_OFFSET)));
+    }
+    if (not(size_only)) {
+        if (lt(initialized_length, sub(offset, original_offset))) {
+            init_putz(section, add(original_offset, initialized_length),
+                sub(sub(offset, original_offset), initialized_length));
+        }
+    }
+    decl_initializer(type, section, offset, 0, size_only);
+    if (and(not(size_only), lt(1, element_count))) {
+        if (not(section)) {
+            vset(type, or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE), offset);
+            cursor = 1;
+            while (lt(cursor, element_count)) {
+                vset(type, or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE),
+                    add(offset, mul(element_size, cursor)));
+                vswap();
+                vstore();
+                cursor = add(cursor, 1);
+            }
+            vpop();
+        } else if (not(lt(0, nocode_wanted))) {
+            initializer_repeat(section, offset, element_size, element_count);
+        }
+    }
+    offset = add(offset, mul(element_count, type_size(type, alignment)));
+    if (lt(initialized_length, sub(offset, original_offset))) {
+        initialized_length = sub(offset, original_offset);
+    }
+    free(alignment);
+    return initialized_length;
+}
+
 function block_return()
 {
     next();

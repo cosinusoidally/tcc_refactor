@@ -1555,6 +1555,8 @@ void gfunc_call(int nb_args);
 void gfunc_prolog(CType *func_type);
 void gfunc_epilog(void);
 void gen_function(Sym *sym);
+void decl_initializer(CType *type, Section *section, unsigned long offset,
+                      int first, int size_only);
 int gjmp(int t);
 void gjmp_addr(int a);
 int gtst(int inv, int t);

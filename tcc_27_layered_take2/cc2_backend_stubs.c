@@ -165,6 +165,16 @@ function init_putv(type, section, offset)
     return 0;
 }
 
+function decl_initializer(type, section, offset, first, size_only)
+{
+    return 0;
+}
+
+function initializer_repeat(section, offset, element_size, element_count)
+{
+    return 0;
+}
+
 function vpush_bitfield_mask(type, size, position, invert)
 {
     return 0;

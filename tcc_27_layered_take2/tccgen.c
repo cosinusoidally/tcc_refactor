@@ -80,7 +80,7 @@ void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
 void init_putv(CType *type, Section *sec, unsigned long c);
-static void decl_initializer(CType *type, Section *sec, unsigned long c, int first, int size_only);
+void decl_initializer(CType *type, Section *sec, unsigned long c, int first, int size_only);
 void block(int *bsym, int *csym, int is_expr);
 void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
 void decl(int l);
@@ -1049,122 +1049,22 @@ void expr_const64_words(int *words)
 #define EXPR_CONST 1
 #define EXPR_ANY   2
 
-/* put zeros for variable based init */
-/* t is the array or struct type. c is the array or struct
-   address. cur_field is the pointer to the current
-   field, for arrays the 'c' member contains the current start
-   index.  'size_only' is true if only size info is needed (only used
-   in arrays).  al contains the already initialized length of the
-   current container (starting at c).  This returns the new length of that.  */
-static int decl_designator(CType *type, Section *sec, unsigned long c,
-                           Sym **cur_field, int size_only, int al)
+/* Replicate already encoded target bytes for a GNU range designator. */
+void initializer_repeat(Section *sec, unsigned long c, int elem_size,
+                        int nb_elems)
 {
-    Sym *s, *f;
-    int index, index_last, align, l, nb_elems, elem_size;
-    unsigned long corig = c;
+    unsigned long end = c + nb_elems * elem_size;
+    unsigned char *src, *dst;
+    int i;
 
-    elem_size = 0;
-    nb_elems = 1;
-    if (gnu_ext && (l = is_label(TOK_UIDENT)) != 0)
-        goto struct_field;
-    /* NOTE: we only support ranges for last designator */
-    while (nb_elems == 1 && (tok == '[' || tok == '.')) {
-        if (tok == '[') {
-            if (!(type->t & VT_ARRAY))
-                expect("array type");
-            next();
-            index = index_last = expr_const();
-            if (tok == TOK_DOTS && gnu_ext) {
-                next();
-                index_last = expr_const();
-            }
-            skip(']');
-            s = type->ref;
-	    if (index < 0 || (s->c >= 0 && index_last >= s->c) ||
-		index_last < index)
-	        tcc_error("invalid index");
-            if (cur_field)
-		(*cur_field)->c = index_last;
-            type = pointed_type(type);
-            elem_size = type_size(type, &align);
-            c += index * elem_size;
-            nb_elems = index_last - index + 1;
-        } else {
-            next();
-            l = tok;
-        struct_field:
-            next();
-            if ((type->t & VT_BTYPE) != VT_STRUCT)
-                expect("struct/union type");
-	    f = find_field(type, l);
-            if (!f)
-                expect("field");
-            if (cur_field)
-                *cur_field = f;
-	    type = &f->type;
-            c += f->c;
-        }
-        cur_field = NULL;
+    if (end > sec->data_allocated)
+        section_realloc(sec, end);
+    src = sec->data + c;
+    dst = src;
+    for (i = 1; i < nb_elems; i++) {
+        dst += elem_size;
+        memcpy(dst, src, elem_size);
     }
-    if (!cur_field) {
-        if (tok == '=') {
-            next();
-        } else if (!gnu_ext) {
-	    expect("=");
-        }
-    } else {
-        if (type->t & VT_ARRAY) {
-	    index = (*cur_field)->c;
-	    if (type->ref->c >= 0 && index >= type->ref->c)
-	        tcc_error("index too large");
-            type = pointed_type(type);
-            c += index * type_size(type, &align);
-        } else {
-            f = *cur_field;
-	    while (f && (f->v & SYM_FIRST_ANOM) && (f->type.t & VT_BITFIELD))
-	        *cur_field = f = f->next;
-            if (!f)
-                tcc_error("too many field init");
-	    type = &f->type;
-            c += f->c;
-        }
-    }
-    /* must put zero in holes (note that doing it that way
-       ensures that it even works with designators) */
-    if (!size_only && c - corig > al)
-	init_putz(sec, corig + al, c - corig - al);
-    decl_initializer(type, sec, c, 0, size_only);
-
-    /* XXX: make it more general */
-    if (!size_only && nb_elems > 1) {
-        unsigned long c_end;
-        uint8_t *src, *dst;
-        int i;
-
-        if (!sec) {
-	    vset(type, VT_LOCAL|VT_LVAL, c);
-	    for (i = 1; i < nb_elems; i++) {
-		vset(type, VT_LOCAL|VT_LVAL, c + elem_size * i);
-		vswap();
-		vstore();
-	    }
-	    vpop();
-        } else if (!NODATA_WANTED) {
-	    c_end = c + nb_elems * elem_size;
-	    if (c_end > sec->data_allocated)
-	        section_realloc(sec, c_end);
-	    src = sec->data + c;
-	    dst = src;
-	    for(i = 1; i < nb_elems; i++) {
-		dst += elem_size;
-		memcpy(dst, src, elem_size);
-	    }
-	}
-    }
-    c += nb_elems * type_size(type, &align);
-    if (c - corig > al)
-      al = c - corig;
-    return al;
 }
 
 /* store a value or an expression directly in global data or in local array */
@@ -1362,8 +1262,8 @@ void init_putv(CType *type, Section *sec, unsigned long c)
    allocation. 'first' is true if array '{' must be read (multi
    dimension implicit array init handling). 'size_only' is true if
    size only evaluation is wanted (only for arrays). */
-static void decl_initializer(CType *type, Section *sec, unsigned long c, 
-                             int first, int size_only)
+void decl_initializer(CType *type, Section *sec, unsigned long c,
+                      int first, int size_only)
 {
     int len, n, no_oblock, nb, i;
     int size1, align1;
