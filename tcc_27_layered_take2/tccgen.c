@@ -240,7 +240,7 @@ ST_FUNC ElfSym *elfsym(Sym *s)
 }
 
 /* apply storage attributes to Elf symbol */
-ST_FUNC void update_storage(Sym *sym)
+void update_storage(Sym *sym)
 {
     ElfSym *esym;
     int sym_bind, old_sym_bind;
@@ -369,7 +369,7 @@ ST_FUNC void put_extern_sym2(Sym *sym, int sh_num,
     update_storage(sym);
 }
 
-ST_FUNC void put_extern_sym(Sym *sym, Section *section,
+void put_extern_sym(Sym *sym, Section *section,
                            addr_t value, unsigned long size)
 {
     int sh_num = section ? section->sh_num : SHN_UNDEF;
@@ -403,24 +403,6 @@ ST_FUNC void greloc(Section *s, Sym *sym, unsigned long offset, int type)
 #endif
 
 /* ------------------------------------------------------------------------- */
-
-/* pop stack value */
-ST_FUNC void vpop(void)
-{
-    int v;
-    v = vtop->r & VT_VALMASK;
-#if defined(TCC_TARGET_I386) || defined(TCC_TARGET_X86_64)
-    /* for x86, we need to pop the FP stack */
-    if (v == TREG_ST0) {
-        o(0xd8dd); /* fstp %st(0) */
-    } else
-#endif
-    if (v == VT_JMP || v == VT_JMPI) {
-        /* need to put correct jump if && or || without test */
-        gsym(vtop->c.i);
-    }
-    vtop--;
-}
 
 /* push constant of type "type" with useless value */
 ST_FUNC void vpush(CType *type)
@@ -478,44 +460,12 @@ static inline void vpushsym(CType *type, Sym *sym)
     vtop->sym = sym;
 }
 
-/* Return a static symbol pointing to a section */
-ST_FUNC Sym *get_sym_ref(CType *type, Section *sec, unsigned long offset, unsigned long size)
-{
-    int v;
-    Sym *sym;
-
-    v = anon_sym++;
-    sym = global_identifier_push(v, type->t | VT_STATIC, 0);
-    sym->type.ref = type->ref;
-    sym->r = VT_CONST | VT_SYM;
-    put_extern_sym(sym, sec, offset, size);
-    return sym;
-}
-
 /* push a reference to a section offset by adding a dummy symbol */
 static void vpush_ref(CType *type, Section *sec, unsigned long offset, unsigned long size)
 {
     vpushsym(type, get_sym_ref(type, sec, offset, size));  
 }
 
-/* define a new external reference to a symbol 'v' of type 'u' */
-ST_FUNC Sym *external_global_sym(int v, CType *type, int r)
-{
-    Sym *s;
-
-    s = sym_find(v);
-    if (!s) {
-        /* push forward reference */
-        s = global_identifier_push(v, type->t | VT_EXTERN, 0);
-        s->type.ref = type->ref;
-        s->r = r | VT_CONST | VT_SYM;
-    } else if (IS_ASM_SYM(s)) {
-        s->type.t = type->t | (s->type.t & VT_EXTERN);
-        s->type.ref = type->ref;
-        update_storage(s);
-    }
-    return s;
-}
 
 /* Merge some type attributes.  */
 static void patch_type(Sym *sym, CType *type)

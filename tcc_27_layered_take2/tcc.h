@@ -1307,8 +1307,8 @@ ST_FUNC int ieee_finite(double d);
 ST_FUNC void test_lvalue(void);
 ST_FUNC void vpushi(int v);
 ST_FUNC ElfSym *elfsym(Sym *);
-ST_FUNC void update_storage(Sym *sym);
-ST_FUNC Sym *external_global_sym(int v, CType *type, int r);
+extern void update_storage(Sym *sym);
+extern Sym *external_global_sym(int v, CType *type, int r);
 extern void vsetc(CType *type, int r, CValue *vc);
 extern void vset(CType *type, int r, int v);
 extern void vswap(void);
@@ -1330,7 +1330,7 @@ ST_FUNC void save_regs(int n);
 ST_FUNC void gaddrof(void);
 extern int gv(int rc);
 ST_FUNC void gv2(int rc1, int rc2);
-ST_FUNC void vpop(void);
+extern void vpop(void);
 ST_FUNC void gen_op(int op);
 ST_FUNC int type_size(CType *type, int *a);
 extern CType *pointed_type(CType *type);
@@ -1347,7 +1347,7 @@ ST_FUNC void expr_sum(void);
 ST_FUNC void gexpr(void);
 ST_FUNC int expr_const(void);
 #if defined CONFIG_TCC_BCHECK || defined TCC_TARGET_C67
-ST_FUNC Sym *get_sym_ref(CType *type, Section *sec, unsigned long offset, unsigned long size);
+extern Sym *get_sym_ref(CType *type, Section *sec, unsigned long offset, unsigned long size);
 #endif
 #if defined TCC_TARGET_X86_64 && !defined TCC_TARGET_PE
 ST_FUNC int classify_x86_64_va_arg(CType *ty);
@@ -1401,7 +1401,7 @@ ST_FUNC Section *find_section(TCCState *s1, const char *name);
 ST_FUNC Section *new_symtab(TCCState *s1, const char *symtab_name, int sh_type, int sh_flags, const char *strtab_name, const char *hash_name, int hash_sh_flags);
 
 ST_FUNC void put_extern_sym2(Sym *sym, int sh_num, addr_t value, unsigned long size, int can_add_underscore);
-ST_FUNC void put_extern_sym(Sym *sym, Section *section, addr_t value, unsigned long size);
+extern void put_extern_sym(Sym *sym, Section *section, addr_t value, unsigned long size);
 #if PTR_SIZE == 4
 ST_FUNC void greloc(Section *s, Sym *sym, unsigned long offset, int type);
 #endif
@@ -1470,7 +1470,7 @@ ST_FUNC void relocate_plt(TCCState *s1);
 ST_DATA const int reg_classes[NB_REGS];
 
 ST_FUNC void gsym_addr(int t, int a);
-ST_FUNC void gsym(int t);
+extern void gsym(int t);
 ST_FUNC void load(int r, SValue *sv);
 ST_FUNC void store(int r, SValue *v);
 ST_FUNC int gfunc_sret(CType *vt, int variadic, CType *ret, int *align, int *regsize);
@@ -1491,7 +1491,7 @@ ST_FUNC void gen_cvt_ftoi(int t);
 ST_FUNC void gen_cvt_ftof(int t);
 ST_FUNC void ggoto(void);
 #ifndef TCC_TARGET_C67
-ST_FUNC void o(unsigned int c);
+extern void o(unsigned int c);
 #endif
 #ifndef TCC_TARGET_ARM
 ST_FUNC void gen_cvt_itof(int t);

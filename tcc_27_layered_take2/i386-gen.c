@@ -107,7 +107,7 @@ ST_FUNC void g(int c)
     ind = ind1;
 }
 
-ST_FUNC void o(unsigned int c)
+void o(unsigned int c)
 {
     while (c) {
         g(c);
@@ -140,7 +140,7 @@ ST_FUNC void gsym_addr(int t, int a)
     }
 }
 
-ST_FUNC void gsym(int t)
+void gsym(int t)
 {
     gsym_addr(t, ind);
 }

@@ -18,3 +18,23 @@ function gv(register_class)
 {
     return 0;
 }
+
+function o(instruction)
+{
+    return 0;
+}
+
+function gsym(jump_chain)
+{
+    return 0;
+}
+
+function put_extern_sym(symbol, section, offset, size)
+{
+    return 0;
+}
+
+function update_storage(symbol)
+{
+    return 0;
+}

@@ -75,6 +75,11 @@ var CC2_TCC_LVALUE = 256;
 var CC2_TCC_LVALUE_BYTE = 4096;
 var CC2_TCC_LVALUE_SHORT = 8192;
 var CC2_TCC_LVALUE_UNSIGNED = 16384;
+var CC2_TCC_EXTERN_STORAGE = 4096;
+var CC2_TCC_STATIC_STORAGE = 8192;
+var CC2_TCC_SYMBOL_VALUE = 512;
+var CC2_TCC_ASSEMBLER_TYPE = 16;
+var CC2_I386_POP_FLOAT_STACK = 55517;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -521,6 +526,70 @@ function lvalue_type_(type, basic_type, result)
 function lvalue_type(type)
 {
     return lvalue_type_(type, 0, 0);
+}
+
+function vpop_(location)
+{
+    location = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        CC2_VALUE_LOCATION_MASK);
+    if (eq(location, CC2_I386_FLOAT_RETURN_REGISTER)) {
+        o(CC2_I386_POP_FLOAT_STACK);
+    } else if (or(eq(location, CC2_VALUE_JUMP),
+        eq(location, add(CC2_VALUE_JUMP, 1)))) {
+        gsym(ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET)));
+    }
+    vtop = sub(vtop, CC2_SVALUE_BYTES);
+    return 0;
+}
+
+function vpop()
+{
+    return vpop_(0);
+}
+
+function get_sym_ref_(type, section, offset, size, value, symbol)
+{
+    value = anon_sym;
+    anon_sym = add(anon_sym, 1);
+    symbol = global_identifier_push(value,
+        or(ri32(type), CC2_TCC_STATIC_STORAGE), 0);
+    wi32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET), ri32(add(type, 4)));
+    wi32(add(symbol, 4), or(CC2_VALUE_CONSTANT, CC2_TCC_SYMBOL_VALUE));
+    put_extern_sym(symbol, section, offset, size);
+    return symbol;
+}
+
+function get_sym_ref(type, section, offset, size)
+{
+    return get_sym_ref_(type, section, offset, size, 0, 0);
+}
+
+function external_global_sym_(value, type, reg, symbol, symbol_type)
+{
+    symbol = sym_find(value);
+    if (eq(symbol, 0)) {
+        symbol = global_identifier_push(value,
+            or(ri32(type), CC2_TCC_EXTERN_STORAGE), 0);
+        wi32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET),
+            ri32(add(type, 4)));
+        wi32(add(symbol, 4), or(or(reg, CC2_VALUE_CONSTANT),
+            CC2_TCC_SYMBOL_VALUE));
+    } else {
+        symbol_type = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
+        if (eq(and(symbol_type, 31), CC2_TCC_ASSEMBLER_TYPE)) {
+            wi32(add(symbol, CC2_SYM_TYPE_OFFSET), or(ri32(type),
+                and(symbol_type, CC2_TCC_EXTERN_STORAGE)));
+            wi32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET),
+                ri32(add(type, 4)));
+            update_storage(symbol);
+        }
+    }
+    return symbol;
+}
+
+function external_global_sym(value, type, reg)
+{
+    return external_global_sym_(value, type, reg, 0, 0);
 }
 
 function vpushv_(value, limit)
