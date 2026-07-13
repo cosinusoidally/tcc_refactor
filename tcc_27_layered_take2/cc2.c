@@ -39,6 +39,8 @@ var CC2_TCC_FLOAT_TYPE = 8;
 var CC2_TCC_DOUBLE_TYPE = 9;
 var CC2_TCC_LONG_DOUBLE_TYPE = 10;
 var CC2_TCC_QUAD_FLOAT_TYPE = 14;
+var CC2_I386_FLOAT_RETURN_CLASS = 8;
+var CC2_I386_FLOAT_RETURN_REGISTER = 4;
 
 function cc2_copy_bytes_(destination, source, length, index)
 {
@@ -946,4 +948,15 @@ function is_integer_btype(basic_type)
         eq(basic_type, CC2_TCC_SHORT_TYPE)),
         or(eq(basic_type, CC2_TCC_INT_TYPE),
         eq(basic_type, CC2_TCC_LONG_LONG_TYPE)));
+}
+
+/* i386 returns every floating representation through the x87 ST0 class. */
+function rc_fret(type)
+{
+    return CC2_I386_FLOAT_RETURN_CLASS;
+}
+
+function reg_fret(type)
+{
+    return CC2_I386_FLOAT_RETURN_REGISTER;
 }

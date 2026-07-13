@@ -1452,30 +1452,6 @@ ST_FUNC void gv2(int rc1, int rc2)
     }
 }
 
-#ifndef TCC_TARGET_ARM64
-/* wrapper around RC_FRET to return a register by type */
-static int rc_fret(int t)
-{
-#ifdef TCC_TARGET_X86_64
-    if (t == VT_LDOUBLE) {
-        return RC_ST0;
-    }
-#endif
-    return RC_FRET;
-}
-#endif
-
-/* wrapper around REG_FRET to return a register by type */
-static int reg_fret(int t)
-{
-#ifdef TCC_TARGET_X86_64
-    if (t == VT_LDOUBLE) {
-        return TREG_ST0;
-    }
-#endif
-    return REG_FRET;
-}
-
 #if PTR_SIZE == 4
 /* expand 64bit on stack in two ints */
 static void lexpand(void)

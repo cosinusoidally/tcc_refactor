@@ -1228,6 +1228,8 @@ int cc0_number_zero();
 int cc0_number_lshift();
 int exact_log2p1();
 int is_integer_btype();
+int rc_fret();
+int reg_fret();
 
 static inline int is_space(int ch) {
     return cc0_is_space(ch);
