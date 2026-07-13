@@ -21,7 +21,11 @@ int main()
     char file[] = "token-smoke.c";
     char macro_source[] =
         "#define VALUE 42\n"
+        "#ifdef VALUE\n"
         "#define ANSWER VALUE\n"
+        "#else\n"
+        "#define ANSWER 0\n"
+        "#endif\n"
         "function answer() { return ANSWER; }\n";
     int token;
     int index;

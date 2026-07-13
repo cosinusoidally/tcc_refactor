@@ -41,6 +41,13 @@ var CC1_PREPROCESSED_TOKENS;
 var CC1_PREPROCESSED_CAPACITY;
 var CC1_PREPROCESSED_COUNT;
 var CC1_PREPROCESSED_CURSOR;
+var CC1_CONDITION_RECORD_SHIFT;
+var CC1_CONDITION_PARENT_OFFSET;
+var CC1_CONDITION_ACTIVE_OFFSET;
+var CC1_CONDITION_TAKEN_OFFSET;
+var CC1_CONDITIONS;
+var CC1_CONDITION_CAPACITY;
+var CC1_CONDITION_DEPTH;
 
 function cc1_token_record(index)
 {
@@ -162,6 +169,10 @@ function cc1_token_stream_reset(source, length, file)
     CC1_MACRO_TOKEN_COUNT_OFFSET = 12;
     CC1_MACRO_DEFINED_OFFSET = 16;
     CC1_MACRO_EXPANDING_OFFSET = 20;
+    CC1_CONDITION_RECORD_SHIFT = 4;
+    CC1_CONDITION_PARENT_OFFSET = 0;
+    CC1_CONDITION_ACTIVE_OFFSET = 4;
+    CC1_CONDITION_TAKEN_OFFSET = 8;
     CC1_TOKEN_SOURCE = source;
     CC1_TOKEN_SOURCE_LENGTH = length;
     CC1_TOKEN_FILE = file;
@@ -361,6 +372,126 @@ function cc1_macro_undefine(name, length)
     return cc1_macro_undefine_(name, length, 0);
 }
 
+function cc1_macro_is_defined_(name, length, macro)
+{
+    macro = cc1_macro_find(name, length);
+    if (eq(macro, 0)) {
+        return 0;
+    }
+    return ri32(add(macro, CC1_MACRO_DEFINED_OFFSET));
+}
+
+function cc1_macro_is_defined(name, length)
+{
+    return cc1_macro_is_defined_(name, length, 0);
+}
+
+function cc1_condition_record(index)
+{
+    return add(CC1_CONDITIONS, shl(index, CC1_CONDITION_RECORD_SHIFT));
+}
+
+function cc1_condition_active_(condition)
+{
+    if (eq(CC1_CONDITION_DEPTH, 0)) {
+        return 1;
+    }
+    condition = cc1_condition_record(sub(CC1_CONDITION_DEPTH, 1));
+    return ri32(add(condition, CC1_CONDITION_ACTIVE_OFFSET));
+}
+
+function cc1_condition_active()
+{
+    return cc1_condition_active_(0);
+}
+
+function cc1_condition_reserve_(needed, capacity, conditions, used)
+{
+    needed = shl(add(CC1_CONDITION_DEPTH, 1), CC1_CONDITION_RECORD_SHIFT);
+    if (le(needed, CC1_CONDITION_CAPACITY)) {
+        return 0;
+    }
+    capacity = CC1_CONDITION_CAPACITY;
+    if (eq(capacity, 0)) {
+        capacity = 256;
+    }
+    while (lt(capacity, needed)) {
+        capacity = shl(capacity, 1);
+    }
+    conditions = malloc(capacity);
+    if (eq(conditions, 0)) {
+        return 1;
+    }
+    used = shl(CC1_CONDITION_DEPTH, CC1_CONDITION_RECORD_SHIFT);
+    if (not(eq(CC1_CONDITIONS, 0))) {
+        cc1_token_copy_bytes(conditions, CC1_CONDITIONS, used);
+    }
+    CC1_CONDITIONS = conditions;
+    CC1_CONDITION_CAPACITY = capacity;
+    return 0;
+}
+
+function cc1_condition_reserve()
+{
+    return cc1_condition_reserve_(0, 0, 0, 0);
+}
+
+function cc1_condition_push_(value, parent, active, condition)
+{
+    parent = cc1_condition_active();
+    active = 0;
+    if (parent) {
+        if (value) {
+            active = 1;
+        }
+    }
+    if (cc1_condition_reserve()) {
+        return 1;
+    }
+    condition = cc1_condition_record(CC1_CONDITION_DEPTH);
+    wi32(add(condition, CC1_CONDITION_PARENT_OFFSET), parent);
+    wi32(add(condition, CC1_CONDITION_ACTIVE_OFFSET), active);
+    wi32(add(condition, CC1_CONDITION_TAKEN_OFFSET), active);
+    CC1_CONDITION_DEPTH = add(CC1_CONDITION_DEPTH, 1);
+    return 0;
+}
+
+function cc1_condition_push(value)
+{
+    return cc1_condition_push_(value, 0, 0, 0);
+}
+
+function cc1_condition_else_(condition, active)
+{
+    if (eq(CC1_CONDITION_DEPTH, 0)) {
+        return 1;
+    }
+    condition = cc1_condition_record(sub(CC1_CONDITION_DEPTH, 1));
+    active = 0;
+    if (ri32(add(condition, CC1_CONDITION_PARENT_OFFSET))) {
+        if (not(ri32(add(condition, CC1_CONDITION_TAKEN_OFFSET)))) {
+            active = 1;
+        }
+    }
+    wi32(add(condition, CC1_CONDITION_ACTIVE_OFFSET), active);
+    wi32(add(condition, CC1_CONDITION_TAKEN_OFFSET), 1);
+    return 0;
+}
+
+function cc1_condition_else()
+{
+    return cc1_condition_else_(0, 0);
+}
+
+function cc1_condition_pop()
+{
+    if (eq(CC1_CONDITION_DEPTH, 0)) {
+        return 1;
+    }
+    CC1_CONDITION_DEPTH = sub(CC1_CONDITION_DEPTH, 1);
+    return 0;
+}
+
 function cc1_preprocessed_reserve_(needed, capacity, tokens, used)
 {
     needed = shl(add(CC1_PREPROCESSED_COUNT, 1), 2);
@@ -496,10 +627,55 @@ function cc1_preprocess_undef(index, line)
     return cc1_preprocess_undef_(index, line, 0);
 }
 
+function cc1_preprocess_skip_line_(index, line)
+{
+    index = add(index, 1);
+    while (lt(index, CC1_TOKEN_COUNT)) {
+        if (not(eq(ri32(add(cc1_token_record(index),
+            CC1_TOKEN_LINE_OFFSET)), line))) {
+            break;
+        }
+        index = add(index, 1);
+    }
+    return index;
+}
+
+function cc1_preprocess_skip_line(index, line)
+{
+    return cc1_preprocess_skip_line_(index, line);
+}
+
+function cc1_preprocess_condition_(index, line, invert, name_token, value)
+{
+    if (not(lt(add(index, 2), CC1_TOKEN_COUNT))) {
+        return sub(0, 1);
+    }
+    name_token = cc1_token_record(add(index, 2));
+    if (not(eq(ri32(add(name_token, CC1_TOKEN_LINE_OFFSET)), line))) {
+        return sub(0, 1);
+    }
+    value = cc1_macro_is_defined(
+        ri32(add(name_token, CC1_TOKEN_TEXT_OFFSET)),
+        ri32(add(name_token, CC1_TOKEN_LENGTH_OFFSET)));
+    if (invert) {
+        value = not(value);
+    }
+    if (cc1_condition_push(value)) {
+        return sub(0, 1);
+    }
+    return cc1_preprocess_skip_line(index, line);
+}
+
+function cc1_preprocess_condition(index, line, invert)
+{
+    return cc1_preprocess_condition_(index, line, invert, 0, 0);
+}
+
 function cc1_preprocess_tokens_(index, previous_line, token, line,
-    directive, next_index)
+    directive, next_index, active, kind)
 {
     CC1_MACRO_COUNT = 0;
+    CC1_CONDITION_DEPTH = 0;
     CC1_PREPROCESSED_COUNT = 0;
     CC1_PREPROCESSED_CURSOR = 0;
     index = 0;
@@ -507,7 +683,9 @@ function cc1_preprocess_tokens_(index, previous_line, token, line,
     while (lt(index, CC1_TOKEN_COUNT)) {
         token = cc1_token_record(index);
         line = ri32(add(token, CC1_TOKEN_LINE_OFFSET));
-        if (eq(ri32(add(token, CC1_TOKEN_KIND_OFFSET)), 35)) {
+        kind = ri32(add(token, CC1_TOKEN_KIND_OFFSET));
+        active = cc1_condition_active();
+        if (eq(kind, 35)) {
             if (not(eq(line, previous_line))) {
                 if (not(lt(add(index, 1), CC1_TOKEN_COUNT))) {
                     return 1;
@@ -516,13 +694,46 @@ function cc1_preprocess_tokens_(index, previous_line, token, line,
                 if (cc1_text_equal(ri32(add(directive, CC1_TOKEN_TEXT_OFFSET)),
                     ri32(add(directive, CC1_TOKEN_LENGTH_OFFSET)),
                     mks("define"))) {
-                    next_index = cc1_preprocess_define(index, line);
+                    if (active) {
+                        next_index = cc1_preprocess_define(index, line);
+                    } else {
+                        next_index = cc1_preprocess_skip_line(index, line);
+                    }
                 } else if (cc1_text_equal(ri32(add(directive,
                     CC1_TOKEN_TEXT_OFFSET)), ri32(add(directive,
                     CC1_TOKEN_LENGTH_OFFSET)), mks("undef"))) {
-                    next_index = cc1_preprocess_undef(index, line);
+                    if (active) {
+                        next_index = cc1_preprocess_undef(index, line);
+                    } else {
+                        next_index = cc1_preprocess_skip_line(index, line);
+                    }
+                } else if (cc1_text_equal(ri32(add(directive,
+                    CC1_TOKEN_TEXT_OFFSET)), ri32(add(directive,
+                    CC1_TOKEN_LENGTH_OFFSET)), mks("ifdef"))) {
+                    next_index = cc1_preprocess_condition(index, line, 0);
+                } else if (cc1_text_equal(ri32(add(directive,
+                    CC1_TOKEN_TEXT_OFFSET)), ri32(add(directive,
+                    CC1_TOKEN_LENGTH_OFFSET)), mks("ifndef"))) {
+                    next_index = cc1_preprocess_condition(index, line, 1);
+                } else if (cc1_text_equal(ri32(add(directive,
+                    CC1_TOKEN_TEXT_OFFSET)), ri32(add(directive,
+                    CC1_TOKEN_LENGTH_OFFSET)), mks("else"))) {
+                    if (cc1_condition_else()) {
+                        return 1;
+                    }
+                    next_index = cc1_preprocess_skip_line(index, line);
+                } else if (cc1_text_equal(ri32(add(directive,
+                    CC1_TOKEN_TEXT_OFFSET)), ri32(add(directive,
+                    CC1_TOKEN_LENGTH_OFFSET)), mks("endif"))) {
+                    if (cc1_condition_pop()) {
+                        return 1;
+                    }
+                    next_index = cc1_preprocess_skip_line(index, line);
                 } else {
-                    return 1;
+                    if (active) {
+                        return 1;
+                    }
+                    next_index = cc1_preprocess_skip_line(index, line);
                 }
                 if (lt(next_index, 0)) {
                     return 1;
@@ -537,19 +748,25 @@ function cc1_preprocess_tokens_(index, previous_line, token, line,
                 index = add(index, 1);
             }
         } else {
-            if (cc1_macro_expand_token(token)) {
-                return 1;
+            if (active) {
+                if (cc1_macro_expand_token(token)) {
+                    return 1;
+                }
+            } else if (eq(kind, CC1_TOKEN_EOF)) {
+                if (cc1_preprocessed_append(token)) {
+                    return 1;
+                }
             }
             previous_line = line;
             index = add(index, 1);
         }
     }
-    return 0;
+    return not(eq(CC1_CONDITION_DEPTH, 0));
 }
 
 function cc1_preprocess_tokens()
 {
-    return cc1_preprocess_tokens_(0, 0, 0, 0, 0, 0);
+    return cc1_preprocess_tokens_(0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function cc1_preprocess(source, length, file)
