@@ -30,7 +30,6 @@ ST_DATA struct BufferedFile *file;
 ST_DATA int ch;
 int tok;
 CValue tokc;
-ST_DATA const int *macro_ptr;
 ST_DATA CString tokcstr; /* current parsed string, if any */
 
 /* display benchmark infos */
@@ -59,8 +58,6 @@ static void tok_print(const char *msg, const int *str);
 static struct TinyAlloc *toksym_alloc;
 static struct TinyAlloc *tokstr_alloc;
 static struct TinyAlloc *cstr_alloc;
-
-static TokenString *macro_stack;
 
 static const char tcc_keywords[] = 
 #define DEF(id, str) str "\0"
@@ -939,94 +936,6 @@ static inline int tok_size(const int *p)
     }
 }
 #endif
-
-/* token string handling */
-ST_INLN void tok_str_new(TokenString *s)
-{
-    s->str = NULL;
-    s->len = s->lastlen = 0;
-    s->allocated_len = 0;
-    s->last_line_num = -1;
-}
-
-TokenString *tok_str_alloc(void)
-{
-    TokenString *str = tal_realloc(tokstr_alloc, 0, sizeof *str);
-    tok_str_new(str);
-    return str;
-}
-
-ST_FUNC int *tok_str_dup(TokenString *s)
-{
-    int *str;
-
-    str = tal_realloc(tokstr_alloc, 0, s->len * sizeof(int));
-    memcpy(str, s->str, s->len * sizeof(int));
-    return str;
-}
-
-ST_FUNC void tok_str_free_str(int *str)
-{
-    tal_free(tokstr_alloc, str);
-}
-
-void tok_str_free(TokenString *str)
-{
-    tok_str_free_str(str->str);
-    tal_free(tokstr_alloc, str);
-}
-
-ST_FUNC int *tok_str_realloc(TokenString *s, int new_size)
-{
-    int *str, size;
-
-    size = s->allocated_len;
-    if (size < 16)
-        size = 16;
-    while (size < new_size)
-        size = size * 2;
-    if (size > s->allocated_len) {
-        str = tal_realloc(tokstr_alloc, s->str, size * sizeof(int));
-        s->allocated_len = size;
-        s->str = str;
-    }
-    return s->str;
-}
-
-void tok_str_add(TokenString *s, int t)
-{
-    int len, *str;
-
-    len = s->len;
-    str = s->str;
-    if (len >= s->allocated_len)
-        str = tok_str_realloc(s, len + 1);
-    str[len++] = t;
-    s->len = len;
-}
-
-void begin_macro(TokenString *str, int alloc)
-{
-    str->alloc = alloc;
-    str->prev = macro_stack;
-    str->prev_ptr = macro_ptr;
-    str->save_line_num = file->line_num;
-    macro_ptr = str->str;
-    macro_stack = str;
-}
-
-void end_macro(void)
-{
-    TokenString *str = macro_stack;
-    macro_stack = str->prev;
-    macro_ptr = str->prev_ptr;
-    file->line_num = str->save_line_num;
-    if (str->alloc == 2) {
-        str->alloc = 3; /* just mark as finished */
-    } else {
-        tok_str_free(str);
-    }
-}
 
 static void tok_str_add2(TokenString *s, int t, CValue *cv)
 {

@@ -370,6 +370,18 @@ var CC2_CSTRING_DATA_OFFSET = 4;
 var CC2_CSTRING_CAPACITY_OFFSET = 8;
 var CC2_CSTRING_BYTES = 12;
 var CC2_TOKEN_SYMBOL_TOKEN_OFFSET = 20;
+/* TokenString is nine i386 words; alloc is the low byte of the last word. */
+var CC2_TOKEN_STRING_DATA_OFFSET = 0;
+var CC2_TOKEN_STRING_LENGTH_OFFSET = 4;
+var CC2_TOKEN_STRING_LAST_LENGTH_OFFSET = 8;
+var CC2_TOKEN_STRING_CAPACITY_OFFSET = 12;
+var CC2_TOKEN_STRING_LAST_LINE_OFFSET = 16;
+var CC2_TOKEN_STRING_SAVED_LINE_OFFSET = 20;
+var CC2_TOKEN_STRING_PREVIOUS_OFFSET = 24;
+var CC2_TOKEN_STRING_PREVIOUS_POINTER_OFFSET = 28;
+var CC2_TOKEN_STRING_ALLOC_OFFSET = 32;
+var CC2_TOKEN_STRING_BYTES = 36;
+var CC2_TOKEN_STRING_INITIAL_CAPACITY = 16;
 var CC2_ATTRIBUTE_ALIGNED_MASK = 31;
 var CC2_ATTRIBUTE_PACKED = 32;
 var CC2_ATTRIBUTE_WEAK = 64;
@@ -452,6 +464,8 @@ var tcc_state_address;
 var gnu_ext_address;
 var parse_flags_address;
 var file_address;
+var macro_ptr;
+var macro_stack;
 var symtab_section_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET = 80;
@@ -603,6 +617,116 @@ function cstr_free(string)
 {
     free(ri32(add(string, CC2_CSTRING_DATA_OFFSET)));
     return cstr_new(string);
+}
+
+function tok_str_new(stream)
+{
+    cc2_zero_bytes(stream, CC2_TOKEN_STRING_BYTES);
+    wi32(add(stream, CC2_TOKEN_STRING_LAST_LINE_OFFSET), sub(0, 1));
+    return 0;
+}
+
+function tok_str_alloc()
+{
+    var stream;
+    stream = malloc(CC2_TOKEN_STRING_BYTES);
+    tok_str_new(stream);
+    return stream;
+}
+
+function tok_str_dup(stream)
+{
+    var bytes;
+    var duplicate;
+    bytes = mul(ri32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET)),
+        CC2_I386_WORD_BYTES);
+    duplicate = malloc(bytes);
+    if (not(eq(bytes, 0))) {
+        memcpy(duplicate, ri32(add(stream, CC2_TOKEN_STRING_DATA_OFFSET)),
+            bytes);
+    }
+    return duplicate;
+}
+
+function tok_str_free_str(data)
+{
+    free(data);
+    return 0;
+}
+
+function tok_str_free(stream)
+{
+    tok_str_free_str(ri32(add(stream, CC2_TOKEN_STRING_DATA_OFFSET)));
+    free(stream);
+    return 0;
+}
+
+function tok_str_realloc(stream, needed)
+{
+    var capacity;
+    var data;
+    capacity = ri32(add(stream, CC2_TOKEN_STRING_CAPACITY_OFFSET));
+    if (lt(capacity, CC2_TOKEN_STRING_INITIAL_CAPACITY)) {
+        capacity = CC2_TOKEN_STRING_INITIAL_CAPACITY;
+    }
+    while (lt(capacity, needed)) {
+        capacity = mul(capacity, 2);
+    }
+    if (lt(ri32(add(stream, CC2_TOKEN_STRING_CAPACITY_OFFSET)), capacity)) {
+        data = realloc(ri32(add(stream, CC2_TOKEN_STRING_DATA_OFFSET)),
+            mul(capacity, CC2_I386_WORD_BYTES));
+        wi32(add(stream, CC2_TOKEN_STRING_CAPACITY_OFFSET), capacity);
+        wi32(add(stream, CC2_TOKEN_STRING_DATA_OFFSET), data);
+    }
+    return ri32(add(stream, CC2_TOKEN_STRING_DATA_OFFSET));
+}
+
+function tok_str_add(stream, token)
+{
+    var length;
+    var data;
+    length = ri32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET));
+    data = ri32(add(stream, CC2_TOKEN_STRING_DATA_OFFSET));
+    if (not(lt(length,
+        ri32(add(stream, CC2_TOKEN_STRING_CAPACITY_OFFSET))))) {
+        data = tok_str_realloc(stream, add(length, 1));
+    }
+    wi32(add(data, mul(length, CC2_I386_WORD_BYTES)), token);
+    wi32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET), add(length, 1));
+    return 0;
+}
+
+function begin_macro(stream, allocate)
+{
+    var source_file;
+    wi8(add(stream, CC2_TOKEN_STRING_ALLOC_OFFSET), allocate);
+    wi32(add(stream, CC2_TOKEN_STRING_PREVIOUS_OFFSET), macro_stack);
+    wi32(add(stream, CC2_TOKEN_STRING_PREVIOUS_POINTER_OFFSET), macro_ptr);
+    source_file = ri32(file_address);
+    wi32(add(stream, CC2_TOKEN_STRING_SAVED_LINE_OFFSET),
+        ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)));
+    macro_ptr = ri32(add(stream, CC2_TOKEN_STRING_DATA_OFFSET));
+    macro_stack = stream;
+    return 0;
+}
+
+function end_macro()
+{
+    var stream;
+    var source_file;
+    stream = macro_stack;
+    macro_stack = ri32(add(stream, CC2_TOKEN_STRING_PREVIOUS_OFFSET));
+    macro_ptr = ri32(add(stream,
+        CC2_TOKEN_STRING_PREVIOUS_POINTER_OFFSET));
+    source_file = ri32(file_address);
+    wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET),
+        ri32(add(stream, CC2_TOKEN_STRING_SAVED_LINE_OFFSET)));
+    if (eq(ri8(add(stream, CC2_TOKEN_STRING_ALLOC_OFFSET)), 2)) {
+        wi8(add(stream, CC2_TOKEN_STRING_ALLOC_OFFSET), 3);
+    } else {
+        tok_str_free(stream);
+    }
+    return 0;
 }
 
 function dynarray_add(table_pointer, count_pointer, data)
