@@ -337,6 +337,7 @@ var tcc_state_address;
 var gnu_ext_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET = 80;
+var CC2_TCC_STATE_WARN_IMPLICIT_FUNCTION_OFFSET = 92;
 var CC2_TCC_STATE_MS_EXTENSIONS_OFFSET = 64;
 var CC2_TCC_STATE_MS_BITFIELDS_OFFSET = 72;
 var CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET = 936;
@@ -5357,6 +5358,58 @@ function block(break_symbol, continue_symbol, is_expression)
                 is_expression);
         } else {
             block_expression(is_expression);
+        }
+    }
+    return 0;
+}
+
+function unary_identifier(token)
+{
+    var symbol;
+    var type;
+    var registers;
+    var name;
+    var assembler_symbol;
+    next();
+    if (lt(token, 314)) {
+        expect(mks("identifier"));
+    }
+    symbol = sym_find(token);
+    assembler_symbol = 0;
+    if (symbol) {
+        assembler_symbol = eq(and(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)),
+            31), CC2_TCC_ASSEMBLER_TYPE);
+    }
+    if (or(not(symbol), assembler_symbol)) {
+        name = get_tok_str(token, 0);
+        if (not(eq(ri32(tok_address), 40))) {
+            tcc_error(mks("'%s' undeclared"), name);
+        }
+        if (ri32(add(tcc_state_address,
+            CC2_TCC_STATE_WARN_IMPLICIT_FUNCTION_OFFSET))) {
+            tcc_warning(mks("implicit declaration of function '%s'"), name);
+        }
+        symbol = external_global_sym(token, func_old_type_address, 0);
+    }
+    registers = and(ri32(add(symbol, 4)), 65535);
+    if (lt(and(registers, CC2_VALUE_LOCATION_MASK), CC2_VALUE_CONSTANT)) {
+        registers = or(and(registers, bnot(CC2_VALUE_LOCATION_MASK)),
+            CC2_VALUE_LOCAL);
+    }
+    vset(add(symbol, CC2_SYM_TYPE_OFFSET), registers,
+        ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)));
+    wi32(add(vtop, CC2_SVALUE_SYMBOL_OFFSET), symbol);
+    if (and(registers, CC2_TCC_SYMBOL_VALUE)) {
+        wi32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET), 0);
+        wi32(add(vtop, add(CC2_SVALUE_CONSTANT_OFFSET, 4)), 0);
+    } else {
+        type = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
+        if (and(eq(registers, CC2_VALUE_CONSTANT),
+            eq(and(type, CC2_TCC_STRUCT_MASK), CC2_TCC_ENUM_VALUE))) {
+            wi32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET),
+                ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)));
+            wi32(add(vtop, add(CC2_SVALUE_CONSTANT_OFFSET, 4)),
+                ri32(add(symbol, add(CC2_SYM_CONSTANT_OFFSET, 4))));
         }
     }
     return 0;
