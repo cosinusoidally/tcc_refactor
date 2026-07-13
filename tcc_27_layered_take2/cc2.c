@@ -474,6 +474,8 @@ var CC2_UNICODE_REPLACEMENT_CHARACTER;
 var CC2_TOKEN_SYMBOL_HASH_NEXT_OFFSET;
 var CC2_TOKEN_SYMBOL_LENGTH_OFFSET;
 var CC2_TOKEN_SYMBOL_TEXT_OFFSET;
+var CC2_TOKEN_SYMBOL_BYTES;
+var CC2_TOKEN_ALLOC_INCREMENT;
 var CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET;
 var CC2_BUFFERED_FILE_FILENAME_CAPACITY;
 var CC2_STABS_INCLUDE_TYPE;
@@ -2649,6 +2651,38 @@ function tok_alloc(text, length)
         symbol = ri32(slot);
     }
     return tok_alloc_new(slot, text, length);
+}
+
+function tok_alloc_new(slot, text, length)
+{
+    var index;
+    var table;
+    var symbol;
+    var token;
+    if (not(lt(tok_ident, CC2_FIRST_ANONYMOUS_SYMBOL))) {
+        tcc_error(mks("memory full (symbols)"), 0);
+    }
+    index = sub(tok_ident, CC2_TOKEN_IDENTIFIER_BASE);
+    if (eq(mod(index, CC2_TOKEN_ALLOC_INCREMENT), 0)) {
+        table = tcc_realloc(table_ident, mul(add(index,
+            CC2_TOKEN_ALLOC_INCREMENT), CC2_I386_WORD_BYTES));
+        table_ident = table;
+    }
+    symbol = cc2_toksym_alloc(add(CC2_TOKEN_SYMBOL_BYTES, length));
+    wi32(add(table_ident, mul(index, CC2_I386_WORD_BYTES)), symbol);
+    token = tok_ident;
+    tok_ident = add(tok_ident, 1);
+    wi32(add(symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET), token);
+    wi32(add(symbol, CC2_TOKEN_SYMBOL_HASH_NEXT_OFFSET), 0);
+    wi32(add(symbol, CC2_TOKEN_SYMBOL_DEFINE_OFFSET), 0);
+    wi32(add(symbol, CC2_TOKEN_SYMBOL_LABEL_OFFSET), 0);
+    wi32(add(symbol, CC2_TOKEN_SYMBOL_STRUCT_OFFSET), 0);
+    wi32(add(symbol, CC2_TOKEN_SYMBOL_IDENTIFIER_OFFSET), 0);
+    wi32(add(symbol, CC2_TOKEN_SYMBOL_LENGTH_OFFSET), length);
+    memcpy(add(symbol, CC2_TOKEN_SYMBOL_TEXT_OFFSET), text, length);
+    wi8(add(symbol, add(CC2_TOKEN_SYMBOL_TEXT_OFFSET, length)), 0);
+    wi32(slot, symbol);
+    return symbol;
 }
 
 function tok_str_add2(stream, token, value)
@@ -14256,6 +14290,8 @@ function cc2_init_constants()
     CC2_TOKEN_SYMBOL_HASH_NEXT_OFFSET = 0;
     CC2_TOKEN_SYMBOL_LENGTH_OFFSET = 24;
     CC2_TOKEN_SYMBOL_TEXT_OFFSET = 28;
+    CC2_TOKEN_SYMBOL_BYTES = 32;
+    CC2_TOKEN_ALLOC_INCREMENT = 512;
     CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET = 1064;
     CC2_BUFFERED_FILE_FILENAME_CAPACITY = 1024;
     CC2_STABS_INCLUDE_TYPE = 130;

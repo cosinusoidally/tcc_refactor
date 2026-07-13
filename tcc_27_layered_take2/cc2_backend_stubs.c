@@ -107,9 +107,14 @@ function find_section(state, name)
     return 0;
 }
 
-function tok_alloc_new(slot, text, length)
+function cc2_toksym_alloc(size)
 {
-    return 0;
+    return malloc(size);
+}
+
+function tcc_realloc(pointer, size)
+{
+    return realloc(pointer, size);
 }
 
 function tcc_set_options(state, text)

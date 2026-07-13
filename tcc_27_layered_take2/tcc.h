@@ -1424,6 +1424,7 @@ void cc2_pstrcpy(char *destination, int capacity, const char *source);
 void cc2_put_stabs(const char *text, int type, int other, int description,
                    unsigned long value);
 int cc2_tcc_open(TCCState *state, const char *filename);
+void *cc2_toksym_alloc(int size);
 extern void indir(void);
 extern void lexpand(void);
 extern void lbuild(int type);

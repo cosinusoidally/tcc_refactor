@@ -321,38 +321,6 @@ static void add_char(CString *cstr, int c)
     }
 }
 
-/* ------------------------------------------------------------------------- */
-/* allocate a new token */
-TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
-{
-    TokenSym *ts, **ptable;
-    int i;
-
-    if (tok_ident >= SYM_FIRST_ANOM) 
-        tcc_error("memory full (symbols)");
-
-    /* expand token table if needed */
-    i = tok_ident - TOK_IDENT;
-    if ((i % TOK_ALLOC_INCR) == 0) {
-        ptable = tcc_realloc(table_ident, (i + TOK_ALLOC_INCR) * sizeof(TokenSym *));
-        table_ident = ptable;
-    }
-
-    ts = tal_realloc(toksym_alloc, 0, sizeof(TokenSym) + len);
-    table_ident[i] = ts;
-    ts->tok = tok_ident++;
-    ts->sym_define = NULL;
-    ts->sym_label = NULL;
-    ts->sym_struct = NULL;
-    ts->sym_identifier = NULL;
-    ts->len = len;
-    ts->hash_next = NULL;
-    memcpy(ts->str, str, len);
-    ts->str[len] = '\0';
-    *pts = ts;
-    return ts;
-}
-
 /* XXX: buffer overflow */
 /* XXX: float tokens */
 const char *get_tok_str(int v, CValue *cv)

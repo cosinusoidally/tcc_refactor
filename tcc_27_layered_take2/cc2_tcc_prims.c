@@ -389,6 +389,11 @@ int cc2_tcc_open(TCCState *state, const char *filename)
     return tcc_open(state, filename);
 }
 
+void *cc2_toksym_alloc(int size)
+{
+    return tal_realloc(toksym_alloc, NULL, size);
+}
+
 /* Rewind a captured initializer through TCC's active macro stream. */
 void initializer_rewind(TokenString *stream)
 {
