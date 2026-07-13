@@ -48,6 +48,8 @@ void block_if(int *break_symbol, int *continue_symbol);
 void block_while(void);
 void block_do(void);
 void block_for(void);
+void block_case(void);
+void block_default(void);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1811,32 +1813,12 @@ void block(int *bsym, int *csym, int is_expr)
         gsym(a);
     } else
     if (tok == TOK_CASE) {
-        struct case_t *cr = tcc_malloc(sizeof(struct case_t));
-        if (!cur_switch)
-            expect("switch");
-	nocode_wanted &= ~0x20000000;
-        next();
-        cr->v1 = cr->v2 = expr_const64();
-        if (gnu_ext && tok == TOK_DOTS) {
-            next();
-            cr->v2 = expr_const64();
-            if (cr->v2 < cr->v1)
-                tcc_warning("empty case range");
-        }
-        cr->sym = ind;
-        dynarray_add(&cur_switch->p, &cur_switch->n, cr);
-        skip(':');
+        block_case();
         is_expr = 0;
         goto block_after_label;
     } else 
     if (tok == TOK_DEFAULT) {
-        next();
-        skip(':');
-        if (!cur_switch)
-            expect("switch");
-        if (cur_switch->def_sym)
-            tcc_error("too many 'default'");
-        cur_switch->def_sym = ind;
+        block_default();
         is_expr = 0;
         goto block_after_label;
     } else

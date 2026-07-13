@@ -268,3 +268,8 @@ function decl0(scope, is_for_initializer, function_symbol)
 {
     return 0;
 }
+
+function dynarray_add(table_pointer, count_pointer, data)
+{
+    return 0;
+}

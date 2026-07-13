@@ -1128,6 +1128,9 @@ function cc0_elf_external_symbol(name, length)
     if (cc0_compiler_slice_equal(name, length, mks("decl0"), 5)) {
         return cc0_elf_put_undefined_function(name, length);
     }
+    if (cc0_compiler_slice_equal(name, length, mks("dynarray_add"), 12)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
     if (cc0_compiler_slice_equal(name, length, mks("tok_str_alloc"), 13)) {
         return cc0_elf_put_undefined_function(name, length);
     }
@@ -3664,6 +3667,9 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("decl0"))) {
         return 3;
     }
+    if (cc0_text_equal(name, length, mks("dynarray_add"))) {
+        return 3;
+    }
     if (cc0_text_equal(name, length, mks("tok_str_alloc"))) {
         return 0;
     }
@@ -3943,6 +3949,9 @@ function cc0_compiler_external_arity(name, length)
         return 3;
     }
     if (cc0_text_equal(name, length, mks("decl0"))) {
+        return 3;
+    }
+    if (cc0_text_equal(name, length, mks("dynarray_add"))) {
         return 3;
     }
     if (cc0_text_equal(name, length, mks("tok_str_alloc"))) {

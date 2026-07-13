@@ -5038,6 +5038,54 @@ function block_for()
     return 0;
 }
 
+function block_case()
+{
+    var case_record;
+    var words;
+    case_record = malloc(20);
+    if (not(cur_switch)) {
+        expect(mks("switch"));
+    }
+    nocode_wanted = and(nocode_wanted, bnot(536870912));
+    next();
+    words = malloc(8);
+    expr_const64_words(words);
+    wi32(case_record, ri32(words));
+    wi32(add(case_record, 4), ri32(add(words, 4)));
+    wi32(add(case_record, 8), ri32(words));
+    wi32(add(case_record, 12), ri32(add(words, 4)));
+    if (and(ri32(gnu_ext_address), eq(ri32(tok_address), 200))) {
+        next();
+        expr_const64_words(words);
+        wi32(add(case_record, 8), ri32(words));
+        wi32(add(case_record, 12), ri32(add(words, 4)));
+        if (cc2_signed_wide_less(ri32(add(case_record, 8)),
+            ri32(add(case_record, 12)), ri32(case_record),
+            ri32(add(case_record, 4)))) {
+            tcc_warning(mks("empty case range"), 0);
+        }
+    }
+    wi32(add(case_record, CC2_CASE_SYMBOL_OFFSET), ind);
+    dynarray_add(cur_switch, add(cur_switch, 4), case_record);
+    skip(58);
+    free(words);
+    return 0;
+}
+
+function block_default()
+{
+    next();
+    skip(58);
+    if (not(cur_switch)) {
+        expect(mks("switch"));
+    }
+    if (ri32(add(cur_switch, CC2_SWITCH_DEFAULT_SYMBOL_OFFSET))) {
+        tcc_error(mks("too many 'default'"), 0);
+    }
+    wi32(add(cur_switch, CC2_SWITCH_DEFAULT_SYMBOL_OFFSET), ind);
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {
