@@ -1,11 +1,19 @@
 #define RESULT 0
-#ifdef RESULT
-function main()
+int global_result;
+
+int identity(int value)
 {
-    return RESULT;
+    return value;
+}
+
+#ifdef RESULT
+int main()
+{
+    global_result = identity(RESULT);
+    return global_result;
 }
 #else
-function main()
+int main()
 {
     return 1;
 }

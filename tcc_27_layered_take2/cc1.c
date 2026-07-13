@@ -920,10 +920,12 @@ function cc1_normalized_text(text, length, origin)
     return cc1_normalized_text_(text, length, origin, 0);
 }
 
-function cc1_normalize_tokens_(index, token, kind, text, length, origin)
+function cc1_normalize_tokens_(index, token, kind, text, length, origin,
+    header, next_token, following_token, skip)
 {
     CC1_NORMALIZED_LENGTH = 0;
     index = 0;
+    header = 0;
     while (lt(index, CC1_PREPROCESSED_COUNT)) {
         token = ri32(add(CC1_PREPROCESSED_TOKENS, shl(index, 2)));
         kind = ri32(add(token, CC1_TOKEN_KIND_OFFSET));
@@ -936,17 +938,46 @@ function cc1_normalize_tokens_(index, token, kind, text, length, origin)
         }
         text = ri32(add(token, CC1_TOKEN_TEXT_OFFSET));
         length = ri32(add(token, CC1_TOKEN_LENGTH_OFFSET));
-        if (eq(kind, 4)) {
-            if (cc1_normalized_byte(34, origin)) {
-                return 1;
+        skip = 0;
+        if (cc1_text_equal(text, length, mks("int"))) {
+            if (header) {
+                skip = 1;
+            } else if (lt(add(index, 2), CC1_PREPROCESSED_COUNT)) {
+                next_token = ri32(add(CC1_PREPROCESSED_TOKENS,
+                    shl(add(index, 1), 2)));
+                following_token = ri32(add(CC1_PREPROCESSED_TOKENS,
+                    shl(add(index, 2), 2)));
+                if (eq(ri32(add(following_token, CC1_TOKEN_KIND_OFFSET)),
+                    40)) {
+                    text = mks("function");
+                    length = 8;
+                    header = 1;
+                } else {
+                    text = mks("var");
+                    length = 3;
+                }
+            }
+        } else if (header) {
+            if (cc1_text_equal(text, length, mks("void"))) {
+                skip = 1;
             }
         }
-        if (cc1_normalized_text(text, length, origin)) {
-            return 1;
-        }
-        if (eq(kind, 4)) {
-            if (cc1_normalized_byte(34, add(origin, length))) {
+        if (not(skip)) {
+            if (eq(kind, 4)) {
+                if (cc1_normalized_byte(34, origin)) {
+                    return 1;
+                }
+            }
+            if (cc1_normalized_text(text, length, origin)) {
                 return 1;
+            }
+            if (eq(kind, 4)) {
+                if (cc1_normalized_byte(34, add(origin, length))) {
+                    return 1;
+                }
+            }
+            if (eq(kind, 123)) {
+                header = 0;
             }
         }
         index = add(index, 1);
@@ -956,7 +987,7 @@ function cc1_normalize_tokens_(index, token, kind, text, length, origin)
 
 function cc1_normalize_tokens()
 {
-    return cc1_normalize_tokens_(0, 0, 0, 0, 0, 0);
+    return cc1_normalize_tokens_(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 /* This is the permanent frontend dispatch point replaced by cc1_stubs in cc0. */
