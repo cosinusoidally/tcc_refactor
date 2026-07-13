@@ -1525,7 +1525,7 @@ ST_FUNC void *tcc_get_symbol_err(TCCState *s, const char *name);
 #ifndef TCC_TARGET_PE
 ST_FUNC int tcc_load_dll(TCCState *s1, int fd, const char *filename, int level);
 ST_FUNC int tcc_load_ldscript(TCCState *s1);
-ST_FUNC uint8_t *parse_comment(uint8_t *p);
+uint8_t *parse_comment(uint8_t *p);
 void minp(void);
 void inp(void);
 int handle_eob(void);

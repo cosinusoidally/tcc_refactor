@@ -865,6 +865,88 @@ function parse_line_comment(pointer)
     return parse_line_comment_(pointer, 0, 0);
 }
 
+/* Scan a block comment directly in BufferedFile storage. */
+function parse_comment_(pointer, source_file, character)
+{
+    source_file = ri32(file_address);
+    pointer = add(pointer, 1);
+    while (1) {
+        character = ri8(pointer);
+        if (eq(character, CC2_CHARACTER_LINE_FEED)) {
+            wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), add(
+                ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+            pointer = add(pointer, 1);
+        } else if (eq(character, CC2_ASCII_ASTERISK)) {
+            pointer = add(pointer, 1);
+            character = ri8(pointer);
+            if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
+                wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET),
+                    pointer);
+                character = handle_eob();
+                pointer = ri32(add(source_file,
+                    CC2_BUFFERED_FILE_POINTER_OFFSET));
+            }
+            if (eq(character, CC2_ASCII_SLASH)) {
+                return add(pointer, 1);
+            }
+            if (eq(character, CC2_CHARACTER_END_OF_FILE)) {
+                tcc_error(mks("unexpected end of file in comment"), 0);
+                return pointer;
+            }
+        } else if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
+            wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
+            character = handle_eob();
+            pointer = ri32(add(source_file,
+                CC2_BUFFERED_FILE_POINTER_OFFSET));
+            if (eq(character, CC2_CHARACTER_END_OF_FILE)) {
+                tcc_error(mks("unexpected end of file in comment"), 0);
+                return pointer;
+            }
+            if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
+                pointer = add(pointer, 1);
+                character = ri8(pointer);
+                if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
+                    wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET),
+                        pointer);
+                    character = handle_eob();
+                    pointer = ri32(add(source_file,
+                        CC2_BUFFERED_FILE_POINTER_OFFSET));
+                }
+                if (eq(character, CC2_CHARACTER_LINE_FEED)) {
+                    wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), add(
+                        ri32(add(source_file,
+                            CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+                    pointer = add(pointer, 1);
+                } else if (eq(character,
+                    CC2_CHARACTER_CARRIAGE_RETURN)) {
+                    pointer = add(pointer, 1);
+                    character = ri8(pointer);
+                    if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
+                        wi32(add(source_file,
+                            CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
+                        character = handle_eob();
+                        pointer = ri32(add(source_file,
+                            CC2_BUFFERED_FILE_POINTER_OFFSET));
+                    }
+                    if (eq(character, CC2_CHARACTER_LINE_FEED)) {
+                        wi32(add(source_file,
+                            CC2_BUFFERED_FILE_LINE_OFFSET), add(ri32(add(
+                            source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+                        pointer = add(pointer, 1);
+                    }
+                }
+            }
+        } else {
+            pointer = add(pointer, 1);
+        }
+    }
+}
+
+function parse_comment(pointer)
+{
+    return parse_comment_(pointer, 0, 0);
+}
+
 function tok_str_new(stream)
 {
     cc2_zero_bytes(stream, CC2_TOKEN_STRING_BYTES);
