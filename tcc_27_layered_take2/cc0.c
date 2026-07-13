@@ -1,0 +1,1 @@
+/* The base dialect is the source intersection accepted by C and JavaScript. */

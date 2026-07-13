@@ -1,0 +1,83 @@
+#!/bin/sh
+
+./mk_clean
+
+cd artifacts
+
+set -xe
+
+# build tcc_27_layered_take2 with gcc
+gcc -O0 -m32 -I ../tcc_27_layered_take2/ -I ../tcc_27_layered_take2/include/ ../tcc_27_layered_take2/tcc_unified.c -o tcc_27_layered_take2_gcc -ldl
+
+# rebuild tcc_27_layered_take2 with itself
+
+./tcc_27_layered_take2_gcc -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ -o tcc_27_layered_take2.o
+./tcc_27_layered_take2_gcc -c ../tcc_27_layered_take2/lib/libtcc1.c -o libtcc1_layered_take2.o
+
+gcc -m32 tcc_27_layered_take2.o libtcc1_layered_take2.o -o tcc_27_layered_take2 -ldl
+
+# rebuild tcc_27_layered_take2 a 2nd time with itself
+
+./tcc_27_layered_take2 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ -o tcc_27_layered_take2_2.o
+./tcc_27_layered_take2 -c ../tcc_27_layered_take2/lib/libtcc1.c -o libtcc1_layered_take2_2.o
+rm tcc_27_layered_take2
+gcc -m32 tcc_27_layered_take2_2.o libtcc1_layered_take2_2.o -o tcc_27_layered_take2 -ldl
+
+# check each build matches
+diff -u -s tcc_27_layered_take2.o tcc_27_layered_take2_2.o
+diff -u -s libtcc1_layered_take2.o libtcc1_layered_take2_2.o
+
+# build the full compiler through the cc0 dialect entry, without macro-mapping
+# function/var in the lower-layer includes
+./tcc_27_layered_take2 -std=cc0 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ -c ../tcc_27_layered_take2/tcc_unified_cc0.c -U__linux__ -o tcc_27_layered_take2_cc0.o
+gcc -m32 tcc_27_layered_take2_cc0.o libtcc1_layered_take2_2.o -o tcc_27_layered_take2_cc0 -ldl
+./tcc_27_layered_take2_cc0 -dumpversion >/dev/null
+./tcc_27_layered_take2_cc0 -std=cc0 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ -c ../tcc_27_layered_take2/tcc_unified_cc0.c -U__linux__ -o tcc_27_layered_take2_cc0_2.o
+diff -u -s tcc_27_layered_take2_cc0.o tcc_27_layered_take2_cc0_2.o
+
+# make sure the layered compiler can create its own runtime archive
+./tcc_27_layered_take2 -ar rcs libtcc1.a libtcc1_layered_take2_2.o
+
+# keep a smoke test for -nostdinc independent of host headers
+cat > nostdinc_smoke.c <<'EOF'
+int main() { return 0; }
+EOF
+./tcc_27_layered_take2 -nostdinc -c nostdinc_smoke.c -o nostdinc_smoke.o
+
+# cc0.c is kept in a deliberate C/JS intersection
+gcc -m32 -std=gnu89 -c ../tcc_27_layered_take2/cc0.c -o cc0_gcc.o
+./tcc_27_layered_take2 -c ../tcc_27_layered_take2/cc0.c -o cc0_tcc.o
+./tcc_27_layered_take2 -std=cc0 -c ../tcc_27_layered_take2/cc0.c -o cc0_tcc_dialect.o
+js ../tcc_27_layered_take2/cc0.c
+
+# build some test files
+
+# we have to symlink since tcc will include the file name in the object code
+# file which then causes hashes not to match
+ln -s ../tcc_27/libc_boot4.c libc_boot4.c
+ln -s ../tcc_27/libc_static.c libc_static.c
+ln -s ../tcc_27/tcc.c tcc.c
+mkdir lib
+cd lib
+ln -s ../../tcc_27/lib/libtcc1.c libtcc1.c
+cd ..
+
+# do the test file builds
+
+# for now hack in -U__linux__ to make hashes match
+./tcc_27_layered_take2 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27/include -I ../tcc_27/ -c tcc.c -U__linux__ -DONE_SOURCE -o tcc.o
+
+./tcc_27_layered_take2 -c ./lib/libtcc1.c -o libtcc1.o
+
+./tcc_27_layered_take2 -c libc_boot4.c -o libc_boot4.o
+./tcc_27_layered_take2 -c libc_static.c -o libc_static.o
+
+./tcc_27_layered_take2 -nostdlib -static libc_static.o libc_boot4.o libtcc1.o tcc.o -o tcc_27_boot_static.exe
+
+cd ..
+
+# show total lines
+wc tcc_27_layered_take2/*c tcc_27_layered_take2/*h | sort -h
+
+# check the hashes of the test files
+sha256sum -c sums_tcc_27
