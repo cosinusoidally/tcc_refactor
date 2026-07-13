@@ -1214,7 +1214,7 @@ ST_FUNC void tccpp_new(TCCState *s);
 ST_FUNC void tccpp_delete(TCCState *s);
 ST_FUNC int tcc_preprocess(TCCState *s1);
 ST_FUNC void skip(int c);
-ST_FUNC NORETURN void expect(const char *msg);
+extern NORETURN void expect(const char *msg);
 
 /* Implemented in cc0.c and retained here under the original TCC names. */
 int cc0_init();
@@ -1303,7 +1303,7 @@ ST_FUNC void tcc_debug_line(TCCState *s1);
 
 ST_FUNC int tccgen_compile(TCCState *s1);
 ST_FUNC void free_inline_functions(TCCState *s);
-ST_FUNC void check_vstack(void);
+extern void check_vstack(void);
 
 int is_float(int t);
 ST_FUNC int ieee_finite(double d);

@@ -69,18 +69,6 @@ ST_FUNC int ieee_finite(double d)
 # define TCC_IS_NATIVE_387
 #endif
 
-void test_lvalue(void)
-{
-    if (!(vtop->r & VT_LVAL))
-        expect("lvalue");
-}
-
-ST_FUNC void check_vstack(void)
-{
-    if (pvtop != vtop)
-        tcc_error("internal compiler error: vstack leak (%d)", vtop - pvtop);
-}
-
 /* ------------------------------------------------------------------------- */
 /* vstack debugging aid */
 

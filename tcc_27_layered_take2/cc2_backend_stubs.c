@@ -104,12 +104,12 @@ function expr_cond()
     return 0;
 }
 
-function test_lvalue()
+function vstore()
 {
     return 0;
 }
 
-function vstore()
+function expect(message)
 {
     return 0;
 }

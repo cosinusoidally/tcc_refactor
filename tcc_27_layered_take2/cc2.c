@@ -1562,6 +1562,24 @@ function expr_const1()
     return 0;
 }
 
+function test_lvalue()
+{
+    if (eq(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        CC2_TCC_LVALUE), 0)) {
+        expect(mks("lvalue"));
+    }
+    return 0;
+}
+
+function check_vstack()
+{
+    if (not(eq(pvtop, vtop))) {
+        tcc_error(mks("internal compiler error: vstack leak (%d)"),
+            sdiv(sub(vtop, pvtop), CC2_SVALUE_BYTES));
+    }
+    return 0;
+}
+
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)
 {
     type_value = ri32(type);

@@ -107,7 +107,7 @@ ST_FUNC void skip(int c)
     next();
 }
 
-ST_FUNC void expect(const char *msg)
+void expect(const char *msg)
 {
     tcc_error("%s expected", msg);
 }
