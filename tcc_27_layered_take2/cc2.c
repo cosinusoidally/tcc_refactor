@@ -5774,6 +5774,59 @@ function unary_ieee_constant(token)
     return 0;
 }
 
+function unary_parenthesized(sizeof_caller)
+{
+    var type;
+    var attributes;
+    var identifier;
+    var storage;
+    var saved_no_code;
+    var returns_type;
+    next();
+    type = malloc(8);
+    attributes = malloc(CC2_ATTRIBUTE_BYTES);
+    identifier = malloc(4);
+    cc2_zero_bytes(attributes, CC2_ATTRIBUTE_BYTES);
+    returns_type = 0;
+    if (parse_btype(type, attributes)) {
+        type_decl(type, attributes, identifier, CC2_TYPE_ABSTRACT);
+        skip(41);
+        if (eq(ri32(tok_address), 123)) {
+            storage = CC2_VALUE_LOCAL;
+            if (global_expr) {
+                storage = CC2_VALUE_CONSTANT;
+            }
+            if (eq(and(ri32(type), CC2_TCC_ARRAY_TYPE), 0)) {
+                storage = or(storage, lvalue_type(ri32(type)));
+            }
+            cc2_zero_bytes(attributes, CC2_ATTRIBUTE_BYTES);
+            decl_initializer_alloc(type, attributes, storage, 1, 0, 0);
+        } else if (sizeof_caller) {
+            vpush(type);
+            returns_type = 1;
+        } else {
+            unary();
+            gen_cast(type);
+        }
+    } else if (eq(ri32(tok_address), 123)) {
+        if (const_wanted) {
+            tcc_error(mks("expected constant"), 0);
+        }
+        save_regs(0);
+        saved_no_code = nocode_wanted;
+        block(0, 0, 1);
+        nocode_wanted = saved_no_code;
+        skip(41);
+    } else {
+        gexpr();
+        skip(41);
+    }
+    free(identifier);
+    free(attributes);
+    free(type);
+    return returns_type;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {

@@ -71,13 +71,14 @@ void unary_label_address(int token);
 void unary_sizeof(int token);
 void unary_minus(void);
 void unary_ieee_constant(int token);
+int unary_parenthesized(int sizeof_caller);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
 void init_putv(CType *type, Section *sec, unsigned long c);
 static void decl_initializer(CType *type, Section *sec, unsigned long c, int first, int size_only);
 void block(int *bsym, int *csym, int is_expr);
-static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
+void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
 void decl(int l);
 int decl0(int l, int is_for_loop_init, Sym *);
 void expr_eq(void);
@@ -1087,48 +1088,8 @@ void unary(void)
         decl_initializer_alloc(&type, &ad, VT_CONST, 2, 0, 0);
         break;
     case '(':
-        next();
-        /* cast ? */
-        if (parse_btype(&type, &ad)) {
-            type_decl(&type, &ad, &n, TYPE_ABSTRACT);
-            skip(')');
-            /* check ISOC99 compound literal */
-            if (tok == '{') {
-                    /* data is allocated locally by default */
-                if (global_expr)
-                    r = VT_CONST;
-                else
-                    r = VT_LOCAL;
-                /* all except arrays are lvalues */
-                if (!(type.t & VT_ARRAY))
-                    r |= lvalue_type(type.t);
-                memset(&ad, 0, sizeof(AttributeDef));
-                decl_initializer_alloc(&type, &ad, r, 1, 0, 0);
-            } else {
-                if (sizeof_caller) {
-                    vpush(&type);
-                    return;
-                }
-                unary();
-                gen_cast(&type);
-            }
-        } else if (tok == '{') {
-	    int saved_nocode_wanted = nocode_wanted;
-            if (const_wanted)
-                tcc_error("expected constant");
-            /* save all registers */
-            save_regs(0);
-            /* statement expression : we do not accept break/continue
-               inside as GCC does.  We do retain the nocode_wanted state,
-	       as statement expressions can't ever be entered from the
-	       outside, so any reactivation of code emission (from labels
-	       or loop heads) can be disabled again after the end of it. */
-            block(NULL, NULL, 1);
-	    nocode_wanted = saved_nocode_wanted;
-            skip(')');
-        } else {
-            gexpr();
-            skip(')');
+        if (unary_parenthesized(sizeof_caller)) {
+            return;
         }
         break;
     case '*':
@@ -1958,8 +1919,8 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
    are parsed. If 'v' is zero, then a reference to the new object
    is put in the value stack. If 'has_init' is 2, a special parsing
    is done to handle string constants. */
-static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, 
-                                   int has_init, int v, int scope)
+void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
+                            int has_init, int v, int scope)
 {
     int size, align, addr;
     TokenString *init_str = NULL;

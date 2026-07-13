@@ -14,6 +14,12 @@ function vpush64_words(type, low_word, high_word)
     return 0;
 }
 
+function decl_initializer_alloc(type, attributes, storage, has_initializer,
+    value, scope)
+{
+    return 0;
+}
+
 function sym_redeclaration_error(value)
 {
     return 0;
