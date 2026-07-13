@@ -15,6 +15,7 @@ var CC0_TOKEN_HASH_LEFT_SHIFT;
 var CC0_TOKEN_HASH_RIGHT_SHIFT;
 var CC0_TOKEN_HASH_BUCKET_MASK;
 var CC0_WORD_ADDRESS_SHIFT;
+var CC0_WORD_BYTES;
 var CC0_WORD_BITS;
 var CC0_NUMBER_WORD_COUNT;
 
@@ -84,6 +85,9 @@ var CC0_CURRENT_NAME_LENGTH;
 var CC0_COMPILER_PHASE;
 var CC0_COMPILER_PHASE_COLLECT;
 var CC0_COMPILER_PHASE_RESOLVE;
+var CC0_CODE_CAPACITY;
+var CC0_CODE;
+var CC0_CODE_LENGTH;
 
 function cc0_init()
 {
@@ -97,6 +101,7 @@ function cc0_init()
     CC0_TOKEN_HASH_RIGHT_SHIFT = 27;
     CC0_TOKEN_HASH_BUCKET_MASK = 16383;
     CC0_WORD_ADDRESS_SHIFT = 2;
+    CC0_WORD_BYTES = 4;
     CC0_WORD_BITS = 32;
     CC0_NUMBER_WORD_COUNT = 2;
     CC0_ASCII_TAB = 9;
@@ -155,6 +160,9 @@ function cc0_init()
     CC0_COMPILER_PHASE_COLLECT = 0;
     CC0_COMPILER_PHASE_RESOLVE = 1;
     CC0_COMPILER_PHASE = CC0_COMPILER_PHASE_COLLECT;
+    CC0_CODE_CAPACITY = 262144;
+    CC0_CODE = 0;
+    CC0_CODE_LENGTH = 0;
     return CC0_FALSE;
 }
 
@@ -656,6 +664,48 @@ function cc0_compiler_prepare_symbols()
     CC0_GLOBAL_COUNT = 0;
     CC0_FUNCTION_COUNT = 0;
     CC0_PARAMETER_COUNT = 0;
+    return CC0_FALSE;
+}
+
+function cc0_compiler_prepare_code()
+{
+    if (eq(CC0_CODE, 0)) {
+        CC0_CODE = alloc(CC0_CODE_CAPACITY);
+    }
+    CC0_CODE_LENGTH = 0;
+    if (eq(CC0_CODE, 0)) {
+        return cc0_compiler_fail();
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_emit_byte(value)
+{
+    if (not(lt(CC0_CODE_LENGTH, CC0_CODE_CAPACITY))) {
+        return cc0_compiler_fail();
+    }
+    wi8(add(CC0_CODE, CC0_CODE_LENGTH), value);
+    CC0_CODE_LENGTH = add(CC0_CODE_LENGTH, 1);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_emit_word(value)
+{
+    if (not(le(add(CC0_CODE_LENGTH, CC0_WORD_BYTES),
+        CC0_CODE_CAPACITY))) {
+        return cc0_compiler_fail();
+    }
+    wi32(add(CC0_CODE, CC0_CODE_LENGTH), value);
+    CC0_CODE_LENGTH = add(CC0_CODE_LENGTH, CC0_WORD_BYTES);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_patch_word(position, value)
+{
+    if (not(le(add(position, CC0_WORD_BYTES), CC0_CODE_LENGTH))) {
+        return cc0_compiler_fail();
+    }
+    wi32(add(CC0_CODE, position), value);
     return CC0_FALSE;
 }
 
