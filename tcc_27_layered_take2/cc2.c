@@ -335,6 +335,21 @@ var CC2_ELF_RELOCATION_TYPE_MASK = 255;
 var CC2_ELF_RELOCATION_SYMBOL_SHIFT = 8;
 var CC2_I386_DATA_POINTER_RELOCATION = 1;
 var CC2_I386_PC_RELATIVE_RELOCATION = 2;
+var CC2_I386_GOT_RELOCATION = 3;
+var CC2_I386_PLT_RELOCATION = 4;
+var CC2_I386_COPY_RELOCATION = 5;
+var CC2_I386_GLOBAL_DATA_RELOCATION = 6;
+var CC2_I386_JUMP_SLOT_RELOCATION = 7;
+var CC2_I386_RELATIVE_RELOCATION = 8;
+var CC2_I386_GOT_OFFSET_RELOCATION = 9;
+var CC2_I386_GOT_PC_RELOCATION = 10;
+var CC2_I386_DATA_16_RELOCATION = 20;
+var CC2_I386_PC_16_RELOCATION = 21;
+var CC2_I386_RELAXABLE_GOT_RELOCATION = 43;
+var CC2_NO_GOT_PLT_ENTRY = 0;
+var CC2_BUILD_GOT_ONLY = 1;
+var CC2_AUTO_GOT_PLT_ENTRY = 2;
+var CC2_ALWAYS_GOT_PLT_ENTRY = 3;
 var CC2_INITIALIZER_SYMBOL_CONSTANT = 560;
 var CC2_TYPE_ERROR_BUFFER_BYTES = 256;
 var CC2_TCC_ENUM_KIND = 2097152;
@@ -6216,6 +6231,56 @@ function greloca(section, symbol, offset, type, addend)
 function greloc(section, symbol, offset, type)
 {
     return greloca(section, symbol, offset, type, 0);
+}
+
+function code_reloc(relocation_type)
+{
+    if (or(or(or(eq(relocation_type, CC2_I386_RELATIVE_RELOCATION),
+        eq(relocation_type, CC2_I386_DATA_16_RELOCATION)), or(
+        eq(relocation_type, CC2_I386_DATA_POINTER_RELOCATION),
+        eq(relocation_type, CC2_I386_GOT_PC_RELOCATION))), or(or(or(
+        eq(relocation_type, CC2_I386_GOT_OFFSET_RELOCATION),
+        eq(relocation_type, CC2_I386_GOT_RELOCATION)), or(
+        eq(relocation_type, CC2_I386_RELAXABLE_GOT_RELOCATION),
+        eq(relocation_type, CC2_I386_GLOBAL_DATA_RELOCATION))),
+        eq(relocation_type, CC2_I386_COPY_RELOCATION)))) {
+        return 0;
+    }
+    if (or(or(eq(relocation_type, CC2_I386_PC_16_RELOCATION),
+        eq(relocation_type, CC2_I386_PC_RELATIVE_RELOCATION)), or(
+        eq(relocation_type, CC2_I386_PLT_RELOCATION),
+        eq(relocation_type, CC2_I386_JUMP_SLOT_RELOCATION)))) {
+        return 1;
+    }
+    tcc_error(mks("Unknown relocation type: %d"), relocation_type);
+    return sub(0, 1);
+}
+
+function gotplt_entry_type(relocation_type)
+{
+    if (or(or(eq(relocation_type, CC2_I386_RELATIVE_RELOCATION),
+        eq(relocation_type, CC2_I386_DATA_16_RELOCATION)), or(or(
+        eq(relocation_type, CC2_I386_GLOBAL_DATA_RELOCATION),
+        eq(relocation_type, CC2_I386_JUMP_SLOT_RELOCATION)),
+        eq(relocation_type, CC2_I386_COPY_RELOCATION)))) {
+        return CC2_NO_GOT_PLT_ENTRY;
+    }
+    if (or(eq(relocation_type, CC2_I386_DATA_POINTER_RELOCATION),
+        or(eq(relocation_type, CC2_I386_PC_16_RELOCATION),
+        eq(relocation_type, CC2_I386_PC_RELATIVE_RELOCATION)))) {
+        return CC2_AUTO_GOT_PLT_ENTRY;
+    }
+    if (or(eq(relocation_type, CC2_I386_GOT_PC_RELOCATION),
+        eq(relocation_type, CC2_I386_GOT_OFFSET_RELOCATION))) {
+        return CC2_BUILD_GOT_ONLY;
+    }
+    if (or(or(eq(relocation_type, CC2_I386_GOT_RELOCATION),
+        eq(relocation_type, CC2_I386_RELAXABLE_GOT_RELOCATION)),
+        eq(relocation_type, CC2_I386_PLT_RELOCATION))) {
+        return CC2_ALWAYS_GOT_PLT_ENTRY;
+    }
+    tcc_error(mks("Unknown relocation type: %d"), relocation_type);
+    return sub(0, 1);
 }
 
 /* i386 target-byte emission belongs to cc2, not the typed C remainder. */
