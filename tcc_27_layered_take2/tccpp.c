@@ -512,54 +512,6 @@ const char *get_tok_str(int v, CValue *cv)
 
 #define cinp minp
 
-static void parse_string(const char *s, int len)
-{
-    uint8_t buf[1000], *p = buf;
-    int is_long, sep;
-
-    if ((is_long = *s == 'L'))
-        ++s, --len;
-    sep = *s++;
-    len -= 2;
-    if (len >= sizeof buf)
-        p = tcc_malloc(len + 1);
-    memcpy(p, s, len);
-    p[len] = 0;
-
-    cstr_reset(&tokcstr);
-    parse_escape_string(&tokcstr, p, is_long);
-    if (p != buf)
-        tcc_free(p);
-
-    if (sep == '\'') {
-        int char_size, i, n, c;
-        /* XXX: make it portable */
-        if (!is_long)
-            tok = TOK_CCHAR, char_size = 1;
-        else
-            tok = TOK_LCHAR, char_size = sizeof(nwchar_t);
-        n = tokcstr.size / char_size - 1;
-        if (n < 1)
-            tcc_error("empty character constant");
-        if (n > 1)
-            tcc_warning("multi-character character constant");
-        for (c = i = 0; i < n; ++i) {
-            if (is_long)
-                c = ((nwchar_t *)tokcstr.data)[i];
-            else
-                c = (c << 8) | ((char *)tokcstr.data)[i];
-        }
-        tokc.i = c;
-    } else {
-        tokc.str.size = tokcstr.size;
-        tokc.str.data = tokcstr.data;
-        if (!is_long)
-            tok = TOK_STR;
-        else
-            tok = TOK_LSTR;
-    }
-}
-
 /* we use 64 bit numbers */
 #define BN_SIZE 2
 
@@ -1938,6 +1890,7 @@ ST_FUNC void tccpp_new(TCCState *s)
     pp_once_address = &pp_once;
     tok_flags_address = &tok_flags;
     total_lines_address = &total_lines;
+    tokcstr_address = &tokcstr;
 
     /* cc0 owns the character classes used to initialize this lexer. */
     cc0_init();

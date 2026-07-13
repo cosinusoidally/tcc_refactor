@@ -587,6 +587,7 @@ var pp_debug_symv_address;
 var pp_once_address;
 var tok_flags_address;
 var total_lines_address;
+var tokcstr_address;
 var symtab_section_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET;
@@ -2551,6 +2552,75 @@ function parse_escape_string(output, buffer, is_long)
         cstr_wccat(output, 0);
     } else {
         cstr_ccat(output, 0);
+    }
+    return 0;
+}
+
+function parse_string(source, length)
+{
+    var buffer;
+    var is_long;
+    var separator;
+    var character_size;
+    var count;
+    var index;
+    var character;
+    var data;
+    is_long = eq(ri8(source), 76);
+    if (is_long) {
+        source = add(source, 1);
+        length = sub(length, 1);
+    }
+    separator = ri8(source);
+    source = add(source, 1);
+    length = sub(length, 2);
+    buffer = malloc(add(length, 1));
+    memcpy(buffer, source, length);
+    wi8(add(buffer, length), 0);
+    cstr_reset(tokcstr_address);
+    parse_escape_string(tokcstr_address, buffer, is_long);
+    free(buffer);
+    if (eq(separator, 39)) {
+        if (is_long) {
+            wi32(tok_address, CC2_TOKEN_WIDE_CHARACTER);
+            character_size = CC2_I386_WORD_BYTES;
+        } else {
+            wi32(tok_address, CC2_TOKEN_CHARACTER);
+            character_size = 1;
+        }
+        count = sub(sdiv(ri32(add(tokcstr_address,
+            CC2_CSTRING_SIZE_OFFSET)), character_size), 1);
+        if (lt(count, 1)) {
+            tcc_error(mks("empty character constant"), 0);
+        }
+        if (lt(1, count)) {
+            tcc_warning(mks("multi-character character constant"), 0);
+        }
+        data = ri32(add(tokcstr_address, CC2_CSTRING_DATA_OFFSET));
+        index = 0;
+        character = 0;
+        while (lt(index, count)) {
+            if (is_long) {
+                character = ri32(add(data, mul(index,
+                    CC2_I386_WORD_BYTES)));
+            } else {
+                character = or(shl(character, 8), ri8(add(data, index)));
+            }
+            index = add(index, 1);
+        }
+        wi32(tokc_address, character);
+        wi32(add(tokc_address, CC2_I386_WORD_BYTES),
+            sub(0, lt(character, 0)));
+    } else {
+        wi32(tokc_address, ri32(add(tokcstr_address,
+            CC2_CSTRING_SIZE_OFFSET)));
+        wi32(add(tokc_address, CC2_I386_WORD_BYTES), ri32(add(tokcstr_address,
+            CC2_CSTRING_DATA_OFFSET)));
+        if (is_long) {
+            wi32(tok_address, CC2_TOKEN_WIDE_STRING);
+        } else {
+            wi32(tok_address, CC2_TOKEN_STRING);
+        }
     }
     return 0;
 }

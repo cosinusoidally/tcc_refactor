@@ -1177,6 +1177,7 @@ extern int *pp_debug_symv_address;
 extern int *pp_once_address;
 extern int *tok_flags_address;
 extern int *total_lines_address;
+extern CString *tokcstr_address;
 extern int tok_ident;
 extern TokenSym **table_ident;
 
@@ -1224,6 +1225,7 @@ void label_pop(Sym **ptop, Sym *slast, int keep);
 void parse_define(void);
 void preprocess(int is_bof);
 void parse_escape_string(CString *output, const uint8_t *buffer, int is_long);
+void parse_string(const char *source, int length);
 void next_nomacro(void);
 void next_nomacro1(void);
 extern void next(void);
