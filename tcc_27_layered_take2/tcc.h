@@ -1272,6 +1272,7 @@ extern Sym *define_stack;
 extern CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
 extern CType *int_type_address, *size_type_address, *func_old_type_address;
 extern CType *func_vt_address;
+extern CType *char_pointer_type_address;
 extern CType *ptrdiff_type_address;
 extern Section **data_section_address;
 extern TCCState *tcc_state_address;

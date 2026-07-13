@@ -115,6 +115,7 @@ var CC2_TCC_VLA_TYPE = 1024;
 var CC2_TYPE_ALIGNMENT_TEMPORARY;
 var CC2_COMPARISON_TYPES_TEMPORARY;
 var CC2_VALUE_BOUNDED = 32768;
+var CC2_VALUE_MUST_BOUND = 2048;
 var CC2_TCC_INLINE_STORAGE = 32768;
 var CC2_SYM_ATTRIBUTE_ALIGNED_MASK = 31;
 var CC2_SYM_ATTRIBUTE_WEAK = 64;
@@ -357,6 +358,7 @@ var int_type_address;
 var size_type_address;
 var func_old_type_address;
 var func_vt_address;
+var char_pointer_type_address;
 var ptrdiff_type_address;
 /* TCC's 257-entry value stack, with seven i386 words per SValue. */
 var __vstack[1799];
@@ -5412,6 +5414,64 @@ function unary_identifier(token)
                 ri32(add(symbol, add(CC2_SYM_CONSTANT_OFFSET, 4))));
         }
     }
+    return 0;
+}
+
+function unary_postfix_field(operator)
+{
+    var qualifiers;
+    var field;
+    var registers;
+    if (eq(operator, 199)) {
+        indir();
+    }
+    qualifiers = and(ri32(vtop), or(CC2_TCC_CONST_QUALIFIER,
+        CC2_TCC_VOLATILE_QUALIFIER));
+    test_lvalue();
+    gaddrof();
+    if (not(eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_STRUCT_TYPE))) {
+        expect(mks("struct or union"));
+    }
+    if (eq(operator, 188)) {
+        expect(mks("field name"));
+    }
+    next();
+    if (or(eq(ri32(tok_address), 181), eq(ri32(tok_address), 182))) {
+        expect(mks("field name"));
+    }
+    field = find_field(vtop, ri32(tok_address));
+    if (not(field)) {
+        tcc_error(mks("field not found: %s"),
+            get_tok_str(and(ri32(tok_address),
+            bnot(CC2_SYMBOL_FIELD_FLAG)), 0));
+    }
+    cc2_copy_bytes(vtop, char_pointer_type_address, 8);
+    vpushi(ri32(add(field, CC2_SYM_CONSTANT_OFFSET)));
+    gen_op(CC2_ASCII_PLUS);
+    cc2_copy_bytes(vtop, add(field, CC2_SYM_TYPE_OFFSET), 8);
+    wi32(vtop, or(ri32(vtop), qualifiers));
+    if (eq(and(ri32(vtop), CC2_TCC_ARRAY_TYPE), 0)) {
+        registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+        registers = or(registers, lvalue_type(ri32(vtop)));
+        if (and(ri32(add(tcc_state_address, 104)),
+            not(eq(and(registers, CC2_VALUE_LOCATION_MASK),
+            CC2_VALUE_LOCAL)))) {
+            registers = or(registers, CC2_VALUE_MUST_BOUND);
+        }
+        wi32(add(vtop, CC2_SVALUE_REGISTER_OFFSET), registers);
+    }
+    next();
+    return 0;
+}
+
+function unary_postfix_index()
+{
+    next();
+    gexpr();
+    gen_op(CC2_ASCII_PLUS);
+    indir();
+    skip(93);
     return 0;
 }
 

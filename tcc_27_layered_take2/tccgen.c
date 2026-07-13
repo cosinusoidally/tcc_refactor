@@ -60,6 +60,8 @@ void block_label(int label, int *break_symbol, int *continue_symbol,
 void block_compound(int *break_symbol, int *continue_symbol,
                     int is_expression);
 void unary_identifier(int token);
+void unary_postfix_field(int operator);
+void unary_postfix_index(void);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1464,47 +1466,9 @@ void unary(void)
             inc(1, tok);
             next();
         } else if (tok == '.' || tok == TOK_ARROW || tok == TOK_CDOUBLE) {
-            int qualifiers;
-            /* field */ 
-            if (tok == TOK_ARROW) 
-                indir();
-            qualifiers = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
-            test_lvalue();
-            gaddrof();
-            /* expect pointer on structure */
-            if ((vtop->type.t & VT_BTYPE) != VT_STRUCT)
-                expect("struct or union");
-            if (tok == TOK_CDOUBLE)
-                expect("field name");
-            next();
-            if (tok == TOK_CINT || tok == TOK_CUINT)
-                expect("field name");
-	    s = find_field(&vtop->type, tok);
-            if (!s)
-                tcc_error("field not found: %s",  get_tok_str(tok & ~SYM_FIELD, &tokc));
-            /* add field offset to pointer */
-            vtop->type = char_pointer_type; /* change type to 'char *' */
-            vpushi(s->c);
-            gen_op('+');
-            /* change type to field type, and set to lvalue */
-            vtop->type = s->type;
-            vtop->type.t |= qualifiers;
-            /* an array is never an lvalue */
-            if (!(vtop->type.t & VT_ARRAY)) {
-                vtop->r |= lvalue_type(vtop->type.t);
-#ifdef CONFIG_TCC_BCHECK
-                /* if bound checking, the referenced pointer must be checked */
-                if (tcc_state->do_bounds_check && (vtop->r & VT_VALMASK) != VT_LOCAL)
-                    vtop->r |= VT_MUSTBOUND;
-#endif
-            }
-            next();
+            unary_postfix_field(tok);
         } else if (tok == '[') {
-            next();
-            gexpr();
-            gen_op('+');
-            indir();
-            skip(']');
+            unary_postfix_index();
         } else if (tok == '(') {
             SValue ret;
             Sym *sa;

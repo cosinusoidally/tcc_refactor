@@ -3560,6 +3560,7 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
     size_type_address = &size_type;
     func_old_type_address = &func_old_type;
     func_vt_address = &func_vt;
+    char_pointer_type_address = &char_pointer_type;
     local_stack_address = &local_stack;
     global_label_stack_address = &global_label_stack;
     local_label_stack_address = &local_label_stack;
