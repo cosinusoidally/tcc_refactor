@@ -1443,7 +1443,8 @@ function cc0_elf_external_symbol(name, length)
             return cc0_elf_put_undefined_function(name, length);
         }
     }
-    return sub(0, 1);
+    /* C permits calls through an implicit external declaration. */
+    return cc0_elf_put_undefined_function(name, length);
 }
 
 function cc0_elf_relocation_symbol_(entry, name, length, global_index)
@@ -4251,14 +4252,16 @@ function cc0_compiler_expect(token)
 }
 
 function cc0_compiler_parse_call_(name, length, argument_count, arity,
-    builtin_arity, external_arity)
+    builtin_arity, external_call)
 {
     builtin_arity = cc0_compiler_builtin_arity(name, length);
-    external_arity = cc0_compiler_external_arity(name, length);
+    external_call = not(lt(cc0_compiler_external_arity(name, length), 0));
     if (not(lt(cc0_compiler_find_symbol(CC0_FUNCTION_SYMBOLS,
         CC0_FUNCTION_COUNT, name, length), 0))) {
-        external_arity = sub(0, 1);
         builtin_arity = sub(0, 1);
+        external_call = 0;
+    } else if (lt(builtin_arity, 0)) {
+        external_call = 1;
     }
     cc0_compiler_next_token();
     argument_count = 0;
@@ -4268,7 +4271,7 @@ function cc0_compiler_parse_call_(name, length, argument_count, arity,
                 return CC0_TRUE;
             }
             if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
-                if (not(lt(external_arity, 0))) {
+                if (external_call) {
                     cc0_compiler_emit_push_result();
                 } else if (lt(builtin_arity, 0)) {
                     cc0_compiler_emit_push_result();
@@ -4289,16 +4292,18 @@ function cc0_compiler_parse_call_(name, length, argument_count, arity,
         return CC0_TRUE;
     }
     if (not(eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_COLLECT))) {
-        arity = cc0_compiler_function_arity(name, length);
-        if (lt(arity, 0)) {
-            return cc0_compiler_fail();
-        }
-        if (not(eq(arity, argument_count))) {
-            return cc0_compiler_fail();
+        if (not(external_call)) {
+            arity = cc0_compiler_function_arity(name, length);
+            if (lt(arity, 0)) {
+                return cc0_compiler_fail();
+            }
+            if (not(eq(arity, argument_count))) {
+                return cc0_compiler_fail();
+            }
         }
     }
     if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
-        if (not(lt(external_arity, 0))) {
+        if (external_call) {
             return cc0_compiler_emit_external_call(name, length,
                 argument_count);
         }

@@ -5736,6 +5736,23 @@ function unary_sizeof(token)
     return 0;
 }
 
+function unary_minus()
+{
+    var basic_type;
+    next();
+    unary();
+    basic_type = and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK);
+    if (is_float(basic_type)) {
+        /* The support operation only installs IEEE negative zero. */
+        neg_zero(basic_type);
+    } else {
+        vpushi(0);
+    }
+    vswap();
+    gen_op(CC2_ASCII_MINUS);
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {

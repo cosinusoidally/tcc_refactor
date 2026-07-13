@@ -69,6 +69,7 @@ void unary_builtin_expression(int token);
 void unary_builtin_frame(int token);
 void unary_label_address(int token);
 void unary_sizeof(int token);
+void unary_minus(void);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -388,6 +389,19 @@ ST_FUNC void vpush64(int ty, unsigned long long v)
     ctype.ref = NULL;
     cval.i = v;
     vsetc(&ctype, VT_CONST, &cval);
+}
+
+/* cc2 selects unary negation; this primitive writes the target CValue union. */
+void neg_zero(int basic_type)
+{
+    vpush(&vtop->type);
+    if (basic_type == VT_FLOAT) {
+        vtop->c.f = -1.0 * 0.0;
+    } else if (basic_type == VT_DOUBLE) {
+        vtop->c.d = -1.0 * 0.0;
+    } else {
+        vtop->c.ld = -1.0 * 0.0;
+    }
 }
 
 /* push long long constant */
@@ -1188,23 +1202,7 @@ void unary(void)
         unary_prefix(t);
         break;
     case '-':
-        next();
-        unary();
-        t = vtop->type.t & VT_BTYPE;
-	if (is_float(t)) {
-            /* In IEEE negate(x) isn't subtract(0,x), but rather
-	       subtract(-0, x).  */
-	    vpush(&vtop->type);
-	    if (t == VT_FLOAT)
-	        vtop->c.f = -1.0 * 0.0;
-	    else if (t == VT_DOUBLE)
-	        vtop->c.d = -1.0 * 0.0;
-	    else
-	        vtop->c.ld = -1.0 * 0.0;
-	} else
-	    vpushi(0);
-	vswap();
-	gen_op('-');
+        unary_minus();
         break;
     case TOK_LAND:
         unary_label_address(tok);
