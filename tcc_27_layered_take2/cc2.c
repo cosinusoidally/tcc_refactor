@@ -1606,6 +1606,150 @@ function cc2_lex_end_of_buffer(pointer)
     return cc2_lex_end_of_buffer_(pointer, 0, 0, 0, 0, 0, 0);
 }
 
+function cc2_lex_is_punctuation(character)
+{
+    if (or(eq(character, mkC("<")), eq(character, mkC(">")))) {
+        return 1;
+    }
+    if (or(eq(character, mkC("&")), eq(character, mkC("|")))) {
+        return 1;
+    }
+    if (or(eq(character, mkC("+")), eq(character, mkC("-")))) {
+        return 1;
+    }
+    if (or(eq(character, mkC("!")), eq(character, mkC("=")))) {
+        return 1;
+    }
+    if (or(eq(character, mkC("*")), eq(character, mkC("%")))) {
+        return 1;
+    }
+    if (or(eq(character, mkC("^")), eq(character, mkC("/")))) {
+        return 1;
+    }
+    if (or(eq(character, mkC("(")), eq(character, mkC(")")))) {
+        return 1;
+    }
+    if (or(eq(character, mkC("[")), eq(character, mkC("]")))) {
+        return 1;
+    }
+    if (or(eq(character, mkC("{")), eq(character, mkC("}")))) {
+        return 1;
+    }
+    if (or(eq(character, mkC(",")), eq(character, mkC(";")))) {
+        return 1;
+    }
+    if (or(eq(character, mkC(":")), eq(character, mkC("?")))) {
+        return 1;
+    }
+    return or(eq(character, mkC("~")), eq(character, mkC("@")));
+}
+
+function cc2_lex_publish(pointer)
+{
+    var source_file;
+    source_file = ri32(file_address);
+    wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
+    return 0;
+}
+
+/* Return the next preprocessing token without macro substitution. */
+function next_nomacro1()
+{
+    var pointer;
+    var look_pointer;
+    var character;
+    var look;
+    var character_class;
+    var source_file;
+    source_file = ri32(file_address);
+    pointer = ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET));
+    while (1) {
+        character = ri8(pointer);
+        if (or(eq(character, mkC(" ")), or(eq(character, mkC("\t")),
+            or(eq(character, mkC("\f")), or(eq(character, mkC("\v")),
+            or(eq(character, mkC("\r")), eq(character, mkC("\n")))))))) {
+            pointer = cc2_lex_layout(pointer, character);
+            if (cc2_lex_should_restart()) {
+                continue;
+            }
+            return cc2_lex_publish(pointer);
+        }
+        if (eq(character, mkC("\\"))) {
+            pointer = cc2_lex_end_of_buffer(pointer);
+            if (cc2_lex_should_restart()) {
+                continue;
+            }
+            return cc2_lex_publish(pointer);
+        }
+        if (eq(character, mkC("#"))) {
+            pointer = cc2_lex_hash(pointer);
+            if (cc2_lex_should_restart()) {
+                continue;
+            }
+            return cc2_lex_publish(pointer);
+        }
+        character_class = ri8(add(isidnum_table_address,
+            sub(character, CC2_CHARACTER_END_OF_FILE)));
+        if (eq(character, mkC("$"))) {
+            if (or(eq(and(character_class,
+                CC2_CHARACTER_IDENTIFIER_CLASS), 0),
+                not(eq(and(ri32(parse_flags_address),
+                CC2_PARSE_FLAG_ASM_FILE), 0)))) {
+                pointer = cc2_lex_operator(pointer, character);
+                return cc2_lex_publish(pointer);
+            }
+        }
+        if (eq(character, mkC("L"))) {
+            look = ri8(add(pointer, 1));
+            if (or(eq(look, mkC("\\")), or(eq(look, mkC("'")),
+                eq(look, mkC("\""))))) {
+                look_pointer = cc2_lex_peek(pointer);
+                look = ri8(look_pointer);
+                if (or(eq(look, mkC("'")), eq(look, mkC("\"")))) {
+                    pointer = cc2_lex_string(look_pointer, look, 1);
+                } else {
+                    pointer = cc2_lex_identifier_long(look_pointer);
+                }
+                return cc2_lex_publish(pointer);
+            }
+        }
+        if (not(eq(and(character_class,
+            CC2_CHARACTER_IDENTIFIER_CLASS), 0))) {
+            pointer = cc2_lex_identifier(pointer);
+            return cc2_lex_publish(pointer);
+        }
+        if (and(not(lt(character, mkC("0"))),
+            not(lt(mkC("9"), character)))) {
+            look_pointer = cc2_lex_peek(pointer);
+            pointer = cc2_lex_number_tail(look_pointer, character);
+            return cc2_lex_publish(pointer);
+        }
+        if (eq(character, mkC("."))) {
+            pointer = cc2_lex_dot(pointer);
+            return cc2_lex_publish(pointer);
+        }
+        if (or(eq(character, mkC("'")), eq(character, mkC("\"")))) {
+            pointer = cc2_lex_string(pointer, character, 0);
+            return cc2_lex_publish(pointer);
+        }
+        if (cc2_lex_is_punctuation(character)) {
+            pointer = cc2_lex_operator(pointer, character);
+            return cc2_lex_publish(pointer);
+        }
+        if (and(not(lt(character, 128)), not(lt(255, character)))) {
+            pointer = cc2_lex_identifier(pointer);
+            return cc2_lex_publish(pointer);
+        }
+        if (not(eq(and(ri32(parse_flags_address),
+            CC2_PARSE_FLAG_ASM_FILE), 0))) {
+            pointer = cc2_lex_operator(pointer, character);
+            return cc2_lex_publish(pointer);
+        }
+        cc2_lex_unrecognized(character);
+        return 0;
+    }
+}
+
 function skip_spaces()
 {
     while (cc0_is_space(ch)) {
