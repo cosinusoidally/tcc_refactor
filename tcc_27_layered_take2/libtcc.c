@@ -39,9 +39,20 @@ static int nb_states;
 #if ONE_SOURCE
 #define malloc(s) use_tcc_malloc(s)
 #include "tccpp.c"
-#include "cc3.c"
+#include "tccelf.c"
+#include "tccrun.c"
 #include "cc2_tcc_prims.c"
-#include "cc4.c"
+/* EBX remains reserved, matching the historical i386 allocation. */
+#define USE_EBX 0
+ST_DATA const int reg_classes[NB_REGS] = {
+    RC_INT | RC_EAX,
+    RC_INT | RC_ECX,
+    RC_INT | RC_EDX,
+    (RC_INT | RC_EBX) * USE_EBX,
+    RC_FLOAT | RC_ST0,
+};
+#include "i386-asm.c"
+#include "tccasm.c"
 #endif /* ONE_SOURCE */
 
 /********************************************************/
