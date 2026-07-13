@@ -2619,9 +2619,9 @@ function cc1_normalize_tokens()
 }
 
 /* This is the permanent frontend dispatch point replaced by cc1_stubs in cc0. */
-function cc1_compile_(source, length, result, position)
+function cc1_compile_(source, length, file, result, position)
 {
-    if (cc1_preprocess(source, length, mks("<cc1>"))) {
+    if (cc1_preprocess(source, length, file)) {
         return 1;
     }
     if (cc1_normalize_tokens()) {
@@ -2643,9 +2643,9 @@ function cc1_compile_(source, length, result, position)
     return result;
 }
 
-function cc1_compile(source, length)
+function cc1_compile(source, length, file)
 {
-    return cc1_compile_(source, length, 0, 0);
+    return cc1_compile_(source, length, file, 0, 0);
 }
 
 function cc1_product_(left, right, result, index)

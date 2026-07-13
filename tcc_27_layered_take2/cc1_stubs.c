@@ -152,7 +152,7 @@ function cc1_link(argc, argv)
 }
 
 /* cc0.exe selects the base frontend until cc1.c replaces this object. */
-function cc1_compile(source, length)
+function cc1_compile(source, length, file)
 {
     return cc0_compile(source, length);
 }

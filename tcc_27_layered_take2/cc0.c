@@ -3258,7 +3258,7 @@ function cc0_compiler_builtin_arity(name, length)
         return 2;
     }
     if (cc0_text_equal(name, length, mks("cc1_compile"))) {
-        return 2;
+        return 3;
     }
     if (cc0_text_equal(name, length, mks("cc0_remap_error"))) {
         return 3;
@@ -3311,7 +3311,7 @@ function cc0_compiler_external_arity(name, length)
         return 2;
     }
     if (cc0_text_equal(name, length, mks("cc1_compile"))) {
-        return 2;
+        return 3;
     }
     if (cc0_text_equal(name, length, mks("cc0_remap_error"))) {
         return 3;
@@ -4524,7 +4524,7 @@ function main_(argc, argv, input_name, output_name, source_size_pointer,
         return CC0_MAIN_INPUT_ERROR;
     }
     source_size = ri32(source_size_pointer);
-    if (cc1_compile(source, source_size)) {
+    if (cc1_compile(source, source_size, input_name)) {
         cc0_report_compile_error(input_name);
         return CC0_MAIN_COMPILE_ERROR;
     }
