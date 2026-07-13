@@ -1367,6 +1367,8 @@ extern void indir(void);
 extern void lexpand(void);
 extern void lbuild(int type);
 extern void gv_dup(void);
+extern void check_comparison_pointer_types(SValue *first, SValue *second,
+                                           int operation);
 extern void unary(void);
 extern void expr_prod(void);
 extern void expr_sum(void);

@@ -69,6 +69,7 @@ var CC2_VALUE_COMPARISON = 51;
 var CC2_VALUE_JUMP = 52;
 var CC2_INTEGER_REGISTER_CLASS = 1;
 var CC2_TCC_POINTER_TYPE = 5;
+var CC2_TCC_VOID_TYPE = 0;
 var CC2_TCC_BOOLEAN_TYPE = 11;
 var CC2_TCC_UNSIGNED_TYPE = 16;
 var CC2_TCC_STORAGE_MASK = 61440;
@@ -105,6 +106,7 @@ var CC2_I386_LONG_DOUBLE_BYTES = 12;
 var CC2_I386_WORD_BYTES = 4;
 var CC2_TCC_VLA_TYPE = 1024;
 var CC2_TYPE_ALIGNMENT_TEMPORARY;
+var CC2_COMPARISON_TYPES_TEMPORARY;
 var CC2_VALUE_BOUNDED = 32768;
 var CC2_TCC_INLINE_STORAGE = 32768;
 var CC2_SYM_ATTRIBUTE_ALIGNED_MASK = 31;
@@ -2084,6 +2086,79 @@ function indir_(type_value, registers, target_type)
 function indir()
 {
     return indir_(0, 0, 0);
+}
+
+function cc2_comparison_types_temporary()
+{
+    if (eq(CC2_COMPARISON_TYPES_TEMPORARY, 0)) {
+        CC2_COMPARISON_TYPES_TEMPORARY = malloc(16);
+    }
+    return CC2_COMPARISON_TYPES_TEMPORARY;
+}
+
+function check_comparison_pointer_types_(first_value, second_value, operation,
+    first_type, second_type, first_basic_type, second_basic_type, temporary,
+    stripped_qualifiers)
+{
+    if (or(is_null_pointer(first_value), is_null_pointer(second_value))) {
+        return 0;
+    }
+    first_type = first_value;
+    second_type = second_value;
+    first_basic_type = and(ri32(first_type), CC2_TCC_BASIC_TYPE_MASK);
+    second_basic_type = and(ri32(second_type), CC2_TCC_BASIC_TYPE_MASK);
+    if (and(or(is_integer_btype(first_basic_type),
+        is_integer_btype(second_basic_type)),
+        not(eq(operation, CC2_ASCII_MINUS)))) {
+        if (and(not(eq(operation, CC2_TOKEN_LOGICAL_OR)),
+            not(eq(operation, CC2_TOKEN_LOGICAL_AND)))) {
+            tcc_warning(mks("comparison between pointer and integer"), 0);
+        }
+        return 0;
+    }
+    if (eq(first_basic_type, CC2_TCC_POINTER_TYPE)) {
+        first_type = pointed_type(first_type);
+    } else if (not(eq(first_basic_type, CC2_TCC_FUNCTION_TYPE))) {
+        tcc_error(mks("invalid operands to binary %s"),
+            get_tok_str(operation, 0));
+    }
+    if (eq(second_basic_type, CC2_TCC_POINTER_TYPE)) {
+        second_type = pointed_type(second_type);
+    } else if (not(eq(second_basic_type, CC2_TCC_FUNCTION_TYPE))) {
+        tcc_error(mks("invalid operands to binary %s"),
+            get_tok_str(operation, 0));
+    }
+    if (or(eq(and(ri32(first_type), CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_VOID_TYPE),
+        eq(and(ri32(second_type), CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_VOID_TYPE))) {
+        return 0;
+    }
+    stripped_qualifiers = or(or(CC2_TCC_DEFAULT_SIGN,
+        CC2_TCC_UNSIGNED_TYPE), or(CC2_TCC_CONST_QUALIFIER,
+        CC2_TCC_VOLATILE_QUALIFIER));
+    temporary = cc2_comparison_types_temporary();
+    wi32(temporary, and(ri32(first_type), bnot(stripped_qualifiers)));
+    wi32(add(temporary, 4), ri32(add(first_type, 4)));
+    wi32(add(temporary, 8), and(ri32(second_type),
+        bnot(stripped_qualifiers)));
+    wi32(add(temporary, 12), ri32(add(second_type, 4)));
+    if (eq(is_compatible_types(temporary, add(temporary, 8)), 0)) {
+        if (eq(operation, CC2_ASCII_MINUS)) {
+            tcc_error(mks("invalid operands to binary %s"),
+                get_tok_str(operation, 0));
+        } else {
+            tcc_warning(mks("comparison of distinct pointer types lacks a cast"),
+                0);
+        }
+    }
+    return 0;
+}
+
+function check_comparison_pointer_types(first_value, second_value, operation)
+{
+    return check_comparison_pointer_types_(first_value, second_value,
+        operation, 0, 0, 0, 0, 0, 0);
 }
 
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)
