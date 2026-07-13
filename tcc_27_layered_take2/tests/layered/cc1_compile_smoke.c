@@ -20,6 +20,7 @@ int main()
     temporary = (temporary << 1) >> 1;
     temporary = (temporary | 8) ^ 8;
     temporary = temporary & ~0;
+    temporary = temporary + ('A' - 0x41) + (010 - 8);
     record(temporary);
     while (global_result < 2) {
         global_result = global_result + 1;

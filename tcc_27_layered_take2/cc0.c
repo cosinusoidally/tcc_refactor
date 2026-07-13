@@ -38,6 +38,16 @@ var CC0_ASCII_SLASH;
 var CC0_ASCII_STAR;
 var CC0_ASCII_BACKSLASH;
 var CC0_ASCII_QUOTE;
+var CC0_ASCII_APOSTROPHE;
+var CC0_ASCII_UPPER_X;
+var CC0_ASCII_LOWER_X;
+var CC0_ASCII_UPPER_L;
+var CC0_ASCII_LOWER_L;
+var CC0_ASCII_UPPER_U;
+var CC0_ASCII_LOWER_U;
+var CC0_ASCII_LOWER_N;
+var CC0_ASCII_LOWER_R;
+var CC0_ASCII_LOWER_T;
 
 /* Standalone compiler lexer state and its deliberately small token set. */
 var CC0_SOURCE;
@@ -313,6 +323,16 @@ function cc0_init()
     CC0_ASCII_STAR = 42;
     CC0_ASCII_BACKSLASH = 92;
     CC0_ASCII_QUOTE = 34;
+    CC0_ASCII_APOSTROPHE = 39;
+    CC0_ASCII_UPPER_X = 88;
+    CC0_ASCII_LOWER_X = 120;
+    CC0_ASCII_UPPER_L = 76;
+    CC0_ASCII_LOWER_L = 108;
+    CC0_ASCII_UPPER_U = 85;
+    CC0_ASCII_LOWER_U = 117;
+    CC0_ASCII_LOWER_N = 110;
+    CC0_ASCII_LOWER_R = 114;
+    CC0_ASCII_LOWER_T = 116;
     CC0_TOKEN_EOF = 0;
     CC0_TOKEN_ERROR = 1;
     CC0_TOKEN_IDENTIFIER = 2;
@@ -1729,22 +1749,142 @@ function cc0_compiler_scan_name_(character)
     return CC0_TOKEN;
 }
 
-function cc0_compiler_scan_number_(character, digit)
+function cc0_hexadecimal_digit_(character, digit)
+{
+    if (cc0_is_decimal_digit(character)) {
+        return sub(character, CC0_ASCII_ZERO);
+    }
+    if (cc0_is_uppercase(character)) {
+        digit = sub(character, CC0_ASCII_UPPER_A);
+        if (le(digit, 5)) {
+            return add(digit, 10);
+        }
+    }
+    if (cc0_is_lowercase(character)) {
+        digit = sub(character, CC0_ASCII_LOWER_A);
+        if (le(digit, 5)) {
+            return add(digit, 10);
+        }
+    }
+    return sub(0, 1);
+}
+
+function cc0_hexadecimal_digit(character)
+{
+    return cc0_hexadecimal_digit_(character, 0);
+}
+
+function cc0_compiler_number_suffix(character)
+{
+    if (eq(character, CC0_ASCII_UPPER_L)) {
+        return CC0_TRUE;
+    }
+    if (eq(character, CC0_ASCII_LOWER_L)) {
+        return CC0_TRUE;
+    }
+    if (eq(character, CC0_ASCII_UPPER_U)) {
+        return CC0_TRUE;
+    }
+    return eq(character, CC0_ASCII_LOWER_U);
+}
+
+function cc0_compiler_scan_number_(character, digit, base)
 {
     CC0_TOKEN_NUMBER = 0;
+    base = 10;
+    if (eq(ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION)), CC0_ASCII_ZERO)) {
+        base = 8;
+        CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+        if (lt(CC0_SOURCE_POSITION, CC0_SOURCE_LENGTH)) {
+            character = ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION));
+            if (eq(character, CC0_ASCII_UPPER_X)) {
+                base = 16;
+                CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+            } else if (eq(character, CC0_ASCII_LOWER_X)) {
+                base = 16;
+                CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+            }
+        }
+    }
     while (lt(CC0_SOURCE_POSITION, CC0_SOURCE_LENGTH)) {
         character = ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION));
-        if (not(cc0_is_decimal_digit(character))) {
+        digit = cc0_hexadecimal_digit(character);
+        if (lt(digit, 0)) {
             break;
         }
-        digit = sub(character, CC0_ASCII_ZERO);
-        CC0_TOKEN_NUMBER = add(shl(CC0_TOKEN_NUMBER, 3),
-            add(shl(CC0_TOKEN_NUMBER, 1), digit));
+        if (not(lt(digit, base))) {
+            break;
+        }
+        if (eq(base, 16)) {
+            CC0_TOKEN_NUMBER = add(shl(CC0_TOKEN_NUMBER, 4), digit);
+        } else if (eq(base, 8)) {
+            CC0_TOKEN_NUMBER = add(shl(CC0_TOKEN_NUMBER, 3), digit);
+        } else {
+            CC0_TOKEN_NUMBER = add(shl(CC0_TOKEN_NUMBER, 3),
+                add(shl(CC0_TOKEN_NUMBER, 1), digit));
+        }
+        CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+    }
+    while (lt(CC0_SOURCE_POSITION, CC0_SOURCE_LENGTH)) {
+        character = ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION));
+        if (not(cc0_compiler_number_suffix(character))) {
+            break;
+        }
         CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
     }
     CC0_TOKEN_LENGTH = sub(add(CC0_SOURCE, CC0_SOURCE_POSITION), CC0_TOKEN_START);
     CC0_TOKEN = CC0_TOKEN_NUMBER_LITERAL;
     return CC0_TOKEN;
+}
+
+function cc0_compiler_scan_character_(character, value)
+{
+    CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+    if (not(lt(CC0_SOURCE_POSITION, CC0_SOURCE_LENGTH))) {
+        CC0_TOKEN = CC0_TOKEN_ERROR;
+        return CC0_TOKEN;
+    }
+    character = ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION));
+    value = character;
+    CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+    if (eq(character, CC0_ASCII_BACKSLASH)) {
+        if (not(lt(CC0_SOURCE_POSITION, CC0_SOURCE_LENGTH))) {
+            CC0_TOKEN = CC0_TOKEN_ERROR;
+            return CC0_TOKEN;
+        }
+        character = ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION));
+        CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+        value = character;
+        if (eq(character, CC0_ASCII_LOWER_N)) {
+            value = CC0_ASCII_LINE_FEED;
+        } else if (eq(character, CC0_ASCII_LOWER_R)) {
+            value = CC0_ASCII_CARRIAGE_RETURN;
+        } else if (eq(character, CC0_ASCII_LOWER_T)) {
+            value = CC0_ASCII_TAB;
+        } else if (eq(character, CC0_ASCII_ZERO)) {
+            value = 0;
+        }
+    }
+    if (not(lt(CC0_SOURCE_POSITION, CC0_SOURCE_LENGTH))) {
+        CC0_TOKEN = CC0_TOKEN_ERROR;
+        return CC0_TOKEN;
+    }
+    if (not(eq(ri8(add(CC0_SOURCE, CC0_SOURCE_POSITION)),
+        CC0_ASCII_APOSTROPHE))) {
+        CC0_TOKEN = CC0_TOKEN_ERROR;
+        return CC0_TOKEN;
+    }
+    CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
+    CC0_TOKEN_LENGTH = sub(add(CC0_SOURCE, CC0_SOURCE_POSITION),
+        CC0_TOKEN_START);
+    CC0_TOKEN_NUMBER = value;
+    CC0_TOKEN = CC0_TOKEN_NUMBER_LITERAL;
+    return CC0_TOKEN;
+}
+
+function cc0_compiler_scan_character()
+{
+    return cc0_compiler_scan_character_(0, 0);
 }
 
 function cc0_compiler_scan_string_(character, escaped)
@@ -1788,10 +1928,13 @@ function cc0_compiler_next_token_(character)
         return cc0_compiler_scan_name_(0);
     }
     if (cc0_is_decimal_digit(character)) {
-        return cc0_compiler_scan_number_(0, 0);
+        return cc0_compiler_scan_number_(0, 0, 0);
     }
     if (eq(character, CC0_ASCII_QUOTE)) {
         return cc0_compiler_scan_string_(0, 0);
+    }
+    if (eq(character, CC0_ASCII_APOSTROPHE)) {
+        return cc0_compiler_scan_character();
     }
     CC0_SOURCE_POSITION = add(CC0_SOURCE_POSITION, 1);
     CC0_TOKEN = character;
