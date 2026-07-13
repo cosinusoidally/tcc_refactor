@@ -672,7 +672,7 @@ ST_FUNC void gfunc_epilog(void)
 }
 
 /* generate a jump to a label */
-ST_FUNC int gjmp(int t)
+int gjmp(int t)
 {
     return gjmp2(0xe9, t);
 }
@@ -717,7 +717,7 @@ ST_FUNC void gtst_addr(int inv, int a)
 }
 
 /* generate a test. set 'inv' to invert test. Stack entry is popped */
-ST_FUNC int gtst(int inv, int t)
+int gtst(int inv, int t)
 {
     int v = vtop->r & VT_VALMASK;
     if (nocode_wanted) {

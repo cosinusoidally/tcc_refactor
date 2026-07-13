@@ -3051,6 +3051,61 @@ function gv(required_class)
         0, 0, 0, 0);
 }
 
+function gv2(first_class, second_class)
+{
+    var location;
+    location = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        CC2_VALUE_LOCATION_MASK);
+    if (and(and(not(eq(location, CC2_VALUE_COMPARISON)),
+        not(eq(and(location, bnot(1)), CC2_VALUE_JUMP))),
+        le(first_class, second_class))) {
+        vswap();
+        gv(first_class);
+        vswap();
+        gv(second_class);
+        if (le(CC2_VALUE_CONSTANT, and(ri32(add(sub(vtop,
+            CC2_SVALUE_BYTES), CC2_SVALUE_REGISTER_OFFSET)),
+            CC2_VALUE_LOCATION_MASK))) {
+            vswap();
+            gv(first_class);
+            vswap();
+        }
+    } else {
+        gv(second_class);
+        vswap();
+        gv(first_class);
+        vswap();
+        if (le(CC2_VALUE_CONSTANT, and(ri32(add(vtop,
+            CC2_SVALUE_REGISTER_OFFSET)), CC2_VALUE_LOCATION_MASK))) {
+            gv(second_class);
+        }
+    }
+    return 0;
+}
+
+function gvtst(inverted, jump_chain)
+{
+    var location;
+    var value;
+    location = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        CC2_VALUE_LOCATION_MASK);
+    if (and(not(eq(location, CC2_VALUE_COMPARISON)), and(not(eq(location,
+        CC2_VALUE_JUMP)), not(eq(location, CC2_VALUE_JUMP_FALSE))))) {
+        vpushi(0);
+        gen_op(CC2_TOKEN_NOT_EQUAL);
+    }
+    if (eq(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT)) {
+        value = not(eq(ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET)), 0));
+        if (not(eq(value, inverted))) {
+            jump_chain = gjmp(jump_chain);
+        }
+        vtop = sub(vtop, CC2_SVALUE_BYTES);
+        return jump_chain;
+    }
+    return gtst(inverted, jump_chain);
+}
+
 function vstore_(destination_type, source_basic, destination_basic,
     delayed_cast, size, alignment, bit_position, bit_size, result_register,
     adjusted_access, register_class, address_register, temporary_value,

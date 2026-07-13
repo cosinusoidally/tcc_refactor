@@ -441,36 +441,6 @@ static void gbound(void)
    converted to values. Cannot be used if cannot be converted to
    register value (such as structures). */
 
-void gv2(int rc1, int rc2)
-{
-    int v;
-
-    /* generate more generic register first. But VT_JMP or VT_CMP
-       values must be generated first in all cases to avoid possible
-       reload errors */
-    v = vtop[0].r & VT_VALMASK;
-    if (v != VT_CMP && (v & ~1) != VT_JMP && rc1 <= rc2) {
-        vswap();
-        gv(rc1);
-        vswap();
-        gv(rc2);
-        /* test if reload is needed for first register */
-        if ((vtop[-1].r & VT_VALMASK) >= VT_CONST) {
-            vswap();
-            gv(rc1);
-            vswap();
-        }
-    } else {
-        gv(rc2);
-        vswap();
-        gv(rc1);
-        vswap();
-        /* test if reload is needed for first register */
-        if ((vtop[0].r & VT_VALMASK) >= VT_CONST) {
-            gv(rc2);
-        }
-    }
-}
 
 #if PTR_SIZE == 4
 /* expand 64bit on stack in two ints */
@@ -514,22 +484,6 @@ ST_FUNC void lexpand_nr(void)
 /* Generate value test
  *
  * Generate a test for any value (jump, comparison and integers) */
-int gvtst(int inv, int t)
-{
-    int v = vtop->r & VT_VALMASK;
-    if (v != VT_CMP && v != VT_JMP && v != VT_JMPI) {
-        vpushi(0);
-        gen_op(TOK_NE);
-    }
-    if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST) {
-        /* constant jmp optimization */
-        if ((vtop->c.i != 0) != inv)
-            t = gjmp(t);
-        vtop--;
-        return t;
-    }
-    return gtst(inv, t);
-}
 
 #if PTR_SIZE == 4
 /* generate CPU independent (unsigned) long long operations */

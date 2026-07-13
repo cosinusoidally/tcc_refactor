@@ -29,6 +29,16 @@ function gsym(jump_chain)
     return 0;
 }
 
+function gjmp(jump_chain)
+{
+    return jump_chain;
+}
+
+function gtst(inverted, jump_chain)
+{
+    return jump_chain;
+}
+
 function put_extern_sym(symbol, section, offset, size)
 {
     return 0;

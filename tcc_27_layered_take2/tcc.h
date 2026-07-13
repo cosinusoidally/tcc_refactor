@@ -1535,9 +1535,9 @@ int gfunc_sret(CType *vt, int variadic, CType *ret, int *align, int *regsize);
 void gfunc_call(int nb_args);
 ST_FUNC void gfunc_prolog(CType *func_type);
 ST_FUNC void gfunc_epilog(void);
-ST_FUNC int gjmp(int t);
+int gjmp(int t);
 ST_FUNC void gjmp_addr(int a);
-ST_FUNC int gtst(int inv, int t);
+int gtst(int inv, int t);
 #if defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64
 ST_FUNC void gtst_addr(int inv, int a);
 #else
