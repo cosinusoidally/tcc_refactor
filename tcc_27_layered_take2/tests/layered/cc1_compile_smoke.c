@@ -37,6 +37,9 @@ int main()
     temporary = temporary + (sizeof(char) - 1) + (sizeof(short) - 2);
     temporary = temporary + (sizeof(int *) - 4) + (sizeof temporary - 4);
     for (loop = 0; loop < 3; loop = loop + 1) {
+        if (loop == 1) {
+            continue;
+        }
         if (loop == 2) {
             break;
         }

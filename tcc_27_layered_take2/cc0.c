@@ -71,6 +71,7 @@ var CC0_TOKEN_WHILE;
 var CC0_TOKEN_BREAK;
 var CC0_TOKEN_FOR;
 var CC0_TOKEN_DO;
+var CC0_TOKEN_CONTINUE;
 var CC0_COMPILER_ERROR;
 var CC0_LEXER_FIELD_KIND;
 var CC0_LEXER_FIELD_TEXT;
@@ -95,6 +96,7 @@ var CC0_CALL_RECORD_CAPACITY;
 var CC0_RELOCATION_RECORD_CAPACITY;
 var CC0_LOOP_STACK_CAPACITY;
 var CC0_BREAK_RECORD_CAPACITY;
+var CC0_CONTINUE_RECORD_CAPACITY;
 var CC0_SYMBOL_NAME_OFFSET;
 var CC0_SYMBOL_LENGTH_OFFSET;
 var CC0_SYMBOL_VALUE_OFFSET;
@@ -201,6 +203,8 @@ var CC0_LOOP_DEPTH;
 var CC0_NEXT_LOOP_ID;
 var CC0_BREAK_RECORDS;
 var CC0_BREAK_COUNT;
+var CC0_CONTINUE_RECORDS;
+var CC0_CONTINUE_COUNT;
 var CC0_X86_JUMP_IF_NOT_ZERO;
 var CC0_MAIN_USAGE_ERROR;
 var CC0_MAIN_INPUT_ERROR;
@@ -351,6 +355,7 @@ function cc0_init()
     CC0_TOKEN_BREAK = 11;
     CC0_TOKEN_FOR = 12;
     CC0_TOKEN_DO = 13;
+    CC0_TOKEN_CONTINUE = 14;
     CC0_COMPILER_ERROR = CC0_FALSE;
     CC0_LEXER_FIELD_KIND = 0;
     CC0_LEXER_FIELD_TEXT = 1;
@@ -375,6 +380,7 @@ function cc0_init()
     CC0_RELOCATION_RECORD_CAPACITY = 0;
     CC0_LOOP_STACK_CAPACITY = 0;
     CC0_BREAK_RECORD_CAPACITY = 0;
+    CC0_CONTINUE_RECORD_CAPACITY = 0;
     CC0_SYMBOL_NAME_OFFSET = 0;
     CC0_SYMBOL_LENGTH_OFFSET = 4;
     CC0_SYMBOL_VALUE_OFFSET = 8;
@@ -481,6 +487,8 @@ function cc0_init()
     CC0_NEXT_LOOP_ID = 0;
     CC0_BREAK_RECORDS = 0;
     CC0_BREAK_COUNT = 0;
+    CC0_CONTINUE_RECORDS = 0;
+    CC0_CONTINUE_COUNT = 0;
     CC0_X86_JUMP_IF_NOT_ZERO = 133;
     CC0_MAIN_USAGE_ERROR = 2;
     CC0_MAIN_INPUT_ERROR = 3;
@@ -1745,6 +1753,9 @@ function cc0_compiler_keyword_(text, length)
     if (cc0_text_equal(text, length, mks("do"))) {
         return CC0_TOKEN_DO;
     }
+    if (cc0_text_equal(text, length, mks("continue"))) {
+        return CC0_TOKEN_CONTINUE;
+    }
     return CC0_TOKEN_IDENTIFIER;
 }
 
@@ -2200,6 +2211,27 @@ function cc0_compiler_ensure_break_records()
     return cc0_compiler_ensure_break_records_(0, 0);
 }
 
+function cc0_compiler_ensure_continue_records_(needed, memory)
+{
+    needed = shl(add(CC0_CONTINUE_COUNT, 1),
+        CC0_SYMBOL_ENTRY_ADDRESS_SHIFT);
+    memory = cc0_compiler_grow_memory(CC0_CONTINUE_RECORDS,
+        shl(CC0_CONTINUE_COUNT, CC0_SYMBOL_ENTRY_ADDRESS_SHIFT),
+        CC0_CONTINUE_RECORD_CAPACITY, needed);
+    if (eq(memory, 0)) {
+        return cc0_compiler_fail();
+    }
+    CC0_CONTINUE_RECORDS = memory;
+    CC0_CONTINUE_RECORD_CAPACITY = cc0_compiler_grown_capacity(
+        CC0_CONTINUE_RECORD_CAPACITY, needed);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_ensure_continue_records()
+{
+    return cc0_compiler_ensure_continue_records_(0, 0);
+}
+
 function cc0_compiler_ensure_loop_stack_(needed, used, memory)
 {
     needed = shl(add(CC0_LOOP_DEPTH, 1), CC0_WORD_ADDRESS_SHIFT);
@@ -2652,6 +2684,40 @@ function cc0_compiler_patch_breaks_(loop_id, target, index, entry)
 function cc0_compiler_patch_breaks(loop_id, target)
 {
     return cc0_compiler_patch_breaks_(loop_id, target, 0, 0);
+}
+
+function cc0_compiler_record_continue(loop_id, position)
+{
+    if (cc0_compiler_ensure_continue_records()) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_add_symbol(CC0_CONTINUE_RECORDS, CC0_CONTINUE_COUNT,
+        0, 0, loop_id)) {
+        return CC0_TRUE;
+    }
+    wi32(add(cc0_compiler_symbol_entry(CC0_CONTINUE_RECORDS,
+        CC0_CONTINUE_COUNT), CC0_SYMBOL_CODE_OFFSET), position);
+    CC0_CONTINUE_COUNT = add(CC0_CONTINUE_COUNT, 1);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_patch_continues_(loop_id, target, index, entry)
+{
+    index = 0;
+    while (lt(index, CC0_CONTINUE_COUNT)) {
+        entry = cc0_compiler_symbol_entry(CC0_CONTINUE_RECORDS, index);
+        if (eq(ri32(add(entry, CC0_SYMBOL_VALUE_OFFSET)), loop_id)) {
+            cc0_compiler_patch_relative(
+                ri32(add(entry, CC0_SYMBOL_CODE_OFFSET)), target);
+        }
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_patch_continues(loop_id, target)
+{
+    return cc0_compiler_patch_continues_(loop_id, target, 0, 0);
 }
 
 function cc0_compiler_emit_drop_arguments(argument_bytes)
@@ -3667,6 +3733,7 @@ function cc0_compiler_parse_while_(loop_start, exit_position, loop_id)
         return CC0_TRUE;
     }
     if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        cc0_compiler_patch_continues(loop_id, loop_start);
         cc0_compiler_emit_jump_to(loop_start);
         cc0_compiler_patch_relative(exit_position, CC0_CODE_LENGTH);
         cc0_compiler_patch_breaks(loop_id, CC0_CODE_LENGTH);
@@ -3718,7 +3785,7 @@ function cc0_compiler_parse_deferred_expression(start, end)
 }
 
 function cc0_compiler_parse_for_(loop_start, exit_position, loop_id,
-    step_start, step_end, depth)
+    step_start, step_end, depth, continue_target)
 {
     cc0_compiler_next_token();
     if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
@@ -3775,6 +3842,10 @@ function cc0_compiler_parse_for_(loop_start, exit_position, loop_id,
     if (cc0_compiler_parse_statement()) {
         return CC0_TRUE;
     }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        continue_target = CC0_CODE_LENGTH;
+        cc0_compiler_patch_continues(loop_id, continue_target);
+    }
     if (cc0_compiler_parse_deferred_expression(step_start, step_end)) {
         return CC0_TRUE;
     }
@@ -3790,10 +3861,11 @@ function cc0_compiler_parse_for_(loop_start, exit_position, loop_id,
 
 function cc0_compiler_parse_for()
 {
-    return cc0_compiler_parse_for_(0, 0, 0, 0, 0, 0);
+    return cc0_compiler_parse_for_(0, 0, 0, 0, 0, 0, 0);
 }
 
-function cc0_compiler_parse_do_(loop_start, loop_id, jump_position)
+function cc0_compiler_parse_do_(loop_start, loop_id, jump_position,
+    continue_target)
 {
     cc0_compiler_next_token();
     if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
@@ -3811,6 +3883,10 @@ function cc0_compiler_parse_do_(loop_start, loop_id, jump_position)
     cc0_compiler_next_token();
     if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
         return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        continue_target = CC0_CODE_LENGTH;
+        cc0_compiler_patch_continues(loop_id, continue_target);
     }
     if (cc0_compiler_parse_expression()) {
         return CC0_TRUE;
@@ -3834,7 +3910,7 @@ function cc0_compiler_parse_do_(loop_start, loop_id, jump_position)
 
 function cc0_compiler_parse_do()
 {
-    return cc0_compiler_parse_do_(0, 0, 0);
+    return cc0_compiler_parse_do_(0, 0, 0, 0);
 }
 
 function cc0_compiler_parse_break_(position, loop_id)
@@ -3857,6 +3933,28 @@ function cc0_compiler_parse_break_(position, loop_id)
 function cc0_compiler_parse_break()
 {
     return cc0_compiler_parse_break_(0, 0);
+}
+
+function cc0_compiler_parse_continue_(position, loop_id)
+{
+    if (lt(CC0_LOOP_DEPTH, 1)) {
+        return cc0_compiler_fail();
+    }
+    cc0_compiler_next_token();
+    if (cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON)) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        loop_id = cc0_compiler_current_loop();
+        position = cc0_compiler_emit_jump();
+        return cc0_compiler_record_continue(loop_id, position);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_parse_continue()
+{
+    return cc0_compiler_parse_continue_(0, 0);
 }
 
 function cc0_compiler_parse_local_(name, length, initialized)
@@ -3935,6 +4033,9 @@ function cc0_compiler_parse_statement()
     }
     if (eq(CC0_TOKEN, CC0_TOKEN_BREAK)) {
         return cc0_compiler_parse_break();
+    }
+    if (eq(CC0_TOKEN, CC0_TOKEN_CONTINUE)) {
+        return cc0_compiler_parse_continue();
     }
     if (eq(CC0_TOKEN, CC0_TOKEN_VAR)) {
         return cc0_compiler_parse_local();
