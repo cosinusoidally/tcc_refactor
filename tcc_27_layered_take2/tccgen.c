@@ -148,7 +148,7 @@ ST_FUNC void tcc_debug_end(TCCState *s1)
 }
 
 /* generate line number info */
-ST_FUNC void tcc_debug_line(TCCState *s1)
+void tcc_debug_line(TCCState *s1)
 {
     if (!s1->do_debug)
         return;
@@ -1693,65 +1693,6 @@ void expr_const64_words(int *words)
 /* return the label token if current token is a label, otherwise
    return zero */
 
-
-void block(int *bsym, int *csym, int is_expr)
-{
-    int a, b, c, d, cond;
-    Sym *s;
-
-    /* generate line number info */
-    if (tcc_state->do_debug)
-        tcc_debug_line(tcc_state);
-
-    if (is_expr) {
-        /* default return value is (void) */
-        vpushi(0);
-        vtop->type.t = VT_VOID;
-    }
-
-    if (tok == TOK_IF) {
-        block_if(bsym, csym);
-    } else if (tok == TOK_WHILE) {
-        block_while();
-    } else if (tok == '{') {
-        block_compound(bsym, csym, is_expr);
-    } else if (tok == TOK_RETURN) {
-        block_return();
-    } else if (tok == TOK_BREAK) {
-        block_break(bsym);
-    } else if (tok == TOK_CONTINUE) {
-        block_continue(csym);
-    } else if (tok == TOK_FOR) {
-        block_for();
-
-    } else 
-    if (tok == TOK_DO) {
-        block_do();
-    } else
-    if (tok == TOK_SWITCH) {
-        block_switch(csym);
-    } else
-    if (tok == TOK_CASE) {
-        block_case();
-        block_after_label(bsym, csym, 0);
-    } else 
-    if (tok == TOK_DEFAULT) {
-        block_default();
-        block_after_label(bsym, csym, 0);
-    } else
-    if (tok == TOK_GOTO) {
-        block_goto();
-    } else if (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3) {
-        asm_instr();
-    } else {
-        b = is_label(TOK_UIDENT);
-        if (b) {
-            block_label(b, bsym, csym, is_expr);
-        } else {
-            block_expression(is_expr);
-        }
-    }
-}
 
 /* This skips over a stream of tokens containing balanced {} and ()
    pairs, stopping at outer ',' ';' and '}' (or matching '}' if we started

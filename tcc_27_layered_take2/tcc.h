@@ -1311,7 +1311,7 @@ ST_FUNC void tcc_debug_start(TCCState *s1);
 ST_FUNC void tcc_debug_end(TCCState *s1);
 ST_FUNC void tcc_debug_funcstart(TCCState *s1, Sym *sym);
 ST_FUNC void tcc_debug_funcend(TCCState *s1, int size);
-ST_FUNC void tcc_debug_line(TCCState *s1);
+void tcc_debug_line(TCCState *s1);
 
 ST_FUNC int tccgen_compile(TCCState *s1);
 ST_FUNC void free_inline_functions(TCCState *s);
@@ -1653,7 +1653,7 @@ ST_FUNC int tcc_load_coff(TCCState * s1, int fd);
 #endif
 
 /* ------------ tccasm.c ------------ */
-ST_FUNC void asm_instr(void);
+void asm_instr(void);
 ST_FUNC void asm_global_instr(void);
 #ifdef CONFIG_TCC_ASM
 ST_FUNC int find_constraint(ASMOperand *operands, int nb_operands, const char *name, const char **pp);

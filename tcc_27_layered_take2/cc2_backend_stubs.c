@@ -259,7 +259,12 @@ function unget_tok(token)
     return 0;
 }
 
-function block(break_symbol, continue_symbol, is_expression)
+function tcc_debug_line(state)
+{
+    return 0;
+}
+
+function asm_instr()
 {
     return 0;
 }

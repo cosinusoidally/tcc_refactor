@@ -5312,6 +5312,56 @@ function block_compound(break_symbol, continue_symbol, is_expression)
     return 0;
 }
 
+function block(break_symbol, continue_symbol, is_expression)
+{
+    var token;
+    var label;
+    tcc_debug_line(tcc_state_address);
+    if (is_expression) {
+        vpushi(0);
+        wi32(vtop, CC2_TCC_VOID_TYPE);
+    }
+    token = ri32(tok_address);
+    if (eq(token, 259)) {
+        block_if(break_symbol, continue_symbol);
+    } else if (eq(token, 261)) {
+        block_while();
+    } else if (eq(token, 123)) {
+        block_compound(break_symbol, continue_symbol, is_expression);
+    } else if (eq(token, 263)) {
+        block_return();
+    } else if (eq(token, 262)) {
+        block_break(break_symbol);
+    } else if (eq(token, 270)) {
+        block_continue(continue_symbol);
+    } else if (eq(token, 264)) {
+        block_for();
+    } else if (eq(token, 269)) {
+        block_do();
+    } else if (eq(token, 271)) {
+        block_switch(continue_symbol);
+    } else if (eq(token, 272)) {
+        block_case();
+        block_after_label(break_symbol, continue_symbol, 0);
+    } else if (eq(token, 300)) {
+        block_default();
+        block_after_label(break_symbol, continue_symbol, 0);
+    } else if (eq(token, 268)) {
+        block_goto();
+    } else if (or(eq(token, 311), or(eq(token, 312), eq(token, 313)))) {
+        asm_instr();
+    } else {
+        label = is_label(314);
+        if (label) {
+            block_label(label, break_symbol, continue_symbol,
+                is_expression);
+        } else {
+            block_expression(is_expression);
+        }
+    }
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {
