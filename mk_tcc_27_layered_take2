@@ -75,8 +75,12 @@ gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
     ../tcc_27_layered_take2/cc0_support.c \
     ../tcc_27_layered_take2/cc0.c -o cc0_stage0
 ./cc0_stage0 -c ../tcc_27_layered_take2/cc0.c -o cc0_self_1.o
+./tcc_27_layered_take2 -I ../tcc_27_layered_take2/include \
+    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
+    -c ../tcc_27_layered_take2/cc0_support.c -U__linux__ \
+    -o cc0_self_support.o
 ./tcc_27_layered_take2 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
-    cc0_self_1.o "$HOST_LIBC" "$HOST_LIBGCC" \
+    cc0_self_1.o cc0_self_support.o "$HOST_LIBC" "$HOST_LIBGCC" \
     "$CRTEND" "$CRTN" -o cc0_stage1
 chmod +x cc0_stage1
 ./cc0_stage1 -c ../tcc_27_layered_take2/cc0.c -o cc0_self_2.o
