@@ -112,6 +112,12 @@ function cc2_toksym_alloc(size)
     return malloc(size);
 }
 
+function cc2_format_token_integer(output, low, high)
+{
+    sprintf(output, mks("%u"), low);
+    return 0;
+}
+
 function tcc_realloc(pointer, size)
 {
     return realloc(pointer, size);

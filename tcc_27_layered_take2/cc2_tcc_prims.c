@@ -394,6 +394,12 @@ void *cc2_toksym_alloc(int size)
     return tal_realloc(toksym_alloc, NULL, size);
 }
 
+void cc2_format_token_integer(char *output, unsigned low, unsigned high)
+{
+    unsigned long long value = low | ((unsigned long long)high << 32);
+    sprintf(output, "%llu", value);
+}
+
 /* Rewind a captured initializer through TCC's active macro stream. */
 void initializer_rewind(TokenString *stream)
 {

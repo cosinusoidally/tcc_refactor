@@ -601,6 +601,8 @@ var tok_flags_address;
 var total_lines_address;
 var tokcstr_address;
 var hash_ident_address;
+var cstr_buf_address;
+var tok_two_chars_address;
 var symtab_section_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET;
@@ -2715,6 +2717,166 @@ function add_char(string, character)
         }
     }
     return 0;
+}
+
+function cc2_render_unsigned_decimal(output, value)
+{
+    var scratch;
+    var count;
+    var index;
+    scratch = malloc(16);
+    count = 0;
+    if (eq(value, 0)) {
+        wi8(scratch, CC2_ASCII_DIGIT_ZERO);
+        count = 1;
+    } else {
+        while (value) {
+            wi8(add(scratch, count), add(CC2_ASCII_DIGIT_ZERO,
+                mod(value, 10)));
+            count = add(count, 1);
+            value = sdiv(value, 10);
+        }
+    }
+    index = 0;
+    while (lt(index, count)) {
+        wi8(add(output, index), ri8(add(scratch, sub(sub(count, 1), index))));
+        index = add(index, 1);
+    }
+    wi8(add(output, count), 0);
+    free(scratch);
+    return output;
+}
+
+function cc2_render_small_hex(output, value)
+{
+    var digit;
+    wi8(output, 60);
+    digit = and(ushr(value, 4), 15);
+    if (lt(digit, 10)) {
+        wi8(add(output, 1), add(48, digit));
+    } else {
+        wi8(add(output, 1), add(87, digit));
+    }
+    digit = and(value, 15);
+    if (lt(digit, 10)) {
+        wi8(add(output, 2), add(48, digit));
+    } else {
+        wi8(add(output, 2), add(87, digit));
+    }
+    wi8(add(output, 3), 62);
+    wi8(add(output, 4), 0);
+    return output;
+}
+
+function get_tok_str(token, value)
+{
+    var output;
+    var index;
+    var length;
+    var data;
+    var table;
+    var symbol;
+    cstr_reset(cstr_buf_address);
+    output = ri32(add(cstr_buf_address, CC2_CSTRING_DATA_OFFSET));
+    if (or(or(eq(token, CC2_TOKEN_INTEGER_CONSTANT),
+        eq(token, CC2_TOKEN_UNSIGNED_INTEGER_CONSTANT)), or(or(eq(token,
+        CC2_TOKEN_LONG_CONSTANT), eq(token, CC2_TOKEN_UNSIGNED_LONG_CONSTANT)),
+        or(eq(token, CC2_TOKEN_LONG_LONG_CONSTANT), eq(token,
+        CC2_TOKEN_UNSIGNED_LONG_LONG_CONSTANT))))) {
+        cc2_format_token_integer(output, ri32(value), ri32(add(value,
+            CC2_I386_WORD_BYTES)));
+    } else if (or(eq(token, CC2_TOKEN_CHARACTER),
+        eq(token, CC2_TOKEN_WIDE_CHARACTER))) {
+        if (eq(token, CC2_TOKEN_WIDE_CHARACTER)) {
+            cstr_ccat(cstr_buf_address, 76);
+        }
+        cstr_ccat(cstr_buf_address, CC2_ASCII_SINGLE_QUOTE);
+        add_char(cstr_buf_address, ri32(value));
+        cstr_ccat(cstr_buf_address, CC2_ASCII_SINGLE_QUOTE);
+        cstr_ccat(cstr_buf_address, 0);
+    } else if (or(eq(token, CC2_TOKEN_PREPROCESSOR_NUMBER),
+        eq(token, CC2_TOKEN_PREPROCESSOR_STRING))) {
+        return ri32(add(value, CC2_I386_WORD_BYTES));
+    } else if (or(eq(token, CC2_TOKEN_STRING),
+        eq(token, CC2_TOKEN_WIDE_STRING))) {
+        if (eq(token, CC2_TOKEN_WIDE_STRING)) {
+            cstr_ccat(cstr_buf_address, 76);
+        }
+        cstr_ccat(cstr_buf_address, CC2_ASCII_DOUBLE_QUOTE);
+        data = ri32(add(value, CC2_I386_WORD_BYTES));
+        if (eq(token, CC2_TOKEN_STRING)) {
+            length = sub(ri32(value), 1);
+            index = 0;
+            while (lt(index, length)) {
+                add_char(cstr_buf_address, ri8(add(data, index)));
+                index = add(index, 1);
+            }
+        } else {
+            length = sub(sdiv(ri32(value), CC2_I386_WORD_BYTES), 1);
+            index = 0;
+            while (lt(index, length)) {
+                add_char(cstr_buf_address, ri32(add(data, mul(index,
+                    CC2_I386_WORD_BYTES))));
+                index = add(index, 1);
+            }
+        }
+        cstr_ccat(cstr_buf_address, CC2_ASCII_DOUBLE_QUOTE);
+        cstr_ccat(cstr_buf_address, 0);
+    } else if (eq(token, CC2_TOKEN_FLOAT_CONSTANT)) {
+        cstr_cat(cstr_buf_address, mks("<float>"), 0);
+    } else if (eq(token, CC2_TOKEN_DOUBLE_CONSTANT)) {
+        cstr_cat(cstr_buf_address, mks("<double>"), 0);
+    } else if (eq(token, CC2_TOKEN_LONG_DOUBLE_CONSTANT)) {
+        cstr_cat(cstr_buf_address, mks("<long double>"), 0);
+    } else if (eq(token, CC2_TOKEN_LINE_NUMBER)) {
+        cstr_cat(cstr_buf_address, mks("<linenumber>"), 0);
+    } else if (eq(token, CC2_TOKEN_SIGNED_LESS)) {
+        wi8(output, 60);
+        wi8(add(output, 1), 0);
+    } else if (eq(token, CC2_TOKEN_GREATER)) {
+        wi8(output, 62);
+        wi8(add(output, 1), 0);
+    } else if (eq(token, CC2_TOKEN_DOTS)) {
+        strcpy(output, mks("..."));
+        return output;
+    } else if (eq(token, CC2_ASSIGNMENT_SHIFT_LEFT)) {
+        strcpy(output, mks("<<="));
+        return output;
+    } else if (eq(token, CC2_ASSIGNMENT_SHIFT_RIGHT)) {
+        strcpy(output, mks(">>="));
+        return output;
+    } else if (eq(token, CC2_CHARACTER_END_OF_FILE)) {
+        strcpy(output, mks("<eof>"));
+        return output;
+    } else if (lt(token, CC2_TOKEN_IDENTIFIER_BASE)) {
+        table = tok_two_chars_address;
+        while (ri8(table)) {
+            if (eq(ri8(add(table, 2)), token)) {
+                wi8(output, ri8(table));
+                wi8(add(output, 1), ri8(add(table, 1)));
+                wi8(add(output, 2), 0);
+                return output;
+            }
+            table = add(table, 3);
+        }
+        if (not(lt(token, 127))) {
+            return cc2_render_small_hex(output, token);
+        }
+        wi8(output, token);
+        wi8(add(output, 1), 0);
+    } else if (lt(token, tok_ident)) {
+        symbol = ri32(add(table_ident, mul(sub(token,
+            CC2_TOKEN_IDENTIFIER_BASE), CC2_I386_WORD_BYTES)));
+        return add(symbol, CC2_TOKEN_SYMBOL_TEXT_OFFSET);
+    } else if (not(lt(token, CC2_FIRST_ANONYMOUS_SYMBOL))) {
+        wi8(output, 76);
+        wi8(add(output, 1), 46);
+        cc2_render_unsigned_decimal(add(output, 2), sub(token,
+            CC2_FIRST_ANONYMOUS_SYMBOL));
+    } else {
+        return 0;
+    }
+    return ri32(add(cstr_buf_address, CC2_CSTRING_DATA_OFFSET));
 }
 
 function tok_str_add2(stream, token, value)

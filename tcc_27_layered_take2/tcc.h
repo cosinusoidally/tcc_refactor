@@ -1179,6 +1179,8 @@ extern int *tok_flags_address;
 extern int *total_lines_address;
 extern CString *tokcstr_address;
 extern TokenSym **hash_ident_address;
+extern CString *cstr_buf_address;
+extern const unsigned char *tok_two_chars_address;
 extern int tok_ident;
 extern TokenSym **table_ident;
 
@@ -1426,6 +1428,7 @@ void cc2_put_stabs(const char *text, int type, int other, int description,
                    unsigned long value);
 int cc2_tcc_open(TCCState *state, const char *filename);
 void *cc2_toksym_alloc(int size);
+void cc2_format_token_integer(char *output, unsigned low, unsigned high);
 extern void indir(void);
 extern void lexpand(void);
 extern void lbuild(int type);
