@@ -3553,6 +3553,7 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
     pp_debug_tok = pp_debug_symv = 0;
     pp_once++;
     pvtop = vtop = vstack - 1;
+    vstack_limit = vstack + (VSTACK_SIZE - 1);
     s1->pack_stack[0] = 0;
     s1->pack_stack_ptr = s1->pack_stack;
 

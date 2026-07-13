@@ -523,6 +523,11 @@ PUB_FUNC void tcc_error(const char *fmt, ...)
     }
 }
 
+PUB_FUNC void vstack_overflow_error(int top, int limit)
+{
+    tcc_error("memory full (vstack: top 0x%x, limit 0x%x)", top, limit);
+}
+
 PUB_FUNC void tcc_warning(const char *fmt, ...)
 {
     TCCState *s1 = tcc_state;

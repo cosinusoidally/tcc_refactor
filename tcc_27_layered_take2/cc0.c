@@ -1094,6 +1094,10 @@ function cc0_elf_external_symbol(name, length)
         mks("sym_redeclaration_error"), 23)) {
         return cc0_elf_put_undefined_function(name, length);
     }
+    if (cc0_compiler_slice_equal(name, length,
+        mks("vstack_overflow_error"), 21)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
     if (cc0_compiler_slice_equal(name, length, mks("open"), 4)) {
         if (eq(CC0_ELF_OPEN_SYMBOL, 0)) {
             CC0_ELF_OPEN_SYMBOL = cc0_elf_put_undefined_function(
@@ -3435,6 +3439,9 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("sym_redeclaration_error"))) {
         return 1;
     }
+    if (cc0_text_equal(name, length, mks("vstack_overflow_error"))) {
+        return 2;
+    }
     return sub(0, 1);
 }
 
@@ -3529,6 +3536,9 @@ function cc0_compiler_external_arity(name, length)
     }
     if (cc0_text_equal(name, length, mks("sym_redeclaration_error"))) {
         return 1;
+    }
+    if (cc0_text_equal(name, length, mks("vstack_overflow_error"))) {
+        return 2;
     }
     return sub(0, 1);
 }

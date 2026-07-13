@@ -525,55 +525,6 @@ static void vseti(int r, int v)
     vset(&type, r, v);
 }
 
-ST_FUNC void vpushv(SValue *v)
-{
-    if (vtop >= vstack + (VSTACK_SIZE - 1))
-        tcc_error("memory full (vstack)");
-    vtop++;
-    *vtop = *v;
-}
-
-static void vdup(void)
-{
-    vpushv(vtop);
-}
-
-/* rotate n first stack elements to the bottom
-   I1 ... In -> I2 ... In I1 [top is right]
-*/
-ST_FUNC void vrotb(int n)
-{
-    int i;
-    SValue tmp;
-
-    tmp = vtop[-n + 1];
-    for(i=-n+1;i!=0;i++)
-        vtop[i] = vtop[i+1];
-    vtop[0] = tmp;
-}
-
-/* rotate the n elements before entry e towards the top
-   I1 ... In ... -> In I1 ... I(n-1) ... [top is right]
- */
-ST_FUNC void vrote(SValue *e, int n)
-{
-    int i;
-    SValue tmp;
-
-    tmp = *e;
-    for(i = 0;i < n - 1; i++)
-        e[-i] = e[-i - 1];
-    e[-n + 1] = tmp;
-}
-
-/* rotate n first stack elements to the top
-   I1 ... In -> In I1 ... I(n-1)  [top is right]
- */
-ST_FUNC void vrott(int n)
-{
-    vrote(vtop, n);
-}
-
 /* push a symbol value of TYPE */
 static inline void vpushsym(CType *type, Sym *sym)
 {

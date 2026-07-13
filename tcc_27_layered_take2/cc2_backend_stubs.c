@@ -8,3 +8,8 @@ function sym_redeclaration_error(value)
 {
     return 0;
 }
+
+function vstack_overflow_error(top, limit)
+{
+    return 0;
+}

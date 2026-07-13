@@ -58,6 +58,7 @@ var CC2_TOKEN_IDENTIFIER_BASE = 256;
 var CC2_SYMBOL_STRUCT_FLAG = 1073741824;
 var CC2_SYMBOL_FIELD_FLAG = 536870912;
 var CC2_FIRST_ANONYMOUS_SYMBOL = 268435456;
+var CC2_SVALUE_BYTES = 28;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -90,6 +91,7 @@ var global_label_stack;
 var local_label_stack;
 var vtop;
 var pvtop;
+var vstack_limit;
 var funcname;
 var cur_switch;
 var tok_ident;
@@ -102,6 +104,8 @@ var size_type[2];
 var ptrdiff_type[2];
 /* TCC's 257-entry value stack, with seven i386 words per SValue. */
 var __vstack[1799];
+/* Scratch space is safe because TCC's frontend and value stack are global. */
+var CC2_SVALUE_TEMPORARY;
 
 function cc2_zero_bytes_(address, length, index)
 {
@@ -382,6 +386,82 @@ function sym_pop_(stack_pointer, boundary, keep, symbol, next, value,
 function sym_pop(stack_pointer, boundary, keep)
 {
     return sym_pop_(stack_pointer, boundary, keep, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_copy_svalue(destination, source)
+{
+    return cc2_copy_bytes(destination, source, CC2_SVALUE_BYTES);
+}
+
+function cc2_svalue_temporary()
+{
+    if (eq(CC2_SVALUE_TEMPORARY, 0)) {
+        CC2_SVALUE_TEMPORARY = malloc(CC2_SVALUE_BYTES);
+    }
+    return CC2_SVALUE_TEMPORARY;
+}
+
+function vpushv_(value, limit)
+{
+    limit = vstack_limit;
+    if (not(lt(vtop, limit))) {
+        vstack_overflow_error(vtop, limit);
+    }
+    vtop = add(vtop, CC2_SVALUE_BYTES);
+    cc2_copy_svalue(vtop, value);
+    return 0;
+}
+
+function vpushv(value)
+{
+    return vpushv_(value, 0);
+}
+
+function vdup()
+{
+    return vpushv(vtop);
+}
+
+function vrotb_(count, current, first)
+{
+    first = sub(vtop, mul(sub(count, 1), CC2_SVALUE_BYTES));
+    cc2_copy_svalue(cc2_svalue_temporary(), first);
+    current = first;
+    while (not(eq(current, vtop))) {
+        cc2_copy_svalue(current, add(current, CC2_SVALUE_BYTES));
+        current = add(current, CC2_SVALUE_BYTES);
+    }
+    cc2_copy_svalue(vtop, cc2_svalue_temporary());
+    return 0;
+}
+
+function vrotb(count)
+{
+    return vrotb_(count, 0, 0);
+}
+
+function vrote_(entry, count, index)
+{
+    cc2_copy_svalue(cc2_svalue_temporary(), entry);
+    index = 0;
+    while (lt(index, sub(count, 1))) {
+        cc2_copy_svalue(sub(entry, mul(index, CC2_SVALUE_BYTES)),
+            sub(entry, mul(add(index, 1), CC2_SVALUE_BYTES)));
+        index = add(index, 1);
+    }
+    cc2_copy_svalue(sub(entry, mul(sub(count, 1), CC2_SVALUE_BYTES)),
+        cc2_svalue_temporary());
+    return 0;
+}
+
+function vrote(entry, count)
+{
+    return vrote_(entry, count, 0);
+}
+
+function vrott(count)
+{
+    return vrote(vtop, count);
 }
 
 function cc2_copy_bytes_(destination, source, length, index)

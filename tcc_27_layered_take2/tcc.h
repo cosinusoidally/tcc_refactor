@@ -1265,6 +1265,7 @@ extern Sym *define_stack;
 extern CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
 extern SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE];
 extern SValue *vtop, *pvtop;
+extern SValue *vstack_limit;
 #define vstack  (__vstack + 1)
 extern int rsym, anon_sym, ind, loc;
 
@@ -1311,14 +1312,16 @@ ST_FUNC Sym *external_global_sym(int v, CType *type, int r);
 ST_FUNC void vset(CType *type, int r, int v);
 ST_FUNC void vswap(void);
 ST_FUNC void vpush_global_sym(CType *type, int v);
-ST_FUNC void vrote(SValue *e, int n);
-ST_FUNC void vrott(int n);
-ST_FUNC void vrotb(int n);
+extern void vrote(SValue *e, int n);
+extern void vrott(int n);
+extern void vrotb(int n);
+extern void vdup(void);
+extern void vstack_overflow_error(int top, int limit);
 #ifdef TCC_TARGET_ARM
 ST_FUNC int get_reg_ex(int rc, int rc2);
 ST_FUNC void lexpand_nr(void);
 #endif
-ST_FUNC void vpushv(SValue *v);
+extern void vpushv(SValue *v);
 ST_FUNC void save_reg(int r);
 ST_FUNC void save_reg_upstack(int r, int n);
 ST_FUNC int get_reg(int rc);
