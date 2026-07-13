@@ -1224,6 +1224,8 @@ int cc0_to_upper();
 int cc0_set_idnum();
 int cc0_check_space();
 int cc0_token_hash();
+int cc0_number_zero();
+int cc0_number_lshift();
 
 static inline int is_space(int ch) {
     return cc0_is_space(ch);

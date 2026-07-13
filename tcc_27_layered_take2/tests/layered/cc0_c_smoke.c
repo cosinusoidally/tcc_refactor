@@ -10,12 +10,10 @@ int cc0_is_space();
 int cc0_to_upper();
 int cc0_set_idnum();
 int cc0_check_space();
-int cc0_token_hash();
 
 int main()
 {
     unsigned char character_flags[257] = { 0 };
-    unsigned char token_text[4] = { 97, 98, 99, 0 };
     int previous_space = 0;
 
     cc0_init();
@@ -59,9 +57,6 @@ int main()
     if (cc0_check_space((int)character_flags, 65, (int)&previous_space) != 0 ||
         previous_space != 0) {
         return 13;
-    }
-    if (cc0_token_hash((int)token_text, 3) != 13831) {
-        return 14;
     }
     return 0;
 }

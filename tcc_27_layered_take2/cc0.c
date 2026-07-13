@@ -14,6 +14,9 @@ var CC0_TOKEN_HASH_INITIAL;
 var CC0_TOKEN_HASH_LEFT_SHIFT;
 var CC0_TOKEN_HASH_RIGHT_SHIFT;
 var CC0_TOKEN_HASH_BUCKET_MASK;
+var CC0_WORD_ADDRESS_SHIFT;
+var CC0_WORD_BITS;
+var CC0_NUMBER_WORD_COUNT;
 
 /* Named ASCII values keep character classification independent of literals. */
 var CC0_ASCII_TAB;
@@ -42,6 +45,9 @@ function cc0_init()
     CC0_TOKEN_HASH_LEFT_SHIFT = 5;
     CC0_TOKEN_HASH_RIGHT_SHIFT = 27;
     CC0_TOKEN_HASH_BUCKET_MASK = 16383;
+    CC0_WORD_ADDRESS_SHIFT = 2;
+    CC0_WORD_BITS = 32;
+    CC0_NUMBER_WORD_COUNT = 2;
     CC0_ASCII_TAB = 9;
     CC0_ASCII_LINE_FEED = 10;
     CC0_ASCII_VERTICAL_TAB = 11;
@@ -209,4 +215,40 @@ function cc0_token_hash_(text, length, index, hash, character, left_part, right_
 function cc0_token_hash(text, length)
 {
     return cc0_token_hash_(text, length, 0, 0, 0, 0, 0);
+}
+
+/* TCC accumulates hexadecimal and binary floating literals in two words. */
+function cc0_number_zero_(number, index, address)
+{
+    index = 0;
+    while (lt(index, CC0_NUMBER_WORD_COUNT)) {
+        address = add(number, shl(index, CC0_WORD_ADDRESS_SHIFT));
+        wi32(address, 0);
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_number_zero(number)
+{
+    return cc0_number_zero_(number, 0, 0);
+}
+
+function cc0_number_lshift_(number, shift, low_bits, index, address, value)
+{
+    index = 0;
+    while (lt(index, CC0_NUMBER_WORD_COUNT)) {
+        address = add(number, shl(index, CC0_WORD_ADDRESS_SHIFT));
+        value = ri32(address);
+        /* low_bits occupies positions cleared by the shift, so add acts as OR. */
+        wi32(address, add(shl(value, shift), low_bits));
+        low_bits = ushr(value, sub(CC0_WORD_BITS, shift));
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_number_lshift(number, shift, low_bits)
+{
+    return cc0_number_lshift_(number, shift, low_bits, 0, 0, 0);
 }

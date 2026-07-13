@@ -2226,21 +2226,12 @@ static void parse_string(const char *s, int len)
 /* bn = (bn << shift) | or_val */
 static void bn_lshift(unsigned int *bn, int shift, int or_val)
 {
-    int i;
-    unsigned int v;
-    for(i=0;i<BN_SIZE;i++) {
-        v = bn[i];
-        bn[i] = (v << shift) | or_val;
-        or_val = v >> (32 - shift);
-    }
+    cc0_number_lshift((int)bn, shift, or_val);
 }
 
 static void bn_zero(unsigned int *bn)
 {
-    int i;
-    for(i=0;i<BN_SIZE;i++) {
-        bn[i] = 0;
-    }
+    cc0_number_zero((int)bn);
 }
 
 /* parse number in null terminated string 'p' and return it in the

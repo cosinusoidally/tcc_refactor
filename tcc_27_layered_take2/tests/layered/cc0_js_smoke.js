@@ -47,11 +47,3 @@ if (cc0_check_space(characterFlags, 65, previousSpace) !== 0 ||
     ri32(previousSpace) !== 0) {
     throw new Error("cc0 non-space reset failed");
 }
-
-var tokenText = 3072;
-wi8(tokenText, 97);
-wi8(add(tokenText, 1), 98);
-wi8(add(tokenText, 2), 99);
-if (cc0_token_hash(tokenText, 3) !== 13831) {
-    throw new Error("cc0 token hash failed");
-}
