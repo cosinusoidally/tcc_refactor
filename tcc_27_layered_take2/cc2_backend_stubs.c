@@ -165,12 +165,12 @@ function init_putv(type, section, offset)
     return 0;
 }
 
-function decl_initializer(type, section, offset, first, size_only)
+function initializer_repeat(section, offset, element_size, element_count)
 {
     return 0;
 }
 
-function initializer_repeat(section, offset, element_size, element_count)
+function initializer_copy_string(section, offset, source, count)
 {
     return 0;
 }

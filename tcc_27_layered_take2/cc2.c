@@ -5014,6 +5014,232 @@ function decl_designator(type, section, offset, current_field, size_only,
     return initialized_length;
 }
 
+function decl_initializer(type, section, offset, first, size_only)
+{
+    var have_element;
+    var type_value;
+    var symbol;
+    var field;
+    var field_holder;
+    var index_symbol;
+    var element_type;
+    var element_size;
+    var alignment;
+    var count;
+    var length;
+    var string_length;
+    var copy_count;
+    var index;
+    var character;
+    var no_outer_block;
+    var string_initializer;
+    var is_array;
+    var token;
+    token = ri32(tok_address);
+    have_element = or(eq(token, 125), eq(token, 44));
+    if (not(have_element)) {
+        if (and(not(eq(token, 123)), and(not(eq(token,
+            CC2_TOKEN_WIDE_STRING)), and(not(eq(token, CC2_TOKEN_STRING)),
+            not(size_only))))) {
+            if (section) {
+                parse_init_elem(1);
+            } else {
+                parse_init_elem(2);
+            }
+            have_element = 1;
+        }
+    }
+    type_value = ri32(type);
+    if (have_element) {
+        if (and(eq(and(type_value, CC2_TCC_ARRAY_TYPE), 0),
+            is_compatible_unqualified_types(type, vtop))) {
+            init_putv(type, section, offset);
+            return 0;
+        }
+    }
+    is_array = not(eq(and(type_value, CC2_TCC_ARRAY_TYPE), 0));
+    if (or(is_array, eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_STRUCT_TYPE))) {
+        alignment = malloc(4);
+        index_symbol = malloc(CC2_SYM_BYTES);
+        field_holder = malloc(4);
+        cc2_zero_bytes(index_symbol, CC2_SYM_BYTES);
+        no_outer_block = 1;
+        string_initializer = 0;
+        if (is_array) {
+            symbol = ri32(add(type, 4));
+            count = ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET));
+            element_type = pointed_type(type);
+            element_size = type_size(element_type, alignment);
+            token = ri32(tok_address);
+            if (or(and(first, and(not(eq(token,
+                CC2_TOKEN_WIDE_STRING)), not(eq(token, CC2_TOKEN_STRING)))),
+                eq(token, 123))) {
+                if (not(eq(token, 123))) {
+                    tcc_error(mks("character array initializer must be a literal, optionally enclosed in braces"), 0);
+                }
+                skip(123);
+                no_outer_block = 0;
+            }
+            token = ri32(tok_address);
+            if (and(eq(token, CC2_TOKEN_WIDE_STRING),
+                eq(and(ri32(element_type), CC2_TCC_BASIC_TYPE_MASK),
+                CC2_TCC_INT_TYPE))) {
+                string_initializer = 1;
+            } else if (and(eq(token, CC2_TOKEN_STRING),
+                eq(and(ri32(element_type), CC2_TCC_BASIC_TYPE_MASK),
+                CC2_TCC_BYTE_TYPE))) {
+                string_initializer = 1;
+            }
+        } else {
+            element_size = 1;
+            if (or(first, eq(ri32(tok_address), 123))) {
+                skip(123);
+                no_outer_block = 0;
+            }
+            symbol = ri32(add(type, 4));
+            count = ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET));
+            element_type = 0;
+            wi32(field_holder, ri32(add(symbol, CC2_SYM_NEXT_OFFSET)));
+        }
+        if (string_initializer) {
+            length = 0;
+            while (or(eq(ri32(tok_address), CC2_TOKEN_STRING),
+                eq(ri32(tok_address), CC2_TOKEN_WIDE_STRING))) {
+                token = ri32(tok_address);
+                string_length = ri32(add(tokc_address,
+                    CC2_CSTRING_SIZE_OFFSET));
+                if (eq(token, CC2_TOKEN_WIDE_STRING)) {
+                    string_length = sdiv(string_length, 4);
+                }
+                string_length = sub(string_length, 1);
+                copy_count = string_length;
+                if (not(lt(count, 0))) {
+                    if (lt(sub(count, length), copy_count)) {
+                        copy_count = sub(count, length);
+                    }
+                }
+                if (not(size_only)) {
+                    if (lt(copy_count, string_length)) {
+                        tcc_warning(mks("initializer-string for array is too long"), 0);
+                    }
+                    if (and(section, and(eq(token, CC2_TOKEN_STRING),
+                        eq(element_size, 1)))) {
+                        if (not(lt(0, nocode_wanted))) {
+                            initializer_copy_string(section,
+                                add(offset, length),
+                                ri32(add(tokc_address,
+                                CC2_CSTRING_DATA_OFFSET)), copy_count);
+                        }
+                    } else {
+                        index = 0;
+                        while (lt(index, copy_count)) {
+                            if (eq(token, CC2_TOKEN_STRING)) {
+                                character = ri8(add(ri32(add(tokc_address,
+                                    CC2_CSTRING_DATA_OFFSET)), index));
+                            } else {
+                                character = ri32(add(ri32(add(tokc_address,
+                                    CC2_CSTRING_DATA_OFFSET)), mul(index, 4)));
+                            }
+                            vpushi(character);
+                            init_putv(element_type, section, add(offset,
+                                mul(add(length, index), element_size)));
+                            index = add(index, 1);
+                        }
+                    }
+                }
+                length = add(length, copy_count);
+                next();
+            }
+            if (or(lt(count, 0), lt(length, count))) {
+                if (not(size_only)) {
+                    vpushi(0);
+                    init_putv(element_type, section,
+                        add(offset, mul(length, element_size)));
+                }
+                length = add(length, 1);
+            }
+            length = mul(length, element_size);
+        } else {
+            length = 0;
+            if (is_array) {
+                wi32(add(index_symbol, CC2_SYM_CONSTANT_OFFSET), 0);
+                wi32(field_holder, index_symbol);
+            }
+            while (or(not(eq(ri32(tok_address), 125)), have_element)) {
+                length = decl_designator(type, section, offset,
+                    field_holder, size_only, length);
+                have_element = 0;
+                if (is_array) {
+                    wi32(add(index_symbol, CC2_SYM_CONSTANT_OFFSET), add(
+                        ri32(add(index_symbol, CC2_SYM_CONSTANT_OFFSET)), 1));
+                    if (no_outer_block) {
+                        if (not(lt(length, mul(count, element_size)))) {
+                            break;
+                        }
+                    }
+                } else {
+                    field = ri32(field_holder);
+                    if (eq(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)),
+                        CC2_TCC_UNION_TYPE)) {
+                        field = 0;
+                    } else if (field) {
+                        field = ri32(add(field, CC2_SYM_NEXT_OFFSET));
+                    }
+                    wi32(field_holder, field);
+                    if (and(no_outer_block, not(field))) {
+                        break;
+                    }
+                }
+                if (eq(ri32(tok_address), 125)) {
+                    break;
+                }
+                skip(44);
+            }
+        }
+        if (not(size_only)) {
+            if (lt(length, mul(count, element_size))) {
+                init_putz(section, add(offset, length),
+                    sub(mul(count, element_size), length));
+            }
+        }
+        if (not(no_outer_block)) {
+            skip(125);
+        }
+        if (and(is_array, lt(count, 0))) {
+            if (eq(element_size, 1)) {
+                wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET), length);
+            } else {
+                wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET), sdiv(add(length,
+                    sub(element_size, 1)), element_size));
+            }
+        }
+        free(field_holder);
+        free(index_symbol);
+        free(alignment);
+    } else if (eq(ri32(tok_address), 123)) {
+        next();
+        decl_initializer(type, section, offset, first, size_only);
+        skip(125);
+    } else if (size_only) {
+        skip_or_save_block(0);
+    } else {
+        if (not(have_element)) {
+            if (and(not(eq(ri32(tok_address), CC2_TOKEN_STRING)),
+                not(eq(ri32(tok_address), CC2_TOKEN_WIDE_STRING)))) {
+                expect(mks("string constant"));
+            }
+            if (section) {
+                parse_init_elem(1);
+            } else {
+                parse_init_elem(2);
+            }
+        }
+        init_putv(type, section, offset);
+    }
+    return 0;
+}
+
 function block_return()
 {
     next();

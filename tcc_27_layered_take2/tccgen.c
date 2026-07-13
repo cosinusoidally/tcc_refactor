@@ -1067,6 +1067,13 @@ void initializer_repeat(Section *sec, unsigned long c, int elem_size,
     }
 }
 
+/* Copy tokenized narrow-string bytes into TCC's target section storage. */
+void initializer_copy_string(Section *sec, unsigned long offset,
+                             const void *source, int count)
+{
+    memcpy(sec->data + offset, source, count);
+}
+
 /* store a value or an expression directly in global data or in local array */
 void init_putv(CType *type, Section *sec, unsigned long c)
 {
@@ -1262,189 +1269,6 @@ void init_putv(CType *type, Section *sec, unsigned long c)
    allocation. 'first' is true if array '{' must be read (multi
    dimension implicit array init handling). 'size_only' is true if
    size only evaluation is wanted (only for arrays). */
-void decl_initializer(CType *type, Section *sec, unsigned long c,
-                      int first, int size_only)
-{
-    int len, n, no_oblock, nb, i;
-    int size1, align1;
-    int have_elem;
-    Sym *s, *f;
-    Sym indexsym;
-    CType *t1;
-
-    /* If we currently are at an '}' or ',' we have read an initializer
-       element in one of our callers, and not yet consumed it.  */
-    have_elem = tok == '}' || tok == ',';
-    if (!have_elem && tok != '{' &&
-	/* In case of strings we have special handling for arrays, so
-	   don't consume them as initializer value (which would commit them
-	   to some anonymous symbol).  */
-	tok != TOK_LSTR && tok != TOK_STR &&
-	!size_only) {
-	parse_init_elem(!sec ? EXPR_ANY : EXPR_CONST);
-	have_elem = 1;
-    }
-
-    if (have_elem &&
-	!(type->t & VT_ARRAY) &&
-	/* Use i_c_parameter_t, to strip toplevel qualifiers.
-	   The source type might have VT_CONSTANT set, which is
-	   of course assignable to non-const elements.  */
-	is_compatible_unqualified_types(type, &vtop->type)) {
-        init_putv(type, sec, c);
-    } else if (type->t & VT_ARRAY) {
-        s = type->ref;
-        n = s->c;
-        t1 = pointed_type(type);
-        size1 = type_size(t1, &align1);
-
-        no_oblock = 1;
-        if ((first && tok != TOK_LSTR && tok != TOK_STR) || 
-            tok == '{') {
-            if (tok != '{')
-                tcc_error("character array initializer must be a literal,"
-                    " optionally enclosed in braces");
-            skip('{');
-            no_oblock = 0;
-        }
-
-        /* only parse strings here if correct type (otherwise: handle
-           them as ((w)char *) expressions */
-        if ((tok == TOK_LSTR && 
-#ifdef TCC_TARGET_PE
-             (t1->t & VT_BTYPE) == VT_SHORT && (t1->t & VT_UNSIGNED)
-#else
-             (t1->t & VT_BTYPE) == VT_INT
-#endif
-            ) || (tok == TOK_STR && (t1->t & VT_BTYPE) == VT_BYTE)) {
-	    len = 0;
-            while (tok == TOK_STR || tok == TOK_LSTR) {
-                int cstr_len, ch;
-
-                /* compute maximum number of chars wanted */
-                if (tok == TOK_STR)
-                    cstr_len = tokc.str.size;
-                else
-                    cstr_len = tokc.str.size / sizeof(nwchar_t);
-                cstr_len--;
-                nb = cstr_len;
-                if (n >= 0 && nb > (n - len))
-                    nb = n - len;
-                if (!size_only) {
-                    if (cstr_len > nb)
-                        tcc_warning("initializer-string for array is too long");
-                    /* in order to go faster for common case (char
-                       string in global variable, we handle it
-                       specifically */
-                    if (sec && tok == TOK_STR && size1 == 1) {
-                        if (!NODATA_WANTED)
-                            memcpy(sec->data + c + len, tokc.str.data, nb);
-                    } else {
-                        for(i=0;i<nb;i++) {
-                            if (tok == TOK_STR)
-                                ch = ((unsigned char *)tokc.str.data)[i];
-                            else
-                                ch = ((nwchar_t *)tokc.str.data)[i];
-			    vpushi(ch);
-                            init_putv(t1, sec, c + (len + i) * size1);
-                        }
-                    }
-                }
-                len += nb;
-                next();
-            }
-            /* only add trailing zero if enough storage (no
-               warning in this case since it is standard) */
-            if (n < 0 || len < n) {
-                if (!size_only) {
-		    vpushi(0);
-                    init_putv(t1, sec, c + (len * size1));
-                }
-                len++;
-            }
-	    len *= size1;
-        } else {
-	    indexsym.c = 0;
-	    f = &indexsym;
-
-          do_init_list:
-	    len = 0;
-	    while (tok != '}' || have_elem) {
-		len = decl_designator(type, sec, c, &f, size_only, len);
-		have_elem = 0;
-		if (type->t & VT_ARRAY) {
-		    ++indexsym.c;
-		    /* special test for multi dimensional arrays (may not
-		       be strictly correct if designators are used at the
-		       same time) */
-		    if (no_oblock && len >= n*size1)
-		        break;
-		} else {
-		    if (s->type.t == VT_UNION)
-		        f = NULL;
-		    else
-		        f = f->next;
-		    if (no_oblock && f == NULL)
-		        break;
-		}
-
-		if (tok == '}')
-		    break;
-		skip(',');
-	    }
-        }
-        /* put zeros at the end */
-	if (!size_only && len < n*size1)
-	    init_putz(sec, c + len, n*size1 - len);
-        if (!no_oblock)
-            skip('}');
-        /* patch type size if needed, which happens only for array types */
-        if (n < 0)
-            s->c = size1 == 1 ? len : ((len + size1 - 1)/size1);
-    } else if ((type->t & VT_BTYPE) == VT_STRUCT) {
-	size1 = 1;
-        no_oblock = 1;
-        if (first || tok == '{') {
-            skip('{');
-            no_oblock = 0;
-        }
-        s = type->ref;
-        f = s->next;
-        n = s->c;
-	goto do_init_list;
-    } else if (tok == '{') {
-        next();
-        decl_initializer(type, sec, c, first, size_only);
-        skip('}');
-    } else if (size_only) {
-	/* If we supported only ISO C we wouldn't have to accept calling
-	   this on anything than an array size_only==1 (and even then
-	   only on the outermost level, so no recursion would be needed),
-	   because initializing a flex array member isn't supported.
-	   But GNU C supports it, so we need to recurse even into
-	   subfields of structs and arrays when size_only is set.  */
-        /* just skip expression */
-        skip_or_save_block(NULL);
-    } else {
-	if (!have_elem) {
-	    /* This should happen only when we haven't parsed
-	       the init element above for fear of committing a
-	       string constant to memory too early.  */
-	    if (tok != TOK_STR && tok != TOK_LSTR)
-	      expect("string constant");
-	    parse_init_elem(!sec ? EXPR_ANY : EXPR_CONST);
-	}
-        init_putv(type, sec, c);
-    }
-}
-
-/* parse an initializer for type 't' if 'has_init' is non zero, and
-   allocate space in local or global data space ('r' is either
-   VT_LOCAL or VT_CONST). If 'v' is non zero, then an associated
-   variable 'v' of scope 'scope' is declared before initializers
-   are parsed. If 'v' is zero, then a reference to the new object
-   is put in the value stack. If 'has_init' is 2, a special parsing
-   is done to handle string constants. */
 void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
                             int has_init, int v, int scope)
 {
