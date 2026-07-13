@@ -344,11 +344,7 @@ redo:
     } else if (s->output_type == TCC_OUTPUT_PREPROCESS) {
         ;
     } else if (0 == ret) {
-        if (s->output_type == TCC_OUTPUT_MEMORY) {
-#ifdef TCC_IS_NATIVE
-            ret = tcc_run(s, argc, argv);
-#endif
-        } else {
+        if (s->output_type != TCC_OUTPUT_MEMORY) {
             if (!s->outfile)
                 s->outfile = default_outputfile(s, first_file);
             if (tcc_output_file(s, s->outfile))

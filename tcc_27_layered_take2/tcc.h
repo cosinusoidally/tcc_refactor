@@ -1152,7 +1152,7 @@ ST_FUNC char *normalize_slashes(char *path);
 /* ------------ tccpp.c ------------ */
 
 ST_DATA struct BufferedFile *file;
-ST_DATA int ch;
+extern int ch;
 extern int tok;
 extern int *tok_address;
 extern int *gnu_ext_address;
@@ -1168,7 +1168,7 @@ ST_DATA CString tokcstr; /* current parsed string, if any */
 
 /* display benchmark infos */
 ST_DATA int total_lines;
-ST_DATA int total_bytes;
+extern int total_bytes;
 extern int tok_ident;
 extern TokenSym **table_ident;
 
@@ -1225,6 +1225,7 @@ ST_FUNC void tccpp_delete(TCCState *s);
 ST_FUNC int tcc_preprocess(TCCState *s1);
 void skip(int c);
 extern NORETURN void expect(const char *msg);
+int cc2_init_constants(void);
 
 /* Implemented in cc0.c and retained here under the original TCC names. */
 int cc0_init();
@@ -1526,8 +1527,8 @@ ST_FUNC int tcc_load_dll(TCCState *s1, int fd, const char *filename, int level);
 ST_FUNC int tcc_load_ldscript(TCCState *s1);
 ST_FUNC uint8_t *parse_comment(uint8_t *p);
 ST_FUNC void minp(void);
-ST_INLN void inp(void);
-ST_FUNC int handle_eob(void);
+void inp(void);
+int handle_eob(void);
 #endif
 
 /* ------------ xxx-link.c ------------ */
@@ -1718,28 +1719,6 @@ PUB_FUNC int tcc_get_dllexports(const char *filename, char **pp);
 # define ST_PE_STDCALL 0x40
 #endif
 #define ST_ASM_SET 0x04
-
-/* ------------ tccrun.c ----------------- */
-#ifdef TCC_IS_NATIVE
-#ifdef CONFIG_TCC_STATIC
-#define RTLD_LAZY       0x001
-#define RTLD_NOW        0x002
-#define RTLD_GLOBAL     0x100
-#define RTLD_DEFAULT    NULL
-/* dummy function for profiling */
-ST_FUNC void *dlopen(const char *filename, int flag);
-ST_FUNC void dlclose(void *p);
-ST_FUNC const char *dlerror(void);
-ST_FUNC void *dlsym(void *handle, const char *symbol);
-#endif
-#ifdef CONFIG_TCC_BACKTRACE
-ST_DATA int rt_num_callers;
-ST_DATA const char **rt_bound_error_msg;
-ST_DATA void *rt_prog_main;
-ST_FUNC void tcc_set_num_callers(int n);
-#endif
-ST_FUNC void tcc_run_free(TCCState *s1);
-#endif
 
 /* ------------ tcctools.c ----------------- */
 #if 0 /* included in tcc.c */

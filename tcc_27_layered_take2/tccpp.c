@@ -27,14 +27,12 @@ ST_DATA int tok_flags;
 ST_DATA int parse_flags;
 
 ST_DATA struct BufferedFile *file;
-ST_DATA int ch;
 int tok;
 CValue tokc;
 ST_DATA CString tokcstr; /* current parsed string, if any */
 
 /* display benchmark infos */
 ST_DATA int total_lines;
-ST_DATA int total_bytes;
 
 PUB_FUNC void sym_redeclaration_error(int v)
 {
@@ -496,49 +494,6 @@ const char *get_tok_str(int v, CValue *cv)
         break;
     }
     return cstr_buf.data;
-}
-
-/* return the current character, handling end of block if necessary
-   (but not stray) */
-ST_FUNC int handle_eob(void)
-{
-    BufferedFile *bf = file;
-    int len;
-
-    /* only tries to read if really end of buffer */
-    if (bf->buf_ptr >= bf->buf_end) {
-        if (bf->fd >= 0) {
-#if defined(PARSE_DEBUG)
-            len = 1;
-#else
-            len = IO_BUF_SIZE;
-#endif
-            len = read(bf->fd, bf->buffer, len);
-            if (len < 0)
-                len = 0;
-        } else {
-            len = 0;
-        }
-        total_bytes += len;
-        bf->buf_ptr = bf->buffer;
-        bf->buf_end = bf->buffer + len;
-        *bf->buf_end = CH_EOB;
-    }
-    if (bf->buf_ptr < bf->buf_end) {
-        return bf->buf_ptr[0];
-    } else {
-        bf->buf_ptr = bf->buf_end;
-        return CH_EOF;
-    }
-}
-
-/* read next char from current input file and handle end of input buffer */
-ST_INLN void inp(void)
-{
-    ch = *(++(file->buf_ptr));
-    /* end of buffer/file handling */
-    if (ch == CH_EOB)
-        ch = handle_eob();
 }
 
 /* handle '\[\r]\n' */
@@ -3106,7 +3061,6 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
     tokc_address = &tokc;
     gnu_ext_address = &gnu_ext;
     parse_flags_address = &parse_flags;
-    file_address = &file;
     symtab_section_address = &symtab_section;
     data_section_address = &data_section;
     cur_text_section_address = &cur_text_section;
@@ -3161,6 +3115,7 @@ ST_FUNC void tccpp_new(TCCState *s)
     const char *p, *r;
 
     define_stack_address = &define_stack;
+    file_address = &file;
 
     /* cc0 owns the character classes used to initialize this lexer. */
     cc0_init();

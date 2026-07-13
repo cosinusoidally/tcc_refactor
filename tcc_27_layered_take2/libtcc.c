@@ -40,7 +40,6 @@ static int nb_states;
 #define malloc(s) use_tcc_malloc(s)
 #include "tccpp.c"
 #include "tccelf.c"
-#include "tccrun.c"
 #include "cc2_tcc_prims.c"
 /* EBX remains reserved, matching the historical i386 allocation. */
 #define USE_EBX 0
@@ -679,6 +678,7 @@ LIBTCCAPI TCCState *tcc_new(void)
 {
     TCCState *s;
 
+    cc2_init_constants();
     tcc_cleanup();
 
     s = tcc_mallocz(sizeof(TCCState));
@@ -874,11 +874,6 @@ LIBTCCAPI void tcc_delete(TCCState *s1)
     dynarray_reset(&s1->target_deps, &s1->nb_target_deps);
     dynarray_reset(&s1->pragma_libs, &s1->nb_pragma_libs);
     dynarray_reset(&s1->argv, &s1->argc);
-
-#ifdef TCC_IS_NATIVE
-    /* free runtime memory */
-    tcc_run_free(s1);
-#endif
 
     tcc_free(s1);
     if (0 == --nb_states)
@@ -1706,11 +1701,6 @@ reparse:
         case TCC_OPTION_bench:
             s->do_bench = 1;
             break;
-#ifdef CONFIG_TCC_BACKTRACE
-        case TCC_OPTION_bt:
-            tcc_set_num_callers(atoi(optarg));
-            break;
-#endif
 #ifdef CONFIG_TCC_BCHECK
         case TCC_OPTION_b:
             s->do_bounds_check = 1;
