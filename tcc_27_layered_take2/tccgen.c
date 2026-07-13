@@ -367,35 +367,6 @@ void type_to_str(char *buf, int buf_size,
  no_var: ;
 }
 
-void tcc_error_type_pair(CType *source_type, CType *destination_type)
-{
-    char source[256], destination[256];
-
-    type_to_str(source, sizeof(source), source_type, NULL);
-    type_to_str(destination, sizeof(destination), destination_type, NULL);
-    tcc_error("cannot cast '%s' to '%s'", source, destination);
-}
-
-/* verify type compatibility to store vtop in 'dt' type, and generate
-   casts if needed. */
-
-/* store vtop in lvalue pushed on stack */
-
-/* post defines POST/PRE add. c is the token ++ or -- */
-
-void parse_mult_str (CString *astr, const char *msg)
-{
-    /* read the string */
-    if (tok != TOK_STR)
-        expect(msg);
-    cstr_new(astr);
-    while (tok == TOK_STR) {
-        /* XXX: add \0 handling too ? */
-        cstr_cat(astr, tokc.str.data, -1);
-        next();
-    }
-    cstr_ccat(astr, '\0');
-}
 
 /* Parse __attribute__((...)) GNUC extension. */
 /* Parse a type declarator (except basic type), and return the type

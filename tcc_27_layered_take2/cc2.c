@@ -324,6 +324,7 @@ var CC2_ELF_RELOCATION_TYPE_MASK = 255;
 var CC2_ELF_RELOCATION_SYMBOL_SHIFT = 8;
 var CC2_I386_DATA_POINTER_RELOCATION = 1;
 var CC2_INITIALIZER_SYMBOL_CONSTANT = 560;
+var CC2_TYPE_ERROR_BUFFER_BYTES = 256;
 var CC2_CSTRING_SIZE_OFFSET = 0;
 var CC2_CSTRING_DATA_OFFSET = 4;
 var CC2_CSTRING_BYTES = 12;
@@ -6280,6 +6281,34 @@ function init_putv(type, section, offset)
         vpop();
     }
     free(destination_type);
+    return 0;
+}
+
+function tcc_error_type_pair(source_type, destination_type)
+{
+    var source;
+    var destination;
+    source = malloc(CC2_TYPE_ERROR_BUFFER_BYTES);
+    destination = malloc(CC2_TYPE_ERROR_BUFFER_BYTES);
+    type_to_str(source, CC2_TYPE_ERROR_BUFFER_BYTES, source_type, 0);
+    type_to_str(destination, CC2_TYPE_ERROR_BUFFER_BYTES,
+        destination_type, 0);
+    tcc_error(mks("cannot cast '%s' to '%s'"), source, destination);
+    return 0;
+}
+
+function parse_mult_str(string, message)
+{
+    if (not(eq(ri32(tok_address), CC2_TOKEN_STRING))) {
+        expect(message);
+    }
+    cstr_new(string);
+    while (eq(ri32(tok_address), CC2_TOKEN_STRING)) {
+        cstr_cat(string, ri32(add(tokc_address,
+            CC2_CSTRING_DATA_OFFSET)), sub(0, 1));
+        next();
+    }
+    cstr_ccat(string, 0);
     return 0;
 }
 

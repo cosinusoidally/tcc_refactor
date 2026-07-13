@@ -340,7 +340,7 @@ static void cstr_realloc(CString *cstr, int new_size)
 }
 
 /* add a byte */
-ST_INLN void cstr_ccat(CString *cstr, int ch)
+void cstr_ccat(CString *cstr, int ch)
 {
     int size;
     size = cstr->size + 1;
@@ -350,7 +350,7 @@ ST_INLN void cstr_ccat(CString *cstr, int ch)
     cstr->size = size;
 }
 
-ST_FUNC void cstr_cat(CString *cstr, const char *str, int len)
+void cstr_cat(CString *cstr, const char *str, int len)
 {
     int size;
     if (len <= 0)
@@ -373,7 +373,7 @@ ST_FUNC void cstr_wccat(CString *cstr, int ch)
     cstr->size = size;
 }
 
-ST_FUNC void cstr_new(CString *cstr)
+void cstr_new(CString *cstr)
 {
     memset(cstr, 0, sizeof(CString));
 }
