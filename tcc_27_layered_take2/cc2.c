@@ -308,6 +308,13 @@ var CC2_INLINE_SYMBOL_OFFSET = 4;
 var CC2_INLINE_FILENAME_OFFSET = 8;
 var CC2_BUFFERED_FILE_LINE_OFFSET = 16;
 var CC2_BUFFERED_FILE_FILENAME_OFFSET = 40;
+var CC2_SECTION_NUMBER_OFFSET = 16;
+var CC2_ELF_SYMBOL_BIND_SHIFT = 4;
+var CC2_ELF_SYMBOL_LOCAL_BINDING = 0;
+var CC2_ELF_SYMBOL_GLOBAL_BINDING = 1;
+var CC2_ELF_SYMBOL_NO_TYPE = 0;
+var CC2_ELF_SYMBOL_OBJECT_TYPE = 1;
+var CC2_ELF_SYMBOL_FUNCTION_TYPE = 2;
 var CC2_CSTRING_SIZE_OFFSET = 0;
 var CC2_CSTRING_DATA_OFFSET = 4;
 var CC2_CSTRING_BYTES = 12;
@@ -374,6 +381,7 @@ var tcc_state_address;
 var gnu_ext_address;
 var parse_flags_address;
 var file_address;
+var symtab_section_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET = 80;
 var CC2_TCC_STATE_WARN_IMPLICIT_FUNCTION_OFFSET = 92;
@@ -5973,6 +5981,63 @@ function free_inline_functions(state)
     dynarray_reset(add(state, CC2_TCC_STATE_INLINE_FUNCTIONS_OFFSET),
         add(state, CC2_TCC_STATE_INLINE_FUNCTION_COUNT_OFFSET));
     return 0;
+}
+
+function put_extern_sym2(symbol, section_index, value, size,
+    can_add_underscore)
+{
+    var type_value;
+    var symbol_type;
+    var binding;
+    var information;
+    var name;
+    var elf_symbol;
+    if (eq(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), 0)) {
+        name = get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0);
+        type_value = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
+        if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_FUNCTION_TYPE)) {
+            symbol_type = CC2_ELF_SYMBOL_FUNCTION_TYPE;
+        } else if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_VOID_TYPE)) {
+            symbol_type = CC2_ELF_SYMBOL_NO_TYPE;
+        } else {
+            symbol_type = CC2_ELF_SYMBOL_OBJECT_TYPE;
+        }
+        if (not(eq(and(type_value, CC2_TCC_STATIC_STORAGE), 0))) {
+            binding = CC2_ELF_SYMBOL_LOCAL_BINDING;
+        } else {
+            binding = CC2_ELF_SYMBOL_GLOBAL_BINDING;
+        }
+        if (ri32(add(symbol, CC2_SYM_NEXT_OFFSET))) {
+            name = get_tok_str(ri32(add(symbol, CC2_SYM_NEXT_OFFSET)), 0);
+        }
+        information = or(shl(binding, CC2_ELF_SYMBOL_BIND_SHIFT),
+            symbol_type);
+        wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET), put_elf_sym(ri32(
+            symtab_section_address), value, size, information, 0,
+            section_index, name));
+    } else {
+        elf_symbol = elfsym(symbol);
+        wi32(add(elf_symbol, CC2_ELF_SYMBOL_VALUE_OFFSET), value);
+        wi32(add(elf_symbol, CC2_ELF_SYMBOL_SIZE_OFFSET), size);
+        wi8(add(elf_symbol, CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET),
+            and(section_index, 255));
+        wi8(add(elf_symbol, add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1)),
+            and(ushr(section_index, 8), 255));
+    }
+    update_storage(symbol);
+    return 0;
+}
+
+function put_extern_sym(symbol, section, value, size)
+{
+    var section_index;
+    section_index = 0;
+    if (section) {
+        section_index = ri32(add(section, CC2_SECTION_NUMBER_OFFSET));
+    }
+    return put_extern_sym2(symbol, section_index, value, size, 1);
 }
 
 function block_return()

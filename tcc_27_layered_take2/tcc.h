@@ -1158,6 +1158,7 @@ extern int *tok_address;
 extern int *gnu_ext_address;
 extern int *parse_flags_address;
 extern BufferedFile **file_address;
+extern Section **symtab_section_address;
 extern CValue tokc;
 ST_DATA const int *macro_ptr;
 ST_DATA int parse_flags;
@@ -1484,7 +1485,7 @@ ST_FUNC void greloc(Section *s, Sym *sym, unsigned long offset, int type);
 ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type, addr_t addend);
 
 ST_FUNC int put_elf_str(Section *s, const char *sym);
-ST_FUNC int put_elf_sym(Section *s, addr_t value, unsigned long size, int info, int other, int shndx, const char *name);
+int put_elf_sym(Section *s, addr_t value, unsigned long size, int info, int other, int shndx, const char *name);
 ST_FUNC int set_elf_sym(Section *s, addr_t value, unsigned long size, int info, int other, int shndx, const char *name);
 ST_FUNC int find_elf_sym(Section *s, const char *name);
 ST_FUNC void put_elf_reloc(Section *symtab, Section *s, unsigned long offset, int type, int symbol);

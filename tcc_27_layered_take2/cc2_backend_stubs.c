@@ -19,6 +19,12 @@ function put_extern_sym2(symbol, section_index, value, size, add_underscore)
     return 0;
 }
 
+function put_elf_sym(section, value, size, information, other,
+    section_index, name)
+{
+    return 1;
+}
+
 function tcc_debug_start(state)
 {
     return 0;
