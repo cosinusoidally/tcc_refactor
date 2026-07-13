@@ -62,6 +62,7 @@ void block_compound(int *break_symbol, int *continue_symbol,
 void unary_identifier(int token);
 void unary_postfix_field(int operator);
 void unary_postfix_index(void);
+void unary_prefix(int operator);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1125,55 +1126,12 @@ void unary(void)
         }
         break;
     case '*':
-        next();
-        unary();
-        indir();
-        break;
     case '&':
-        next();
-        unary();
-        /* functions names must be treated as function pointers,
-           except for unary '&' and sizeof. Since we consider that
-           functions are not lvalues, we only have to handle it
-           there and in function calls. */
-        /* arrays can also be used although they are not lvalues */
-        if ((vtop->type.t & VT_BTYPE) != VT_FUNC &&
-            !(vtop->type.t & VT_ARRAY))
-            test_lvalue();
-        mk_pointer(&vtop->type);
-        gaddrof();
-        break;
     case '!':
-        next();
-        unary();
-        if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST) {
-            gen_cast_s(VT_BOOL);
-            vtop->c.i = !vtop->c.i;
-        } else if ((vtop->r & VT_VALMASK) == VT_CMP)
-            vtop->c.i ^= 1;
-        else {
-            save_regs(1);
-            vseti(VT_JMP, gvtst(1, 0));
-        }
-        break;
     case '~':
-        next();
-        unary();
-        vpushi(-1);
-        gen_op('^');
-        break;
     case '+':
-        next();
-        unary();
-        if ((vtop->type.t & VT_BTYPE) == VT_PTR)
-            tcc_error("pointer not accepted for unary plus");
-        /* In order to force cast, we add zero, except for floating point
-	   where we really need an noop (otherwise -0.0 will be transformed
-	   into +0.0).  */
-	if (!is_float(vtop->type.t)) {
-	    vpushi(0);
-	    gen_op('+');
-	}
+        t = tok;
+        unary_prefix(t);
         break;
     case TOK_SIZEOF:
     case TOK_ALIGNOF1:
@@ -1332,9 +1290,7 @@ void unary(void)
     case TOK_INC:
     case TOK_DEC:
         t = tok;
-        next();
-        unary();
-        inc(0, t);
+        unary_prefix(t);
         break;
     case '-':
         next();

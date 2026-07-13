@@ -5475,6 +5475,57 @@ function unary_postfix_index()
     return 0;
 }
 
+function unary_prefix(operator)
+{
+    var type;
+    var registers;
+    var value;
+    next();
+    unary();
+    if (eq(operator, 42)) {
+        indir();
+    } else if (eq(operator, 38)) {
+        type = ri32(vtop);
+        if (and(not(eq(and(type, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_FUNCTION_TYPE)), eq(and(type, CC2_TCC_ARRAY_TYPE), 0))) {
+            test_lvalue();
+        }
+        mk_pointer(vtop);
+        gaddrof();
+    } else if (eq(operator, 33)) {
+        registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+        if (eq(and(registers, CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT)) {
+            gen_cast_s(CC2_TCC_BOOLEAN_TYPE);
+            value = or(ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET)),
+                ri32(add(vtop, add(CC2_SVALUE_CONSTANT_OFFSET, 4))));
+            wi32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET), eq(value, 0));
+            wi32(add(vtop, add(CC2_SVALUE_CONSTANT_OFFSET, 4)), 0);
+        } else if (eq(and(registers, CC2_VALUE_LOCATION_MASK),
+            CC2_VALUE_COMPARISON)) {
+            wi32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET),
+                xor(ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET)), 1));
+        } else {
+            save_regs(1);
+            vseti(CC2_VALUE_JUMP, gvtst(1, 0));
+        }
+    } else if (eq(operator, 126)) {
+        vpushi(sub(0, 1));
+        gen_op(CC2_ASCII_CARET);
+    } else if (eq(operator, CC2_ASCII_PLUS)) {
+        type = ri32(vtop);
+        if (eq(and(type, CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_POINTER_TYPE)) {
+            tcc_error(mks("pointer not accepted for unary plus"), 0);
+        }
+        if (not(is_float(type))) {
+            vpushi(0);
+            gen_op(CC2_ASCII_PLUS);
+        }
+    } else if (or(eq(operator, 164), eq(operator, 162))) {
+        inc(0, operator);
+    }
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {
