@@ -6629,6 +6629,40 @@ function gen_cvt_ftof(type)
     return 0;
 }
 
+function gen_cvt_itof(type)
+{
+    var type_value;
+    var value_reg;
+    save_reg(CC2_I386_FLOAT_RETURN_REGISTER);
+    gv(CC2_INTEGER_REGISTER_CLASS);
+    type_value = ri32(vtop);
+    value_reg = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        CC2_VALUE_LOCATION_MASK);
+    if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE)) {
+        o(add(80, ri8(add(vtop, 10))));
+        o(add(80, value_reg));
+        o(2370783);
+        o(574595);
+    } else if (eq(and(type_value, or(CC2_TCC_BASIC_TYPE_MASK,
+        CC2_TCC_UNSIGNED_TYPE)), or(CC2_TCC_INT_TYPE,
+        CC2_TCC_UNSIGNED_TYPE))) {
+        o(106);
+        g(0);
+        o(add(80, value_reg));
+        o(2370783);
+        o(574595);
+    } else {
+        o(add(80, value_reg));
+        o(2360539);
+        o(312451);
+    }
+    wi8(add(vtop, CC2_SVALUE_REGISTER_OFFSET),
+        CC2_I386_FLOAT_RETURN_REGISTER);
+    wi8(add(vtop, add(CC2_SVALUE_REGISTER_OFFSET, 1)), 0);
+    return 0;
+}
+
 function ggoto()
 {
     gcall_or_jmp(1);
