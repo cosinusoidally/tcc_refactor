@@ -1170,6 +1170,8 @@ ST_DATA CString tokcstr; /* current parsed string, if any */
 ST_DATA int total_lines;
 extern int total_bytes;
 extern int pp_expr;
+extern TokenString *tokstr_buf_address;
+extern unsigned char *isidnum_table_address;
 extern int tok_ident;
 extern TokenSym **table_ident;
 
@@ -1214,7 +1216,7 @@ void free_defines(Sym *b);
 Sym *label_find(int v);
 Sym *label_push(Sym **ptop, int v, int flags);
 void label_pop(Sym **ptop, Sym *slast, int keep);
-ST_FUNC void parse_define(void);
+void parse_define(void);
 ST_FUNC void preprocess(int is_bof);
 void next_nomacro(void);
 extern void next(void);
@@ -1537,6 +1539,7 @@ void skip_spaces(void);
 uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str);
 void preprocess_skip(void);
 int expr_preprocess(void);
+void next_nomacro_spc(void);
 #endif
 
 /* ------------ xxx-link.c ------------ */

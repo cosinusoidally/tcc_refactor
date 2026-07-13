@@ -91,7 +91,7 @@ static const unsigned char tok_two_chars[] =
     0
 };
 
-static void next_nomacro_spc(void);
+void next_nomacro_spc(void);
 
 /* ------------------------------------------------------------------------- */
 /* Custom allocator for tiny objects */
@@ -553,96 +553,6 @@ static inline int tok_size(const int *p)
     }
 }
 #endif
-
-/* label lookup */
-/* parse after #define */
-ST_FUNC void parse_define(void)
-{
-    Sym *s, *first, **ps;
-    int v, t, varg, is_vaargs, spc;
-    int saved_parse_flags = parse_flags;
-
-    v = tok;
-    if (v < TOK_IDENT || v == TOK_DEFINED)
-        tcc_error("invalid macro name '%s'", get_tok_str(tok, &tokc));
-    /* XXX: should check if same macro (ANSI) */
-    first = NULL;
-    t = MACRO_OBJ;
-    /* We have to parse the whole define as if not in asm mode, in particular
-       no line comment with '#' must be ignored.  Also for function
-       macros the argument list must be parsed without '.' being an ID
-       character.  */
-    parse_flags = ((parse_flags & ~PARSE_FLAG_ASM_FILE) | PARSE_FLAG_SPACES);
-    /* '(' must be just after macro definition for MACRO_FUNC */
-    next_nomacro_spc();
-    if (tok == '(') {
-        int dotid = cc0_set_idnum((int)isidnum_table, '.', 0);
-        next_nomacro();
-        ps = &first;
-        if (tok != ')') for (;;) {
-            varg = tok;
-            next_nomacro();
-            is_vaargs = 0;
-            if (varg == TOK_DOTS) {
-                varg = TOK___VA_ARGS__;
-                is_vaargs = 1;
-            } else if (tok == TOK_DOTS && gnu_ext) {
-                is_vaargs = 1;
-                next_nomacro();
-            }
-            if (varg < TOK_IDENT)
-        bad_list:
-                tcc_error("bad macro parameter list");
-            s = sym_push2(&define_stack, varg | SYM_FIELD, is_vaargs, 0);
-            *ps = s;
-            ps = &s->next;
-            if (tok == ')')
-                break;
-            if (tok != ',' || is_vaargs)
-                goto bad_list;
-            next_nomacro();
-        }
-        next_nomacro_spc();
-        t = MACRO_FUNC;
-        cc0_set_idnum((int)isidnum_table, '.', dotid);
-    }
-
-    tokstr_buf.len = 0;
-    spc = 2;
-    parse_flags |= PARSE_FLAG_ACCEPT_STRAYS | PARSE_FLAG_SPACES | PARSE_FLAG_LINEFEED;
-    /* The body of a macro definition should be parsed such that identifiers
-       are parsed like the file mode determines (i.e. with '.' being an
-       ID character in asm mode).  But '#' should be retained instead of
-       regarded as line comment leader, so still don't set ASM_FILE
-       in parse_flags. */
-    while (tok != TOK_LINEFEED && tok != TOK_EOF) {
-        /* remove spaces around ## and after '#' */
-        if (TOK_TWOSHARPS == tok) {
-            if (2 == spc)
-                goto bad_twosharp;
-            if (1 == spc)
-                --tokstr_buf.len;
-            spc = 3;
-	    tok = TOK_PPJOIN;
-        } else if ('#' == tok) {
-            spc = 4;
-        } else if (cc0_check_space((int)isidnum_table, tok, (int)&spc)) {
-            goto skip;
-        }
-        tok_str_add2(&tokstr_buf, tok, &tokc);
-    skip:
-        next_nomacro_spc();
-    }
-
-    parse_flags = saved_parse_flags;
-    if (spc == 1)
-        --tokstr_buf.len; /* remove trailing space */
-    tok_str_add(&tokstr_buf, 0);
-    if (3 == spc)
-bad_twosharp:
-        tcc_error("'##' cannot appear at either end of macro");
-    define_push(v, t, tok_str_dup(&tokstr_buf), first);
-}
 
 static CachedInclude *search_cached_include(TCCState *s1, const char *filename, int add)
 {
@@ -2037,7 +1947,7 @@ keep_tok_flags:
 
 /* return next token without macro substitution. Can read input from
    macro_ptr buffer */
-static void next_nomacro_spc(void)
+void next_nomacro_spc(void)
 {
     if (macro_ptr) {
     redo:
@@ -2659,9 +2569,6 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
     global_label_stack_address = &global_label_stack;
     local_label_stack_address = &local_label_stack;
     ptrdiff_type_address = &ptrdiff_type;
-    tok_address = &tok;
-    tokc_address = &tokc;
-    gnu_ext_address = &gnu_ext;
     symtab_section_address = &symtab_section;
     data_section_address = &data_section;
     cur_text_section_address = &cur_text_section;
@@ -2718,6 +2625,11 @@ ST_FUNC void tccpp_new(TCCState *s)
     define_stack_address = &define_stack;
     file_address = &file;
     parse_flags_address = &parse_flags;
+    tok_address = &tok;
+    tokc_address = &tokc;
+    gnu_ext_address = &gnu_ext;
+    tokstr_buf_address = &tokstr_buf;
+    isidnum_table_address = isidnum_table;
 
     /* cc0 owns the character classes used to initialize this lexer. */
     cc0_init();

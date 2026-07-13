@@ -407,6 +407,11 @@ var CC2_TOKEN_ENDIF;
 var CC2_TOKEN_ERROR;
 var CC2_TOKEN_WARNING;
 var CC2_TOKEN_DEFINED;
+var CC2_TOKEN_VARIADIC_ARGUMENTS;
+var CC2_TOKEN_TWO_SHARPS;
+var CC2_TOKEN_PREPROCESSOR_JOIN;
+var CC2_PARSE_FLAG_SPACES;
+var CC2_PARSE_FLAG_LINE_FEED;
 var CC2_TOKEN_CHARACTER;
 var CC2_TOKEN_WIDE_CHARACTER;
 var CC2_TOKEN_INTEGER_CONSTANT;
@@ -513,6 +518,8 @@ var macro_stack;
 var ch;
 var total_bytes;
 var pp_expr;
+var tokstr_buf_address;
+var isidnum_table_address;
 var symtab_section_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET;
@@ -1226,6 +1233,120 @@ function expr_preprocess_(stream, token, value)
 function expr_preprocess()
 {
     return expr_preprocess_(0, 0, 0);
+}
+
+function parse_define_(value, macro_type, parameter, variadic, spacing,
+    saved_flags, first_pointer, slot, spacing_pointer, symbol, dot_identifier,
+    stream)
+{
+    value = ri32(tok_address);
+    if (or(lt(value, CC2_TOKEN_IDENTIFIER_BASE),
+        eq(value, CC2_TOKEN_DEFINED))) {
+        tcc_error(mks("invalid macro name '%s'"),
+            get_tok_str(value, tokc_address));
+        return 0;
+    }
+    first_pointer = malloc(CC2_I386_WORD_BYTES);
+    spacing_pointer = malloc(CC2_I386_WORD_BYTES);
+    wi32(first_pointer, 0);
+    slot = first_pointer;
+    macro_type = 0;
+    saved_flags = ri32(parse_flags_address);
+    wi32(parse_flags_address, or(and(saved_flags,
+        bnot(CC2_PARSE_FLAG_ASM_FILE)), CC2_PARSE_FLAG_SPACES));
+    next_nomacro_spc();
+    if (eq(ri32(tok_address), 40)) {
+        dot_identifier = cc0_set_idnum(isidnum_table_address, 46, 0);
+        next_nomacro();
+        if (not(eq(ri32(tok_address), 41))) {
+            while (1) {
+                parameter = ri32(tok_address);
+                next_nomacro();
+                variadic = 0;
+                if (eq(parameter, CC2_TOKEN_DOTS)) {
+                    parameter = CC2_TOKEN_VARIADIC_ARGUMENTS;
+                    variadic = 1;
+                } else if (and(eq(ri32(tok_address), CC2_TOKEN_DOTS),
+                    not(eq(ri32(gnu_ext_address), 0)))) {
+                    variadic = 1;
+                    next_nomacro();
+                }
+                if (lt(parameter, CC2_TOKEN_IDENTIFIER_BASE)) {
+                    tcc_error(mks("bad macro parameter list"), 0);
+                    break;
+                }
+                symbol = sym_push2(define_stack_address,
+                    or(parameter, CC2_SYMBOL_FIELD_FLAG), variadic, 0);
+                wi32(slot, symbol);
+                slot = add(symbol, CC2_SYM_NEXT_OFFSET);
+                if (eq(ri32(tok_address), 41)) {
+                    break;
+                }
+                if (or(not(eq(ri32(tok_address), 44)), variadic)) {
+                    tcc_error(mks("bad macro parameter list"), 0);
+                    break;
+                }
+                next_nomacro();
+            }
+        }
+        next_nomacro_spc();
+        macro_type = 1;
+        cc0_set_idnum(isidnum_table_address, 46, dot_identifier);
+    }
+
+    stream = tokstr_buf_address;
+    wi32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET), 0);
+    spacing = 2;
+    wi32(parse_flags_address, or(ri32(parse_flags_address), or(
+        CC2_PARSE_FLAG_ACCEPT_STRAYS, or(CC2_PARSE_FLAG_SPACES,
+        CC2_PARSE_FLAG_LINE_FEED))));
+    while (and(not(eq(ri32(tok_address), CC2_CHARACTER_LINE_FEED)),
+        not(eq(ri32(tok_address), CC2_CHARACTER_END_OF_FILE)))) {
+        if (eq(ri32(tok_address), CC2_TOKEN_TWO_SHARPS)) {
+            if (eq(spacing, 2)) {
+                tcc_error(mks("'##' cannot appear at either end of macro"),
+                    0);
+                break;
+            }
+            if (eq(spacing, 1)) {
+                wi32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET), sub(ri32(
+                    add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET)), 1));
+            }
+            spacing = 3;
+            wi32(tok_address, CC2_TOKEN_PREPROCESSOR_JOIN);
+        } else if (eq(ri32(tok_address), 35)) {
+            spacing = 4;
+        } else {
+            wi32(spacing_pointer, spacing);
+            if (cc0_check_space(isidnum_table_address, ri32(tok_address),
+                spacing_pointer)) {
+                spacing = ri32(spacing_pointer);
+                next_nomacro_spc();
+                continue;
+            }
+            spacing = ri32(spacing_pointer);
+        }
+        tok_str_add2(stream, ri32(tok_address), tokc_address);
+        next_nomacro_spc();
+    }
+    wi32(parse_flags_address, saved_flags);
+    if (eq(spacing, 1)) {
+        wi32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET), sub(
+            ri32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET)), 1));
+    }
+    tok_str_add(stream, 0);
+    if (eq(spacing, 3)) {
+        tcc_error(mks("'##' cannot appear at either end of macro"), 0);
+    }
+    define_push(value, macro_type, tok_str_dup(stream), ri32(first_pointer));
+    free(spacing_pointer);
+    free(first_pointer);
+    return 0;
+}
+
+function parse_define()
+{
+    return parse_define_(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function tok_str_new(stream)
@@ -12933,6 +13054,11 @@ function cc2_init_constants()
     CC2_TOKEN_ERROR = 323;
     CC2_TOKEN_WARNING = 324;
     CC2_TOKEN_DEFINED = 321;
+    CC2_TOKEN_VARIADIC_ARGUMENTS = 332;
+    CC2_TOKEN_TWO_SHARPS = 202;
+    CC2_TOKEN_PREPROCESSOR_JOIN = 205;
+    CC2_PARSE_FLAG_SPACES = 16;
+    CC2_PARSE_FLAG_LINE_FEED = 4;
     return 0;
 }
 
