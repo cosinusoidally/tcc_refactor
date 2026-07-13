@@ -13,3 +13,8 @@ function vstack_overflow_error(top, limit)
 {
     return 0;
 }
+
+function gv(register_class)
+{
+    return 0;
+}

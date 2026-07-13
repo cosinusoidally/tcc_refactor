@@ -405,53 +405,6 @@ ST_FUNC void greloc(Section *s, Sym *sym, unsigned long offset, int type)
 
 /* ------------------------------------------------------------------------- */
 
-static void vsetc(CType *type, int r, CValue *vc)
-{
-    int v;
-
-    if (vtop >= vstack + (VSTACK_SIZE - 1))
-        tcc_error("memory full (vstack)");
-    /* cannot let cpu flags if other instruction are generated. Also
-       avoid leaving VT_JMP anywhere except on the top of the stack
-       because it would complicate the code generator.
-
-       Don't do this when nocode_wanted.  vtop might come from
-       !nocode_wanted regions (see 88_codeopt.c) and transforming
-       it to a register without actually generating code is wrong
-       as their value might still be used for real.  All values
-       we push under nocode_wanted will eventually be popped
-       again, so that the VT_CMP/VT_JMP value will be in vtop
-       when code is unsuppressed again.
-
-       Same logic below in vswap(); */
-    if (vtop >= vstack && !nocode_wanted) {
-        v = vtop->r & VT_VALMASK;
-        if (v == VT_CMP || (v & ~1) == VT_JMP)
-            gv(RC_INT);
-    }
-
-    vtop++;
-    vtop->type = *type;
-    vtop->r = r;
-    vtop->r2 = VT_CONST;
-    vtop->c = *vc;
-    vtop->sym = NULL;
-}
-
-ST_FUNC void vswap(void)
-{
-    SValue tmp;
-    /* cannot vswap cpu flags. See comment at vsetc() above */
-    if (vtop >= vstack && !nocode_wanted) {
-        int v = vtop->r & VT_VALMASK;
-        if (v == VT_CMP || (v & ~1) == VT_JMP)
-            gv(RC_INT);
-    }
-    tmp = vtop[0];
-    vtop[0] = vtop[-1];
-    vtop[-1] = tmp;
-}
-
 /* pop stack value */
 ST_FUNC void vpop(void)
 {
@@ -507,14 +460,6 @@ ST_FUNC void vpush64(int ty, unsigned long long v)
 static inline void vpushll(long long v)
 {
     vpush64(VT_LLONG, v);
-}
-
-ST_FUNC void vset(CType *type, int r, int v)
-{
-    CValue cval;
-
-    cval.i = v;
-    vsetc(type, r, &cval);
 }
 
 static void vseti(int r, int v)
@@ -979,7 +924,7 @@ static int adjust_bf(SValue *sv, int bit_pos, int bit_size)
 /* store vtop a register belonging to class 'rc'. lvalues are
    converted to values. Cannot be used if cannot be converted to
    register value (such as structures). */
-ST_FUNC int gv(int rc)
+int gv(int rc)
 {
     int r, bit_pos, bit_size, size, align, rc2;
 

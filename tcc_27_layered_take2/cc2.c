@@ -59,6 +59,14 @@ var CC2_SYMBOL_STRUCT_FLAG = 1073741824;
 var CC2_SYMBOL_FIELD_FLAG = 536870912;
 var CC2_FIRST_ANONYMOUS_SYMBOL = 268435456;
 var CC2_SVALUE_BYTES = 28;
+var CC2_SVALUE_REGISTER_OFFSET = 8;
+var CC2_SVALUE_CONSTANT_OFFSET = 12;
+var CC2_SVALUE_SYMBOL_OFFSET = 24;
+var CC2_VALUE_LOCATION_MASK = 63;
+var CC2_VALUE_CONSTANT = 48;
+var CC2_VALUE_COMPARISON = 51;
+var CC2_VALUE_JUMP = 52;
+var CC2_INTEGER_REGISTER_CLASS = 1;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -91,6 +99,7 @@ var global_label_stack;
 var local_label_stack;
 var vtop;
 var pvtop;
+var vstack_base;
 var vstack_limit;
 var funcname;
 var cur_switch;
@@ -399,6 +408,68 @@ function cc2_svalue_temporary()
         CC2_SVALUE_TEMPORARY = malloc(CC2_SVALUE_BYTES);
     }
     return CC2_SVALUE_TEMPORARY;
+}
+
+function cc2_materialize_top_flags_(location)
+{
+    if (not(lt(vtop, vstack_base))) {
+        if (eq(nocode_wanted, 0)) {
+            location = and(ri32(add(vtop,
+                CC2_SVALUE_REGISTER_OFFSET)), CC2_VALUE_LOCATION_MASK);
+            if (or(eq(location, CC2_VALUE_COMPARISON),
+                eq(and(location, bnot(1)), CC2_VALUE_JUMP))) {
+                gv(CC2_INTEGER_REGISTER_CLASS);
+            }
+        }
+    }
+    return 0;
+}
+
+function cc2_materialize_top_flags()
+{
+    return cc2_materialize_top_flags_(0);
+}
+
+function vsetc(type, reg, constant)
+{
+    if (not(lt(vtop, vstack_limit))) {
+        vstack_overflow_error(vtop, vstack_limit);
+    }
+    cc2_materialize_top_flags();
+    vtop = add(vtop, CC2_SVALUE_BYTES);
+    cc2_copy_bytes(vtop, type, 8);
+    wi32(add(vtop, CC2_SVALUE_REGISTER_OFFSET),
+        or(reg, shl(CC2_VALUE_CONSTANT, 16)));
+    cc2_copy_bytes(add(vtop, CC2_SVALUE_CONSTANT_OFFSET), constant, 12);
+    wi32(add(vtop, CC2_SVALUE_SYMBOL_OFFSET), 0);
+    return 0;
+}
+
+function vset_(type, reg, value, constant)
+{
+    constant = cc2_svalue_temporary();
+    wi32(constant, value);
+    wi32(add(constant, 4), 0);
+    if (lt(value, 0)) {
+        wi32(add(constant, 4), sub(0, 1));
+    }
+    wi32(add(constant, 8), 0);
+    return vsetc(type, reg, constant);
+}
+
+function vset(type, reg, value)
+{
+    return vset_(type, reg, value, 0);
+}
+
+function vswap()
+{
+    cc2_materialize_top_flags();
+    cc2_copy_svalue(cc2_svalue_temporary(), vtop);
+    cc2_copy_svalue(vtop, sub(vtop, CC2_SVALUE_BYTES));
+    cc2_copy_svalue(sub(vtop, CC2_SVALUE_BYTES),
+        cc2_svalue_temporary());
+    return 0;
 }
 
 function vpushv_(value, limit)
