@@ -80,6 +80,9 @@ var CC2_TCC_STATIC_STORAGE = 8192;
 var CC2_TCC_SYMBOL_VALUE = 512;
 var CC2_TCC_ASSEMBLER_TYPE = 16;
 var CC2_I386_POP_FLOAT_STACK = 55517;
+var CC2_VALUE_LOCAL_LVALUE = 49;
+var CC2_VALUE_LOCAL = 50;
+var CC2_VALUE_LVALUE_TYPE_MASK = 28672;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -124,6 +127,8 @@ var func_old_type[2];
 var int_type[2];
 var size_type[2];
 var ptrdiff_type[2];
+var int_type_address;
+var size_type_address;
 /* TCC's 257-entry value stack, with seven i386 words per SValue. */
 var __vstack[1799];
 /* Scratch space is safe because TCC's frontend and value stack are global. */
@@ -612,6 +617,63 @@ function vpush_ref(type, section, offset, size)
 function vpush_global_sym(type, value)
 {
     return vpushsym(type, external_global_sym(value, type, 0));
+}
+
+function vpushi(value)
+{
+    return vset(int_type_address, CC2_VALUE_CONSTANT, value);
+}
+
+function vpushs(value)
+{
+    return vset(size_type_address, CC2_VALUE_CONSTANT, value);
+}
+
+function vseti(reg, value)
+{
+    return vset(int_type_address, reg, value);
+}
+
+function save_reg(reg)
+{
+    return save_reg_upstack(reg, 0);
+}
+
+function save_regs_(count, entry, last)
+{
+    entry = vstack_base;
+    last = sub(vtop, mul(count, CC2_SVALUE_BYTES));
+    while (le(entry, last)) {
+        save_reg(and(ri32(add(entry, CC2_SVALUE_REGISTER_OFFSET)), 65535));
+        entry = add(entry, CC2_SVALUE_BYTES);
+    }
+    return 0;
+}
+
+function save_regs(count)
+{
+    return save_regs_(count, 0, 0);
+}
+
+function gaddrof_(registers, location)
+{
+    registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+    registers = and(registers, bnot(CC2_TCC_LVALUE));
+    location = and(registers, CC2_VALUE_LOCATION_MASK);
+    if (eq(location, CC2_VALUE_LOCAL_LVALUE)) {
+        registers = and(registers,
+            bnot(or(CC2_VALUE_LOCATION_MASK,
+            CC2_VALUE_LVALUE_TYPE_MASK)));
+        registers = or(registers,
+            or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE));
+    }
+    wi32(add(vtop, CC2_SVALUE_REGISTER_OFFSET), registers);
+    return 0;
+}
+
+function gaddrof()
+{
+    return gaddrof_(0, 0);
 }
 
 function vpushv_(value, limit)

@@ -403,22 +403,6 @@ ST_FUNC void greloc(Section *s, Sym *sym, unsigned long offset, int type)
 
 /* ------------------------------------------------------------------------- */
 
-/* push integer constant */
-ST_FUNC void vpushi(int v)
-{
-    CValue cval;
-    cval.i = v;
-    vsetc(&int_type, VT_CONST, &cval);
-}
-
-/* push a pointer sized constant */
-static void vpushs(addr_t v)
-{
-  CValue cval;
-  cval.i = v;
-  vsetc(&size_type, VT_CONST, &cval);
-}
-
 /* push arbitrary 64bit constant */
 ST_FUNC void vpush64(int ty, unsigned long long v)
 {
@@ -434,14 +418,6 @@ ST_FUNC void vpush64(int ty, unsigned long long v)
 static inline void vpushll(long long v)
 {
     vpush64(VT_LLONG, v);
-}
-
-static void vseti(int r, int v)
-{
-    CType type;
-    type.t = VT_INT;
-    type.ref = NULL;
-    vset(&type, r, v);
 }
 
 
@@ -545,23 +521,9 @@ static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
     return s;
 }
 
-/* save registers up to (vtop - n) stack entry */
-ST_FUNC void save_regs(int n)
-{
-    SValue *p, *p1;
-    for(p = vstack, p1 = vtop - n; p <= p1; p++)
-        save_reg(p->r);
-}
-
-/* save r to the memory stack, and mark it as being free */
-ST_FUNC void save_reg(int r)
-{
-    save_reg_upstack(r, 0);
-}
-
 /* save r to the memory stack, and mark it as being free,
    if seen up to (vtop - n) stack entry */
-ST_FUNC void save_reg_upstack(int r, int n)
+void save_reg_upstack(int r, int n)
 {
     int l, saved, size, align;
     SValue *p, *p1, sv;
@@ -707,17 +669,6 @@ static void move_reg(int r, int s, int t)
         sv.c.i = 0;
         load(r, &sv);
     }
-}
-
-/* get address of vtop (vtop MUST BE an lvalue) */
-ST_FUNC void gaddrof(void)
-{
-    vtop->r &= ~VT_LVAL;
-    /* tricky: if saved lvalue, then we can go back to lvalue */
-    if ((vtop->r & VT_VALMASK) == VT_LLOCAL)
-        vtop->r = (vtop->r & ~(VT_VALMASK | VT_LVAL_TYPE)) | VT_LOCAL | VT_LVAL;
-
-
 }
 
 #ifdef CONFIG_TCC_BCHECK
