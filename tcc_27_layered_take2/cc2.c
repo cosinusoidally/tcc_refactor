@@ -5209,6 +5209,44 @@ function block_switch(continue_symbol)
     return 0;
 }
 
+function block_after_label(break_symbol, continue_symbol, is_expression)
+{
+    nocode_wanted = and(nocode_wanted, bnot(536870912));
+    if (eq(ri32(tok_address), 125)) {
+        tcc_warning(mks("deprecated use of label at end of compound statement"),
+            0);
+    } else {
+        if (is_expression) {
+            vpop();
+        }
+        block(break_symbol, continue_symbol, is_expression);
+    }
+    return 0;
+}
+
+function block_label(label, break_symbol, continue_symbol, is_expression)
+{
+    var symbol;
+    var registers;
+    next();
+    symbol = label_find(label);
+    if (symbol) {
+        registers = ri32(add(symbol, 4));
+        if (eq(and(registers, 65535), 0)) {
+            tcc_error(mks("duplicate label '%s'"),
+                get_tok_str(ri32(symbol), 0));
+        }
+        gsym(ri32(add(symbol, CC2_SYM_JUMP_NEXT_OFFSET)));
+        wi32(add(symbol, 4), and(registers, bnot(65535)));
+    } else {
+        symbol = label_push(global_label_stack_address, label, 0);
+    }
+    wi32(add(symbol, CC2_SYM_JUMP_NEXT_OFFSET), ind);
+    vla_sp_restore();
+    block_after_label(break_symbol, continue_symbol, is_expression);
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {

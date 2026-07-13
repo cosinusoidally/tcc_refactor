@@ -53,6 +53,10 @@ void block_default(void);
 void block_goto(void);
 void block_expression(int is_expression);
 void block_switch(int *continue_symbol);
+void block_after_label(int *break_symbol, int *continue_symbol,
+                       int is_expression);
+void block_label(int label, int *break_symbol, int *continue_symbol,
+                 int is_expression);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1783,13 +1787,11 @@ void block(int *bsym, int *csym, int is_expr)
     } else
     if (tok == TOK_CASE) {
         block_case();
-        is_expr = 0;
-        goto block_after_label;
+        block_after_label(bsym, csym, 0);
     } else 
     if (tok == TOK_DEFAULT) {
         block_default();
-        is_expr = 0;
-        goto block_after_label;
+        block_after_label(bsym, csym, 0);
     } else
     if (tok == TOK_GOTO) {
         block_goto();
@@ -1798,29 +1800,7 @@ void block(int *bsym, int *csym, int is_expr)
     } else {
         b = is_label(TOK_UIDENT);
         if (b) {
-            /* label case */
-	    next();
-            s = label_find(b);
-            if (s) {
-                if (s->r == LABEL_DEFINED)
-                    tcc_error("duplicate label '%s'", get_tok_str(s->v, NULL));
-                gsym(s->jnext);
-                s->r = LABEL_DEFINED;
-            } else {
-                s = label_push(&global_label_stack, b, LABEL_DEFINED);
-            }
-            s->jnext = ind;
-            vla_sp_restore();
-            /* we accept this, but it is a mistake */
-        block_after_label:
-	    nocode_wanted &= ~0x20000000;
-            if (tok == '}') {
-                tcc_warning("deprecated use of label at end of compound statement");
-            } else {
-                if (is_expr)
-                    vpop();
-                block(bsym, csym, is_expr);
-            }
+            block_label(b, bsym, csym, is_expr);
         } else {
             block_expression(is_expr);
         }
