@@ -3531,7 +3531,7 @@ void next(void)
 
 /* push back current token and set current token to 'last_tok'. Only
    identifier case handled for labels. */
-ST_INLN void unget_tok(int last_tok)
+void unget_tok(int last_tok)
 {
 
     TokenString *str = tok_str_alloc();

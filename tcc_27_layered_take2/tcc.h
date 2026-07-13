@@ -1207,7 +1207,7 @@ ST_FUNC void parse_define(void);
 ST_FUNC void preprocess(int is_bof);
 ST_FUNC void next_nomacro(void);
 extern void next(void);
-ST_INLN void unget_tok(int last_tok);
+extern void unget_tok(int last_tok);
 ST_FUNC void preprocess_start(TCCState *s1, int is_asm);
 ST_FUNC void preprocess_end(TCCState *s1);
 ST_FUNC void tccpp_new(TCCState *s);
@@ -1346,6 +1346,7 @@ extern void gen_opif(int operation);
 extern int gvtst(int inverted, int jump_chain);
 extern void gen_cast_s(int type);
 extern void force_charshort_cast(int type);
+extern int is_label(int identifier_floor);
 extern void gen_cast(CType *type);
 extern void gen_assign_cast(CType *type);
 extern void type_to_str(char *buffer, int buffer_size, CType *type,

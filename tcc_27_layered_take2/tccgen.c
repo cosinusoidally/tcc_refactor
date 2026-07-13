@@ -3670,23 +3670,6 @@ ST_FUNC int expr_const(void)
 
 /* return the label token if current token is a label, otherwise
    return zero */
-static int is_label(void)
-{
-    int last_tok;
-
-    /* fast test first */
-    if (tok < TOK_UIDENT)
-        return 0;
-    /* no need to save tokc because tok is an identifier */
-    last_tok = tok;
-    next();
-    if (tok == ':') {
-        return last_tok;
-    } else {
-        unget_tok(last_tok);
-        return 0;
-    }
-}
 
 #ifndef TCC_TARGET_ARM64
 static void gfunc_return(CType *func_type)
@@ -3912,7 +3895,7 @@ static void block(int *bsym, int *csym, int is_expr)
             }
         }
         while (tok != '}') {
-	    if ((a = is_label()))
+        if ((a = is_label(TOK_UIDENT)))
 		unget_tok(a);
 	    else
 	        decl(VT_LOCAL);
@@ -4140,7 +4123,7 @@ static void block(int *bsym, int *csym, int is_expr)
     } else if (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3) {
         asm_instr();
     } else {
-        b = is_label();
+        b = is_label(TOK_UIDENT);
         if (b) {
             /* label case */
 	    next();
@@ -4283,7 +4266,7 @@ static int decl_designator(CType *type, Section *sec, unsigned long c,
 
     elem_size = 0;
     nb_elems = 1;
-    if (gnu_ext && (l = is_label()) != 0)
+    if (gnu_ext && (l = is_label(TOK_UIDENT)) != 0)
         goto struct_field;
     /* NOTE: we only support ranges for last designator */
     while (nb_elems == 1 && (tok == '[' || tok == '.')) {

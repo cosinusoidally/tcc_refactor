@@ -123,3 +123,8 @@ function gen_opif(operation)
 {
     return 0;
 }
+
+function unget_tok(token)
+{
+    return 0;
+}

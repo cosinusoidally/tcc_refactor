@@ -2560,6 +2560,25 @@ function gen_cast_s(type_value)
     return gen_cast_s_(type_value, 0);
 }
 
+function is_label_(identifier_floor, saved_token)
+{
+    if (lt(ri32(tok_address), identifier_floor)) {
+        return 0;
+    }
+    saved_token = ri32(tok_address);
+    next();
+    if (eq(ri32(tok_address), 58)) {
+        return saved_token;
+    }
+    unget_tok(saved_token);
+    return 0;
+}
+
+function is_label(identifier_floor)
+{
+    return is_label_(identifier_floor, 0);
+}
+
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)
 {
     type_value = ri32(type);
