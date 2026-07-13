@@ -122,31 +122,14 @@ extern long double strtold (const char *__nptr, char **__endptr);
 /* assembler debug */
 /* #define ASM_DEBUG */
 
-/* target selection */
-/* #define TCC_TARGET_I386   *//* i386 code generator */
-/* #define TCC_TARGET_X86_64 *//* x86-64 code generator */
-/* #define TCC_TARGET_ARM    *//* ARMv4 code generator */
-/* #define TCC_TARGET_ARM64  *//* ARMv8 code generator */
-/* #define TCC_TARGET_C67    *//* TMS320C67xx code generator */
-
-/* default target is I386 */
-#if !defined(TCC_TARGET_I386) && !defined(TCC_TARGET_ARM) && \
-    !defined(TCC_TARGET_ARM64) && !defined(TCC_TARGET_C67) && \
-    !defined(TCC_TARGET_X86_64)
-# if defined __x86_64__ || defined _AMD64_
-#  define TCC_TARGET_X86_64
-# elif defined __arm__
-#  define TCC_TARGET_ARM
-#  define TCC_ARM_EABI
-#  define TCC_ARM_HARDFLOAT
-# elif defined __aarch64__
-#  define TCC_TARGET_ARM64
-# else
-#  define TCC_TARGET_I386
-# endif
-# ifdef _WIN32
-#  define TCC_TARGET_PE 1
-# endif
+/* This bootstrap deliberately supports only 32-bit i386 Linux. */
+#if defined(_WIN32) || defined(TCC_TARGET_PE) || \
+    defined(TCC_TARGET_X86_64) || defined(TCC_TARGET_ARM) || \
+    defined(TCC_TARGET_ARM64) || defined(TCC_TARGET_C67)
+# error unsupported target: tcc_27_layered_take2 requires i386 Linux
+#endif
+#ifndef TCC_TARGET_I386
+# define TCC_TARGET_I386
 #endif
 
 /* only native compiler supports -run */
@@ -315,25 +298,6 @@ extern long double strtold (const char *__nptr, char **__endptr);
 #ifdef TCC_TARGET_I386
 # include "i386-gen.c"
 # include "i386-link.c"
-#endif
-#ifdef TCC_TARGET_X86_64
-# include "x86_64-gen.c"
-# include "x86_64-link.c"
-#endif
-#ifdef TCC_TARGET_ARM
-# include "arm-gen.c"
-# include "arm-link.c"
-# include "arm-asm.c"
-#endif
-#ifdef TCC_TARGET_ARM64
-# include "arm64-gen.c"
-# include "arm64-link.c"
-#endif
-#ifdef TCC_TARGET_C67
-# define TCC_TARGET_COFF
-# include "coff.h"
-# include "c67-gen.c"
-# include "c67-link.c"
 #endif
 #undef TARGET_DEFS_ONLY
 
