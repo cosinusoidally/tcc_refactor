@@ -60,6 +60,10 @@ function mks(value) {
     return pointer;
 }
 
+function mkC(value) {
+    return value.charCodeAt(0) | 0;
+}
+
 function ri8(address) {
     return cc0_prims_memory[address] | 0;
 }

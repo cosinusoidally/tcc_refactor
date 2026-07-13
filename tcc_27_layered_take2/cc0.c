@@ -48,6 +48,8 @@ var CC0_ASCII_LOWER_U;
 var CC0_ASCII_LOWER_N;
 var CC0_ASCII_LOWER_R;
 var CC0_ASCII_LOWER_T;
+var CC0_ASCII_LOWER_F;
+var CC0_ASCII_LOWER_V;
 
 /* Standalone compiler lexer state and its deliberately small token set. */
 var CC0_SOURCE;
@@ -322,34 +324,36 @@ function cc0_init()
     CC0_WORD_BYTES = 4;
     CC0_WORD_BITS = 32;
     CC0_NUMBER_WORD_COUNT = 2;
-    CC0_ASCII_TAB = 9;
-    CC0_ASCII_LINE_FEED = 10;
-    CC0_ASCII_VERTICAL_TAB = 11;
-    CC0_ASCII_FORM_FEED = 12;
-    CC0_ASCII_CARRIAGE_RETURN = 13;
-    CC0_ASCII_SPACE = 32;
-    CC0_ASCII_ZERO = 48;
-    CC0_ASCII_SEVEN = 55;
-    CC0_ASCII_NINE = 57;
-    CC0_ASCII_UPPER_A = 65;
-    CC0_ASCII_UPPER_Z = 90;
-    CC0_ASCII_UNDERSCORE = 95;
-    CC0_ASCII_LOWER_A = 97;
-    CC0_ASCII_LOWER_Z = 122;
-    CC0_ASCII_SLASH = 47;
-    CC0_ASCII_STAR = 42;
-    CC0_ASCII_BACKSLASH = 92;
-    CC0_ASCII_QUOTE = 34;
-    CC0_ASCII_APOSTROPHE = 39;
-    CC0_ASCII_UPPER_X = 88;
-    CC0_ASCII_LOWER_X = 120;
-    CC0_ASCII_UPPER_L = 76;
-    CC0_ASCII_LOWER_L = 108;
-    CC0_ASCII_UPPER_U = 85;
-    CC0_ASCII_LOWER_U = 117;
-    CC0_ASCII_LOWER_N = 110;
-    CC0_ASCII_LOWER_R = 114;
-    CC0_ASCII_LOWER_T = 116;
+    CC0_ASCII_TAB = mkC("\t");
+    CC0_ASCII_LINE_FEED = mkC("\n");
+    CC0_ASCII_VERTICAL_TAB = mkC("\v");
+    CC0_ASCII_FORM_FEED = mkC("\f");
+    CC0_ASCII_CARRIAGE_RETURN = mkC("\r");
+    CC0_ASCII_SPACE = mkC(" ");
+    CC0_ASCII_ZERO = mkC("0");
+    CC0_ASCII_SEVEN = mkC("7");
+    CC0_ASCII_NINE = mkC("9");
+    CC0_ASCII_UPPER_A = mkC("A");
+    CC0_ASCII_UPPER_Z = mkC("Z");
+    CC0_ASCII_UNDERSCORE = mkC("_");
+    CC0_ASCII_LOWER_A = mkC("a");
+    CC0_ASCII_LOWER_Z = mkC("z");
+    CC0_ASCII_SLASH = mkC("/");
+    CC0_ASCII_STAR = mkC("*");
+    CC0_ASCII_BACKSLASH = mkC("\\");
+    CC0_ASCII_QUOTE = mkC("\"");
+    CC0_ASCII_APOSTROPHE = mkC("'");
+    CC0_ASCII_UPPER_X = mkC("X");
+    CC0_ASCII_LOWER_X = mkC("x");
+    CC0_ASCII_UPPER_L = mkC("L");
+    CC0_ASCII_LOWER_L = mkC("l");
+    CC0_ASCII_UPPER_U = mkC("U");
+    CC0_ASCII_LOWER_U = mkC("u");
+    CC0_ASCII_LOWER_N = mkC("n");
+    CC0_ASCII_LOWER_R = mkC("r");
+    CC0_ASCII_LOWER_T = mkC("t");
+    CC0_ASCII_LOWER_F = mkC("f");
+    CC0_ASCII_LOWER_V = mkC("v");
     CC0_TOKEN_EOF = 0;
     CC0_TOKEN_ERROR = 1;
     CC0_TOKEN_IDENTIFIER = 2;
@@ -4251,6 +4255,74 @@ function cc0_compiler_expect(token)
     return CC0_FALSE;
 }
 
+/* mkC is a source-level byte constant, so escaped spellings never enter data. */
+function cc0_compiler_character_value_(text, length, character)
+{
+    if (eq(length, 1)) {
+        return ri8(text);
+    }
+    if (not(eq(length, 2))) {
+        return sub(0, 1);
+    }
+    if (not(eq(ri8(text), CC0_ASCII_BACKSLASH))) {
+        return sub(0, 1);
+    }
+    character = ri8(add(text, 1));
+    if (eq(character, CC0_ASCII_LOWER_N)) {
+        return CC0_ASCII_LINE_FEED;
+    }
+    if (eq(character, CC0_ASCII_LOWER_R)) {
+        return CC0_ASCII_CARRIAGE_RETURN;
+    }
+    if (eq(character, CC0_ASCII_LOWER_T)) {
+        return CC0_ASCII_TAB;
+    }
+    if (eq(character, CC0_ASCII_LOWER_F)) {
+        return CC0_ASCII_FORM_FEED;
+    }
+    if (eq(character, CC0_ASCII_LOWER_V)) {
+        return CC0_ASCII_VERTICAL_TAB;
+    }
+    if (eq(character, CC0_ASCII_ZERO)) {
+        return 0;
+    }
+    if (eq(character, CC0_ASCII_BACKSLASH)) {
+        return character;
+    }
+    if (eq(character, CC0_ASCII_QUOTE)) {
+        return character;
+    }
+    if (eq(character, CC0_ASCII_APOSTROPHE)) {
+        return character;
+    }
+    return sub(0, 1);
+}
+
+function cc0_compiler_parse_character_constant_(value)
+{
+    if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    if (not(eq(CC0_TOKEN, CC0_TOKEN_STRING_LITERAL))) {
+        return cc0_compiler_fail();
+    }
+    value = cc0_compiler_character_value_(CC0_TOKEN_START, CC0_TOKEN_LENGTH,
+        0);
+    if (lt(value, 0)) {
+        return cc0_compiler_fail();
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        cc0_compiler_emit_immediate(value);
+    }
+    cc0_compiler_next_token();
+    return cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS);
+}
+
+function cc0_compiler_parse_character_constant()
+{
+    return cc0_compiler_parse_character_constant_(0);
+}
+
 function cc0_compiler_parse_call_(name, length, argument_count, arity,
     builtin_arity, external_call)
 {
@@ -4477,6 +4549,9 @@ function cc0_compiler_parse_expression_(name, length)
         return CC0_FALSE;
     }
     if (eq(CC0_TOKEN, CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
+        if (cc0_text_equal(name, length, mks("mkC"))) {
+            return cc0_compiler_parse_character_constant();
+        }
         if (cc0_text_equal(name, length, mks("addr"))) {
             return cc0_compiler_parse_address();
         }
