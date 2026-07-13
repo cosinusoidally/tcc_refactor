@@ -1250,17 +1250,18 @@ static inline int toup(int c) {
 /* ------------ tccgen.c ------------ */
 
 #define SYM_POOL_NB (8192 / sizeof(Sym))
-ST_DATA Sym *sym_free_first;
-ST_DATA void **sym_pools;
+extern Sym *sym_free_first;
+extern void **sym_pools;
 extern int nb_sym_pools;
 
-ST_DATA Sym *global_stack;
-ST_DATA Sym *local_stack;
-ST_DATA Sym *local_label_stack;
-ST_DATA Sym *global_label_stack;
-ST_DATA Sym *define_stack;
+extern Sym *global_stack;
+extern Sym *local_stack;
+extern Sym *local_label_stack;
+extern Sym *global_label_stack;
+extern Sym *define_stack;
 ST_DATA CType char_pointer_type, func_old_type, int_type, size_type;
-ST_DATA SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE], *vtop, *pvtop;
+ST_DATA SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE];
+extern SValue *vtop, *pvtop;
 #define vstack  (__vstack + 1)
 extern int rsym, anon_sym, ind, loc;
 
@@ -1271,7 +1272,7 @@ ST_DATA CType func_vt; /* current function return type (used by return instructi
 extern int func_var; /* true if current function is variadic */
 extern int func_vc;
 extern int last_line_num, last_ind, func_ind; /* debug last line number and pc */
-ST_DATA const char *funcname;
+extern const char *funcname;
 extern int g_debug;
 extern int local_scope, in_sizeof, section_sym;
 extern int vlas_in_scope, vla_sp_root_loc, vla_sp_loc;

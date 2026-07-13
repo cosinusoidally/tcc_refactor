@@ -28,20 +28,11 @@
    rsym: return symbol
    anon_sym: anonymous symbol index
 */
-ST_DATA Sym *sym_free_first;
-ST_DATA void **sym_pools;
-
-ST_DATA Sym *global_stack;
-ST_DATA Sym *local_stack;
-ST_DATA Sym *define_stack;
-ST_DATA Sym *global_label_stack;
-ST_DATA Sym *local_label_stack;
-ST_DATA SValue __vstack[1+VSTACK_SIZE], *vtop, *pvtop;
+ST_DATA SValue __vstack[1+VSTACK_SIZE];
 
 #define NODATA_WANTED (nocode_wanted > 0) /* no static data output wanted either */
 #define STATIC_DATA_WANTED (nocode_wanted & 0xC0000000) /* only static data output */
 ST_DATA CType func_vt; /* current function return type (used by return instruction) */
-ST_DATA const char *funcname;
 
 ST_DATA CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
 

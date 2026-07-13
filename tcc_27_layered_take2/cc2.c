@@ -63,6 +63,17 @@ var last_line_num;
 var last_ind;
 var func_ind;
 var g_debug;
+/* Opaque i386 pointers are one word; their structures remain typed in TCC. */
+var sym_free_first;
+var sym_pools;
+var global_stack;
+var local_stack;
+var define_stack;
+var global_label_stack;
+var local_label_stack;
+var vtop;
+var pvtop;
+var funcname;
 
 function cc2_copy_bytes_(destination, source, length, index)
 {
