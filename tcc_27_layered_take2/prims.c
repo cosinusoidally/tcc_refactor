@@ -5,6 +5,8 @@
 int add(int left, int right) { return (int)((unsigned)left + (unsigned)right); }
 int sub(int left, int right) { return (int)((unsigned)left - (unsigned)right); }
 int mul(int left, int right) { return (int)((unsigned)left * (unsigned)right); }
+int sdiv(int left, int right) { return left / right; }
+int mod(int left, int right) { return left % right; }
 int eq(int left, int right) { return left == right; }
 int lt(int left, int right) { return left < right; }
 int le(int left, int right) { return left <= right; }

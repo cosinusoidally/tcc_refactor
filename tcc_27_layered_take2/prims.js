@@ -2,6 +2,8 @@
 function add(left, right) { return (left + right) | 0; }
 function sub(left, right) { return (left - right) | 0; }
 function mul(left, right) { return Math.imul(left, right) | 0; }
+function sdiv(left, right) { return (left / right) | 0; }
+function mod(left, right) { return (left % right) | 0; }
 function eq(left, right) { return left === right ? 1 : 0; }
 function lt(left, right) { return left < right ? 1 : 0; }
 function le(left, right) { return left <= right ? 1 : 0; }

@@ -139,6 +139,10 @@ var CC0_X86_SUB_REGISTER_OPCODE;
 var CC0_X86_SUB_EAX_ECX;
 var CC0_X86_SIGNED_MULTIPLY_OPCODE;
 var CC0_X86_MULTIPLY_EAX_EBX;
+var CC0_X86_SIGN_EXTEND_EAX;
+var CC0_X86_DIVIDE_OPCODE;
+var CC0_X86_DIVIDE_BY_ECX;
+var CC0_X86_MOV_EAX_EDX;
 var CC0_X86_AND_REGISTER_OPCODE;
 var CC0_X86_AND_EAX_EBX;
 var CC0_X86_SHIFT_BY_CL_OPCODE;
@@ -395,6 +399,10 @@ function cc0_init()
     CC0_X86_SUB_EAX_ECX = 200;
     CC0_X86_SIGNED_MULTIPLY_OPCODE = 175;
     CC0_X86_MULTIPLY_EAX_EBX = 195;
+    CC0_X86_SIGN_EXTEND_EAX = 153;
+    CC0_X86_DIVIDE_OPCODE = 247;
+    CC0_X86_DIVIDE_BY_ECX = 249;
+    CC0_X86_MOV_EAX_EDX = 208;
     CC0_X86_AND_REGISTER_OPCODE = 33;
     CC0_X86_AND_EAX_EBX = 216;
     CC0_X86_SHIFT_BY_CL_OPCODE = 211;
@@ -2680,6 +2688,29 @@ function cc0_compiler_emit_multiply()
     return cc0_compiler_emit_byte(CC0_X86_MULTIPLY_EAX_EBX);
 }
 
+function cc0_compiler_emit_division_()
+{
+    cc0_compiler_emit_byte(CC0_X86_MOV_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_MOV_ECX_EAX);
+    cc0_compiler_emit_byte(CC0_X86_MOV_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_MOV_EAX_EBX);
+    cc0_compiler_emit_byte(CC0_X86_SIGN_EXTEND_EAX);
+    cc0_compiler_emit_byte(CC0_X86_DIVIDE_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_DIVIDE_BY_ECX);
+}
+
+function cc0_compiler_emit_division()
+{
+    return cc0_compiler_emit_division_();
+}
+
+function cc0_compiler_emit_remainder()
+{
+    cc0_compiler_emit_division_();
+    cc0_compiler_emit_byte(CC0_X86_MOV_REGISTER_OPCODE);
+    return cc0_compiler_emit_byte(CC0_X86_MOV_EAX_EDX);
+}
+
 function cc0_compiler_emit_and()
 {
     cc0_compiler_emit_byte(CC0_X86_AND_REGISTER_OPCODE);
@@ -2753,6 +2784,12 @@ function cc0_compiler_emit_builtin(name, length)
     }
     if (cc0_text_equal(name, length, mks("mul"))) {
         return cc0_compiler_emit_multiply();
+    }
+    if (cc0_text_equal(name, length, mks("sdiv"))) {
+        return cc0_compiler_emit_division();
+    }
+    if (cc0_text_equal(name, length, mks("mod"))) {
+        return cc0_compiler_emit_remainder();
     }
     if (cc0_text_equal(name, length, mks("eq"))) {
         return cc0_compiler_emit_compare(CC0_X86_SET_EQUAL);
@@ -2844,6 +2881,12 @@ function cc0_compiler_builtin_arity(name, length)
         return 2;
     }
     if (cc0_text_equal(name, length, mks("mul"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("sdiv"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("mod"))) {
         return 2;
     }
     if (cc0_text_equal(name, length, mks("eq"))) {

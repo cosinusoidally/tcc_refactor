@@ -16,7 +16,7 @@ int record(int value)
 int main()
 {
     int temporary;
-    temporary = identity(RESULT + 2 * 1);
+    temporary = identity((RESULT + 6 / 3 + 5 % 3 - 2) * 1);
     record(temporary);
     while (global_result < 2) {
         global_result = global_result + 1;

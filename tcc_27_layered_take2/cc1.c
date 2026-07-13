@@ -105,6 +105,8 @@ var CC1_EXPRESSION_LESS_EQUAL_KIND;
 var CC1_EXPRESSION_NOT_KIND;
 var CC1_EXPRESSION_NEGATE_KIND;
 var CC1_EXPRESSION_MULTIPLY_KIND;
+var CC1_EXPRESSION_DIVIDE_KIND;
+var CC1_EXPRESSION_REMAINDER_KIND;
 var CC1_EXPRESSIONS;
 var CC1_EXPRESSION_CAPACITY;
 var CC1_EXPRESSION_COUNT;
@@ -1017,6 +1019,8 @@ function cc1_expression_init()
     CC1_EXPRESSION_NOT_KIND = 9;
     CC1_EXPRESSION_NEGATE_KIND = 10;
     CC1_EXPRESSION_MULTIPLY_KIND = 11;
+    CC1_EXPRESSION_DIVIDE_KIND = 12;
+    CC1_EXPRESSION_REMAINDER_KIND = 13;
     CC1_EXPRESSION_COUNT = 0;
     CC1_EXPRESSION_ERROR = 0;
     return 0;
@@ -1136,21 +1140,33 @@ function cc1_expression_parse_unary()
     return cc1_expression_parse_unary_(0, 0, 0);
 }
 
-function cc1_expression_parse_multiplicative_(left, token, right)
+function cc1_expression_parse_multiplicative_(left, token, kind, right,
+    expression_kind)
 {
     left = cc1_expression_parse_unary();
-    while (eq(cc1_expression_token_kind(), 42)) {
+    while (1) {
+        kind = cc1_expression_token_kind();
+        expression_kind = 0;
+        if (eq(kind, 42)) {
+            expression_kind = CC1_EXPRESSION_MULTIPLY_KIND;
+        } else if (eq(kind, 47)) {
+            expression_kind = CC1_EXPRESSION_DIVIDE_KIND;
+        } else if (eq(kind, 37)) {
+            expression_kind = CC1_EXPRESSION_REMAINDER_KIND;
+        }
+        if (eq(expression_kind, 0)) {
+            return left;
+        }
         token = cc1_preprocessed_consume();
         right = cc1_expression_parse_unary();
-        left = cc1_expression_new(CC1_EXPRESSION_MULTIPLY_KIND, token,
+        left = cc1_expression_new(expression_kind, token,
             left, right);
     }
-    return left;
 }
 
 function cc1_expression_parse_multiplicative()
 {
-    return cc1_expression_parse_multiplicative_(0, 0, 0);
+    return cc1_expression_parse_multiplicative_(0, 0, 0, 0, 0);
 }
 
 function cc1_expression_parse_additive_(left, token, kind, right,
@@ -1359,6 +1375,12 @@ function cc1_expression_emit_(expression, kind, token, argument, origin)
     }
     if (eq(kind, CC1_EXPRESSION_MULTIPLY_KIND)) {
         return cc1_expression_emit_binary(expression, mks("mul"));
+    }
+    if (eq(kind, CC1_EXPRESSION_DIVIDE_KIND)) {
+        return cc1_expression_emit_binary(expression, mks("sdiv"));
+    }
+    if (eq(kind, CC1_EXPRESSION_REMAINDER_KIND)) {
+        return cc1_expression_emit_binary(expression, mks("mod"));
     }
     if (eq(kind, CC1_EXPRESSION_EQUAL_KIND)) {
         return cc1_expression_emit_binary(expression, mks("eq"));
