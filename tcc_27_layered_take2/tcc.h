@@ -1511,6 +1511,8 @@ extern void load(int r, SValue *sv);
 extern void move_reg(int destination, int source, int type);
 extern void struct_add_offset(Sym *symbol, int offset);
 extern Sym *find_field(CType *type, int value);
+extern void struct_layout(CType *type, AttributeDef *attributes, int pcc,
+                          int pragma_pack);
 extern void parse_btype_qualify(CType *type, int qualifiers);
 extern void convert_parameter_type(CType *type);
 extern void sym_to_attr(AttributeDef *attributes, Sym *symbol);

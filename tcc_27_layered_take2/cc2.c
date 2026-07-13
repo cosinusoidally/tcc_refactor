@@ -141,6 +141,12 @@ var CC2_ASSIGNMENT_SHIFT_RIGHT = 130;
 var CC2_ASSIGNMENT_XOR = 222;
 var CC2_ASSIGNMENT_OR = 252;
 var CC2_TOKEN_OPERATOR_MASK = 127;
+var CC2_TCC_UNION_TYPE = 1048583;
+var CC2_TCC_BITFIELD_POSITION_SHIFT = 20;
+var CC2_TCC_BITFIELD_SIZE_SHIFT = 26;
+var CC2_TCC_BITFIELD_VALUE_MASK = 63;
+var CC2_TCC_BITFIELD_POSITION_MASK = 66060288;
+var CC2_SYM_ATTRIBUTE_PACKED = 32;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -1578,6 +1584,339 @@ function check_vstack()
             sdiv(sub(vtop, pvtop), CC2_SVALUE_BYTES));
     }
     return 0;
+}
+
+function cc2_align_up(value, alignment)
+{
+    return and(add(value, sub(alignment, 1)), sub(0, alignment));
+}
+
+function cc2_symbol_attributes(symbol)
+{
+    return and(ushr(ri32(add(symbol, 4)), 16), 65535);
+}
+
+function cc2_symbol_set_register(symbol, reg)
+{
+    wi32(add(symbol, 4), or(and(ri32(add(symbol, 4)), bnot(65535)),
+        and(reg, 65535)));
+    return 0;
+}
+
+function cc2_bitfield_size(type_value)
+{
+    return and(ushr(type_value, CC2_TCC_BITFIELD_SIZE_SHIFT),
+        CC2_TCC_BITFIELD_VALUE_MASK);
+}
+
+function cc2_bitfield_position(type_value)
+{
+    return and(ushr(type_value, CC2_TCC_BITFIELD_POSITION_SHIFT),
+        CC2_TCC_BITFIELD_VALUE_MASK);
+}
+
+/* Named anonymous aggregates may share their member chain. Layout needs a
+   private chain because it applies the containing aggregate's offset. */
+function cc2_unshare_anonymous_(field, reference, value, source, destination,
+    clone)
+{
+    reference = ri32(add(field, CC2_SYM_TYPE_REFERENCE_OFFSET));
+    value = ri32(add(reference, CC2_SYM_VALUE_OFFSET));
+    if (eq(and(value, CC2_SYMBOL_FIELD_FLAG), 0)) {
+        if (lt(and(value, bnot(CC2_SYMBOL_STRUCT_FLAG)),
+            CC2_FIRST_ANONYMOUS_SYMBOL)) {
+            source = reference;
+            clone = sym_push(or(anon_sym, CC2_SYMBOL_FIELD_FLAG),
+                add(reference, CC2_SYM_TYPE_OFFSET), 0,
+                ri32(add(reference, CC2_SYM_CONSTANT_OFFSET)));
+            anon_sym = add(anon_sym, 1);
+            wi32(add(field, CC2_SYM_TYPE_REFERENCE_OFFSET), clone);
+            destination = clone;
+            source = ri32(add(source, CC2_SYM_NEXT_OFFSET));
+            while (not(eq(source, 0))) {
+                clone = sym_push(ri32(add(source, CC2_SYM_VALUE_OFFSET)),
+                    add(source, CC2_SYM_TYPE_OFFSET), 0,
+                    ri32(add(source, CC2_SYM_CONSTANT_OFFSET)));
+                wi32(add(destination, CC2_SYM_NEXT_OFFSET), clone);
+                destination = clone;
+                source = ri32(add(source, CC2_SYM_NEXT_OFFSET));
+            }
+            wi32(add(destination, CC2_SYM_NEXT_OFFSET), 0);
+        }
+    }
+    return 0;
+}
+
+function cc2_unshare_anonymous(field)
+{
+    return cc2_unshare_anonymous_(field, 0, 0, 0, 0, 0);
+}
+
+function struct_layout_place_(type, attributes, pcc, pragma_pack, reference,
+    field, maximum_alignment, offset, size_so_far, bit_position, bit_size,
+    previous_basic_type, previous_bit_size, field_type, size, alignment,
+    field_attributes, individual_alignment, packed, basic_type,
+    alignment_bits, occupied_units, start_new_field, requested_alignment)
+{
+    reference = ri32(add(type, 4));
+    field = ri32(add(reference, CC2_SYM_NEXT_OFFSET));
+    maximum_alignment = 1;
+    offset = 0;
+    size_so_far = 0;
+    bit_position = 0;
+    previous_basic_type = CC2_TCC_STRUCT_TYPE;
+    previous_bit_size = 0;
+    while (not(eq(field, 0))) {
+        field_type = ri32(add(field, CC2_SYM_TYPE_OFFSET));
+        if (not(eq(and(field_type, CC2_TCC_BITFIELD), 0))) {
+            bit_size = cc2_bitfield_size(field_type);
+        } else {
+            bit_size = sub(0, 1);
+        }
+        requested_alignment = cc2_type_alignment_temporary();
+        size = type_size(add(field, CC2_SYM_TYPE_OFFSET), requested_alignment);
+        alignment = ri32(requested_alignment);
+        field_attributes = cc2_symbol_attributes(field);
+        individual_alignment = and(field_attributes,
+            CC2_SYM_ATTRIBUTE_ALIGNED_MASK);
+        if (not(eq(individual_alignment, 0))) {
+            individual_alignment = shl(1, sub(individual_alignment, 1));
+        }
+        packed = 0;
+        if (not(and(pcc, eq(bit_size, 0)))) {
+            if (pcc) {
+                if (or(not(eq(and(field_attributes,
+                    CC2_SYM_ATTRIBUTE_PACKED), 0)), not(eq(and(ri32(attributes),
+                    CC2_SYM_ATTRIBUTE_PACKED), 0)))) {
+                    alignment = 1;
+                    packed = 1;
+                }
+            }
+            if (not(eq(pragma_pack, 0))) {
+                packed = 1;
+                if (lt(pragma_pack, alignment)) {
+                    alignment = pragma_pack;
+                }
+                if (and(pcc, lt(pragma_pack, individual_alignment))) {
+                    individual_alignment = 0;
+                }
+            }
+        }
+        if (not(eq(individual_alignment, 0))) {
+            alignment = individual_alignment;
+        }
+        if (eq(ri32(add(reference, CC2_SYM_TYPE_OFFSET)),
+            CC2_TCC_UNION_TYPE)) {
+            if (and(pcc, le(0, bit_size))) {
+                size = ushr(add(bit_size, 7), 3);
+            }
+            offset = 0;
+            if (lt(size_so_far, size)) {
+                size_so_far = size;
+            }
+        } else if (lt(bit_size, 0)) {
+            if (pcc) {
+                size_so_far = add(size_so_far,
+                    ushr(add(bit_position, 7), 3));
+            }
+            size_so_far = cc2_align_up(size_so_far, alignment);
+            offset = size_so_far;
+            if (lt(0, size)) {
+                size_so_far = add(size_so_far, size);
+            }
+            bit_position = 0;
+            previous_basic_type = CC2_TCC_STRUCT_TYPE;
+            previous_bit_size = 0;
+        } else if (pcc) {
+            start_new_field = eq(bit_size, 0);
+            if (not(eq(individual_alignment, 0))) {
+                start_new_field = 1;
+            } else if (eq(packed, 0)) {
+                alignment_bits = mul(alignment, 8);
+                occupied_units = sdiv(add(add(mod(add(mul(size_so_far, 8),
+                    bit_position), alignment_bits), bit_size),
+                    sub(alignment_bits, 1)), alignment_bits);
+                if (lt(sdiv(size, alignment), occupied_units)) {
+                    start_new_field = 1;
+                }
+            }
+            if (start_new_field) {
+                size_so_far = cc2_align_up(add(size_so_far,
+                    ushr(add(bit_position, 7), 3)), alignment);
+                bit_position = 0;
+            }
+            if (and(eq(size, 8), le(bit_size, 32))) {
+                field_type = or(and(field_type,
+                    bnot(CC2_TCC_BASIC_TYPE_MASK)), CC2_TCC_INT_TYPE);
+                wi32(add(field, CC2_SYM_TYPE_OFFSET), field_type);
+                size = 4;
+            }
+            while (le(mul(alignment, 8), bit_position)) {
+                size_so_far = add(size_so_far, alignment);
+                bit_position = sub(bit_position, mul(alignment, 8));
+            }
+            offset = size_so_far;
+            if (not(eq(and(ri32(add(field, CC2_SYM_VALUE_OFFSET)),
+                CC2_FIRST_ANONYMOUS_SYMBOL), 0))) {
+                alignment = 1;
+            }
+            field_type = ri32(add(field, CC2_SYM_TYPE_OFFSET));
+            wi32(add(field, CC2_SYM_TYPE_OFFSET), or(and(field_type,
+                bnot(CC2_TCC_BITFIELD_POSITION_MASK)),
+                shl(bit_position, CC2_TCC_BITFIELD_POSITION_SHIFT)));
+            bit_position = add(bit_position, bit_size);
+        } else {
+            basic_type = and(field_type, CC2_TCC_BASIC_TYPE_MASK);
+            if (or(lt(mul(size, 8), add(bit_position, bit_size)),
+                eq(lt(0, bit_size), not(eq(basic_type,
+                previous_basic_type))))) {
+                size_so_far = cc2_align_up(size_so_far, alignment);
+                offset = size_so_far;
+                bit_position = 0;
+                if (or(not(eq(bit_size, 0)),
+                    not(eq(previous_bit_size, 0)))) {
+                    size_so_far = add(size_so_far, size);
+                }
+            }
+            if (and(eq(bit_size, 0),
+                not(eq(previous_basic_type, basic_type)))) {
+                alignment = 1;
+            }
+            previous_basic_type = basic_type;
+            previous_bit_size = bit_size;
+            wi32(add(field, CC2_SYM_TYPE_OFFSET), or(and(field_type,
+                bnot(CC2_TCC_BITFIELD_POSITION_MASK)),
+                shl(bit_position, CC2_TCC_BITFIELD_POSITION_SHIFT)));
+            bit_position = add(bit_position, bit_size);
+        }
+        if (lt(maximum_alignment, alignment)) {
+            maximum_alignment = alignment;
+        }
+        field_type = ri32(add(field, CC2_SYM_TYPE_OFFSET));
+        if (and(not(eq(and(ri32(add(field, CC2_SYM_VALUE_OFFSET)),
+            CC2_FIRST_ANONYMOUS_SYMBOL), 0)),
+            eq(and(field_type, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_STRUCT_TYPE))) {
+            cc2_unshare_anonymous(field);
+            struct_add_offset(ri32(add(field,
+                CC2_SYM_TYPE_REFERENCE_OFFSET)), offset);
+            wi32(add(field, CC2_SYM_CONSTANT_OFFSET), 0);
+        } else {
+            wi32(add(field, CC2_SYM_CONSTANT_OFFSET), offset);
+        }
+        cc2_symbol_set_register(field, 0);
+        field = ri32(add(field, CC2_SYM_NEXT_OFFSET));
+    }
+    if (pcc) {
+        size_so_far = add(size_so_far, ushr(add(bit_position, 7), 3));
+    }
+    requested_alignment = and(ri32(attributes),
+        CC2_SYM_ATTRIBUTE_ALIGNED_MASK);
+    if (not(eq(requested_alignment, 0))) {
+        requested_alignment = shl(1, sub(requested_alignment, 1));
+    } else {
+        requested_alignment = 1;
+    }
+    individual_alignment = requested_alignment;
+    if (lt(requested_alignment, maximum_alignment)) {
+        requested_alignment = maximum_alignment;
+    }
+    cc2_symbol_set_register(reference, requested_alignment);
+    if (and(and(not(eq(pragma_pack, 0)),
+        lt(pragma_pack, maximum_alignment)), eq(pcc, 0))) {
+        requested_alignment = pragma_pack;
+        if (lt(requested_alignment, individual_alignment)) {
+            requested_alignment = individual_alignment;
+        }
+    }
+    size_so_far = cc2_align_up(size_so_far, requested_alignment);
+    wi32(add(reference, CC2_SYM_CONSTANT_OFFSET), size_so_far);
+    return size_so_far;
+}
+
+function struct_layout_place(type, attributes, pcc, pragma_pack)
+{
+    return struct_layout_place_(type, attributes, pcc, pragma_pack,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+/* Some bitfields cross their declared type's natural access unit. TCC picks
+   the smallest safe scalar access, falling back to byte-wise access. */
+function struct_layout_access_(type, total_size, reference, field, field_type,
+    bit_size, bit_position, size, alignment_pointer, alignment, access_size,
+    pixel, byte_offset, previous_offset, temporary_type)
+{
+    reference = ri32(add(type, 4));
+    field = ri32(add(reference, CC2_SYM_NEXT_OFFSET));
+    alignment_pointer = cc2_type_alignment_temporary();
+    temporary_type = cc2_svalue_temporary();
+    while (not(eq(field, 0))) {
+        field_type = ri32(add(field, CC2_SYM_TYPE_OFFSET));
+        if (not(eq(and(field_type, CC2_TCC_BITFIELD), 0))) {
+            wi32(add(field, CC2_SYM_TYPE_REFERENCE_OFFSET), field);
+            wi32(add(field, CC2_SYM_SCOPE_OFFSET), sub(0, 1));
+            bit_size = cc2_bitfield_size(field_type);
+            if (not(eq(bit_size, 0))) {
+                bit_position = cc2_bitfield_position(field_type);
+                size = type_size(add(field, CC2_SYM_TYPE_OFFSET),
+                    alignment_pointer);
+                alignment = ri32(alignment_pointer);
+                if (or(lt(mul(size, 8), add(bit_position, bit_size)),
+                    lt(total_size, add(ri32(add(field,
+                    CC2_SYM_CONSTANT_OFFSET)), size)))) {
+                    previous_offset = sub(0, 1);
+                    access_size = 1;
+                    alignment = 1;
+                    while (not(eq(previous_offset, byte_offset))) {
+                        pixel = add(mul(ri32(add(field,
+                            CC2_SYM_CONSTANT_OFFSET)), 8), bit_position);
+                        byte_offset = and(ushr(pixel, 3), sub(0, alignment));
+                        pixel = sub(pixel, shl(byte_offset, 3));
+                        if (not(eq(previous_offset, byte_offset))) {
+                            access_size = ushr(add(add(pixel, bit_size), 7), 3);
+                            if (lt(4, access_size)) {
+                                wi32(temporary_type, CC2_TCC_LONG_LONG_TYPE);
+                            } else if (lt(2, access_size)) {
+                                wi32(temporary_type, CC2_TCC_INT_TYPE);
+                            } else if (lt(1, access_size)) {
+                                wi32(temporary_type, CC2_TCC_SHORT_TYPE);
+                            } else {
+                                wi32(temporary_type, CC2_TCC_BYTE_TYPE);
+                            }
+                            wi32(add(temporary_type, 4), 0);
+                            access_size = type_size(temporary_type,
+                                alignment_pointer);
+                            alignment = ri32(alignment_pointer);
+                            previous_offset = byte_offset;
+                        }
+                    }
+                    if (and(le(add(pixel, bit_size), mul(access_size, 8)),
+                        le(add(byte_offset, access_size), total_size))) {
+                        wi32(add(field, CC2_SYM_CONSTANT_OFFSET), byte_offset);
+                        wi32(add(field, CC2_SYM_TYPE_OFFSET), or(and(field_type,
+                            bnot(CC2_TCC_BITFIELD_POSITION_MASK)),
+                            shl(pixel, CC2_TCC_BITFIELD_POSITION_SHIFT)));
+                        if (not(eq(access_size, size))) {
+                            wi32(add(field, CC2_SYM_SCOPE_OFFSET),
+                                ri32(temporary_type));
+                        }
+                    } else {
+                        wi32(add(field, CC2_SYM_SCOPE_OFFSET),
+                            CC2_TCC_STRUCT_TYPE);
+                    }
+                }
+            }
+        }
+        field = ri32(add(field, CC2_SYM_NEXT_OFFSET));
+    }
+    return 0;
+}
+
+function struct_layout(type, attributes, pcc, pragma_pack)
+{
+    return struct_layout_access_(type,
+        struct_layout_place(type, attributes, pcc, pragma_pack),
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, sub(0, 2), 0, 0);
 }
 
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)
