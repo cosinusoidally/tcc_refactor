@@ -325,7 +325,7 @@ function cc2_token_is_identifier(token, text)
         cc2_token_length(token), text);
 }
 
-function cc2_enum_value_(index, sign, token, record, value)
+function cc2_enum_atom_(index, sign, token, record, value)
 {
     sign = 1;
     token = cc2_token_at(index);
@@ -353,7 +353,32 @@ function cc2_enum_value_(index, sign, token, record, value)
 /* Parse the deliberately small constant-expression subset needed by enums. */
 function cc2_enum_value(index)
 {
-    return cc2_enum_value_(index, 0, 0, 0, 0);
+    var end;
+    var token;
+    var operation;
+    var left;
+    end = cc2_enum_atom_(index, 0, 0, 0, 0);
+    if (eq(end, 0)) {
+        return 0;
+    }
+    left = CC2_ENUM_PARSED_VALUE;
+    token = cc2_token_at(end);
+    while (or(eq(cc2_token_kind(token), 43),
+        eq(cc2_token_kind(token), 45))) {
+        operation = cc2_token_kind(token);
+        end = cc2_enum_atom_(add(end, 1), 0, 0, 0, 0);
+        if (eq(end, 0)) {
+            return 0;
+        }
+        if (eq(operation, 43)) {
+            left = add(left, CC2_ENUM_PARSED_VALUE);
+        } else {
+            left = sub(left, CC2_ENUM_PARSED_VALUE);
+        }
+        token = cc2_token_at(end);
+    }
+    CC2_ENUM_PARSED_VALUE = left;
+    return end;
 }
 
 function cc2_lower_enum_body_(index, token, next_value, value_end, value,
@@ -467,7 +492,7 @@ function cc2_lower_enums()
 }
 
 function cc2_lower_typedefs_(index, token, scan, candidate, record,
-    replacement)
+    replacement, depth, previous, next)
 {
     index = 0;
     CC2_TYPEDEF_COUNT = 0;
@@ -480,14 +505,37 @@ function cc2_lower_typedefs_(index, token, scan, candidate, record,
         if (cc2_token_is_identifier(token, mks("typedef"))) {
             scan = add(index, 1);
             candidate = 0;
+            depth = 0;
+            previous = 0;
             while (lt(scan, CC2_INPUT_TOKEN_COUNT)) {
                 token = cc2_token_at(scan);
                 if (eq(cc2_token_kind(token), 59)) {
                     break;
                 }
-                if (eq(cc2_token_kind(token), 2)) {
-                    candidate = token;
+                next = cc2_token_at(add(scan, 1));
+                if (eq(cc2_token_kind(token), 40)) {
+                    depth = add(depth, 1);
+                } else if (eq(cc2_token_kind(token), 41)) {
+                    depth = sub(depth, 1);
                 }
+                if (eq(cc2_token_kind(token), 2)) {
+                    if (eq(depth, 0)) {
+                        if (eq(cc2_token_kind(next), 59)) {
+                            candidate = token;
+                        }
+                        if (eq(cc2_token_kind(next), 91)) {
+                            candidate = token;
+                        }
+                    }
+                    if (not(eq(previous, 0))) {
+                        if (eq(cc2_token_kind(previous), 42)) {
+                            if (eq(cc2_token_kind(next), 41)) {
+                                candidate = token;
+                            }
+                        }
+                    }
+                }
+                previous = token;
                 scan = add(scan, 1);
             }
             if (eq(candidate, 0)) {
@@ -525,7 +573,7 @@ function cc2_lower_typedefs_(index, token, scan, candidate, record,
 
 function cc2_lower_typedefs()
 {
-    return cc2_lower_typedefs_(0, 0, 0, 0, 0, 0);
+    return cc2_lower_typedefs_(0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function cc2_init()
