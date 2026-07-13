@@ -428,6 +428,18 @@ var CC2_TOKEN_ASSEMBLER_POP;
 var CC2_TOKEN_ASSEMBLER_PUSH;
 var CC2_TCC_STATE_PACK_STACK_OFFSET;
 var CC2_PACK_STACK_ENTRIES;
+var CC2_TOKEN_PRAGMA_PUSH_MACRO;
+var CC2_TOKEN_PRAGMA_POP_MACRO;
+var CC2_TOKEN_PRAGMA_ONCE;
+var CC2_TOKEN_PRAGMA_PACK;
+var CC2_TOKEN_PRAGMA_COMMENT;
+var CC2_TOKEN_PRAGMA_LIBRARY;
+var CC2_TOKEN_PRAGMA_OPTION;
+var CC2_TOKEN_PRAGMA;
+var CC2_TOKEN_LINE_FEED;
+var CC2_OUTPUT_PREPROCESS;
+var CC2_TCC_STATE_PRAGMA_LIBRARIES_OFFSET;
+var CC2_TCC_STATE_PRAGMA_LIBRARY_COUNT_OFFSET;
 var CC2_TOKEN_CHARACTER;
 var CC2_TOKEN_WIDE_CHARACTER;
 var CC2_TOKEN_INTEGER_CONSTANT;
@@ -536,6 +548,9 @@ var total_bytes;
 var pp_expr;
 var tokstr_buf_address;
 var isidnum_table_address;
+var pp_debug_tok_address;
+var pp_debug_symv_address;
+var pp_once_address;
 var symtab_section_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET;
@@ -1682,6 +1697,111 @@ function pragma_parse_pack(state)
         return 0;
     }
     return 1;
+}
+
+function pragma_parse(state)
+{
+    var token;
+    var value;
+    var symbol;
+    var token_symbol;
+    var text;
+    var source_file;
+    next_nomacro();
+    token = ri32(tok_address);
+    if (or(eq(token, CC2_TOKEN_PRAGMA_PUSH_MACRO),
+        eq(token, CC2_TOKEN_PRAGMA_POP_MACRO))) {
+        next();
+        if (not(eq(ri32(tok_address), 40))) {
+            tcc_error(mks("malformed #pragma directive"), 0);
+        }
+        next();
+        if (not(eq(ri32(tok_address), CC2_TOKEN_STRING))) {
+            tcc_error(mks("malformed #pragma directive"), 0);
+        }
+        value = ri32(add(tok_alloc(ri32(add(tokc_address,
+            CC2_CSTRING_DATA_OFFSET)), sub(ri32(add(tokc_address,
+            CC2_CSTRING_SIZE_OFFSET)), 1)), CC2_TOKEN_SYMBOL_TOKEN_OFFSET));
+        next();
+        if (not(eq(ri32(tok_address), 41))) {
+            tcc_error(mks("malformed #pragma directive"), 0);
+        }
+        if (eq(token, CC2_TOKEN_PRAGMA_PUSH_MACRO)) {
+            symbol = define_find(value);
+            while (not(symbol)) {
+                define_push(value, 0, 0, 0);
+                symbol = define_find(value);
+            }
+            wi32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET), symbol);
+        } else {
+            symbol = define_stack;
+            while (symbol) {
+                if (and(eq(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), value),
+                    eq(ri32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET)),
+                    symbol))) {
+                    wi32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET), 0);
+                    break;
+                }
+                symbol = ri32(add(symbol, CC2_SYM_PREVIOUS_TOKEN_OFFSET));
+            }
+        }
+        token_symbol = cc2_token_symbol(value);
+        if (symbol) {
+            if (ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET))) {
+                wi32(add(token_symbol, CC2_TOKEN_SYMBOL_DEFINE_OFFSET), symbol);
+            } else {
+                wi32(add(token_symbol, CC2_TOKEN_SYMBOL_DEFINE_OFFSET), 0);
+            }
+        } else {
+            tcc_warning(mks("unbalanced #pragma pop_macro"), 0);
+        }
+        wi32(pp_debug_tok_address, token);
+        wi32(pp_debug_symv_address, value);
+    } else if (eq(token, CC2_TOKEN_PRAGMA_ONCE)) {
+        source_file = ri32(file_address);
+        symbol = search_cached_include(state, add(source_file,
+            CC2_BUFFERED_FILE_FILENAME_OFFSET), 1);
+        wi32(add(symbol, CC2_CACHED_INCLUDE_ONCE_OFFSET),
+            ri32(pp_once_address));
+    } else if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+        CC2_OUTPUT_PREPROCESS)) {
+        unget_tok(32);
+        unget_tok(CC2_TOKEN_PRAGMA);
+        unget_tok(35);
+        unget_tok(CC2_TOKEN_LINE_FEED);
+    } else if (eq(token, CC2_TOKEN_PRAGMA_PACK)) {
+        if (not(pragma_parse_pack(state))) {
+            tcc_error(mks("malformed #pragma directive"), 0);
+        }
+    } else if (eq(token, CC2_TOKEN_PRAGMA_COMMENT)) {
+        next();
+        skip(40);
+        token = ri32(tok_address);
+        next();
+        skip(44);
+        if (not(eq(ri32(tok_address), CC2_TOKEN_STRING))) {
+            tcc_error(mks("malformed #pragma directive"), 0);
+        }
+        text = malloc(ri32(add(tokc_address, CC2_CSTRING_SIZE_OFFSET)));
+        strcpy(text, ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET)));
+        next();
+        if (not(eq(ri32(tok_address), 41))) {
+            tcc_error(mks("malformed #pragma directive"), 0);
+        }
+        if (eq(token, CC2_TOKEN_PRAGMA_LIBRARY)) {
+            dynarray_add(add(state, CC2_TCC_STATE_PRAGMA_LIBRARIES_OFFSET),
+                add(state, CC2_TCC_STATE_PRAGMA_LIBRARY_COUNT_OFFSET), text);
+        } else {
+            if (eq(token, CC2_TOKEN_PRAGMA_OPTION)) {
+                tcc_set_options(state, text);
+            }
+            free(text);
+        }
+    } else if (ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
+        tcc_warning(mks("#pragma %s is ignored"),
+            get_tok_str(ri32(tok_address), tokc_address));
+    }
+    return 0;
 }
 
 function tok_str_add2(stream, token, value)
@@ -13243,6 +13363,18 @@ function cc2_init_constants()
     CC2_TOKEN_ASSEMBLER_PUSH = 646;
     CC2_TCC_STATE_PACK_STACK_OFFSET = 904;
     CC2_PACK_STACK_ENTRIES = 8;
+    CC2_TOKEN_PRAGMA_PUSH_MACRO = 382;
+    CC2_TOKEN_PRAGMA_POP_MACRO = 383;
+    CC2_TOKEN_PRAGMA_ONCE = 384;
+    CC2_TOKEN_PRAGMA_PACK = 379;
+    CC2_TOKEN_PRAGMA_COMMENT = 380;
+    CC2_TOKEN_PRAGMA_LIBRARY = 381;
+    CC2_TOKEN_PRAGMA_OPTION = 385;
+    CC2_TOKEN_PRAGMA = 326;
+    CC2_TOKEN_LINE_FEED = 10;
+    CC2_OUTPUT_PREPROCESS = 5;
+    CC2_TCC_STATE_PRAGMA_LIBRARIES_OFFSET = 940;
+    CC2_TCC_STATE_PRAGMA_LIBRARY_COUNT_OFFSET = 944;
     return 0;
 }
 

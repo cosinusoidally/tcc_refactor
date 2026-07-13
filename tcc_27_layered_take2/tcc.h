@@ -1172,6 +1172,9 @@ extern int total_bytes;
 extern int pp_expr;
 extern TokenString *tokstr_buf_address;
 extern unsigned char *isidnum_table_address;
+extern int *pp_debug_tok_address;
+extern int *pp_debug_symv_address;
+extern int *pp_once_address;
 extern int tok_ident;
 extern TokenSym **table_ident;
 
@@ -1544,6 +1547,7 @@ void next_nomacro_spc(void);
 CachedInclude *search_cached_include(TCCState *state, const char *filename,
                                      int create);
 int pragma_parse_pack(TCCState *state);
+void pragma_parse(TCCState *state);
 #endif
 
 /* ------------ xxx-link.c ------------ */

@@ -512,82 +512,6 @@ const char *get_tok_str(int v, CValue *cv)
 
 #define cinp minp
 
-static void pragma_parse(TCCState *s1)
-{
-    next_nomacro();
-    if (tok == TOK_push_macro || tok == TOK_pop_macro) {
-        int t = tok, v;
-        Sym *s;
-
-        if (next(), tok != '(')
-            goto pragma_err;
-        if (next(), tok != TOK_STR)
-            goto pragma_err;
-        v = tok_alloc(tokc.str.data, tokc.str.size - 1)->tok;
-        if (next(), tok != ')')
-            goto pragma_err;
-        if (t == TOK_push_macro) {
-            while (NULL == (s = define_find(v)))
-                define_push(v, 0, NULL, NULL);
-            s->type.ref = s; /* set push boundary */
-        } else {
-            for (s = define_stack; s; s = s->prev)
-                if (s->v == v && s->type.ref == s) {
-                    s->type.ref = NULL;
-                    break;
-                }
-        }
-        if (s)
-            table_ident[v - TOK_IDENT]->sym_define = s->d ? s : NULL;
-        else
-            tcc_warning("unbalanced #pragma pop_macro");
-        pp_debug_tok = t, pp_debug_symv = v;
-
-    } else if (tok == TOK_once) {
-        search_cached_include(s1, file->filename, 1)->once = pp_once;
-
-    } else if (s1->output_type == TCC_OUTPUT_PREPROCESS) {
-        /* tcc -E: keep pragmas below unchanged */
-        unget_tok(' ');
-        unget_tok(TOK_PRAGMA);
-        unget_tok('#');
-        unget_tok(TOK_LINEFEED);
-
-    } else if (tok == TOK_pack) {
-        if (!pragma_parse_pack(s1))
-            goto pragma_err;
-
-    } else if (tok == TOK_comment) {
-        char *p; int t;
-        next();
-        skip('(');
-        t = tok;
-        next();
-        skip(',');
-        if (tok != TOK_STR)
-            goto pragma_err;
-        p = tcc_strdup((char *)tokc.str.data);
-        next();
-        if (tok != ')')
-            goto pragma_err;
-        if (t == TOK_lib) {
-            dynarray_add(&s1->pragma_libs, &s1->nb_pragma_libs, p);
-        } else {
-            if (t == TOK_option)
-                tcc_set_options(s1, p);
-            tcc_free(p);
-        }
-
-    } else if (s1->warn_unsupported) {
-        tcc_warning("#pragma %s is ignored", get_tok_str(tok, &tokc));
-    }
-    return;
-
-pragma_err:
-    tcc_error("malformed #pragma directive");
-    return;
-}
-
 /* is_bof is true if first non space token at beginning of file */
 ST_FUNC void preprocess(int is_bof)
 {
@@ -2483,6 +2407,9 @@ ST_FUNC void tccpp_new(TCCState *s)
     gnu_ext_address = &gnu_ext;
     tokstr_buf_address = &tokstr_buf;
     isidnum_table_address = isidnum_table;
+    pp_debug_tok_address = &pp_debug_tok;
+    pp_debug_symv_address = &pp_debug_symv;
+    pp_once_address = &pp_once;
 
     /* cc0 owns the character classes used to initialize this lexer. */
     cc0_init();

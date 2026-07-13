@@ -112,6 +112,11 @@ function tok_alloc(text, length)
     return 0;
 }
 
+function tcc_set_options(state, text)
+{
+    return 0;
+}
+
 function put_extern_sym(symbol, section, offset, size)
 {
     return 0;
