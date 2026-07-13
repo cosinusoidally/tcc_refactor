@@ -30,16 +30,6 @@ function section_reserve(section, size)
     return 0;
 }
 
-function cstr_cat(string, source, length)
-{
-    return 0;
-}
-
-function cstr_ccat(string, character)
-{
-    return 0;
-}
-
 function tcc_debug_start(state)
 {
     return 0;
@@ -153,11 +143,6 @@ function find_section(state, name)
 }
 
 function tok_alloc(text, length)
-{
-    return 0;
-}
-
-function cstr_free(string)
 {
     return 0;
 }

@@ -367,6 +367,7 @@ var CC2_TCC_UNION_KIND = 1048583;
 var CC2_TCC_STRUCT_KIND_MASK = 4293918848;
 var CC2_CSTRING_SIZE_OFFSET = 0;
 var CC2_CSTRING_DATA_OFFSET = 4;
+var CC2_CSTRING_CAPACITY_OFFSET = 8;
 var CC2_CSTRING_BYTES = 12;
 var CC2_TOKEN_SYMBOL_TOKEN_OFFSET = 20;
 var CC2_ATTRIBUTE_ALIGNED_MASK = 31;
@@ -535,6 +536,73 @@ function cstr_reset(string)
 {
     wi32(add(string, CC2_CSTRING_SIZE_OFFSET), 0);
     return 0;
+}
+
+function cstr_realloc(string, needed)
+{
+    var capacity;
+    var data;
+    capacity = ri32(add(string, CC2_CSTRING_CAPACITY_OFFSET));
+    if (lt(capacity, 8)) {
+        capacity = 8;
+    }
+    while (lt(capacity, needed)) {
+        capacity = mul(capacity, 2);
+    }
+    data = realloc(ri32(add(string, CC2_CSTRING_DATA_OFFSET)), capacity);
+    wi32(add(string, CC2_CSTRING_DATA_OFFSET), data);
+    wi32(add(string, CC2_CSTRING_CAPACITY_OFFSET), capacity);
+    return 0;
+}
+
+function cstr_ccat(string, character)
+{
+    var size;
+    size = add(ri32(add(string, CC2_CSTRING_SIZE_OFFSET)), 1);
+    if (lt(ri32(add(string, CC2_CSTRING_CAPACITY_OFFSET)), size)) {
+        cstr_realloc(string, size);
+    }
+    wi8(add(ri32(add(string, CC2_CSTRING_DATA_OFFSET)), sub(size, 1)),
+        character);
+    wi32(add(string, CC2_CSTRING_SIZE_OFFSET), size);
+    return 0;
+}
+
+function cstr_cat(string, source, length)
+{
+    var old_size;
+    var size;
+    if (le(length, 0)) {
+        length = add(add(strlen(source), 1), length);
+    }
+    old_size = ri32(add(string, CC2_CSTRING_SIZE_OFFSET));
+    size = add(old_size, length);
+    if (lt(ri32(add(string, CC2_CSTRING_CAPACITY_OFFSET)), size)) {
+        cstr_realloc(string, size);
+    }
+    memmove(add(ri32(add(string, CC2_CSTRING_DATA_OFFSET)), old_size),
+        source, length);
+    wi32(add(string, CC2_CSTRING_SIZE_OFFSET), size);
+    return 0;
+}
+
+function cstr_wccat(string, character)
+{
+    var size;
+    size = add(ri32(add(string, CC2_CSTRING_SIZE_OFFSET)), 4);
+    if (lt(ri32(add(string, CC2_CSTRING_CAPACITY_OFFSET)), size)) {
+        cstr_realloc(string, size);
+    }
+    wi32(add(ri32(add(string, CC2_CSTRING_DATA_OFFSET)), sub(size, 4)),
+        character);
+    wi32(add(string, CC2_CSTRING_SIZE_OFFSET), size);
+    return 0;
+}
+
+function cstr_free(string)
+{
+    free(ri32(add(string, CC2_CSTRING_DATA_OFFSET)));
+    return cstr_new(string);
 }
 
 function dynarray_add(table_pointer, count_pointer, data)
