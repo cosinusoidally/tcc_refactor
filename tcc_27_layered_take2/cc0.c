@@ -66,6 +66,21 @@ var CC0_PUNCTUATION_RIGHT_BRACE;
 var CC0_PUNCTUATION_SEMICOLON;
 var CC0_PUNCTUATION_COMMA;
 var CC0_PUNCTUATION_ASSIGN;
+var CC0_SYMBOL_ENTRY_ADDRESS_SHIFT;
+var CC0_SYMBOL_CAPACITY;
+var CC0_SYMBOL_TABLE_BYTES;
+var CC0_SYMBOL_NAME_OFFSET;
+var CC0_SYMBOL_LENGTH_OFFSET;
+var CC0_SYMBOL_VALUE_OFFSET;
+var CC0_SYMBOL_CODE_OFFSET;
+var CC0_GLOBAL_SYMBOLS;
+var CC0_GLOBAL_COUNT;
+var CC0_FUNCTION_SYMBOLS;
+var CC0_FUNCTION_COUNT;
+var CC0_PARAMETER_SYMBOLS;
+var CC0_PARAMETER_COUNT;
+var CC0_CURRENT_NAME_START;
+var CC0_CURRENT_NAME_LENGTH;
 
 function cc0_init()
 {
@@ -119,6 +134,21 @@ function cc0_init()
     CC0_PUNCTUATION_SEMICOLON = 59;
     CC0_PUNCTUATION_COMMA = 44;
     CC0_PUNCTUATION_ASSIGN = 61;
+    CC0_SYMBOL_ENTRY_ADDRESS_SHIFT = 4;
+    CC0_SYMBOL_CAPACITY = 1024;
+    CC0_SYMBOL_TABLE_BYTES = 16384;
+    CC0_SYMBOL_NAME_OFFSET = 0;
+    CC0_SYMBOL_LENGTH_OFFSET = 4;
+    CC0_SYMBOL_VALUE_OFFSET = 8;
+    CC0_SYMBOL_CODE_OFFSET = 12;
+    CC0_GLOBAL_SYMBOLS = 0;
+    CC0_GLOBAL_COUNT = 0;
+    CC0_FUNCTION_SYMBOLS = 0;
+    CC0_FUNCTION_COUNT = 0;
+    CC0_PARAMETER_SYMBOLS = 0;
+    CC0_PARAMETER_COUNT = 0;
+    CC0_CURRENT_NAME_START = 0;
+    CC0_CURRENT_NAME_LENGTH = 0;
     return CC0_FALSE;
 }
 
@@ -547,6 +577,92 @@ function cc0_compiler_fail()
     return CC0_TRUE;
 }
 
+function cc0_compiler_symbol_entry(table, index)
+{
+    return add(table, shl(index, CC0_SYMBOL_ENTRY_ADDRESS_SHIFT));
+}
+
+function cc0_compiler_slice_equal_(left, left_length, right, right_length, index)
+{
+    if (not(eq(left_length, right_length))) {
+        return CC0_FALSE;
+    }
+    index = 0;
+    while (lt(index, left_length)) {
+        if (not(eq(ri8(add(left, index)), ri8(add(right, index))))) {
+            return CC0_FALSE;
+        }
+        index = add(index, 1);
+    }
+    return CC0_TRUE;
+}
+
+function cc0_compiler_slice_equal(left, left_length, right, right_length)
+{
+    return cc0_compiler_slice_equal_(left, left_length, right, right_length, 0);
+}
+
+function cc0_compiler_find_symbol_(table, count, name, length, index, entry)
+{
+    index = 0;
+    while (lt(index, count)) {
+        entry = cc0_compiler_symbol_entry(table, index);
+        if (cc0_compiler_slice_equal(
+            ri32(add(entry, CC0_SYMBOL_NAME_OFFSET)),
+            ri32(add(entry, CC0_SYMBOL_LENGTH_OFFSET)), name, length)) {
+            return index;
+        }
+        index = add(index, 1);
+    }
+    return sub(0, 1);
+}
+
+function cc0_compiler_find_symbol(table, count, name, length)
+{
+    return cc0_compiler_find_symbol_(table, count, name, length, 0, 0);
+}
+
+function cc0_compiler_add_symbol_(table, count, name, length, value, entry)
+{
+    if (not(lt(count, CC0_SYMBOL_CAPACITY))) {
+        return cc0_compiler_fail();
+    }
+    entry = cc0_compiler_symbol_entry(table, count);
+    wi32(add(entry, CC0_SYMBOL_NAME_OFFSET), name);
+    wi32(add(entry, CC0_SYMBOL_LENGTH_OFFSET), length);
+    wi32(add(entry, CC0_SYMBOL_VALUE_OFFSET), value);
+    wi32(add(entry, CC0_SYMBOL_CODE_OFFSET), 0);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_add_symbol(table, count, name, length, value)
+{
+    return cc0_compiler_add_symbol_(table, count, name, length, value, 0);
+}
+
+function cc0_compiler_prepare_symbols()
+{
+    if (eq(CC0_GLOBAL_SYMBOLS, 0)) {
+        CC0_GLOBAL_SYMBOLS = alloc(CC0_SYMBOL_TABLE_BYTES);
+        CC0_FUNCTION_SYMBOLS = alloc(CC0_SYMBOL_TABLE_BYTES);
+        CC0_PARAMETER_SYMBOLS = alloc(CC0_SYMBOL_TABLE_BYTES);
+    }
+    CC0_GLOBAL_COUNT = 0;
+    CC0_FUNCTION_COUNT = 0;
+    CC0_PARAMETER_COUNT = 0;
+    return CC0_FALSE;
+}
+
+function cc0_compiler_name_exists(name, length)
+{
+    if (not(lt(cc0_compiler_find_symbol(CC0_GLOBAL_SYMBOLS,
+        CC0_GLOBAL_COUNT, name, length), 0))) {
+        return CC0_TRUE;
+    }
+    return not(lt(cc0_compiler_find_symbol(CC0_FUNCTION_SYMBOLS,
+        CC0_FUNCTION_COUNT, name, length), 0));
+}
+
 function cc0_compiler_expect(token)
 {
     if (not(eq(CC0_TOKEN, token))) {
@@ -687,27 +803,42 @@ function cc0_compiler_parse_statement()
 
 function cc0_compiler_parse_parameters_()
 {
+    CC0_PARAMETER_COUNT = 0;
     if (eq(CC0_TOKEN, CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
         return CC0_FALSE;
     }
-    if (cc0_compiler_expect(CC0_TOKEN_IDENTIFIER)) {
-        return CC0_TRUE;
-    }
-    while (eq(CC0_TOKEN, CC0_PUNCTUATION_COMMA)) {
-        cc0_compiler_next_token();
-        if (cc0_compiler_expect(CC0_TOKEN_IDENTIFIER)) {
-            return CC0_TRUE;
+    while (CC0_TRUE) {
+        if (not(eq(CC0_TOKEN, CC0_TOKEN_IDENTIFIER))) {
+            return cc0_compiler_fail();
         }
+        if (not(lt(cc0_compiler_find_symbol(CC0_PARAMETER_SYMBOLS,
+            CC0_PARAMETER_COUNT, CC0_TOKEN_START, CC0_TOKEN_LENGTH), 0))) {
+            return cc0_compiler_fail();
+        }
+        cc0_compiler_add_symbol(CC0_PARAMETER_SYMBOLS, CC0_PARAMETER_COUNT,
+            CC0_TOKEN_START, CC0_TOKEN_LENGTH, CC0_PARAMETER_COUNT);
+        CC0_PARAMETER_COUNT = add(CC0_PARAMETER_COUNT, 1);
+        cc0_compiler_next_token();
+        if (not(eq(CC0_TOKEN, CC0_PUNCTUATION_COMMA))) {
+            return CC0_FALSE;
+        }
+        cc0_compiler_next_token();
     }
-    return CC0_FALSE;
 }
 
 function cc0_compiler_parse_function_()
 {
     cc0_compiler_next_token();
-    if (cc0_compiler_expect(CC0_TOKEN_IDENTIFIER)) {
-        return CC0_TRUE;
+    if (not(eq(CC0_TOKEN, CC0_TOKEN_IDENTIFIER))) {
+        return cc0_compiler_fail();
     }
+    CC0_CURRENT_NAME_START = CC0_TOKEN_START;
+    CC0_CURRENT_NAME_LENGTH = CC0_TOKEN_LENGTH;
+    if (cc0_compiler_name_exists(CC0_CURRENT_NAME_START,
+        CC0_CURRENT_NAME_LENGTH)) {
+        return cc0_compiler_fail();
+    }
+    cc0_compiler_next_token();
     if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
         return CC0_TRUE;
     }
@@ -717,21 +848,35 @@ function cc0_compiler_parse_function_()
     if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
         return CC0_TRUE;
     }
+    if (cc0_compiler_add_symbol(CC0_FUNCTION_SYMBOLS, CC0_FUNCTION_COUNT,
+        CC0_CURRENT_NAME_START, CC0_CURRENT_NAME_LENGTH,
+        CC0_PARAMETER_COUNT)) {
+        return CC0_TRUE;
+    }
+    CC0_FUNCTION_COUNT = add(CC0_FUNCTION_COUNT, 1);
     return cc0_compiler_parse_block_();
 }
 
 function cc0_compiler_parse_global_()
 {
     cc0_compiler_next_token();
-    if (cc0_compiler_expect(CC0_TOKEN_IDENTIFIER)) {
-        return CC0_TRUE;
+    if (not(eq(CC0_TOKEN, CC0_TOKEN_IDENTIFIER))) {
+        return cc0_compiler_fail();
     }
+    if (cc0_compiler_name_exists(CC0_TOKEN_START, CC0_TOKEN_LENGTH)) {
+        return cc0_compiler_fail();
+    }
+    cc0_compiler_add_symbol(CC0_GLOBAL_SYMBOLS, CC0_GLOBAL_COUNT,
+        CC0_TOKEN_START, CC0_TOKEN_LENGTH, CC0_GLOBAL_COUNT);
+    CC0_GLOBAL_COUNT = add(CC0_GLOBAL_COUNT, 1);
+    cc0_compiler_next_token();
     return cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON);
 }
 
 function cc0_compiler_parse_program_(source, length)
 {
     CC0_COMPILER_ERROR = CC0_FALSE;
+    cc0_compiler_prepare_symbols();
     cc0_compiler_set_source(source, length);
     cc0_compiler_next_token();
     while (not(eq(CC0_TOKEN, CC0_TOKEN_EOF))) {

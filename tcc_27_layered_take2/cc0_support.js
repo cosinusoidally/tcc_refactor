@@ -13,10 +13,17 @@ function shl(value, count) { return (value << count) | 0; }
 function ushr(value, count) { return (value >>> count) | 0; }
 
 /* This byte array models the flat address space used by cc0 host tests. */
-var CC0_SUPPORT_MEMORY_SIZE = 65536;
+var CC0_SUPPORT_MEMORY_SIZE = 1048576;
 var cc0_support_memory = new Uint8Array(CC0_SUPPORT_MEMORY_SIZE);
-var cc0_support_string_top = 32768;
+var cc0_support_heap_top = 4096;
+var cc0_support_string_top = 524288;
 var cc0_support_string_cache = {};
+
+function alloc(size) {
+    var pointer = cc0_support_heap_top;
+    cc0_support_heap_top = (pointer + size + 3) & -4;
+    return pointer;
+}
 
 function mks(value) {
     var index;
