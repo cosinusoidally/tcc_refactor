@@ -100,7 +100,7 @@ static const unsigned char tok_two_chars[] =
 
 static void next_nomacro_spc(void);
 
-ST_FUNC void skip(int c)
+void skip(int c)
 {
     if (tok != c)
         tcc_error("'%c' expected (got \"%s\")", c, get_tok_str(tok, &tokc));

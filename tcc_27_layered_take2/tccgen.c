@@ -36,9 +36,11 @@ ST_DATA CType func_vt; /* current function return type (used by return instructi
 
 void gen_cast(CType *type);
 void gen_cast_s(int t);
-static int parse_btype(CType *type, AttributeDef *ad);
-static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
-static void parse_expr_type(CType *type);
+int parse_btype(CType *type, AttributeDef *ad);
+CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
+void parse_expr_type(CType *type);
+void parse_type(CType *type);
+void parse_builtin_params(int nc, const char *args);
 void init_putv(CType *type, Section *sec, unsigned long c);
 static void decl_initializer(CType *type, Section *sec, unsigned long c, int first, int size_only);
 static void block(int *bsym, int *csym, int is_expr);
@@ -1330,7 +1332,7 @@ do_decl:
 /* return 0 if no type declaration. otherwise, return the basic type
    and skip it. 
  */
-static int parse_btype(CType *type, AttributeDef *ad)
+int parse_btype(CType *type, AttributeDef *ad)
 {
     int t, u, bt, st, type_found, typespec_found, g;
     Sym *s;
@@ -1718,7 +1720,7 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
    type_decl().  If this (possibly abstract) declarator is a pointer chain
    it returns the innermost pointed to type (equals *type, but is a different
    pointer), otherwise returns type itself, that's used for recursive calls.  */
-static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
+CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
 {
     CType *post, *ret;
     int qualifiers, storage;
@@ -1791,62 +1793,6 @@ static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
 
 /* pass a parameter to a function and do type checking and casting */
 /* parse an expression and return its type without any side effect. */
-static void expr_type(CType *type, void (*expr_fn)(void))
-{
-    nocode_wanted++;
-    expr_fn();
-    *type = vtop->type;
-    vpop();
-    nocode_wanted--;
-}
-
-/* parse an expression of the form '(type)' or '(expr)' and return its
-   type */
-static void parse_expr_type(CType *type)
-{
-    int n;
-    AttributeDef ad;
-
-    skip('(');
-    if (parse_btype(type, &ad)) {
-        type_decl(type, &ad, &n, TYPE_ABSTRACT);
-    } else {
-        expr_type(type, gexpr);
-    }
-    skip(')');
-}
-
-static void parse_type(CType *type)
-{
-    AttributeDef ad;
-    int n;
-
-    if (!parse_btype(type, &ad)) {
-        expect("type");
-    }
-    type_decl(type, &ad, &n, TYPE_ABSTRACT);
-}
-
-static void parse_builtin_params(int nc, const char *args)
-{
-    char c, sep = '(';
-    CType t;
-    if (nc)
-        nocode_wanted++;
-    next();
-    while ((c = *args++)) {
-	skip(sep);
-	sep = ',';
-	switch (c) {
-	    case 'e': expr_eq(); continue;
-	    case 't': parse_type(&t); vpush(&t); continue;
-	    default: tcc_error("internal error"); break;
-	}
-    }
-    skip(')');
-    if (nc)
-        nocode_wanted--;
-}
 
 void unary(void)
 {
@@ -2048,7 +1994,7 @@ void unary(void)
         t = tok;
         next();
         in_sizeof++;
-        expr_type(&type, unary); /* Perform a in_sizeof = 0; */
+        expr_type(&type, 1); /* Perform a in_sizeof = 0; */
         s = vtop[1].sym; /* hack: accessing previous vtop */
         size = type_size(&type, &align);
         if (s && s->a.aligned)
@@ -2255,7 +2201,7 @@ void unary(void)
 
 	next();
 	skip('(');
-	expr_type(&controlling_type, expr_eq);
+	expr_type(&controlling_type, 2);
 	controlling_type.t &= ~(VT_CONSTANT | VT_VOLATILE | VT_ARRAY);
 	for (;;) {
 	    learn = 0;

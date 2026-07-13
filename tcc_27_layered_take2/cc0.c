@@ -1116,6 +1116,15 @@ function cc0_elf_external_symbol(name, length)
     if (cc0_compiler_slice_equal(name, length, mks("gtst"), 4)) {
         return cc0_elf_put_undefined_function(name, length);
     }
+    if (cc0_compiler_slice_equal(name, length, mks("skip"), 4)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("parse_btype"), 11)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("type_decl"), 9)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
     if (cc0_compiler_slice_equal(name, length,
         mks("put_extern_sym"), 14)) {
         return cc0_elf_put_undefined_function(name, length);
@@ -3596,6 +3605,15 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("gtst"))) {
         return 2;
     }
+    if (cc0_text_equal(name, length, mks("skip"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("parse_btype"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("type_decl"))) {
+        return 4;
+    }
     if (cc0_text_equal(name, length, mks("put_extern_sym"))) {
         return 4;
     }
@@ -3822,6 +3840,15 @@ function cc0_compiler_external_arity(name, length)
     }
     if (cc0_text_equal(name, length, mks("gtst"))) {
         return 2;
+    }
+    if (cc0_text_equal(name, length, mks("skip"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("parse_btype"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("type_decl"))) {
+        return 4;
     }
     if (cc0_text_equal(name, length, mks("put_extern_sym"))) {
         return 4;

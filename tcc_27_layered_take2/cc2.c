@@ -181,6 +181,9 @@ var CC2_TOKEN_SHIFT_LEFT_LONG_LONG = 395;
 var CC2_TOKEN_UNSIGNED_MULTIPLY_LONG_LONG = 194;
 var CC2_TOKEN_ADD_CARRY_FIRST = 195;
 var CC2_TOKEN_SUBTRACT_CARRY_FIRST = 197;
+var CC2_EXPRESSION_MODE_COMMA = 0;
+var CC2_EXPRESSION_MODE_UNARY = 1;
+var CC2_EXPRESSION_MODE_EQUALITY = 2;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -3330,6 +3333,98 @@ function gen_opl_(operation, type, first_jump, second_jump,
 function gen_opl(operation)
 {
     return gen_opl_(operation, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function expr_type(type, mode)
+{
+    nocode_wanted = add(nocode_wanted, 1);
+    if (eq(mode, CC2_EXPRESSION_MODE_UNARY)) {
+        unary();
+    } else if (eq(mode, CC2_EXPRESSION_MODE_EQUALITY)) {
+        expr_eq();
+    } else {
+        gexpr();
+    }
+    wi32(type, ri32(vtop));
+    wi32(add(type, 4), ri32(add(vtop, 4)));
+    vpop();
+    nocode_wanted = sub(nocode_wanted, 1);
+    return 0;
+}
+
+function parse_expr_type_(type, attributes, identifier)
+{
+    attributes = malloc(20);
+    identifier = malloc(4);
+    skip(40);
+    if (parse_btype(type, attributes)) {
+        type_decl(type, attributes, identifier, 1);
+    } else {
+        expr_type(type, CC2_EXPRESSION_MODE_COMMA);
+    }
+    skip(41);
+    free(attributes);
+    free(identifier);
+    return 0;
+}
+
+function parse_expr_type(type)
+{
+    return parse_expr_type_(type, 0, 0);
+}
+
+function parse_type_(type, attributes, identifier)
+{
+    attributes = malloc(20);
+    identifier = malloc(4);
+    if (eq(parse_btype(type, attributes), 0)) {
+        expect(mks("type"));
+    }
+    type_decl(type, attributes, identifier, 1);
+    free(attributes);
+    free(identifier);
+    return 0;
+}
+
+function parse_type(type)
+{
+    return parse_type_(type, 0, 0);
+}
+
+function parse_builtin_params_(no_code, arguments, character, separator,
+    type)
+{
+    if (no_code) {
+        nocode_wanted = add(nocode_wanted, 1);
+    }
+    next();
+    separator = 40;
+    while (ri8(arguments)) {
+        character = ri8(arguments);
+        arguments = add(arguments, 1);
+        skip(separator);
+        separator = 44;
+        if (eq(character, 101)) {
+            expr_eq();
+        } else if (eq(character, 116)) {
+            type = malloc(8);
+            parse_type(type);
+            vpush(type);
+            free(type);
+        } else {
+            tcc_error(mks("internal error"), 0);
+        }
+    }
+    skip(41);
+    if (no_code) {
+        nocode_wanted = sub(nocode_wanted, 1);
+    }
+    return 0;
+}
+
+function parse_builtin_params(no_code, arguments)
+{
+    return parse_builtin_params_(no_code, arguments, 0, 0, 0);
 }
 
 function vstore_(destination_type, source_basic, destination_basic,

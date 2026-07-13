@@ -39,6 +39,21 @@ function gtst(inverted, jump_chain)
     return jump_chain;
 }
 
+function skip(token)
+{
+    return 0;
+}
+
+function parse_btype(type, attributes)
+{
+    return 0;
+}
+
+function type_decl(type, attributes, identifier, mode)
+{
+    return type;
+}
+
 function put_extern_sym(symbol, section, offset, size)
 {
     return 0;
