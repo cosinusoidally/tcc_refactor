@@ -6,6 +6,14 @@ cd artifacts
 
 set -xe
 
+CRT1=$(gcc -m32 -print-file-name=crt1.o)
+CRTI=$(gcc -m32 -print-file-name=crti.o)
+CRTBEGIN=$(gcc -m32 -print-file-name=crtbegin.o)
+CRTEND=$(gcc -m32 -print-file-name=crtend.o)
+CRTN=$(gcc -m32 -print-file-name=crtn.o)
+HOST_LIBC=$(gcc -m32 -print-file-name=libc.so)
+HOST_LIBGCC=$(gcc -m32 -print-file-name=libgcc.a)
+
 # build tcc_27_layered_take2 with gcc
 gcc -O0 -m32 -I ../tcc_27_layered_take2/ -I ../tcc_27_layered_take2/include/ ../tcc_27_layered_take2/tcc_unified.c -o tcc_27_layered_take2_gcc -ldl
 
@@ -14,14 +22,22 @@ gcc -O0 -m32 -I ../tcc_27_layered_take2/ -I ../tcc_27_layered_take2/include/ ../
 ./tcc_27_layered_take2_gcc -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ -o tcc_27_layered_take2.o
 ./tcc_27_layered_take2_gcc -c ../tcc_27_layered_take2/lib/libtcc1.c -o libtcc1_layered_take2.o
 
-gcc -m32 tcc_27_layered_take2.o libtcc1_layered_take2.o -o tcc_27_layered_take2 -ldl
+./tcc_27_layered_take2_gcc -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    tcc_27_layered_take2.o libtcc1_layered_take2.o \
+    "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    -o tcc_27_layered_take2
+chmod +x tcc_27_layered_take2
 
 # rebuild tcc_27_layered_take2 a 2nd time with itself
 
 ./tcc_27_layered_take2 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ -o tcc_27_layered_take2_2.o
 ./tcc_27_layered_take2 -c ../tcc_27_layered_take2/lib/libtcc1.c -o libtcc1_layered_take2_2.o
-rm tcc_27_layered_take2
-gcc -m32 tcc_27_layered_take2_2.o libtcc1_layered_take2_2.o -o tcc_27_layered_take2 -ldl
+mv tcc_27_layered_take2 tcc_27_layered_take2_stage1
+./tcc_27_layered_take2_stage1 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    tcc_27_layered_take2_2.o libtcc1_layered_take2_2.o \
+    "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    -o tcc_27_layered_take2
+chmod +x tcc_27_layered_take2
 
 # check each build matches
 diff -u -s tcc_27_layered_take2.o tcc_27_layered_take2_2.o
@@ -50,6 +66,22 @@ gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int ../tcc_27_layered_take2/cc0_support
 ./cc0_c_smoke
 
 js ../tcc_27_layered_take2/tests/layered/cc0_js_smoke.js
+
+# cc0 writes a TCC-style i386 object, then that object rebuilds itself
+gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
+    ../tcc_27_layered_take2/cc0_support.c \
+    ../tcc_27_layered_take2/cc0.c \
+    ../tcc_27_layered_take2/cc0_driver.c -o cc0_stage0
+./cc0_stage0 ../tcc_27_layered_take2/cc0.c cc0_self_1.o
+./tcc_27_layered_take2 -I ../tcc_27_layered_take2/include \
+    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
+    -c ../tcc_27_layered_take2/cc0_driver.c -U__linux__ -o cc0_driver.o
+./tcc_27_layered_take2 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    cc0_self_1.o cc0_driver.o "$HOST_LIBC" "$HOST_LIBGCC" \
+    "$CRTEND" "$CRTN" -o cc0_stage1
+chmod +x cc0_stage1
+./cc0_stage1 ../tcc_27_layered_take2/cc0.c cc0_self_2.o
+diff -u -s cc0_self_1.o cc0_self_2.o
 
 # build some test files
 
