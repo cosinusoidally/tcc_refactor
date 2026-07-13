@@ -633,6 +633,20 @@ var CC2_TCC_STATE_DEBUG_OFFSET;
 var CC2_TCC_STATE_DOLLARS_IN_IDENTIFIERS_OFFSET;
 var CC2_TCC_STATE_COMMAND_INCLUDE_FILES_OFFSET;
 var CC2_TCC_STATE_COMMAND_INCLUDE_COUNT_OFFSET;
+var CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET;
+var CC2_TCC_STATE_LINE_FORMAT_OFFSET;
+var CC2_TCC_STATE_DEFINE_FLAGS_OFFSET;
+var CC2_BUFFERED_FILE_LINE_REFERENCE_OFFSET;
+var CC2_LINE_FORMAT_NONE;
+var CC2_LINE_FORMAT_STANDARD;
+var CC2_LINE_FORMAT_DECIMAL_NUMBERS;
+var CC2_DEFINE_FLAG_BUILTINS;
+var CC2_DEFINE_FLAG_COMMAND_LINE;
+var CC2_DEFINE_FLAG_ALL;
+var CC2_DEFINE_FLAG_ONLY;
+var CC2_PREPROCESS_WHITESPACE_BYTES;
+var CC2_MACRO_FUNCTION;
+var CC2_SHORT_LINE_GAP;
 var CC2_CASE_SECOND_VALUE_OFFSET;
 var CC2_CASE_SYMBOL_OFFSET;
 var CC2_SWITCH_DEFAULT_SYMBOL_OFFSET;
@@ -1915,6 +1929,264 @@ function cc2_preprocess_start(state, is_asm)
     wi32(tok_flags_address, or(CC2_TOKEN_FLAG_BEGINNING_OF_LINE,
         CC2_TOKEN_FLAG_BEGINNING_OF_FILE));
     return 0;
+}
+
+function cc2_preprocess_token_print(state, message, stream)
+{
+    var output;
+    var stream_pointer;
+    var token_pointer;
+    var value;
+    var skip_space;
+    output = ri32(add(state, CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET));
+    fprintf(output, mks("%s"), message);
+    stream_pointer = malloc(CC2_I386_WORD_BYTES);
+    token_pointer = malloc(CC2_I386_WORD_BYTES);
+    value = malloc(CC2_CVALUE_BYTES);
+    skip_space = 0;
+    while (stream) {
+        wi32(stream_pointer, stream);
+        tok_get(token_pointer, stream_pointer, value);
+        stream = ri32(stream_pointer);
+        if (eq(ri32(token_pointer), 0)) {
+            break;
+        }
+        fprintf(output, add(mks(" %s"), skip_space),
+            get_tok_str(ri32(token_pointer), value));
+        skip_space = 1;
+    }
+    fputc(mkC("\n"), output);
+    free(value);
+    free(token_pointer);
+    free(stream_pointer);
+    return 0;
+}
+
+function cc2_token_is_space(token)
+{
+    if (not(lt(token, CC2_TOKEN_IDENTIFIER_BASE))) {
+        return 0;
+    }
+    return and(ri8(add(isidnum_table_address,
+        sub(token, CC2_CHARACTER_EOF))), CC2_CHARACTER_CLASS_SPACE);
+}
+
+function cc2_preprocess_line(state, source_file, level)
+{
+    var output;
+    var line;
+    var reference;
+    var difference;
+    var format;
+    var suffix;
+    line = ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET));
+    reference = ri32(add(source_file,
+        CC2_BUFFERED_FILE_LINE_REFERENCE_OFFSET));
+    difference = sub(line, reference);
+    if (and(ri8(add(state, CC2_TCC_STATE_DEFINE_FLAGS_OFFSET)),
+        CC2_DEFINE_FLAG_ONLY)) {
+        return 0;
+    }
+    output = ri32(add(state, CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET));
+    format = ri32(add(state, CC2_TCC_STATE_LINE_FORMAT_OFFSET));
+    if (eq(format, CC2_LINE_FORMAT_NONE)) {
+    } else if (and(and(eq(level, 0), reference),
+        lt(difference, CC2_SHORT_LINE_GAP))) {
+        while (lt(0, difference)) {
+            fputc(mkC("\n"), output);
+            difference = sub(difference, 1);
+        }
+    } else if (eq(format, CC2_LINE_FORMAT_STANDARD)) {
+        fprintf(output, mks("#line %d %c%s%c"), line, mkC("\""),
+            add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET), mkC("\""));
+        fputc(mkC("\n"), output);
+    } else {
+        suffix = mks("");
+        if (lt(0, level)) {
+            suffix = mks(" 1");
+        } else if (lt(level, 0)) {
+            suffix = mks(" 2");
+        }
+        fprintf(output, mks("# %d %c%s%c%s"), line, mkC("\""),
+            add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET), mkC("\""),
+            suffix);
+        fputc(mkC("\n"), output);
+    }
+    wi32(add(source_file, CC2_BUFFERED_FILE_LINE_REFERENCE_OFFSET), line);
+    return 0;
+}
+
+function cc2_preprocess_define_print(state, value)
+{
+    var symbol;
+    var argument;
+    var output;
+    symbol = define_find(value);
+    if (eq(symbol, 0)) {
+        return 0;
+    }
+    if (eq(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), 0)) {
+        return 0;
+    }
+    output = ri32(add(state, CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET));
+    fprintf(output, mks("#define %s"), get_tok_str(value, 0));
+    if (eq(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)), CC2_MACRO_FUNCTION)) {
+        fputc(mkC("("), output);
+        argument = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
+        while (argument) {
+            fputs(get_tok_str(and(ri32(add(argument, CC2_SYM_VALUE_OFFSET)),
+                bnot(CC2_SYMBOL_FIELD_FLAG)), 0), output);
+            argument = ri32(add(argument, CC2_SYM_NEXT_OFFSET));
+            if (argument) {
+                fputc(mkC(","), output);
+            }
+        }
+        fputc(mkC(")"), output);
+    }
+    cc2_preprocess_token_print(state, mks(""),
+        ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)));
+    return 0;
+}
+
+function cc2_preprocess_debug_defines(state)
+{
+    var debug_token;
+    var value;
+    var source_file;
+    var output;
+    debug_token = ri32(pp_debug_tok_address);
+    if (eq(debug_token, 0)) {
+        return 0;
+    }
+    source_file = ri32(file_address);
+    wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET),
+        sub(ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+    cc2_preprocess_line(state, source_file, 0);
+    wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET),
+        add(ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+    wi32(add(source_file, CC2_BUFFERED_FILE_LINE_REFERENCE_OFFSET),
+        ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)));
+    output = ri32(add(state, CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET));
+    value = ri32(pp_debug_symv_address);
+    if (eq(debug_token, CC2_TOKEN_DEFINE_DIRECTIVE)) {
+        cc2_preprocess_define_print(state, value);
+    } else if (eq(debug_token, CC2_TOKEN_UNDEF_DIRECTIVE)) {
+        fprintf(output, mks("#undef %s"), get_tok_str(value, 0));
+        fputc(mkC("\n"), output);
+    } else if (eq(debug_token, CC2_TOKEN_PRAGMA_PUSH_MACRO)) {
+        fprintf(output, mks("#pragma push_macro(%c%s%c)"), mkC("\""),
+            get_tok_str(value, 0), mkC("\""));
+        fputc(mkC("\n"), output);
+    } else if (eq(debug_token, CC2_TOKEN_PRAGMA_POP_MACRO)) {
+        fprintf(output, mks("#pragma pop_macro(%c%s%c)"), mkC("\""),
+            get_tok_str(value, 0), mkC("\""));
+        fputc(mkC("\n"), output);
+    }
+    wi32(pp_debug_tok_address, 0);
+    return 0;
+}
+
+function cc2_preprocess_debug_builtins(state)
+{
+    var value;
+    value = CC2_TOKEN_IDENTIFIER_BASE;
+    while (lt(value, tok_ident)) {
+        cc2_preprocess_define_print(state, value);
+        value = add(value, 1);
+    }
+    return 0;
+}
+
+function cc2_tcc_preprocess_(state, token_seen, spaces, level,
+    include_pointer, old_include_pointer, source_file, text, whitespace,
+    flags, output)
+{
+    flags = or(or(or(CC2_PARSE_FLAG_PREPROCESS,
+        and(ri32(parse_flags_address), CC2_PARSE_FLAG_ASM_FILE)),
+        or(CC2_PARSE_FLAG_LINE_FEED, CC2_PARSE_FLAG_SPACES)),
+        CC2_PARSE_FLAG_ACCEPT_STRAYS);
+    if (eq(ri32(add(state, CC2_TCC_STATE_LINE_FORMAT_OFFSET)),
+        CC2_LINE_FORMAT_DECIMAL_NUMBERS)) {
+        flags = or(flags, CC2_PARSE_FLAG_TOKEN_NUMBERS);
+        wi32(add(state, CC2_TCC_STATE_LINE_FORMAT_OFFSET),
+            CC2_LINE_FORMAT_NONE);
+    }
+    wi32(parse_flags_address, flags);
+    if (and(ri8(add(state, CC2_TCC_STATE_DEFINE_FLAGS_OFFSET)),
+        CC2_DEFINE_FLAG_BUILTINS)) {
+        cc2_preprocess_debug_builtins(state);
+        wi8(add(state, CC2_TCC_STATE_DEFINE_FLAGS_OFFSET), and(
+            ri8(add(state, CC2_TCC_STATE_DEFINE_FLAGS_OFFSET)),
+            bnot(CC2_DEFINE_FLAG_BUILTINS)));
+    }
+    token_seen = CC2_TOKEN_LINE_FEED;
+    spaces = 0;
+    whitespace = malloc(CC2_PREPROCESS_WHITESPACE_BYTES);
+    source_file = ri32(file_address);
+    cc2_preprocess_line(state, source_file, 0);
+    while (1) {
+        old_include_pointer = ri32(add(state,
+            CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET));
+        next();
+        if (eq(ri32(tok_address), CC2_CHARACTER_END_OF_FILE)) {
+            break;
+        }
+        include_pointer = ri32(add(state,
+            CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET));
+        level = sdiv(sub(include_pointer, old_include_pointer),
+            CC2_I386_WORD_BYTES);
+        if (level) {
+            if (lt(0, level)) {
+                cc2_preprocess_line(state, ri32(old_include_pointer), 0);
+            }
+            cc2_preprocess_line(state, ri32(file_address), level);
+        }
+        if (and(ri8(add(state, CC2_TCC_STATE_DEFINE_FLAGS_OFFSET)),
+            or(CC2_DEFINE_FLAG_BUILTINS, or(CC2_DEFINE_FLAG_COMMAND_LINE,
+            CC2_DEFINE_FLAG_ONLY)))) {
+            cc2_preprocess_debug_defines(state);
+            if (and(ri8(add(state, CC2_TCC_STATE_DEFINE_FLAGS_OFFSET)),
+                CC2_DEFINE_FLAG_ONLY)) {
+                continue;
+            }
+        }
+        if (cc2_token_is_space(ri32(tok_address))) {
+            if (lt(spaces, sub(CC2_PREPROCESS_WHITESPACE_BYTES, 1))) {
+                wi8(add(whitespace, spaces), ri32(tok_address));
+                spaces = add(spaces, 1);
+            }
+            continue;
+        } else if (eq(ri32(tok_address), CC2_TOKEN_LINE_FEED)) {
+            spaces = 0;
+            if (eq(token_seen, CC2_TOKEN_LINE_FEED)) {
+                continue;
+            }
+            source_file = ri32(file_address);
+            wi32(add(source_file, CC2_BUFFERED_FILE_LINE_REFERENCE_OFFSET),
+                add(ri32(add(source_file,
+                CC2_BUFFERED_FILE_LINE_REFERENCE_OFFSET)), 1));
+        } else if (eq(token_seen, CC2_TOKEN_LINE_FEED)) {
+            cc2_preprocess_line(state, ri32(file_address), 0);
+        } else if (and(eq(spaces, 0),
+            pp_need_space(token_seen, ri32(tok_address)))) {
+            wi8(whitespace, mkC(" "));
+            spaces = 1;
+        }
+        wi8(add(whitespace, spaces), 0);
+        output = ri32(add(state, CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET));
+        fputs(whitespace, output);
+        spaces = 0;
+        text = get_tok_str(ri32(tok_address), tokc_address);
+        fputs(text, output);
+        token_seen = pp_check_he0xE(ri32(tok_address), text);
+    }
+    free(whitespace);
+    return 0;
+}
+
+function cc2_tcc_preprocess(state)
+{
+    return cc2_tcc_preprocess_(state, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 /* Keep preprocessor output tokens textually separate where concatenation
@@ -15332,6 +15604,20 @@ function cc2_init_constants()
     CC2_TCC_STATE_DOLLARS_IN_IDENTIFIERS_OFFSET = 68;
     CC2_TCC_STATE_COMMAND_INCLUDE_FILES_OFFSET = 176;
     CC2_TCC_STATE_COMMAND_INCLUDE_COUNT_OFFSET = 180;
+    CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET = 356;
+    CC2_TCC_STATE_LINE_FORMAT_OFFSET = 360;
+    CC2_TCC_STATE_DEFINE_FLAGS_OFFSET = 364;
+    CC2_BUFFERED_FILE_LINE_REFERENCE_OFFSET = 20;
+    CC2_LINE_FORMAT_NONE = 1;
+    CC2_LINE_FORMAT_STANDARD = 2;
+    CC2_LINE_FORMAT_DECIMAL_NUMBERS = 11;
+    CC2_DEFINE_FLAG_BUILTINS = 1;
+    CC2_DEFINE_FLAG_COMMAND_LINE = 2;
+    CC2_DEFINE_FLAG_ALL = 4;
+    CC2_DEFINE_FLAG_ONLY = 4;
+    CC2_PREPROCESS_WHITESPACE_BYTES = 400;
+    CC2_MACRO_FUNCTION = 1;
+    CC2_SHORT_LINE_GAP = 8;
     CC2_CASE_SECOND_VALUE_OFFSET = 8;
     CC2_CASE_SYMBOL_OFFSET = 16;
     CC2_SWITCH_DEFAULT_SYMBOL_OFFSET = 8;
