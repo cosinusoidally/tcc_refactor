@@ -496,58 +496,6 @@ const char *get_tok_str(int v, CValue *cv)
     return cstr_buf.data;
 }
 
-/* handle '\[\r]\n' */
-static int handle_stray_noerror(void)
-{
-    while (ch == '\\') {
-        inp();
-        if (ch == '\n') {
-            file->line_num++;
-            inp();
-        } else if (ch == '\r') {
-            inp();
-            if (ch != '\n')
-                goto fail;
-            file->line_num++;
-            inp();
-        } else {
-        fail:
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static void handle_stray(void)
-{
-    if (handle_stray_noerror())
-        tcc_error("stray '\\' in program");
-}
-
-/* skip the stray and handle the \\n case. Output an error if
-   incorrect char after the stray */
-static int handle_stray1(uint8_t *p)
-{
-    int c;
-
-    file->buf_ptr = p;
-    if (p >= file->buf_end) {
-        c = handle_eob();
-        if (c != '\\')
-            return c;
-        p = file->buf_ptr;
-    }
-    ch = *p;
-    if (handle_stray_noerror()) {
-        if (!(parse_flags & PARSE_FLAG_ACCEPT_STRAYS))
-            tcc_error("stray '\\' in program");
-        *--file->buf_ptr = '\\';
-    }
-    p = file->buf_ptr;
-    c = *p;
-    return c;
-}
-
 /* handle just the EOB case, but not stray */
 #define PEEKC_EOB(c, p)\
 {\
@@ -569,16 +517,6 @@ static int handle_stray1(uint8_t *p)
         c = handle_stray1(p);\
         p = file->buf_ptr;\
     }\
-}
-
-/* input with '\[\r]\n' handling. Note that this function cannot
-   handle other characters after '\', so you cannot call it inside
-   strings or comments */
-ST_FUNC void minp(void)
-{
-    inp();
-    if (ch == '\\') 
-        handle_stray();
 }
 
 /* single line C++ comments */
@@ -3060,7 +2998,6 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
     tok_address = &tok;
     tokc_address = &tokc;
     gnu_ext_address = &gnu_ext;
-    parse_flags_address = &parse_flags;
     symtab_section_address = &symtab_section;
     data_section_address = &data_section;
     cur_text_section_address = &cur_text_section;
@@ -3116,6 +3053,7 @@ ST_FUNC void tccpp_new(TCCState *s)
 
     define_stack_address = &define_stack;
     file_address = &file;
+    parse_flags_address = &parse_flags;
 
     /* cc0 owns the character classes used to initialize this lexer. */
     cc0_init();

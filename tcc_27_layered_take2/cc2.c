@@ -394,6 +394,9 @@ var CC2_BUFFERED_FILE_BUFFER_OFFSET;
 var CC2_INPUT_BUFFER_BYTES;
 var CC2_CHARACTER_END_OF_BUFFER;
 var CC2_CHARACTER_END_OF_FILE;
+var CC2_CHARACTER_LINE_FEED;
+var CC2_CHARACTER_CARRIAGE_RETURN;
+var CC2_PARSE_FLAG_ACCEPT_STRAYS;
 var CC2_TOKEN_CHARACTER;
 var CC2_TOKEN_WIDE_CHARACTER;
 var CC2_TOKEN_INTEGER_CONSTANT;
@@ -706,6 +709,84 @@ function inp_(source_file, pointer)
 function inp()
 {
     return inp_(0, 0);
+}
+
+function handle_stray_noerror_(source_file)
+{
+    source_file = ri32(file_address);
+    while (eq(ch, CC2_CHARACTER_END_OF_BUFFER)) {
+        inp();
+        if (eq(ch, CC2_CHARACTER_LINE_FEED)) {
+            wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), add(
+                ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+            inp();
+        } else if (eq(ch, CC2_CHARACTER_CARRIAGE_RETURN)) {
+            inp();
+            if (not(eq(ch, CC2_CHARACTER_LINE_FEED))) {
+                return 1;
+            }
+            wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), add(
+                ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+            inp();
+        } else {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+function handle_stray_noerror()
+{
+    return handle_stray_noerror_(0);
+}
+
+function handle_stray()
+{
+    if (handle_stray_noerror()) {
+        tcc_error(mks("stray '\\' in program"), 0);
+    }
+    return 0;
+}
+
+function handle_stray1_(pointer, source_file, character)
+{
+    source_file = ri32(file_address);
+    wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
+    if (not(lt(pointer,
+        ri32(add(source_file, CC2_BUFFERED_FILE_END_OFFSET))))) {
+        character = handle_eob();
+        if (not(eq(character, CC2_CHARACTER_END_OF_BUFFER))) {
+            return character;
+        }
+        pointer = ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET));
+    }
+    ch = ri8(pointer);
+    if (handle_stray_noerror()) {
+        if (eq(and(ri32(parse_flags_address),
+            CC2_PARSE_FLAG_ACCEPT_STRAYS), 0)) {
+            tcc_error(mks("stray '\\' in program"), 0);
+        }
+        pointer = sub(ri32(add(source_file,
+            CC2_BUFFERED_FILE_POINTER_OFFSET)), 1);
+        wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
+        wi8(pointer, CC2_CHARACTER_END_OF_BUFFER);
+    }
+    pointer = ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET));
+    return ri8(pointer);
+}
+
+function handle_stray1(pointer)
+{
+    return handle_stray1_(pointer, 0, 0);
+}
+
+function minp()
+{
+    inp();
+    if (eq(ch, CC2_CHARACTER_END_OF_BUFFER)) {
+        handle_stray();
+    }
+    return 0;
 }
 
 function tok_str_new(stream)
@@ -12400,6 +12481,9 @@ function cc2_init_constants()
     CC2_INPUT_BUFFER_BYTES = 8192;
     CC2_CHARACTER_END_OF_BUFFER = 92;
     CC2_CHARACTER_END_OF_FILE = 4294967295;
+    CC2_CHARACTER_LINE_FEED = 10;
+    CC2_CHARACTER_CARRIAGE_RETURN = 13;
+    CC2_PARSE_FLAG_ACCEPT_STRAYS = 32;
     return 0;
 }
 
