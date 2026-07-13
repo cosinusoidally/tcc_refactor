@@ -2311,7 +2311,56 @@ function cc1_normalize_tokens_(index, token, kind, text, length, origin,
         text = ri32(add(token, CC1_TOKEN_TEXT_OFFSET));
         length = ri32(add(token, CC1_TOKEN_LENGTH_OFFSET));
         skip = 0;
-        if (cc1_text_equal(text, length, mks("if"))) {
+        if (cc1_text_equal(text, length, mks("for"))) {
+            if (cc1_normalized_text(text, length, origin)) {
+                return 1;
+            }
+            CC1_PREPROCESSED_CURSOR = add(index, 1);
+            if (not(cc1_expression_accept(40))) {
+                return 1;
+            }
+            if (cc1_normalized_byte(40, origin)) {
+                return 1;
+            }
+            if (not(eq(cc1_expression_token_kind(), 59))) {
+                expression = cc1_expression_parse_equality();
+                if (cc1_expression_emit(expression)) {
+                    return 1;
+                }
+            }
+            if (not(cc1_expression_accept(59))) {
+                return 1;
+            }
+            if (cc1_normalized_byte(59, origin)) {
+                return 1;
+            }
+            if (not(eq(cc1_expression_token_kind(), 59))) {
+                expression = cc1_expression_parse_equality();
+                if (cc1_expression_emit(expression)) {
+                    return 1;
+                }
+            }
+            if (not(cc1_expression_accept(59))) {
+                return 1;
+            }
+            if (cc1_normalized_byte(59, origin)) {
+                return 1;
+            }
+            if (not(eq(cc1_expression_token_kind(), 41))) {
+                expression = cc1_expression_parse_equality();
+                if (cc1_expression_emit(expression)) {
+                    return 1;
+                }
+            }
+            if (not(cc1_expression_accept(41))) {
+                return 1;
+            }
+            if (cc1_normalized_byte(41, origin)) {
+                return 1;
+            }
+            index = sub(CC1_PREPROCESSED_CURSOR, 1);
+            skip = 1;
+        } else if (cc1_text_equal(text, length, mks("if"))) {
             if (not(lt(add(index, 2), CC1_PREPROCESSED_COUNT))) {
                 return 1;
             }

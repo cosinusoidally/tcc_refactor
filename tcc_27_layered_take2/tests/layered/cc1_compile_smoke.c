@@ -23,6 +23,7 @@ int main()
     int pointed_value = 3;
     int *pointer = &pointed_value;
     char character = 'A';
+    int loop = 0;
     *pointer = 5;
     temporary = temporary + (*pointer - 5);
     temporary = temporary + (character - 'A');
@@ -35,6 +36,12 @@ int main()
     temporary = temporary + global_result;
     temporary = temporary + (sizeof(char) - 1) + (sizeof(short) - 2);
     temporary = temporary + (sizeof(int *) - 4) + (sizeof temporary - 4);
+    for (loop = 0; loop < 3; loop = loop + 1) {
+        if (loop == 2) {
+            break;
+        }
+    }
+    temporary = temporary + (loop - 2);
     scalar_value = temporary;
     temporary = (temporary << 1) >> 1;
     temporary = (temporary | 8) ^ 8;

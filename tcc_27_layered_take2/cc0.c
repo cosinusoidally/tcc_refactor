@@ -69,6 +69,7 @@ var CC0_TOKEN_IF;
 var CC0_TOKEN_ELSE;
 var CC0_TOKEN_WHILE;
 var CC0_TOKEN_BREAK;
+var CC0_TOKEN_FOR;
 var CC0_COMPILER_ERROR;
 var CC0_LEXER_FIELD_KIND;
 var CC0_LEXER_FIELD_TEXT;
@@ -347,6 +348,7 @@ function cc0_init()
     CC0_TOKEN_ELSE = 9;
     CC0_TOKEN_WHILE = 10;
     CC0_TOKEN_BREAK = 11;
+    CC0_TOKEN_FOR = 12;
     CC0_COMPILER_ERROR = CC0_FALSE;
     CC0_LEXER_FIELD_KIND = 0;
     CC0_LEXER_FIELD_TEXT = 1;
@@ -1734,6 +1736,9 @@ function cc0_compiler_keyword_(text, length)
     }
     if (cc0_text_equal(text, length, mks("break"))) {
         return CC0_TOKEN_BREAK;
+    }
+    if (cc0_text_equal(text, length, mks("for"))) {
+        return CC0_TOKEN_FOR;
     }
     return CC0_TOKEN_IDENTIFIER;
 }
@@ -3671,6 +3676,118 @@ function cc0_compiler_parse_while()
     return cc0_compiler_parse_while_(0, 0, 0);
 }
 
+function cc0_compiler_parse_deferred_expression_(start, end,
+    saved_source_length, saved_source_position, saved_token,
+    saved_token_start, saved_token_length, saved_token_number, result)
+{
+    if (eq(start, end)) {
+        return CC0_FALSE;
+    }
+    saved_source_length = CC0_SOURCE_LENGTH;
+    saved_source_position = CC0_SOURCE_POSITION;
+    saved_token = CC0_TOKEN;
+    saved_token_start = CC0_TOKEN_START;
+    saved_token_length = CC0_TOKEN_LENGTH;
+    saved_token_number = CC0_TOKEN_NUMBER;
+    CC0_SOURCE_LENGTH = end;
+    CC0_SOURCE_POSITION = start;
+    CC0_TOKEN = CC0_TOKEN_EOF;
+    cc0_compiler_next_token();
+    result = cc0_compiler_parse_expression();
+    if (not(eq(CC0_TOKEN, CC0_TOKEN_EOF))) {
+        result = cc0_compiler_fail();
+    }
+    CC0_SOURCE_LENGTH = saved_source_length;
+    CC0_SOURCE_POSITION = saved_source_position;
+    CC0_TOKEN = saved_token;
+    CC0_TOKEN_START = saved_token_start;
+    CC0_TOKEN_LENGTH = saved_token_length;
+    CC0_TOKEN_NUMBER = saved_token_number;
+    return result;
+}
+
+function cc0_compiler_parse_deferred_expression(start, end)
+{
+    return cc0_compiler_parse_deferred_expression_(start, end, 0, 0, 0,
+        0, 0, 0, 0);
+}
+
+function cc0_compiler_parse_for_(loop_start, exit_position, loop_id,
+    step_start, step_end, depth)
+{
+    cc0_compiler_next_token();
+    if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    if (not(eq(CC0_TOKEN, CC0_PUNCTUATION_SEMICOLON))) {
+        if (cc0_compiler_parse_expression()) {
+            return CC0_TRUE;
+        }
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON)) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        loop_start = CC0_CODE_LENGTH;
+    }
+    if (eq(CC0_TOKEN, CC0_PUNCTUATION_SEMICOLON)) {
+        if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+            cc0_compiler_emit_immediate(1);
+        }
+    } else {
+        if (cc0_compiler_parse_expression()) {
+            return CC0_TRUE;
+        }
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON)) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        cc0_compiler_emit_test_result();
+        exit_position = cc0_compiler_emit_zero_jump();
+        loop_id = cc0_compiler_push_loop();
+    } else {
+        CC0_LOOP_DEPTH = add(CC0_LOOP_DEPTH, 1);
+    }
+    step_start = sub(CC0_TOKEN_START, CC0_SOURCE);
+    depth = 0;
+    while (CC0_TRUE) {
+        if (eq(CC0_TOKEN, CC0_TOKEN_EOF)) {
+            return cc0_compiler_fail();
+        }
+        if (eq(CC0_TOKEN, CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
+            depth = add(depth, 1);
+        } else if (eq(CC0_TOKEN, CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
+            if (eq(depth, 0)) {
+                break;
+            }
+            depth = sub(depth, 1);
+        }
+        cc0_compiler_next_token();
+    }
+    step_end = sub(CC0_TOKEN_START, CC0_SOURCE);
+    cc0_compiler_next_token();
+    if (cc0_compiler_parse_statement()) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_parse_deferred_expression(step_start, step_end)) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        cc0_compiler_emit_jump_to(loop_start);
+        cc0_compiler_patch_relative(exit_position, CC0_CODE_LENGTH);
+        cc0_compiler_patch_breaks(loop_id, CC0_CODE_LENGTH);
+        return cc0_compiler_pop_loop();
+    }
+    CC0_LOOP_DEPTH = sub(CC0_LOOP_DEPTH, 1);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_parse_for()
+{
+    return cc0_compiler_parse_for_(0, 0, 0, 0, 0, 0);
+}
+
 function cc0_compiler_parse_break_(position, loop_id)
 {
     if (lt(CC0_LOOP_DEPTH, 1)) {
@@ -3760,6 +3877,9 @@ function cc0_compiler_parse_statement()
     }
     if (eq(CC0_TOKEN, CC0_TOKEN_WHILE)) {
         return cc0_compiler_parse_while();
+    }
+    if (eq(CC0_TOKEN, CC0_TOKEN_FOR)) {
+        return cc0_compiler_parse_for();
     }
     if (eq(CC0_TOKEN, CC0_TOKEN_BREAK)) {
         return cc0_compiler_parse_break();
