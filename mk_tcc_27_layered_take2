@@ -50,9 +50,10 @@ gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int -c ../tcc_27_layered_take2/cc0.c -o
 diff -u -s cc0_tcc.o cc0_tcc_dialect.o
 
 cat > cc0_c_smoke.c <<'EOF'
-int CC0_ADD();
-int CC0_SUB();
-int CC0_NOT();
+int add();
+int sub();
+int not();
+int cc0_init();
 int cc0_is_decimal_digit();
 int cc0_is_name_start();
 int cc0_is_name_continue();
@@ -60,9 +61,10 @@ int cc0_is_space();
 
 int main()
 {
-    if (CC0_ADD(20, 22) != 42 || CC0_SUB(50, 8) != 42)
+    cc0_init();
+    if (add(20, 22) != 42 || sub(50, 8) != 42)
         return 1;
-    if (CC0_NOT(0) != 1 || CC0_NOT(7) != 0)
+    if (not(0) != 1 || not(7) != 0)
         return 2;
     if (!cc0_is_decimal_digit(48) || cc0_is_decimal_digit(65))
         return 3;
@@ -75,15 +77,17 @@ int main()
     return 0;
 }
 EOF
-gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int ../tcc_27_layered_take2/cc0.c cc0_c_smoke.c -o cc0_c_smoke
+gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int ../tcc_27_layered_take2/cc0_support.c ../tcc_27_layered_take2/cc0.c cc0_c_smoke.c -o cc0_c_smoke
 ./cc0_c_smoke
 
 cat > cc0_js_smoke.js <<'EOF'
+load("../tcc_27_layered_take2/cc0_support.js");
 load("../tcc_27_layered_take2/cc0.c");
 
-if (CC0_ADD(20, 22) !== 42 || CC0_SUB(50, 8) !== 42)
+cc0_init();
+if (add(20, 22) !== 42 || sub(50, 8) !== 42)
     throw new Error("cc0 arithmetic primitives failed");
-if (CC0_NOT(0) !== 1 || CC0_NOT(7) !== 0)
+if (not(0) !== 1 || not(7) !== 0)
     throw new Error("cc0 boolean primitive failed");
 if (!cc0_is_decimal_digit(48) || cc0_is_decimal_digit(65))
     throw new Error("cc0 decimal classification failed");

@@ -1,82 +1,65 @@
 /*
  * cc0 uses K&R-shaped functions so the same text is readable by C and JS.
  * C maps the two declaration words to int; JavaScript uses them directly.
+ * Operators are primitive calls supplied by the current host. The cc0
+ * compiler will also recognize these calls and emit their i386 operations,
+ * which removes the host support from the eventual self-hosted path.
  */
-var CC0_FALSE = 0;
-var CC0_TRUE = 1;
+var CC0_FALSE;
+var CC0_TRUE;
 
 /* Named ASCII values keep character classification independent of literals. */
-var CC0_ASCII_TAB = 9;
-var CC0_ASCII_LINE_FEED = 10;
-var CC0_ASCII_FORM_FEED = 12;
-var CC0_ASCII_CARRIAGE_RETURN = 13;
-var CC0_ASCII_SPACE = 32;
-var CC0_ASCII_ZERO = 48;
-var CC0_ASCII_NINE = 57;
-var CC0_ASCII_UPPER_A = 65;
-var CC0_ASCII_UPPER_Z = 90;
-var CC0_ASCII_UNDERSCORE = 95;
-var CC0_ASCII_LOWER_A = 97;
-var CC0_ASCII_LOWER_Z = 122;
+var CC0_ASCII_TAB;
+var CC0_ASCII_LINE_FEED;
+var CC0_ASCII_FORM_FEED;
+var CC0_ASCII_CARRIAGE_RETURN;
+var CC0_ASCII_SPACE;
+var CC0_ASCII_ZERO;
+var CC0_ASCII_NINE;
+var CC0_ASCII_UPPER_A;
+var CC0_ASCII_UPPER_Z;
+var CC0_ASCII_UNDERSCORE;
+var CC0_ASCII_LOWER_A;
+var CC0_ASCII_LOWER_Z;
 
-/* These primitives are the small host-semantic boundary for later cc0 code. */
-function CC0_ADD(left, right)
+function cc0_init()
 {
-    return left + right;
-}
-
-function CC0_SUB(left, right)
-{
-    return left - right;
-}
-
-function CC0_EQ(left, right)
-{
-    if (left == right)
-        return CC0_TRUE;
-    return CC0_FALSE;
-}
-
-function CC0_LT(left, right)
-{
-    if (left < right)
-        return CC0_TRUE;
-    return CC0_FALSE;
-}
-
-function CC0_LE(left, right)
-{
-    if (left <= right)
-        return CC0_TRUE;
-    return CC0_FALSE;
-}
-
-function CC0_NOT(value)
-{
-    if (value == CC0_FALSE)
-        return CC0_TRUE;
+    CC0_FALSE = 0;
+    CC0_TRUE = 1;
+    CC0_ASCII_TAB = 9;
+    CC0_ASCII_LINE_FEED = 10;
+    CC0_ASCII_FORM_FEED = 12;
+    CC0_ASCII_CARRIAGE_RETURN = 13;
+    CC0_ASCII_SPACE = 32;
+    CC0_ASCII_ZERO = 48;
+    CC0_ASCII_NINE = 57;
+    CC0_ASCII_UPPER_A = 65;
+    CC0_ASCII_UPPER_Z = 90;
+    CC0_ASCII_UNDERSCORE = 95;
+    CC0_ASCII_LOWER_A = 97;
+    CC0_ASCII_LOWER_Z = 122;
     return CC0_FALSE;
 }
 
 function cc0_is_decimal_digit(value)
 {
-    if (CC0_LT(value, CC0_ASCII_ZERO))
+    if (lt(value, CC0_ASCII_ZERO))
         return CC0_FALSE;
-    return CC0_LE(value, CC0_ASCII_NINE);
+    return le(value, CC0_ASCII_NINE);
 }
 
 function cc0_is_uppercase(value)
 {
-    if (CC0_LT(value, CC0_ASCII_UPPER_A))
+    if (lt(value, CC0_ASCII_UPPER_A))
         return CC0_FALSE;
-    return CC0_LE(value, CC0_ASCII_UPPER_Z);
+    return le(value, CC0_ASCII_UPPER_Z);
 }
 
 function cc0_is_lowercase(value)
 {
-    if (CC0_LT(value, CC0_ASCII_LOWER_A))
+    if (lt(value, CC0_ASCII_LOWER_A))
         return CC0_FALSE;
-    return CC0_LE(value, CC0_ASCII_LOWER_Z);
+    return le(value, CC0_ASCII_LOWER_Z);
 }
 
 function cc0_is_name_start(value)
@@ -85,7 +68,7 @@ function cc0_is_name_start(value)
         return CC0_TRUE;
     if (cc0_is_lowercase(value))
         return CC0_TRUE;
-    return CC0_EQ(value, CC0_ASCII_UNDERSCORE);
+    return eq(value, CC0_ASCII_UNDERSCORE);
 }
 
 function cc0_is_name_continue(value)
@@ -97,18 +80,18 @@ function cc0_is_name_continue(value)
 
 function cc0_is_horizontal_space(value)
 {
-    if (CC0_EQ(value, CC0_ASCII_SPACE))
+    if (eq(value, CC0_ASCII_SPACE))
         return CC0_TRUE;
-    return CC0_EQ(value, CC0_ASCII_TAB);
+    return eq(value, CC0_ASCII_TAB);
 }
 
 function cc0_is_line_space(value)
 {
-    if (CC0_EQ(value, CC0_ASCII_LINE_FEED))
+    if (eq(value, CC0_ASCII_LINE_FEED))
         return CC0_TRUE;
-    if (CC0_EQ(value, CC0_ASCII_CARRIAGE_RETURN))
+    if (eq(value, CC0_ASCII_CARRIAGE_RETURN))
         return CC0_TRUE;
-    return CC0_EQ(value, CC0_ASCII_FORM_FEED);
+    return eq(value, CC0_ASCII_FORM_FEED);
 }
 
 function cc0_is_space(value)

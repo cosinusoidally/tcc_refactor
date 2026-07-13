@@ -37,6 +37,7 @@ static int nb_states;
 /********************************************************/
 
 #if ONE_SOURCE
+#include "cc0_support.c"
 #define function int
 #define var int
 #include "cc0.c"

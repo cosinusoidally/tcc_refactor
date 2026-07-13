@@ -32,9 +32,17 @@
   mapping.
 - Use `/* ... */` comments so comments have identical lexical meaning in both
   languages.
-- Prefer calls such as `ADD(a, b)`, `EQ(a, b)`, and `LOAD32(address)` to syntax
-  whose type coercion or integer-width behavior differs between C and
-  JavaScript.
+- Do not use arithmetic, comparison, logical, bitwise, or pointer operators in
+  `cc0.c`. Use lowercase primitive calls such as `add(a, b)`, `eq(a, b)`, and
+  `ri32(address)` instead. Assignment remains part of the cc0 statement syntax.
+- Do not prefix primitive names with `CC0_` or provide uppercase aliases.
+- Implement host meanings for otherwise inexpressible primitives in the small
+  C and JavaScript support files. Those files must not contain compiler policy,
+  parsing, data structures, or convenience helpers that can be written in the
+  cc0 dialect.
+- The self-hosted cc0 compiler must recognize the same primitives as builtins
+  and emit their i386 implementations. Host support is only for running cc0
+  before that self-hosted compiler exists.
 - Treat compiler values as signed 32-bit integers unless a documented helper
   has different semantics.
 - Keep host support primitives small, named, and documented. Compiler policy
