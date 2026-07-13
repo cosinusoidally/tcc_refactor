@@ -17,6 +17,9 @@ int main()
 {
     int temporary;
     temporary = identity((RESULT + 6 / 3 + 5 % 3 - 2) * 1);
+    temporary = (temporary << 1) >> 1;
+    temporary = (temporary | 8) ^ 8;
+    temporary = temporary & ~0;
     record(temporary);
     while (global_result < 2) {
         global_result = global_result + 1;
