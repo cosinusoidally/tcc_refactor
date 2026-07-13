@@ -994,3 +994,19 @@ function reg_fret(type)
 {
     return CC2_I386_FLOAT_RETURN_REGISTER;
 }
+
+function vla_sp_restore()
+{
+    if (vlas_in_scope) {
+        gen_vla_sp_restore(vla_sp_loc);
+    }
+    return 0;
+}
+
+function vla_sp_restore_root()
+{
+    if (vlas_in_scope) {
+        gen_vla_sp_restore(vla_sp_root_loc);
+    }
+    return 0;
+}

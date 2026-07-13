@@ -1230,6 +1230,8 @@ int exact_log2p1();
 int is_integer_btype();
 int rc_fret();
 int reg_fret();
+int vla_sp_restore();
+int vla_sp_restore_root();
 
 static inline int is_space(int ch) {
     return cc0_is_space(ch);
@@ -1489,7 +1491,7 @@ ST_FUNC void o(unsigned int c);
 ST_FUNC void gen_cvt_itof(int t);
 #endif
 ST_FUNC void gen_vla_sp_save(int addr);
-ST_FUNC void gen_vla_sp_restore(int addr);
+void gen_vla_sp_restore(int addr);
 ST_FUNC void gen_vla_alloc(CType *type, int align);
 
 static inline uint16_t read16le(unsigned char *p) {

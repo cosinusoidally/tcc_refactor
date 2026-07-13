@@ -1133,7 +1133,7 @@ ST_FUNC void gen_vla_sp_save(int addr) {
 }
 
 /* Restore the SP from a location on the stack */
-ST_FUNC void gen_vla_sp_restore(int addr) {
+void gen_vla_sp_restore(int addr) {
     o(0x8b);
     gen_modrm(TREG_ESP, VT_LOCAL, NULL, addr);
 }

@@ -53,8 +53,6 @@ static void decl(int l);
 static int decl0(int l, int is_for_loop_init, Sym *);
 static void expr_eq(void);
 static void vla_runtime_type_size(CType *type, int *a);
-static void vla_sp_restore(void);
-static void vla_sp_restore_root(void);
 static int is_compatible_unqualified_types(CType *type1, CType *type2);
 static inline int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
@@ -2657,18 +2655,6 @@ ST_FUNC void vla_runtime_type_size(CType *type, int *a)
         vset(&int_type, VT_LOCAL|VT_LVAL, type->ref->c);
     } else {
         vpushi(type_size(type, a));
-    }
-}
-
-static void vla_sp_restore(void) {
-    if (vlas_in_scope) {
-        gen_vla_sp_restore(vla_sp_loc);
-    }
-}
-
-static void vla_sp_restore_root(void) {
-    if (vlas_in_scope) {
-        gen_vla_sp_restore(vla_sp_root_loc);
     }
 }
 

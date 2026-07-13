@@ -156,7 +156,9 @@ diff -u -s cc1_stubs.o cc1_stubs_self.o
 
 # cc1 builds the real layer-two service, which then reproduces itself.
 ./cc1.exe -c ../tcc_27_layered_take2/cc2.c -o cc2.o
-./cc1.exe cc0.o cc1.o cc2.o -o cc2.exe
+./cc1.exe -c ../tcc_27_layered_take2/cc2_backend_stubs.c \
+    -o cc2_backend_stubs.o
+./cc1.exe cc0.o cc1.o cc2.o cc2_backend_stubs.o -o cc2.exe
 ./cc2.exe -c ../tcc_27_layered_take2/cc2.c -o cc2_self.o
 diff -u -s cc2.o cc2_self.o
 ./cc2.exe -c ../tcc_27_layered_take2/tests/layered/cc1_compile_smoke.c \
