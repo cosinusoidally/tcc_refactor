@@ -46,7 +46,6 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has
 static void decl(int l);
 static int decl0(int l, int is_for_loop_init, Sym *);
 static void expr_eq(void);
-static void vla_runtime_type_size(CType *type, int *a);
 static inline int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
 static int gvtst(int inv, int t);
@@ -1554,28 +1553,6 @@ static void gen_opif(int op)
     }
 }
 
-static int pointed_size(CType *type)
-{
-    int align;
-    return type_size(pointed_type(type), &align);
-}
-
-static void vla_runtime_pointed_size(CType *type)
-{
-    int align;
-    vla_runtime_type_size(pointed_type(type), &align);
-}
-
-static inline int is_null_pointer(SValue *p)
-{
-    if ((p->r & (VT_VALMASK | VT_LVAL | VT_SYM)) != VT_CONST)
-        return 0;
-    return ((p->type.t & VT_BTYPE) == VT_INT && (uint32_t)p->c.i == 0) ||
-        ((p->type.t & VT_BTYPE) == VT_LLONG && p->c.i == 0) ||
-        ((p->type.t & VT_BTYPE) == VT_PTR &&
-         (PTR_SIZE == 4 ? (uint32_t)p->c.i == 0 : p->c.i == 0));
-}
-
 /* check types for comparison or subtraction of pointers */
 static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
 {
@@ -2127,18 +2104,6 @@ static void gen_cast(CType *type)
                   | (lvalue_type(type->ref->type.t) & VT_LVAL_TYPE);
     }
     vtop->type = *type;
-}
-
-/* push type size as known at runtime time on top of value stack. Put
-   alignment at 'a' */
-ST_FUNC void vla_runtime_type_size(CType *type, int *a)
-{
-    if (type->t & VT_VLA) {
-        type_size(&type->ref->type, a);
-        vset(&int_type, VT_LOCAL|VT_LVAL, type->ref->c);
-    } else {
-        vpushi(type_size(type, a));
-    }
 }
 
 /* print a type. If 'varstr' is not NULL, then the variable is also

@@ -102,6 +102,8 @@ var CC2_TCC_ENUM_TYPE = 2097152;
 var CC2_TCC_QUAD_INTEGER_TYPE = 13;
 var CC2_I386_LONG_DOUBLE_BYTES = 12;
 var CC2_I386_WORD_BYTES = 4;
+var CC2_TCC_VLA_TYPE = 1024;
+var CC2_TYPE_ALIGNMENT_TEMPORARY;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -928,6 +930,68 @@ function type_size_(type, alignment, type_value, basic_type, symbol,
 function type_size(type, alignment)
 {
     return type_size_(type, alignment, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_type_alignment_temporary()
+{
+    if (eq(CC2_TYPE_ALIGNMENT_TEMPORARY, 0)) {
+        CC2_TYPE_ALIGNMENT_TEMPORARY = malloc(CC2_I386_WORD_BYTES);
+    }
+    return CC2_TYPE_ALIGNMENT_TEMPORARY;
+}
+
+function vla_runtime_type_size_(type, alignment, symbol)
+{
+    if (not(eq(and(ri32(type), CC2_TCC_VLA_TYPE), 0))) {
+        symbol = ri32(add(type, 4));
+        type_size(add(symbol, CC2_SYM_TYPE_OFFSET), alignment);
+        vset(int_type_address, or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE),
+            ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)));
+    } else {
+        vpushi(type_size(type, alignment));
+    }
+    return 0;
+}
+
+function vla_runtime_type_size(type, alignment)
+{
+    return vla_runtime_type_size_(type, alignment, 0);
+}
+
+function pointed_size(type)
+{
+    return type_size(pointed_type(type), cc2_type_alignment_temporary());
+}
+
+function vla_runtime_pointed_size(type)
+{
+    return vla_runtime_type_size(pointed_type(type),
+        cc2_type_alignment_temporary());
+}
+
+function is_null_pointer_(value, registers, basic_type)
+{
+    registers = and(ri32(add(value, CC2_SVALUE_REGISTER_OFFSET)), 65535);
+    if (not(eq(and(registers, 831), CC2_VALUE_CONSTANT))) {
+        return 0;
+    }
+    basic_type = and(ri32(value), CC2_TCC_BASIC_TYPE_MASK);
+    if (eq(basic_type, CC2_TCC_INT_TYPE)) {
+        return eq(ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)), 0);
+    }
+    if (eq(basic_type, CC2_TCC_LONG_LONG_TYPE)) {
+        return and(eq(ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)), 0),
+            eq(ri32(add(value, add(CC2_SVALUE_CONSTANT_OFFSET, 4))), 0));
+    }
+    if (eq(basic_type, CC2_TCC_POINTER_TYPE)) {
+        return eq(ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)), 0);
+    }
+    return 0;
+}
+
+function is_null_pointer(value)
+{
+    return is_null_pointer_(value, 0, 0);
 }
 
 function vpushv_(value, limit)
