@@ -1236,7 +1236,7 @@ void next_nomacro1(void);
 extern void next(void);
 extern void unget_tok(int last_tok);
 ST_FUNC void preprocess_start(TCCState *s1, int is_asm);
-ST_FUNC void preprocess_end(TCCState *s1);
+void preprocess_end(TCCState *s1);
 ST_FUNC void tccpp_new(TCCState *s);
 ST_FUNC void tccpp_delete(TCCState *s);
 ST_FUNC int tcc_preprocess(TCCState *s1);

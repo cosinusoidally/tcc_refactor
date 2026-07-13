@@ -1044,14 +1044,6 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
     tok_flags = TOK_FLAG_BOL | TOK_FLAG_BOF;
 }
 
-/* cleanup from error/setjmp */
-ST_FUNC void preprocess_end(TCCState *s1)
-{
-    while (macro_stack)
-        end_macro();
-    macro_ptr = NULL;
-}
-
 ST_FUNC void tccpp_new(TCCState *s)
 {
     int i, c;
@@ -1235,25 +1227,6 @@ static void pp_debug_builtins(TCCState *s1)
     int v;
     for (v = TOK_IDENT; v < tok_ident; ++v)
         define_print(s1, v);
-}
-
-/* Add a space between tokens a and b to avoid unwanted textual pasting */
-static int pp_need_space(int a, int b)
-{
-    return 'E' == a ? '+' == b || '-' == b
-        : '+' == a ? TOK_INC == b || '+' == b
-        : '-' == a ? TOK_DEC == b || '-' == b
-        : a >= TOK_IDENT ? b >= TOK_IDENT
-	: a == TOK_PPNUM ? b >= TOK_IDENT
-        : 0;
-}
-
-/* maybe hex like 0x1e */
-static int pp_check_he0xE(int t, const char *p)
-{
-    if (t == TOK_PPNUM && toup(strchr(p, 0)[-1]) == 'E')
-        return 'E';
-    return t;
 }
 
 /* Preprocess the current file */

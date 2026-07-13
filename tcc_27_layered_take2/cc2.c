@@ -1750,6 +1750,60 @@ function next_nomacro1()
     }
 }
 
+function preprocess_end(state)
+{
+    while (macro_stack) {
+        end_macro();
+    }
+    macro_ptr = 0;
+    return 0;
+}
+
+/* Keep preprocessor output tokens textually separate where concatenation
+   would change their meaning. */
+function pp_need_space(first, second)
+{
+    if (eq(first, mkC("E"))) {
+        return or(eq(second, mkC("+")), eq(second, mkC("-")));
+    }
+    if (eq(first, mkC("+"))) {
+        return or(eq(second, CC2_TOKEN_INCREMENT),
+            eq(second, mkC("+")));
+    }
+    if (eq(first, mkC("-"))) {
+        return or(eq(second, CC2_TOKEN_DECREMENT),
+            eq(second, mkC("-")));
+    }
+    if (not(lt(first, CC2_TOKEN_IDENTIFIER_BASE))) {
+        return not(lt(second, CC2_TOKEN_IDENTIFIER_BASE));
+    }
+    if (eq(first, CC2_TOKEN_PREPROCESSOR_NUMBER)) {
+        return not(lt(second, CC2_TOKEN_IDENTIFIER_BASE));
+    }
+    return 0;
+}
+
+function pp_check_he0xE(token, text)
+{
+    var pointer;
+    var character;
+    if (not(eq(token, CC2_TOKEN_PREPROCESSOR_NUMBER))) {
+        return token;
+    }
+    pointer = text;
+    while (ri8(pointer)) {
+        pointer = add(pointer, 1);
+    }
+    if (eq(pointer, text)) {
+        return token;
+    }
+    character = ri8(sub(pointer, 1));
+    if (or(eq(character, mkC("e")), eq(character, mkC("E")))) {
+        return mkC("E");
+    }
+    return token;
+}
+
 function skip_spaces()
 {
     while (cc0_is_space(ch)) {
