@@ -443,7 +443,6 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
 #define TOK_HASH_INIT 1
 #define TOK_HASH_FUNC(h, c) ((h) + ((h) << 5) + ((h) >> 27) + (c))
 
-
 /* find a token and add it if not found */
 ST_FUNC TokenSym *tok_alloc(const char *str, int len)
 {
@@ -819,22 +818,12 @@ ST_FUNC uint8_t *parse_comment(uint8_t *p)
     return p;
 }
 
-ST_FUNC int set_idnum(int c, int val)
-{
-    return cc0_set_idnum((int)isidnum_table, c, val);
-}
-
 #define cinp minp
 
 static inline void skip_spaces(void)
 {
     while (isidnum_table[ch - CH_EOF] & IS_SPC)
         cinp();
-}
-
-static inline int check_space(int t, int *spc) 
-{
-    return cc0_check_space((int)isidnum_table, t, (int)spc);
 }
 
 /* parse a string without interpreting escapes */
@@ -1477,7 +1466,7 @@ ST_FUNC void parse_define(void)
     /* '(' must be just after macro definition for MACRO_FUNC */
     next_nomacro_spc();
     if (tok == '(') {
-        int dotid = set_idnum('.', 0);
+        int dotid = cc0_set_idnum((int)isidnum_table, '.', 0);
         next_nomacro();
         ps = &first;
         if (tok != ')') for (;;) {
@@ -1505,7 +1494,7 @@ ST_FUNC void parse_define(void)
         }
         next_nomacro_spc();
         t = MACRO_FUNC;
-        set_idnum('.', dotid);
+        cc0_set_idnum((int)isidnum_table, '.', dotid);
     }
 
     tokstr_buf.len = 0;
@@ -1527,7 +1516,7 @@ ST_FUNC void parse_define(void)
 	    tok = TOK_PPJOIN;
         } else if ('#' == tok) {
             spc = 4;
-        } else if (check_space(tok, &spc)) {
+        } else if (cc0_check_space((int)isidnum_table, tok, (int)&spc)) {
             goto skip;
         }
         tok_str_add2(&tokstr_buf, tok, &tokc);
@@ -2224,16 +2213,6 @@ static void parse_string(const char *s, int len)
 #define BN_SIZE 2
 
 /* bn = (bn << shift) | or_val */
-static void bn_lshift(unsigned int *bn, int shift, int or_val)
-{
-    cc0_number_lshift((int)bn, shift, or_val);
-}
-
-static void bn_zero(unsigned int *bn)
-{
-    cc0_number_zero((int)bn);
-}
-
 /* parse number in null terminated string 'p' and return it in the
    current token */
 static void parse_number(const char *p)
@@ -2297,7 +2276,7 @@ static void parse_number(const char *p)
                 shift = 4;
             else 
                 shift = 1;
-            bn_zero(bn);
+            cc0_number_zero((int)bn);
             q = token_buf;
             while (1) {
                 t = *q++;
@@ -2310,7 +2289,7 @@ static void parse_number(const char *p)
                 } else {
                     t = t - '0';
                 }
-                bn_lshift(bn, shift, t);
+                cc0_number_lshift((int)bn, shift, t);
             }
             frac_bits = 0;
             if (ch == '.') {
@@ -2328,7 +2307,7 @@ static void parse_number(const char *p)
                     }
                     if (t >= b)
                         tcc_error("invalid digit");
-                    bn_lshift(bn, shift, t);
+                    cc0_number_lshift((int)bn, shift, t);
                     frac_bits += shift;
                     ch = *p++;
                 }
@@ -3012,7 +2991,8 @@ static int *macro_arg_subst(Sym **nested_list, const int *macro_str, Sym *args)
                     TOK_GET(&t, &st, &cval);
                     if (t != TOK_PLCHLDR
                      && t != TOK_NOSUBST
-                     && 0 == check_space(t, &spc)) {
+                     && 0 == cc0_check_space((int)isidnum_table, t,
+                                             (int)&spc)) {
                         const char *s = get_tok_str(t, &cval);
                         while (*s) {
                             if (t == TOK_PPSTR && *s != '\'')
@@ -3371,7 +3351,7 @@ static int macro_subst_tok(
                         parlevel--;
                     if (tok == TOK_LINEFEED)
                         tok = ' ';
-                    if (!check_space(tok, &spc))
+                    if (!cc0_check_space((int)isidnum_table, tok, (int)&spc))
                         tok_str_add2(&str, tok, &tokc);
                     next_argstream(nested_list, NULL);
                 }
@@ -3487,7 +3467,7 @@ static void macro_subst(
             if (t == '\\' && !(parse_flags & PARSE_FLAG_ACCEPT_STRAYS))
                 tcc_error("stray '\\' in program");
 no_subst:
-            if (!check_space(t, &spc))
+            if (!cc0_check_space((int)isidnum_table, t, (int)&spc))
                 tok_str_add2(tok_str, t, &cval);
 
             if (nosubst) {
@@ -3573,8 +3553,9 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
     s1->pack_stack[0] = 0;
     s1->pack_stack_ptr = s1->pack_stack;
 
-    set_idnum('$', s1->dollars_in_identifiers ? IS_ID : 0);
-    set_idnum('.', is_asm ? IS_ID : 0);
+    cc0_set_idnum((int)isidnum_table, '$',
+                  s1->dollars_in_identifiers ? IS_ID : 0);
+    cc0_set_idnum((int)isidnum_table, '.', is_asm ? IS_ID : 0);
 
     cstr_new(&cstr);
     cstr_cat(&cstr, "\"", -1);
@@ -3624,14 +3605,14 @@ ST_FUNC void tccpp_new(TCCState *s)
 
     /* init isid table */
     for(i = CH_EOF; i<128; i++)
-        set_idnum(i,
+        cc0_set_idnum((int)isidnum_table, i,
             is_space(i) ? IS_SPC
             : isid(i) ? IS_ID
             : isnum(i) ? IS_NUM
             : 0);
 
     for(i = 128; i<256; i++)
-        set_idnum(i, IS_ID);
+        cc0_set_idnum((int)isidnum_table, i, IS_ID);
 
     /* init allocators */
     tal_new(&toksym_alloc, TOKSYM_TAL_LIMIT, TOKSYM_TAL_SIZE);

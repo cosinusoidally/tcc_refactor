@@ -987,7 +987,7 @@ ST_FUNC int tcc_assemble(TCCState *s1, int do_preprocess)
 static void tcc_assemble_inline(TCCState *s1, char *str, int len, int global)
 {
     const int *saved_macro_ptr = macro_ptr;
-    int dotid = set_idnum('.', IS_ID);
+    int dotid = cc0_set_idnum((int)isidnum_table, '.', IS_ID);
 
     tcc_open_bf(s1, ":asm:", len);
     memcpy(file->buffer, str, len);
@@ -995,7 +995,7 @@ static void tcc_assemble_inline(TCCState *s1, char *str, int len, int global)
     tcc_assemble_internal(s1, 0, global);
     tcc_close();
 
-    set_idnum('.', dotid);
+    cc0_set_idnum((int)isidnum_table, '.', dotid);
     macro_ptr = saved_macro_ptr;
 }
 
