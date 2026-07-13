@@ -5489,6 +5489,149 @@ function unary_postfix_index()
     return 0;
 }
 
+function unary_postfix_call()
+{
+    var function_symbol;
+    var argument_symbol;
+    var return_value;
+    var return_alignment;
+    var register_size;
+    var argument_count;
+    var return_registers;
+    var variadic;
+    var size;
+    var alignment;
+    var result_register;
+    var result_end;
+    var address;
+    var offset;
+    var type_value;
+    type_value = ri32(vtop);
+    if (not(eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_FUNCTION_TYPE))) {
+        if (eq(and(type_value, or(CC2_TCC_BASIC_TYPE_MASK,
+            CC2_TCC_ARRAY_TYPE)), CC2_TCC_POINTER_TYPE)) {
+            cc2_copy_bytes(vtop, pointed_type(vtop), 8);
+        }
+        if (not(eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_FUNCTION_TYPE))) {
+            expect(mks("function pointer"));
+        }
+    } else {
+        cc2_set_value_register(vtop, and(ri32(add(vtop,
+            CC2_SVALUE_REGISTER_OFFSET)), bnot(CC2_TCC_LVALUE)));
+    }
+    function_symbol = ri32(add(vtop, 4));
+    next();
+    argument_symbol = ri32(add(function_symbol, CC2_SYM_NEXT_OFFSET));
+    argument_count = 0;
+    return_value = malloc(CC2_SVALUE_BYTES);
+    return_alignment = malloc(4);
+    register_size = malloc(4);
+    alignment = malloc(4);
+    cc2_zero_bytes(return_value, CC2_SVALUE_BYTES);
+    cc2_set_value_second_register(return_value, CC2_VALUE_CONSTANT);
+    wi32(register_size, 0);
+    if (eq(and(ri32(add(function_symbol, CC2_SYM_TYPE_OFFSET)),
+        CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_STRUCT_TYPE)) {
+        variadic = eq(and(ushr(ri32(add(function_symbol,
+            CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET)),
+            CC2_FUNCTION_TYPE_SHIFT), 3), CC2_TCC_ELLIPSIS_FUNCTION);
+        return_registers = gfunc_sret(add(function_symbol,
+            CC2_SYM_TYPE_OFFSET), variadic, return_value,
+            return_alignment, register_size);
+        if (not(return_registers)) {
+            size = type_size(add(function_symbol, CC2_SYM_TYPE_OFFSET),
+                alignment);
+            loc = and(sub(loc, size), sub(0, ri32(alignment)));
+            cc2_copy_bytes(return_value, add(function_symbol,
+                CC2_SYM_TYPE_OFFSET), 8);
+            cc2_set_value_register(return_value,
+                or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE));
+            vseti(CC2_VALUE_LOCAL, loc);
+            cc2_copy_bytes(add(return_value, CC2_SVALUE_CONSTANT_OFFSET),
+                add(vtop, CC2_SVALUE_CONSTANT_OFFSET), 12);
+            argument_count = 1;
+        }
+    } else {
+        return_registers = 1;
+        cc2_copy_bytes(return_value, add(function_symbol,
+            CC2_SYM_TYPE_OFFSET), 8);
+    }
+    if (return_registers) {
+        if (is_float(ri32(return_value))) {
+            cc2_set_value_register(return_value,
+                reg_fret(ri32(return_value)));
+        } else {
+            if (eq(and(ri32(return_value), CC2_TCC_BASIC_TYPE_MASK),
+                CC2_TCC_LONG_LONG_TYPE)) {
+                cc2_set_value_second_register(return_value,
+                    CC2_I386_LONG_LONG_RETURN_REGISTER);
+            }
+            cc2_set_value_register(return_value,
+                CC2_I386_INTEGER_RETURN_REGISTER);
+        }
+    }
+    if (not(eq(ri32(tok_address), 41))) {
+        while (1) {
+            expr_eq();
+            gfunc_param_typed(function_symbol, argument_symbol);
+            argument_count = add(argument_count, 1);
+            if (argument_symbol) {
+                argument_symbol = ri32(add(argument_symbol,
+                    CC2_SYM_NEXT_OFFSET));
+            }
+            if (eq(ri32(tok_address), 41)) {
+                break;
+            }
+            skip(44);
+        }
+    }
+    if (argument_symbol) {
+        tcc_error(mks("too few arguments to function"), 0);
+    }
+    skip(41);
+    gfunc_call(argument_count);
+    result_register = and(ri32(add(return_value,
+        CC2_SVALUE_REGISTER_OFFSET)), 65535);
+    result_end = add(add(result_register, return_registers),
+        not(return_registers));
+    while (lt(result_register, result_end)) {
+        result_end = sub(result_end, 1);
+        vsetc(return_value, result_end,
+            add(return_value, CC2_SVALUE_CONSTANT_OFFSET));
+        cc2_set_value_second_register(vtop, and(ushr(ri32(add(return_value,
+            CC2_SVALUE_REGISTER_OFFSET)), 16), 65535));
+    }
+    if (and(eq(and(ri32(add(function_symbol, CC2_SYM_TYPE_OFFSET)),
+        CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_STRUCT_TYPE), return_registers)) {
+        size = type_size(add(function_symbol, CC2_SYM_TYPE_OFFSET),
+            alignment);
+        if (lt(ri32(alignment), ri32(register_size))) {
+            wi32(alignment, ri32(register_size));
+        }
+        loc = and(sub(loc, size), sub(0, ri32(alignment)));
+        address = loc;
+        offset = 0;
+        while (return_registers) {
+            vset(return_value, or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE),
+                add(address, offset));
+            vswap();
+            vstore();
+            vtop = sub(vtop, CC2_SVALUE_BYTES);
+            return_registers = sub(return_registers, 1);
+            offset = add(offset, ri32(register_size));
+        }
+        vset(add(function_symbol, CC2_SYM_TYPE_OFFSET),
+            or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE), address);
+    }
+    free(alignment);
+    free(register_size);
+    free(return_alignment);
+    free(return_value);
+    return 0;
+}
+
 function unary_prefix(operator)
 {
     var type;

@@ -62,6 +62,7 @@ void block_compound(int *break_symbol, int *continue_symbol,
 void unary_identifier(int token);
 void unary_postfix_field(int operator);
 void unary_postfix_index(void);
+void unary_postfix_call(void);
 void unary_prefix(int operator);
 void unary_literal(int token);
 void unary_postfix_increment(int operator);
@@ -1121,128 +1122,7 @@ void unary(void)
         } else if (tok == '[') {
             unary_postfix_index();
         } else if (tok == '(') {
-            SValue ret;
-            Sym *sa;
-            int nb_args, ret_nregs, ret_align, regsize, variadic;
-
-            /* function call  */
-            if ((vtop->type.t & VT_BTYPE) != VT_FUNC) {
-                /* pointer test (no array accepted) */
-                if ((vtop->type.t & (VT_BTYPE | VT_ARRAY)) == VT_PTR) {
-                    vtop->type = *pointed_type(&vtop->type);
-                    if ((vtop->type.t & VT_BTYPE) != VT_FUNC)
-                        goto error_func;
-                } else {
-                error_func:
-                    expect("function pointer");
-                }
-            } else {
-                vtop->r &= ~VT_LVAL; /* no lvalue */
-            }
-            /* get return type */
-            s = vtop->type.ref;
-            next();
-            sa = s->next; /* first parameter */
-            nb_args = regsize = 0;
-            ret.r2 = VT_CONST;
-            /* compute first implicit argument if a structure is returned */
-            if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
-                variadic = (s->f.func_type == FUNC_ELLIPSIS);
-                ret_nregs = gfunc_sret(&s->type, variadic, &ret.type,
-                                       &ret_align, &regsize);
-                if (!ret_nregs) {
-                    /* get some space for the returned structure */
-                    size = type_size(&s->type, &align);
-#ifdef TCC_TARGET_ARM64
-                /* On arm64, a small struct is return in registers.
-                   It is much easier to write it to memory if we know
-                   that we are allowed to write some extra bytes, so
-                   round the allocated space up to a power of 2: */
-                if (size < 16)
-                    while (size & (size - 1))
-                        size = (size | (size - 1)) + 1;
-#endif
-                    loc = (loc - size) & -align;
-                    ret.type = s->type;
-                    ret.r = VT_LOCAL | VT_LVAL;
-                    /* pass it as 'int' to avoid structure arg passing
-                       problems */
-                    vseti(VT_LOCAL, loc);
-                    ret.c = vtop->c;
-                    nb_args++;
-                }
-            } else {
-                ret_nregs = 1;
-                ret.type = s->type;
-            }
-
-            if (ret_nregs) {
-                /* return in register */
-                if (is_float(ret.type.t)) {
-                    ret.r = reg_fret(ret.type.t);
-#ifdef TCC_TARGET_X86_64
-                    if ((ret.type.t & VT_BTYPE) == VT_QFLOAT)
-                      ret.r2 = REG_QRET;
-#endif
-                } else {
-#ifndef TCC_TARGET_ARM64
-#ifdef TCC_TARGET_X86_64
-                    if ((ret.type.t & VT_BTYPE) == VT_QLONG)
-#else
-                    if ((ret.type.t & VT_BTYPE) == VT_LLONG)
-#endif
-                        ret.r2 = REG_LRET;
-#endif
-                    ret.r = REG_IRET;
-                }
-                ret.c.i = 0;
-            }
-            if (tok != ')') {
-                for(;;) {
-                    expr_eq();
-                    gfunc_param_typed(s, sa);
-                    nb_args++;
-                    if (sa)
-                        sa = sa->next;
-                    if (tok == ')')
-                        break;
-                    skip(',');
-                }
-            }
-            if (sa)
-                tcc_error("too few arguments to function");
-            skip(')');
-            gfunc_call(nb_args);
-
-            /* return value */
-            for (r = ret.r + ret_nregs + !ret_nregs; r-- > ret.r;) {
-                vsetc(&ret.type, r, &ret.c);
-                vtop->r2 = ret.r2; /* Loop only happens when r2 is VT_CONST */
-            }
-
-            /* handle packed struct return */
-            if (((s->type.t & VT_BTYPE) == VT_STRUCT) && ret_nregs) {
-                int addr, offset;
-
-                size = type_size(&s->type, &align);
-		/* We're writing whole regs often, make sure there's enough
-		   space.  Assume register size is power of 2.  */
-		if (regsize > align)
-		  align = regsize;
-                loc = (loc - size) & -align;
-                addr = loc;
-                offset = 0;
-                for (;;) {
-                    vset(&ret.type, VT_LOCAL | VT_LVAL, addr + offset);
-                    vswap();
-                    vstore();
-                    vtop--;
-                    if (--ret_nregs == 0)
-                        break;
-                    offset += regsize;
-                }
-                vset(&s->type, VT_LOCAL | VT_LVAL, addr);
-            }
+            unary_postfix_call();
         } else {
             break;
         }
