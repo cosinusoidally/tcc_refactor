@@ -1307,7 +1307,7 @@ ST_FUNC void check_vstack(void);
 
 int is_float(int t);
 ST_FUNC int ieee_finite(double d);
-ST_FUNC void test_lvalue(void);
+extern void test_lvalue(void);
 extern void vpushi(int v);
 extern void vpushs(addr_t v);
 extern void vseti(int r, int v);
@@ -1358,7 +1358,7 @@ extern void patch_type(Sym *symbol, CType *type);
 extern void patch_storage(Sym *symbol, AttributeDef *attributes, CType *type);
 extern Sym *external_sym(int value, CType *type, int reg,
                         AttributeDef *attributes);
-ST_FUNC void vstore(void);
+extern void vstore(void);
 ST_FUNC void inc(int post, int c);
 ST_FUNC void parse_mult_str (CString *astr, const char *msg);
 ST_FUNC void parse_asm_str(CString *astr);
@@ -1377,7 +1377,10 @@ extern void expr_land(void);
 extern void expr_lor(void);
 extern int condition_3way(void);
 extern void gfunc_param_typed(Sym *function_symbol, Sym *argument_symbol);
-ST_FUNC void gexpr(void);
+extern void gexpr(void);
+extern void expr_eq(void);
+extern void expr_const1(void);
+extern void expr_cond(void);
 ST_FUNC int expr_const(void);
 #if defined CONFIG_TCC_BCHECK || defined TCC_TARGET_C67
 extern Sym *get_sym_ref(CType *type, Section *sec, unsigned long offset, unsigned long size);

@@ -132,6 +132,15 @@ var CC2_VALUE_JUMP_FALSE = 53;
 var CC2_TRUE = 1;
 var CC2_TCC_BITFIELD = 128;
 var CC2_TCC_ELLIPSIS_FUNCTION = 3;
+var CC2_ASCII_COMMA = 44;
+var CC2_ASCII_ASSIGN = 61;
+var CC2_ASSIGNMENT_MODULO = 165;
+var CC2_ASSIGNMENT_DIVIDE = 175;
+var CC2_ASSIGNMENT_SHIFT_LEFT = 129;
+var CC2_ASSIGNMENT_SHIFT_RIGHT = 130;
+var CC2_ASSIGNMENT_XOR = 222;
+var CC2_ASSIGNMENT_OR = 252;
+var CC2_TOKEN_OPERATOR_MASK = 127;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -1489,6 +1498,68 @@ function gfunc_param_typed_(function_symbol, argument_symbol, function_type,
 function gfunc_param_typed(function_symbol, argument_symbol)
 {
     return gfunc_param_typed_(function_symbol, argument_symbol, 0, 0, 0);
+}
+
+function cc2_is_assignment_token(token)
+{
+    if (eq(token, CC2_ASCII_ASSIGN)) {
+        return CC2_TRUE;
+    }
+    if (and(le(CC2_ASSIGNMENT_MODULO, token),
+        le(token, CC2_ASSIGNMENT_DIVIDE))) {
+        return CC2_TRUE;
+    }
+    if (or(eq(token, CC2_ASSIGNMENT_XOR),
+        eq(token, CC2_ASSIGNMENT_OR))) {
+        return CC2_TRUE;
+    }
+    return or(eq(token, CC2_ASSIGNMENT_SHIFT_LEFT),
+        eq(token, CC2_ASSIGNMENT_SHIFT_RIGHT));
+}
+
+function expr_eq_(operation)
+{
+    expr_cond();
+    operation = ri32(tok_address);
+    if (cc2_is_assignment_token(operation)) {
+        test_lvalue();
+        next();
+        if (eq(operation, CC2_ASCII_ASSIGN)) {
+            expr_eq();
+        } else {
+            vdup();
+            expr_eq();
+            gen_op(and(operation, CC2_TOKEN_OPERATOR_MASK));
+        }
+        vstore();
+    }
+    return 0;
+}
+
+function expr_eq()
+{
+    return expr_eq_(0);
+}
+
+function gexpr()
+{
+    expr_eq();
+    while (eq(ri32(tok_address), CC2_ASCII_COMMA)) {
+        vpop();
+        next();
+        expr_eq();
+    }
+    return 0;
+}
+
+function expr_const1()
+{
+    const_wanted = add(const_wanted, 1);
+    nocode_wanted = add(nocode_wanted, 1);
+    expr_cond();
+    nocode_wanted = sub(nocode_wanted, 1);
+    const_wanted = sub(const_wanted, 1);
+    return 0;
 }
 
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)

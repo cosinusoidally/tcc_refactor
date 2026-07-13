@@ -98,3 +98,18 @@ function gen_assign_cast(type)
 {
     return 0;
 }
+
+function expr_cond()
+{
+    return 0;
+}
+
+function test_lvalue()
+{
+    return 0;
+}
+
+function vstore()
+{
+    return 0;
+}

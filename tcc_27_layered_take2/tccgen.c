@@ -45,7 +45,7 @@ static void block(int *bsym, int *csym, int is_expr);
 static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
 static void decl(int l);
 static int decl0(int l, int is_for_loop_init, Sym *);
-static void expr_eq(void);
+void expr_eq(void);
 static inline int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
 int gvtst(int inv, int t);
@@ -69,7 +69,7 @@ ST_FUNC int ieee_finite(double d)
 # define TCC_IS_NATIVE_387
 #endif
 
-ST_FUNC void test_lvalue(void)
+void test_lvalue(void)
 {
     if (!(vtop->r & VT_LVAL))
         expect("lvalue");
@@ -2145,7 +2145,7 @@ void gen_assign_cast(CType *dt)
 }
 
 /* store vtop in lvalue pushed on stack */
-ST_FUNC void vstore(void)
+void vstore(void)
 {
     int sbt, dbt, ft, r, t, size, align, bit_size, bit_pos, rc, delayed_cast;
 
@@ -4239,7 +4239,7 @@ void unary(void)
     }
 }
 
-static void expr_cond(void)
+void expr_cond(void)
 {
     int tt, u, r1, r2, rc, t1, t2, bt1, bt2, islv, c, g;
     SValue sv;
@@ -4412,50 +4412,6 @@ static void expr_cond(void)
             }
         }
     }
-}
-
-static void expr_eq(void)
-{
-    int t;
-    
-    expr_cond();
-    if (tok == '=' ||
-        (tok >= TOK_A_MOD && tok <= TOK_A_DIV) ||
-        tok == TOK_A_XOR || tok == TOK_A_OR ||
-        tok == TOK_A_SHL || tok == TOK_A_SAR) {
-        test_lvalue();
-        t = tok;
-        next();
-        if (t == '=') {
-            expr_eq();
-        } else {
-            vdup();
-            expr_eq();
-            gen_op(t & 0x7f);
-        }
-        vstore();
-    }
-}
-
-ST_FUNC void gexpr(void)
-{
-    while (1) {
-        expr_eq();
-        if (tok != ',')
-            break;
-        vpop();
-        next();
-    }
-}
-
-/* parse a constant expression and return value in vtop.  */
-static void expr_const1(void)
-{
-    const_wanted++;
-    nocode_wanted++;
-    expr_cond();
-    nocode_wanted--;
-    const_wanted--;
 }
 
 /* parse an integer constant and return its value. */
