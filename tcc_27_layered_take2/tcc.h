@@ -1250,21 +1250,28 @@ ST_FUNC int tcc_preprocess(TCCState *s1);
 ST_FUNC void skip(int c);
 ST_FUNC NORETURN void expect(const char *msg);
 
-/* space excluding newline */
+/* Implemented in cc0.c and retained here under the original TCC names. */
+int cc0_init();
+int cc0_is_space();
+int cc0_is_name_start();
+int cc0_is_decimal_digit();
+int cc0_is_octal_digit();
+int cc0_to_upper();
+
 static inline int is_space(int ch) {
-    return ch == ' ' || ch == '\t' || ch == '\v' || ch == '\f' || ch == '\r';
+    return cc0_is_space(ch);
 }
 static inline int isid(int c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+    return cc0_is_name_start(c);
 }
 static inline int isnum(int c) {
-    return c >= '0' && c <= '9';
+    return cc0_is_decimal_digit(c);
 }
 static inline int isoct(int c) {
-    return c >= '0' && c <= '7';
+    return cc0_is_octal_digit(c);
 }
 static inline int toup(int c) {
-    return (c >= 'a' && c <= 'z') ? c - 'a' + 'A' : c;
+    return cc0_to_upper(c);
 }
 
 /* ------------ tccgen.c ------------ */

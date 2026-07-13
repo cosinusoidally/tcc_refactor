@@ -51,6 +51,8 @@
 
 ## Auditability
 
+- Every `if`, `else`, `while`, `for`, and similar control-flow body in new or
+  migrated code must use braces. Never use an implicit single-statement body.
 - Replace protocol numbers, token values, flags, sizes, offsets, and syscall
   numbers with descriptive names. Small conventional values such as `0` and
   `1` are acceptable when their meaning is obvious.

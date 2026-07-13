@@ -3638,6 +3638,9 @@ ST_FUNC void tccpp_new(TCCState *s)
     int i, c;
     const char *p, *r;
 
+    /* cc0 owns the character classes used to initialize this lexer. */
+    cc0_init();
+
     /* might be used in error() before preprocess_start() */
     s->include_stack_ptr = s->include_stack;
     s->ppfp = stdout;
