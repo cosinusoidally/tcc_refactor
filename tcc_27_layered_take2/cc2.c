@@ -6040,6 +6040,31 @@ function put_extern_sym(symbol, section, value, size)
     return put_extern_sym2(symbol, section_index, value, size, 1);
 }
 
+function greloca(section, symbol, offset, type, addend)
+{
+    var symbol_index;
+    symbol_index = 0;
+    if (nocode_wanted) {
+        if (eq(section, ri32(cur_text_section_address))) {
+            return 0;
+        }
+    }
+    if (symbol) {
+        if (eq(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), 0)) {
+            put_extern_sym(symbol, 0, 0, 0);
+        }
+        symbol_index = ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET));
+    }
+    put_elf_reloca(ri32(symtab_section_address), section, offset, type,
+        symbol_index, addend);
+    return 0;
+}
+
+function greloc(section, symbol, offset, type)
+{
+    return greloca(section, symbol, offset, type, 0);
+}
+
 function block_return()
 {
     next();

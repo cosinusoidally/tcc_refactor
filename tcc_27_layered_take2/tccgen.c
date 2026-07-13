@@ -220,32 +220,6 @@ ElfSym *elfsym(Sym *s)
    'section' with value 'value' */
 
 /* add a new relocation entry to symbol 'sym' in section 's' */
-ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type,
-                     addr_t addend)
-{
-    int c = 0;
-
-    if (nocode_wanted && s == cur_text_section)
-        return;
-
-    if (sym) {
-        if (0 == sym->c)
-            put_extern_sym(sym, NULL, 0, 0);
-        c = sym->c;
-    }
-
-    /* now we can add ELF relocation info */
-    put_elf_reloca(symtab_section, s, offset, type, c, addend);
-}
-
-#if PTR_SIZE == 4
-ST_FUNC void greloc(Section *s, Sym *sym, unsigned long offset, int type)
-{
-    greloca(s, sym, offset, type, 0);
-}
-#endif
-
-/* ------------------------------------------------------------------------- */
 
 /* push arbitrary 64bit constant */
 ST_FUNC void vpush64(int ty, unsigned long long v)

@@ -25,6 +25,12 @@ function put_elf_sym(section, value, size, information, other,
     return 1;
 }
 
+function put_elf_reloca(symbol_table, section, offset, type, symbol,
+    addend)
+{
+    return 0;
+}
+
 function tcc_debug_start(state)
 {
     return 0;
