@@ -3067,14 +3067,10 @@ function cc1_remap_frontend_error(source, length)
     return cc1_remap_frontend_error_(source, length, 0, 0);
 }
 
-/* This is the permanent frontend dispatch point replaced by cc1_stubs in cc0. */
-function cc1_compile_(source, length, file, result, position, error_file,
+/* Compile an already preprocessed stream so higher layers can lower new syntax. */
+function cc1_compile_preprocessed_(source, length, result, position, error_file,
     error_line, error_column, normalized_position)
 {
-    if (cc1_preprocess(source, length, file)) {
-        cc1_remap_frontend_error(source, length);
-        return 1;
-    }
     if (cc1_normalize_tokens()) {
         cc1_remap_frontend_error(source, length);
         return 1;
@@ -3103,9 +3099,24 @@ function cc1_compile_(source, length, file, result, position, error_file,
     return result;
 }
 
+function cc1_compile_preprocessed(source, length)
+{
+    return cc1_compile_preprocessed_(source, length, 0, 0, 0, 0, 0, 0);
+}
+
+/* This is the permanent frontend dispatch point replaced by cc1_stubs in cc0. */
+function cc1_compile_(source, length, file)
+{
+    if (cc1_preprocess(source, length, file)) {
+        cc1_remap_frontend_error(source, length);
+        return 1;
+    }
+    return cc1_compile_preprocessed(source, length);
+}
+
 function cc1_compile_base(source, length, file)
 {
-    return cc1_compile_(source, length, file, 0, 0, 0, 0, 0, 0);
+    return cc1_compile_(source, length, file);
 }
 
 /* cc2_stubs keeps cc1 standalone; the real cc2 object replaces that service. */
