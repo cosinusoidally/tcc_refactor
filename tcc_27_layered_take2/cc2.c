@@ -354,6 +354,7 @@ var CC2_FUNCTION_CALL_MASK = 7;
 var CC2_FUNCTION_STDCALL = 1;
 var CC2_FUNCTION_FASTCALL_FIRST = 2;
 var CC2_FUNCTION_FASTCALL_WINDOWS = 5;
+var CC2_I386_FUNCTION_PROLOG_BYTES = 9;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -372,6 +373,9 @@ var nocode_wanted;
 var global_expr;
 var func_var;
 var func_vc;
+/* Saved frame patch state remains in cc2 across a function body. */
+var CC2_FUNCTION_SUB_SP_OFFSET;
+var CC2_FUNCTION_RETURN_POP_BYTES;
 var last_line_num;
 var last_ind;
 var func_ind;
@@ -6704,6 +6708,102 @@ function cc2_fastcall_register(call_kind, index)
         return 2;
     }
     return 1;
+}
+
+function gfunc_prolog(function_type)
+{
+    var function_symbol;
+    var function_call;
+    var register_count;
+    var parameter_index;
+    var stack_address;
+    var parameter_address;
+    var parameter_type;
+    var size;
+    var alignment;
+    function_symbol = ri32(add(function_type, 4));
+    function_call = and(ri32(add(function_symbol,
+        CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET)), CC2_FUNCTION_CALL_MASK);
+    stack_address = 8;
+    loc = 0;
+    func_vc = 0;
+    if (and(le(CC2_FUNCTION_FASTCALL_FIRST, function_call),
+        lt(function_call, CC2_FUNCTION_FASTCALL_WINDOWS))) {
+        register_count = sub(function_call, 1);
+    } else if (eq(function_call, CC2_FUNCTION_FASTCALL_WINDOWS)) {
+        register_count = 2;
+    } else {
+        register_count = 0;
+    }
+    parameter_index = 0;
+    ind = add(ind, CC2_I386_FUNCTION_PROLOG_BYTES);
+    CC2_FUNCTION_SUB_SP_OFFSET = ind;
+    cc2_copy_bytes(func_vt_address,
+        add(function_symbol, CC2_SYM_TYPE_OFFSET), 8);
+    func_var = eq(and(ushr(ri32(add(function_symbol,
+        CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET)), 3), 3),
+        CC2_TCC_ELLIPSIS_FUNCTION);
+    if (eq(and(ri32(func_vt_address), CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_STRUCT_TYPE)) {
+        func_vc = stack_address;
+        stack_address = add(stack_address, CC2_I386_WORD_BYTES);
+        parameter_index = add(parameter_index, 1);
+    }
+    alignment = malloc(4);
+    function_symbol = ri32(add(function_symbol, CC2_SYM_NEXT_OFFSET));
+    while (not(eq(function_symbol, 0))) {
+        parameter_type = add(function_symbol, CC2_SYM_TYPE_OFFSET);
+        size = type_size(parameter_type, alignment);
+        size = and(add(size, 3), bnot(3));
+        if (lt(parameter_index, register_count)) {
+            loc = sub(loc, CC2_I386_WORD_BYTES);
+            o(137);
+            gen_modrm(cc2_fastcall_register(function_call, parameter_index),
+                CC2_VALUE_LOCAL, 0, loc);
+            parameter_address = loc;
+        } else {
+            parameter_address = stack_address;
+            stack_address = add(stack_address, size);
+        }
+        sym_push(and(ri32(add(function_symbol, CC2_SYM_VALUE_OFFSET)),
+            bnot(CC2_SYMBOL_FIELD_FLAG)), parameter_type,
+            or(CC2_VALUE_LOCAL, lvalue_type(ri32(parameter_type))),
+            parameter_address);
+        parameter_index = add(parameter_index, 1);
+        function_symbol = ri32(add(function_symbol, CC2_SYM_NEXT_OFFSET));
+    }
+    free(alignment);
+    CC2_FUNCTION_RETURN_POP_BYTES = 0;
+    if (or(eq(function_call, CC2_FUNCTION_STDCALL),
+        eq(function_call, CC2_FUNCTION_FASTCALL_WINDOWS))) {
+        CC2_FUNCTION_RETURN_POP_BYTES = sub(stack_address, 8);
+    } else if (not(eq(func_vc, 0))) {
+        CC2_FUNCTION_RETURN_POP_BYTES = CC2_I386_WORD_BYTES;
+    }
+    return 0;
+}
+
+function gfunc_epilog()
+{
+    var local_bytes;
+    var saved_ind;
+    local_bytes = and(add(sub(0, loc), 3), bnot(3));
+    o(201);
+    if (eq(CC2_FUNCTION_RETURN_POP_BYTES, 0)) {
+        o(195);
+    } else {
+        o(194);
+        g(CC2_FUNCTION_RETURN_POP_BYTES);
+        g(ushr(CC2_FUNCTION_RETURN_POP_BYTES, 8));
+    }
+    saved_ind = ind;
+    ind = sub(CC2_FUNCTION_SUB_SP_OFFSET,
+        CC2_I386_FUNCTION_PROLOG_BYTES);
+    o(15042901);
+    o(60545);
+    gen_le32(local_bytes);
+    ind = saved_ind;
+    return 0;
 }
 
 function gfunc_call(argument_count)

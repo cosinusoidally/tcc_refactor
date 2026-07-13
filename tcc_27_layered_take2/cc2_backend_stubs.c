@@ -396,13 +396,3 @@ function tcc_debug_funcend(state, size)
 {
     return 0;
 }
-
-function gfunc_prolog(type)
-{
-    return 0;
-}
-
-function gfunc_epilog()
-{
-    return 0;
-}
