@@ -363,6 +363,18 @@ static inline void vpushll(long long v)
     vpush64(VT_LLONG, v);
 }
 
+/* cc2 cannot form a 64-bit scalar, so expose only mask construction. */
+void vpush_bitfield_mask(int basic_type, int bit_size, int bit_pos, int invert)
+{
+    unsigned long long mask = (1ULL << bit_size) - 1;
+    if (invert)
+        mask = ~(mask << bit_pos);
+    if (basic_type == VT_LLONG)
+        vpushll(mask);
+    else
+        vpushi((unsigned)mask);
+}
+
 
 #ifdef TCC_TARGET_ARM
 /* find a register of class 'rc2' with at most one reference on stack.
@@ -1187,176 +1199,6 @@ void tcc_error_type_pair(CType *source_type, CType *destination_type)
    casts if needed. */
 
 /* store vtop in lvalue pushed on stack */
-void vstore(void)
-{
-    int sbt, dbt, ft, r, t, size, align, bit_size, bit_pos, rc, delayed_cast;
-
-    ft = vtop[-1].type.t;
-    sbt = vtop->type.t & VT_BTYPE;
-    dbt = ft & VT_BTYPE;
-    if ((((sbt == VT_INT || sbt == VT_SHORT) && dbt == VT_BYTE) ||
-         (sbt == VT_INT && dbt == VT_SHORT))
-	&& !(vtop->type.t & VT_BITFIELD)) {
-        /* optimize char/short casts */
-        delayed_cast = VT_MUSTCAST;
-        vtop->type.t = ft & VT_TYPE;
-        /* XXX: factorize */
-        if (ft & VT_CONSTANT)
-            tcc_warning("assignment of read-only location");
-    } else {
-        delayed_cast = 0;
-        if (!(ft & VT_BITFIELD))
-            gen_assign_cast(&vtop[-1].type);
-    }
-
-    if (sbt == VT_STRUCT) {
-        /* if structure, only generate pointer */
-        /* structure assignment : generate memcpy */
-        /* XXX: optimize if small size */
-            size = type_size(&vtop->type, &align);
-
-            /* destination */
-            vswap();
-            vtop->type.t = VT_PTR;
-            gaddrof();
-
-            /* address of memcpy() */
-#ifdef TCC_ARM_EABI
-            if(!(align & 7))
-                vpush_global_sym(&func_old_type, TOK_memcpy8);
-            else if(!(align & 3))
-                vpush_global_sym(&func_old_type, TOK_memcpy4);
-            else
-#endif
-            /* Use memmove, rather than memcpy, as dest and src may be same: */
-            vpush_global_sym(&func_old_type, TOK_memmove);
-
-            vswap();
-            /* source */
-            vpushv(vtop - 2);
-            vtop->type.t = VT_PTR;
-            gaddrof();
-            /* type size */
-            vpushi(size);
-            gfunc_call(3);
-
-        /* leave source on stack */
-    } else if (ft & VT_BITFIELD) {
-        /* bitfield store handling */
-
-        /* save lvalue as expression result (example: s.b = s.a = n;) */
-        vdup(), vtop[-1] = vtop[-2];
-
-        bit_pos = BIT_POS(ft);
-        bit_size = BIT_SIZE(ft);
-        /* remove bit field info to avoid loops */
-        vtop[-1].type.t = ft & ~VT_STRUCT_MASK;
-
-        if ((ft & VT_BTYPE) == VT_BOOL) {
-            gen_cast(&vtop[-1].type);
-            vtop[-1].type.t = (vtop[-1].type.t & ~VT_BTYPE) | (VT_BYTE | VT_UNSIGNED);
-        }
-
-        r = adjust_bf(vtop - 1, bit_pos, bit_size);
-        if (r == VT_STRUCT) {
-            gen_cast_s((ft & VT_BTYPE) == VT_LLONG ? VT_LLONG : VT_INT);
-            store_packed_bf(bit_pos, bit_size);
-        } else {
-            unsigned long long mask = (1ULL << bit_size) - 1;
-            if ((ft & VT_BTYPE) != VT_BOOL) {
-                /* mask source */
-                if ((vtop[-1].type.t & VT_BTYPE) == VT_LLONG)
-                    vpushll(mask);
-                else
-                    vpushi((unsigned)mask);
-                gen_op('&');
-            }
-            /* shift source */
-            vpushi(bit_pos);
-            gen_op(TOK_SHL);
-            vswap();
-            /* duplicate destination */
-            vdup();
-            vrott(3);
-            /* load destination, mask and or with source */
-            if ((vtop->type.t & VT_BTYPE) == VT_LLONG)
-                vpushll(~(mask << bit_pos));
-            else
-                vpushi(~((unsigned)mask << bit_pos));
-            gen_op('&');
-            gen_op('|');
-            /* store result */
-            vstore();
-            /* ... and discard */
-            vpop();
-        }
-    } else if (dbt == VT_VOID) {
-        --vtop;
-    } else {
-#ifdef CONFIG_TCC_BCHECK
-            /* bound check case */
-            if (vtop[-1].r & VT_MUSTBOUND) {
-                vswap();
-                gbound();
-                vswap();
-            }
-#endif
-            rc = RC_INT;
-            if (is_float(ft)) {
-                rc = RC_FLOAT;
-#ifdef TCC_TARGET_X86_64
-                if ((ft & VT_BTYPE) == VT_LDOUBLE) {
-                    rc = RC_ST0;
-                } else if ((ft & VT_BTYPE) == VT_QFLOAT) {
-                    rc = RC_FRET;
-                }
-#endif
-            }
-            r = gv(rc);  /* generate value */
-            /* if lvalue was saved on stack, must read it */
-            if ((vtop[-1].r & VT_VALMASK) == VT_LLOCAL) {
-                SValue sv;
-                t = get_reg(RC_INT);
-#if PTR_SIZE == 8
-                sv.type.t = VT_PTR;
-#else
-                sv.type.t = VT_INT;
-#endif
-                sv.r = VT_LOCAL | VT_LVAL;
-                sv.c.i = vtop[-1].c.i;
-                load(t, &sv);
-                vtop[-1].r = t | VT_LVAL;
-            }
-            /* two word case handling : store second register at word + 4 (or +8 for x86-64)  */
-#if PTR_SIZE == 8
-            if (((ft & VT_BTYPE) == VT_QLONG) || ((ft & VT_BTYPE) == VT_QFLOAT)) {
-                int addr_type = VT_LLONG, load_size = 8, load_type = ((vtop->type.t & VT_BTYPE) == VT_QLONG) ? VT_LLONG : VT_DOUBLE;
-#else
-            if ((ft & VT_BTYPE) == VT_LLONG) {
-                int addr_type = VT_INT, load_size = 4, load_type = VT_INT;
-#endif
-                vtop[-1].type.t = load_type;
-                store(r, vtop - 1);
-                vswap();
-                /* convert to int to increment easily */
-                vtop->type.t = addr_type;
-                gaddrof();
-                vpushi(load_size);
-                gen_op('+');
-                vtop->r |= VT_LVAL;
-                vswap();
-                vtop[-1].type.t = load_type;
-                /* XXX: it works because r2 is spilled last ! */
-                store(vtop->r2, vtop - 1);
-            } else {
-                store(r, vtop - 1);
-            }
-
-        vswap();
-        vtop--; /* NOT vpop() because on x86 it would flush the fp stack */
-        vtop->r |= delayed_cast;
-    }
-}
 
 /* post defines POST/PRE add. c is the token ++ or -- */
 

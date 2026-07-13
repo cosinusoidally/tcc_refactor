@@ -54,6 +54,11 @@ function init_putv(type, section, offset)
     return 0;
 }
 
+function vpush_bitfield_mask(type, size, position, invert)
+{
+    return 0;
+}
+
 function store(reg, value)
 {
     return 0;

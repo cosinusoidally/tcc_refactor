@@ -170,6 +170,7 @@ var CC2_TOKEN_FLOAT_UNSIGNED_LONG_LONG_TO_LONG_DOUBLE = 398;
 var CC2_TOKEN_FLOAT_TO_UNSIGNED_LONG_LONG = 400;
 var CC2_TOKEN_DOUBLE_TO_UNSIGNED_LONG_LONG = 401;
 var CC2_TOKEN_LONG_DOUBLE_TO_UNSIGNED_LONG_LONG = 399;
+var CC2_TOKEN_MEMMOVE = 387;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -3048,6 +3049,142 @@ function gv(required_class)
 {
     return gv_(required_class, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0);
+}
+
+function vstore_(destination_type, source_basic, destination_basic,
+    delayed_cast, size, alignment, bit_position, bit_size, result_register,
+    adjusted_access, register_class, address_register, temporary_value,
+    registers)
+{
+    destination_type = ri32(sub(vtop, CC2_SVALUE_BYTES));
+    source_basic = and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK);
+    destination_basic = and(destination_type, CC2_TCC_BASIC_TYPE_MASK);
+    if (and(or(and(or(eq(source_basic, CC2_TCC_INT_TYPE),
+        eq(source_basic, CC2_TCC_SHORT_TYPE)),
+        eq(destination_basic, CC2_TCC_BYTE_TYPE)), and(eq(source_basic,
+        CC2_TCC_INT_TYPE), eq(destination_basic, CC2_TCC_SHORT_TYPE))),
+        eq(and(ri32(vtop), CC2_TCC_BITFIELD), 0))) {
+        delayed_cast = CC2_TCC_MUST_CAST;
+        wi32(vtop, and(destination_type, CC2_TCC_TYPE_MASK));
+        if (not(eq(and(destination_type, CC2_TCC_CONST_QUALIFIER), 0))) {
+            tcc_warning(mks("assignment of read-only location"), 0);
+        }
+    } else {
+        delayed_cast = 0;
+        if (eq(and(destination_type, CC2_TCC_BITFIELD), 0)) {
+            gen_assign_cast(sub(vtop, CC2_SVALUE_BYTES));
+        }
+    }
+
+    if (eq(source_basic, CC2_TCC_STRUCT_TYPE)) {
+        alignment = malloc(4);
+        size = type_size(vtop, alignment);
+        vswap();
+        wi32(vtop, CC2_TCC_POINTER_TYPE);
+        gaddrof();
+        vpush_global_sym(func_old_type_address, CC2_TOKEN_MEMMOVE);
+        vswap();
+        vpushv(sub(vtop, mul(2, CC2_SVALUE_BYTES)));
+        wi32(vtop, CC2_TCC_POINTER_TYPE);
+        gaddrof();
+        vpushi(size);
+        gfunc_call(3);
+        free(alignment);
+    } else if (not(eq(and(destination_type, CC2_TCC_BITFIELD), 0))) {
+        vdup();
+        cc2_copy_svalue(sub(vtop, CC2_SVALUE_BYTES),
+            sub(vtop, mul(2, CC2_SVALUE_BYTES)));
+        bit_position = and(ushr(destination_type,
+            CC2_TCC_BITFIELD_POSITION_SHIFT), 63);
+        bit_size = and(ushr(destination_type,
+            CC2_TCC_BITFIELD_SIZE_SHIFT), 63);
+        wi32(sub(vtop, CC2_SVALUE_BYTES), and(destination_type, 1048447));
+        if (eq(destination_basic, CC2_TCC_BOOLEAN_TYPE)) {
+            gen_cast(sub(vtop, CC2_SVALUE_BYTES));
+            wi32(sub(vtop, CC2_SVALUE_BYTES), or(and(ri32(sub(vtop,
+                CC2_SVALUE_BYTES)), bnot(CC2_TCC_BASIC_TYPE_MASK)),
+                or(CC2_TCC_BYTE_TYPE, CC2_TCC_UNSIGNED_TYPE)));
+        }
+        adjusted_access = adjust_bf(sub(vtop, CC2_SVALUE_BYTES),
+            bit_position, bit_size);
+        if (eq(adjusted_access, CC2_TCC_STRUCT_TYPE)) {
+            if (eq(destination_basic, CC2_TCC_LONG_LONG_TYPE)) {
+                gen_cast_s(CC2_TCC_LONG_LONG_TYPE);
+            } else {
+                gen_cast_s(CC2_TCC_INT_TYPE);
+            }
+            store_packed_bf(bit_position, bit_size);
+        } else {
+            if (not(eq(destination_basic, CC2_TCC_BOOLEAN_TYPE))) {
+                vpush_bitfield_mask(and(ri32(sub(vtop, CC2_SVALUE_BYTES)),
+                    CC2_TCC_BASIC_TYPE_MASK), bit_size, 0, 0);
+                gen_op(CC2_ASCII_AMPERSAND);
+            }
+            vpushi(bit_position);
+            gen_op(CC2_TOKEN_SHIFT_LEFT);
+            vswap();
+            vdup();
+            vrott(3);
+            vpush_bitfield_mask(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+                bit_size, bit_position, 1);
+            gen_op(CC2_ASCII_AMPERSAND);
+            gen_op(CC2_ASCII_VERTICAL_BAR);
+            vstore();
+            vpop();
+        }
+    } else if (eq(destination_basic, CC2_TCC_VOID_TYPE)) {
+        vtop = sub(vtop, CC2_SVALUE_BYTES);
+    } else {
+        register_class = CC2_INTEGER_REGISTER_CLASS;
+        if (is_float(destination_type)) {
+            register_class = CC2_I386_FLOAT_REGISTER_CLASS;
+        }
+        result_register = gv(register_class);
+        registers = ri32(add(sub(vtop, CC2_SVALUE_BYTES),
+            CC2_SVALUE_REGISTER_OFFSET));
+        if (eq(and(registers, CC2_VALUE_LOCATION_MASK),
+            CC2_VALUE_LOCAL_LVALUE)) {
+            address_register = get_reg(CC2_INTEGER_REGISTER_CLASS);
+            temporary_value = malloc(CC2_SVALUE_BYTES);
+            cc2_zero_bytes(temporary_value, CC2_SVALUE_BYTES);
+            wi32(temporary_value, CC2_TCC_INT_TYPE);
+            cc2_set_value_register(temporary_value,
+                or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE));
+            wi32(add(temporary_value, CC2_SVALUE_CONSTANT_OFFSET), ri32(add(
+                sub(vtop, CC2_SVALUE_BYTES), CC2_SVALUE_CONSTANT_OFFSET)));
+            load(address_register, temporary_value);
+            cc2_set_value_register(sub(vtop, CC2_SVALUE_BYTES),
+                or(address_register, CC2_TCC_LVALUE));
+            free(temporary_value);
+        }
+        if (eq(destination_basic, CC2_TCC_LONG_LONG_TYPE)) {
+            wi32(sub(vtop, CC2_SVALUE_BYTES), CC2_TCC_INT_TYPE);
+            store(result_register, sub(vtop, CC2_SVALUE_BYTES));
+            vswap();
+            wi32(vtop, CC2_TCC_INT_TYPE);
+            gaddrof();
+            vpushi(4);
+            gen_op(CC2_ASCII_PLUS);
+            cc2_set_value_register(vtop, or(ri32(add(vtop,
+                CC2_SVALUE_REGISTER_OFFSET)), CC2_TCC_LVALUE));
+            vswap();
+            wi32(sub(vtop, CC2_SVALUE_BYTES), CC2_TCC_INT_TYPE);
+            store(and(ushr(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+                16), 65535), sub(vtop, CC2_SVALUE_BYTES));
+        } else {
+            store(result_register, sub(vtop, CC2_SVALUE_BYTES));
+        }
+        vswap();
+        vtop = sub(vtop, CC2_SVALUE_BYTES);
+        cc2_set_value_register(vtop, or(ri32(add(vtop,
+            CC2_SVALUE_REGISTER_OFFSET)), delayed_cast));
+    }
+    return 0;
+}
+
+function vstore()
+{
+    return vstore_(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function gfunc_return_(function_type, value_type, return_type, alignment,
