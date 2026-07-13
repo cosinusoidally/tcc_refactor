@@ -2776,6 +2776,131 @@ function adjust_bf(value, bit_position, bit_size)
     return bit_position;
 }
 
+function load_packed_bf_(type, bit_position, bit_size, count, offset, bits)
+{
+    save_reg_upstack(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        65535), 1);
+    vpushi(0);
+    wi32(vtop, and(ri32(type), CC2_TCC_BASIC_TYPE_MASK));
+    wi32(add(vtop, add(CC2_SVALUE_CONSTANT_OFFSET, 4)), 0);
+    bits = 0;
+    offset = ushr(bit_position, 3);
+    bit_position = and(bit_position, 7);
+    while (bit_size) {
+        vswap();
+        incr_bf_adr(offset);
+        vdup();
+        count = sub(8, bit_position);
+        if (lt(bit_size, count)) {
+            count = bit_size;
+        }
+        if (bit_position) {
+            vpushi(bit_position);
+            gen_op(CC2_TOKEN_UNSIGNED_SHIFT_RIGHT);
+            bit_position = 0;
+        }
+        if (lt(count, 8)) {
+            vpushi(sub(shl(1, count), 1));
+            gen_op(CC2_ASCII_AMPERSAND);
+        }
+        gen_cast(type);
+        if (bits) {
+            vpushi(bits);
+            gen_op(CC2_TOKEN_SHIFT_LEFT);
+        }
+        vrotb(3);
+        gen_op(CC2_ASCII_VERTICAL_BAR);
+        bits = add(bits, count);
+        bit_size = sub(bit_size, count);
+        offset = 1;
+    }
+    vswap();
+    vpop();
+    if (eq(and(ri32(type), CC2_TCC_UNSIGNED_TYPE), 0)) {
+        if (eq(and(ri32(type), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_LONG_LONG_TYPE)) {
+            count = sub(64, bits);
+        } else {
+            count = sub(32, bits);
+        }
+        vpushi(count);
+        gen_op(CC2_TOKEN_SHIFT_LEFT);
+        vpushi(count);
+        gen_op(CC2_TOKEN_SHIFT_RIGHT);
+    }
+    return 0;
+}
+
+function load_packed_bf(type, bit_position, bit_size)
+{
+    return load_packed_bf_(type, bit_position, bit_size, 0, 0, 0);
+}
+
+function store_packed_bf_(bit_position, bit_size, bits, count, offset,
+    mask, is_constant)
+{
+    is_constant = eq(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT);
+    vswap();
+    save_reg_upstack(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        65535), 1);
+    bits = 0;
+    offset = ushr(bit_position, 3);
+    bit_position = and(bit_position, 7);
+    while (bit_size) {
+        incr_bf_adr(offset);
+        vswap();
+        if (is_constant) {
+            vdup();
+        } else {
+            gv_dup();
+        }
+        vrott(3);
+        if (bits) {
+            vpushi(bits);
+            gen_op(CC2_TOKEN_UNSIGNED_SHIFT_RIGHT);
+        }
+        if (bit_position) {
+            vpushi(bit_position);
+            gen_op(CC2_TOKEN_SHIFT_LEFT);
+        }
+        count = sub(8, bit_position);
+        if (lt(bit_size, count)) {
+            count = bit_size;
+        }
+        if (lt(count, 8)) {
+            mask = shl(sub(shl(1, count), 1), bit_position);
+            vpushi(mask);
+            gen_op(CC2_ASCII_AMPERSAND);
+            vpushv(sub(vtop, CC2_SVALUE_BYTES));
+            if (and(mask, 128)) {
+                vpushi(and(bnot(mask), 127));
+            } else {
+                vpushi(bnot(mask));
+            }
+            gen_op(CC2_ASCII_AMPERSAND);
+            gen_op(CC2_ASCII_VERTICAL_BAR);
+        }
+        vdup();
+        cc2_copy_svalue(sub(vtop, CC2_SVALUE_BYTES),
+            sub(vtop, mul(2, CC2_SVALUE_BYTES)));
+        vstore();
+        vpop();
+        bits = add(bits, count);
+        bit_size = sub(bit_size, count);
+        bit_position = 0;
+        offset = 1;
+    }
+    vpop();
+    vpop();
+    return 0;
+}
+
+function store_packed_bf(bit_position, bit_size)
+{
+    return store_packed_bf_(bit_position, bit_size, 0, 0, 0, 0, 0);
+}
+
 function is_label_(identifier_floor, saved_token)
 {
     if (lt(ri32(tok_address), identifier_floor)) {

@@ -462,73 +462,8 @@ static void gbound(void)
 
 
 /* single-byte load mode for packed or otherwise unaligned bitfields */
-static void load_packed_bf(CType *type, int bit_pos, int bit_size)
-{
-    int n, o, bits;
-    save_reg_upstack(vtop->r, 1);
-    vpush64(type->t & VT_BTYPE, 0); // B X
-    bits = 0, o = bit_pos >> 3, bit_pos &= 7;
-    do {
-        vswap(); // X B
-        incr_bf_adr(o);
-        vdup(); // X B B
-        n = 8 - bit_pos;
-        if (n > bit_size)
-            n = bit_size;
-        if (bit_pos)
-            vpushi(bit_pos), gen_op(TOK_SHR), bit_pos = 0; // X B Y
-        if (n < 8)
-            vpushi((1 << n) - 1), gen_op('&');
-        gen_cast(type);
-        if (bits)
-            vpushi(bits), gen_op(TOK_SHL);
-        vrotb(3); // B Y X
-        gen_op('|'); // B X
-        bits += n, bit_size -= n, o = 1;
-    } while (bit_size);
-    vswap(), vpop();
-    if (!(type->t & VT_UNSIGNED)) {
-        n = ((type->t & VT_BTYPE) == VT_LLONG ? 64 : 32) - bits;
-        vpushi(n), gen_op(TOK_SHL);
-        vpushi(n), gen_op(TOK_SAR);
-    }
-}
 
 /* single-byte store mode for packed or otherwise unaligned bitfields */
-static void store_packed_bf(int bit_pos, int bit_size)
-{
-    int bits, n, o, m, c;
-
-    c = (vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST;
-    vswap(); // X B
-    save_reg_upstack(vtop->r, 1);
-    bits = 0, o = bit_pos >> 3, bit_pos &= 7;
-    do {
-        incr_bf_adr(o); // X B
-        vswap(); //B X
-        c ? vdup() : gv_dup(); // B V X
-        vrott(3); // X B V
-        if (bits)
-            vpushi(bits), gen_op(TOK_SHR);
-        if (bit_pos)
-            vpushi(bit_pos), gen_op(TOK_SHL);
-        n = 8 - bit_pos;
-        if (n > bit_size)
-            n = bit_size;
-        if (n < 8) {
-            m = ((1 << n) - 1) << bit_pos;
-            vpushi(m), gen_op('&'); // X B V1
-            vpushv(vtop-1); // X B V1 B
-            vpushi(m & 0x80 ? ~m & 0x7f : ~m);
-            gen_op('&'); // X B V1 B1
-            gen_op('|'); // X B V2
-        }
-        vdup(), vtop[-1] = vtop[-2]; // X B B V2
-        vstore(), vpop(); // X B
-        bits += n, bit_size -= n, bit_pos = 0, o = 1;
-    } while (bit_size);
-    vpop(), vpop();
-}
 
 
 /* store vtop a register belonging to class 'rc'. lvalues are
