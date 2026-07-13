@@ -647,8 +647,10 @@ void next_nomacro1(void)
         /* first look if it is in fact an end of buffer */
         c = handle_stray1(p);
         p = file->buf_ptr;
-        if (c == '\\')
-            goto parse_simple;
+        if (c == '\\') {
+            p = (uint8_t *)cc2_lex_operator((int)p, c);
+            goto keep_tok_flags;
+        }
         if (c != CH_EOF)
             goto redo_no_start;
         {
@@ -712,7 +714,8 @@ maybe_newline:
     case '$':
         if (!(isidnum_table[c - CH_EOF] & IS_ID)
          || (parse_flags & PARSE_FLAG_ASM_FILE)) {
-            goto parse_simple;
+            p = (uint8_t *)cc2_lex_operator((int)p, c);
+            goto keep_tok_flags;
         }
 
     case 'a': case 'b': case 'c': case 'd':
@@ -758,30 +761,8 @@ maybe_newline:
         goto keep_tok_flags;
 
     case '.':
-        /* special dot handling because it can also start a number */
-        PEEKC(c, p);
-        if (isnum(c)) {
-            t = '.';
-            p = (uint8_t *)cc2_lex_number_tail((int)p, t);
-            goto keep_tok_flags;
-        } else if ((isidnum_table['.' - CH_EOF] & IS_ID)
-                   && (isidnum_table[c - CH_EOF] & (IS_ID|IS_NUM))) {
-            *--p = c = '.';
-            p = (uint8_t *)cc2_lex_identifier((int)p);
-            goto keep_tok_flags;
-        } else if (c == '.') {
-            PEEKC(c, p);
-            if (c == '.') {
-                p++;
-                tok = TOK_DOTS;
-            } else {
-                *--p = '.'; /* may underflow into file->unget[] */
-                tok = '.';
-            }
-        } else {
-            tok = '.';
-        }
-        break;
+        p = (uint8_t *)cc2_lex_dot((int)p);
+        goto keep_tok_flags;
     case '\'':
     case '\"':
         p = (uint8_t *)cc2_lex_string((int)p, c, 0);
@@ -815,19 +796,18 @@ maybe_newline:
     case '?':
     case '~':
     case '@': /* only used in assembler */
-    parse_simple:
-        tok = c;
-        p++;
-        break;
+        p = (uint8_t *)cc2_lex_operator((int)p, c);
+        goto keep_tok_flags;
     default:
         if (c >= 0x80 && c <= 0xFF) { /* utf8 identifiers */
             p = (uint8_t *)cc2_lex_identifier((int)p);
             goto keep_tok_flags;
         }
         if (parse_flags & PARSE_FLAG_ASM_FILE) {
-            goto parse_simple;
+            p = (uint8_t *)cc2_lex_operator((int)p, c);
+            goto keep_tok_flags;
         }
-        tcc_error("unrecognized character \\x%02x", c);
+        cc2_lex_unrecognized(c);
         break;
     }
     tok_flags = 0;

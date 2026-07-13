@@ -1460,6 +1460,77 @@ function cc2_lex_number_tail(pointer, previous)
     return cc2_lex_number_tail_(pointer, previous, 0, 0, 0, 0, 0);
 }
 
+function cc2_lex_identifier_dot_(pointer, character_class, symbol)
+{
+    cstr_reset(tokcstr_address);
+    cstr_ccat(tokcstr_address, mkC("."));
+    character_class = ri8(add(isidnum_table_address,
+        sub(ri8(pointer), CC2_CHARACTER_END_OF_FILE)));
+    while (not(eq(and(character_class, or(CC2_CHARACTER_IDENTIFIER_CLASS,
+        CC2_CHARACTER_NUMBER_CLASS)), 0))) {
+        cstr_ccat(tokcstr_address, ri8(pointer));
+        pointer = cc2_lex_peek(pointer);
+        character_class = ri8(add(isidnum_table_address,
+            sub(ri8(pointer), CC2_CHARACTER_END_OF_FILE)));
+    }
+    symbol = tok_alloc(ri32(add(tokcstr_address, CC2_CSTRING_DATA_OFFSET)),
+        ri32(add(tokcstr_address, CC2_CSTRING_SIZE_OFFSET)));
+    wi32(tok_address, ri32(add(symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET)));
+    wi32(tok_flags_address, 0);
+    return pointer;
+}
+
+function cc2_lex_identifier_dot(pointer)
+{
+    return cc2_lex_identifier_dot_(pointer, 0, 0);
+}
+
+function cc2_lex_dot_(pointer, second_pointer, character,
+    character_class)
+{
+    pointer = cc2_lex_peek(pointer);
+    character = ri8(pointer);
+    character_class = ri8(add(isidnum_table_address,
+        sub(character, CC2_CHARACTER_END_OF_FILE)));
+    if (not(eq(and(character_class, CC2_CHARACTER_NUMBER_CLASS), 0))) {
+        return cc2_lex_number_tail(pointer, mkC("."));
+    }
+    if (not(eq(and(ri8(add(isidnum_table_address,
+        sub(mkC("."), CC2_CHARACTER_END_OF_FILE))),
+        CC2_CHARACTER_IDENTIFIER_CLASS), 0))) {
+        if (not(eq(and(character_class, or(CC2_CHARACTER_IDENTIFIER_CLASS,
+            CC2_CHARACTER_NUMBER_CLASS)), 0))) {
+            return cc2_lex_identifier_dot(pointer);
+        }
+    }
+    if (eq(character, mkC("."))) {
+        second_pointer = pointer;
+        pointer = cc2_lex_peek(pointer);
+        if (eq(ri8(pointer), mkC("."))) {
+            pointer = add(pointer, 1);
+            wi32(tok_address, CC2_TOKEN_DOTS);
+        } else {
+            pointer = second_pointer;
+            wi32(tok_address, mkC("."));
+        }
+    } else {
+        wi32(tok_address, mkC("."));
+    }
+    wi32(tok_flags_address, 0);
+    return pointer;
+}
+
+function cc2_lex_dot(pointer)
+{
+    return cc2_lex_dot_(pointer, 0, 0, 0);
+}
+
+function cc2_lex_unrecognized(character)
+{
+    tcc_error(mks("unrecognized character \\x%02x"), character);
+    return 0;
+}
+
 function skip_spaces()
 {
     while (cc0_is_space(ch)) {
