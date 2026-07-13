@@ -97,16 +97,6 @@ static unsigned long func_bound_ind;
 /* generate jmp to a label */
 #define gjmp2(instr,lbl) oad(instr,lbl)
 
-static void gadd_sp(int val)
-{
-    if (val == (char)val) {
-        o(0xc483);
-        g(val);
-    } else {
-        oad(0xc481, val); /* add $xxx, %esp */
-    }
-}
-
 #if defined CONFIG_TCC_BCHECK || defined TCC_TARGET_PE
 static void gen_static_call(int v)
 {
@@ -117,49 +107,6 @@ static void gen_static_call(int v)
     greloc(cur_text_section, sym, ind-4, R_386_PC32);
 }
 #endif
-
-/* 'is_jmp' is '1' if it is a jump */
-static void gcall_or_jmp(int is_jmp)
-{
-    int r;
-    if ((vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST && (vtop->r & VT_SYM)) {
-        /* constant and relocation case */
-        greloc(cur_text_section, vtop->sym, ind + 1, R_386_PC32);
-        oad(0xe8 + is_jmp, vtop->c.i - 4); /* call/jmp im */
-    } else {
-        /* otherwise, indirect call */
-        r = gv(RC_INT);
-        o(0xff); /* call/jmp *r */
-        o(0xd0 + r + (is_jmp << 4));
-    }
-    if (!is_jmp) {
-        int rt;
-        /* extend the return value to the whole register if necessary
-           visual studio and gcc do not always set the whole eax register
-           when assigning the return value of a function  */
-        rt = vtop->type.ref->type.t;
-        switch (rt & VT_BTYPE) {
-            case VT_BYTE:
-                if (rt & VT_UNSIGNED) {
-                    o(0xc0b60f); /* movzx %al, %eax */
-                }
-                else {
-                    o(0xc0be0f); /* movsx %al, %eax */
-                }
-                break;
-            case VT_SHORT:
-                if (rt & VT_UNSIGNED) {
-                    o(0xc0b70f); /* movzx %ax, %eax */
-                }
-                else {
-                    o(0xc0bf0f); /* movsx %ax, %eax */
-                }
-                break;
-            default:
-                break;
-        }
-    }
-}
 
 static uint8_t fastcall_regs[3] = { TREG_EAX, TREG_EDX, TREG_ECX };
 static uint8_t fastcallw_regs[2] = { TREG_ECX, TREG_EDX };
