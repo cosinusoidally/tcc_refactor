@@ -300,27 +300,6 @@ tail_call:
 
 #endif /* USE_TAL */
 
-/* XXX: unicode ? */
-static void add_char(CString *cstr, int c)
-{
-    if (c == '\'' || c == '\"' || c == '\\') {
-        /* XXX: could be more precise if char or string */
-        cstr_ccat(cstr, '\\');
-    }
-    if (c >= 32 && c <= 126) {
-        cstr_ccat(cstr, c);
-    } else {
-        cstr_ccat(cstr, '\\');
-        if (c == '\n') {
-            cstr_ccat(cstr, 'n');
-        } else {
-            cstr_ccat(cstr, '0' + ((c >> 6) & 7));
-            cstr_ccat(cstr, '0' + ((c >> 3) & 7));
-            cstr_ccat(cstr, '0' + (c & 7));
-        }
-    }
-}
-
 /* XXX: buffer overflow */
 /* XXX: float tokens */
 const char *get_tok_str(int v, CValue *cv)

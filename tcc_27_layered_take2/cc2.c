@@ -67,6 +67,13 @@ var CC2_TOKEN_IDENTIFIER_BASE;
 var CC2_SYMBOL_STRUCT_FLAG;
 var CC2_SYMBOL_FIELD_FLAG;
 var CC2_FIRST_ANONYMOUS_SYMBOL;
+var CC2_ASCII_BACKSLASH;
+var CC2_ASCII_SINGLE_QUOTE;
+var CC2_ASCII_DOUBLE_QUOTE;
+var CC2_ASCII_PRINTABLE_FIRST;
+var CC2_ASCII_PRINTABLE_LAST;
+var CC2_ASCII_DIGIT_ZERO;
+var CC2_ASCII_LOWER_N;
 var CC2_SVALUE_BYTES;
 var CC2_SVALUE_REGISTER_OFFSET;
 var CC2_SVALUE_CONSTANT_OFFSET;
@@ -2683,6 +2690,31 @@ function tok_alloc_new(slot, text, length)
     wi8(add(symbol, add(CC2_TOKEN_SYMBOL_TEXT_OFFSET, length)), 0);
     wi32(slot, symbol);
     return symbol;
+}
+
+function add_char(string, character)
+{
+    if (or(eq(character, CC2_ASCII_SINGLE_QUOTE), or(eq(character,
+        CC2_ASCII_DOUBLE_QUOTE), eq(character, CC2_ASCII_BACKSLASH)))) {
+        cstr_ccat(string, CC2_ASCII_BACKSLASH);
+    }
+    if (and(not(lt(character, CC2_ASCII_PRINTABLE_FIRST)),
+        not(lt(CC2_ASCII_PRINTABLE_LAST, character)))) {
+        cstr_ccat(string, character);
+    } else {
+        cstr_ccat(string, CC2_ASCII_BACKSLASH);
+        if (eq(character, 10)) {
+            cstr_ccat(string, CC2_ASCII_LOWER_N);
+        } else {
+            cstr_ccat(string, add(CC2_ASCII_DIGIT_ZERO,
+                and(ushr(character, 6), 7)));
+            cstr_ccat(string, add(CC2_ASCII_DIGIT_ZERO,
+                and(ushr(character, 3), 7)));
+            cstr_ccat(string, add(CC2_ASCII_DIGIT_ZERO,
+                and(character, 7)));
+        }
+    }
+    return 0;
 }
 
 function tok_str_add2(stream, token, value)
@@ -13818,6 +13850,13 @@ function cc2_init_constants()
     CC2_SYMBOL_STRUCT_FLAG = 1073741824;
     CC2_SYMBOL_FIELD_FLAG = 536870912;
     CC2_FIRST_ANONYMOUS_SYMBOL = 268435456;
+    CC2_ASCII_BACKSLASH = 92;
+    CC2_ASCII_SINGLE_QUOTE = 39;
+    CC2_ASCII_DOUBLE_QUOTE = 34;
+    CC2_ASCII_PRINTABLE_FIRST = 32;
+    CC2_ASCII_PRINTABLE_LAST = 126;
+    CC2_ASCII_DIGIT_ZERO = 48;
+    CC2_ASCII_LOWER_N = 110;
     CC2_SVALUE_BYTES = 28;
     CC2_SVALUE_REGISTER_OFFSET = 8;
     CC2_SVALUE_CONSTANT_OFFSET = 12;

@@ -1204,6 +1204,7 @@ extern TokenSym **table_ident;
 
 TokenSym *tok_alloc(const char *str, int len);
 TokenSym *tok_alloc_new(TokenSym **slot, const char *text, int length);
+void add_char(CString *string, int character);
 extern const char *get_tok_str(int v, CValue *cv);
 void begin_macro(TokenString *str, int alloc);
 void end_macro(void);
