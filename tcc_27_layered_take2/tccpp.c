@@ -85,31 +85,6 @@ void next_nomacro_spc(void);
 
 /* ------------------------------------------------------------------------- */
 
-/* handle just the EOB case, but not stray */
-#define PEEKC_EOB(c, p)\
-{\
-    p++;\
-    c = *p;\
-    if (c == '\\') {\
-        file->buf_ptr = p;\
-        c = handle_eob();\
-        p = file->buf_ptr;\
-    }\
-}
-
-/* handle the complicated stray case */
-#define PEEKC(c, p)\
-{\
-    p++;\
-    c = *p;\
-    if (c == '\\') {\
-        c = handle_stray1(p);\
-        p = file->buf_ptr;\
-    }\
-}
-
-#define cinp minp
-
 /* we use 64 bit numbers */
 #define BN_SIZE 2
 
