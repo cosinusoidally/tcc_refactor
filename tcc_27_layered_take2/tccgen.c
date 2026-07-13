@@ -39,6 +39,7 @@ void gen_cast_s(int t);
 int parse_btype(CType *type, AttributeDef *ad);
 CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
 void parse_expr_type(CType *type);
+void parse_init_elem(int expr_type);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -53,7 +54,7 @@ static inline int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
 int gvtst(int inv, int t);
 static void gen_inline_functions(TCCState *s);
-static void skip_or_save_block(TokenString **str);
+void skip_or_save_block(TokenString **str);
 
 /* we use our own 'finite' function to avoid potential problems with
    non standard math libs */
@@ -2039,68 +2040,8 @@ static void block(int *bsym, int *csym, int is_expr)
    with a '{').  If STR then allocates and stores the skipped tokens
    in *STR.  This doesn't check if () and {} are nested correctly,
    i.e. "({)}" is accepted.  */
-static void skip_or_save_block(TokenString **str)
-{
-    int braces = tok == '{';
-    int level = 0;
-    if (str)
-      *str = tok_str_alloc();
-
-    while ((level > 0 || (tok != '}' && tok != ',' && tok != ';' && tok != ')'))) {
-	int t;
-	if (tok == TOK_EOF) {
-	     if (str || level > 0)
-	       tcc_error("unexpected end of file");
-	     else
-	       break;
-	}
-	if (str)
-	  tok_str_add_tok(*str);
-	t = tok;
-	next();
-	if (t == '{' || t == '(') {
-	    level++;
-	} else if (t == '}' || t == ')') {
-	    level--;
-	    if (level == 0 && braces && t == '}')
-	      break;
-	}
-    }
-    if (str) {
-	tok_str_add(*str, -1);
-	tok_str_add(*str, 0);
-    }
-}
-
 #define EXPR_CONST 1
 #define EXPR_ANY   2
-
-static void parse_init_elem(int expr_type)
-{
-    int saved_global_expr;
-    switch(expr_type) {
-    case EXPR_CONST:
-        /* compound literals must be allocated globally in this case */
-        saved_global_expr = global_expr;
-        global_expr = 1;
-        expr_const1();
-        global_expr = saved_global_expr;
-        /* NOTE: symbols are accepted, as well as lvalue for anon symbols
-	   (compound literals).  */
-        if (((vtop->r & (VT_VALMASK | VT_LVAL)) != VT_CONST
-	     && ((vtop->r & (VT_SYM|VT_LVAL)) != (VT_SYM|VT_LVAL)
-		 || vtop->sym->v < SYM_FIRST_ANOM))
-#ifdef TCC_TARGET_PE
-                 || ((vtop->r & VT_SYM) && vtop->sym->a.dllimport)
-#endif
-            )
-            tcc_error("initializer element is not constant");
-        break;
-    case EXPR_ANY:
-        expr_eq();
-        break;
-    }
-}
 
 /* put zeros for variable based init */
 static void init_putz(Section *sec, unsigned long c, int size)

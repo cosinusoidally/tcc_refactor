@@ -1028,7 +1028,7 @@ ST_INLN void tok_str_new(TokenString *s)
     s->last_line_num = -1;
 }
 
-ST_FUNC TokenString *tok_str_alloc(void)
+TokenString *tok_str_alloc(void)
 {
     TokenString *str = tal_realloc(tokstr_alloc, 0, sizeof *str);
     tok_str_new(str);
@@ -1072,7 +1072,7 @@ ST_FUNC int *tok_str_realloc(TokenString *s, int new_size)
     return s->str;
 }
 
-ST_FUNC void tok_str_add(TokenString *s, int t)
+void tok_str_add(TokenString *s, int t)
 {
     int len, *str;
 
@@ -1181,7 +1181,7 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
 }
 
 /* add the current parse token in token string 's' */
-ST_FUNC void tok_str_add_tok(TokenString *s)
+void tok_str_add_tok(TokenString *s)
 {
     CValue cval;
 

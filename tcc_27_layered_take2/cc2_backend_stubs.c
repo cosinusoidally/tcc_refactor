@@ -49,6 +49,21 @@ function gtst_addr(invert, address)
     return 0;
 }
 
+function tok_str_alloc()
+{
+    return malloc(8);
+}
+
+function tok_str_add(stream, token)
+{
+    return 0;
+}
+
+function tok_str_add_tok(stream)
+{
+    return 0;
+}
+
 function skip(token)
 {
     return 0;

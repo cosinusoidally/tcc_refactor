@@ -4745,6 +4745,87 @@ function gcase(base, length, break_symbol)
     return 0;
 }
 
+/* Save or skip one balanced initializer/association token region. */
+function skip_or_save_block(output)
+{
+    var braces;
+    var level;
+    var token;
+    var stream;
+    braces = eq(ri32(tok_address), 123);
+    level = 0;
+    stream = 0;
+    if (output) {
+        stream = tok_str_alloc();
+        wi32(output, stream);
+    }
+    while (or(lt(0, level), and(not(eq(ri32(tok_address), 125)),
+        and(not(eq(ri32(tok_address), 44)),
+        and(not(eq(ri32(tok_address), 59)),
+        not(eq(ri32(tok_address), 41))))))) {
+        if (eq(ri32(tok_address), sub(0, 1))) {
+            if (or(output, lt(0, level))) {
+                tcc_error(mks("unexpected end of file"), 0);
+            } else {
+                return 0;
+            }
+        }
+        if (output) {
+            tok_str_add_tok(stream);
+        }
+        token = ri32(tok_address);
+        next();
+        if (or(eq(token, 123), eq(token, 40))) {
+            level = add(level, 1);
+        } else if (or(eq(token, 125), eq(token, 41))) {
+            level = sub(level, 1);
+            if (and(and(eq(level, 0), braces), eq(token, 125))) {
+                break;
+            }
+        }
+    }
+    if (output) {
+        tok_str_add(stream, sub(0, 1));
+        tok_str_add(stream, 0);
+    }
+    return 0;
+}
+
+function parse_init_elem(expression_type)
+{
+    var saved_global_expression;
+    var registers;
+    var symbol;
+    var invalid;
+    if (eq(expression_type, 1)) {
+        saved_global_expression = global_expr;
+        global_expr = 1;
+        expr_const1();
+        global_expr = saved_global_expression;
+        registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+        invalid = 0;
+        if (not(eq(and(registers, or(CC2_VALUE_LOCATION_MASK,
+            CC2_TCC_LVALUE)), CC2_VALUE_CONSTANT))) {
+            if (not(eq(and(registers, or(CC2_TCC_SYMBOL_VALUE,
+                CC2_TCC_LVALUE)), or(CC2_TCC_SYMBOL_VALUE,
+                CC2_TCC_LVALUE)))) {
+                invalid = 1;
+            } else {
+                symbol = ri32(add(vtop, CC2_SVALUE_SYMBOL_OFFSET));
+                if (lt(ri32(symbol), CC2_FIRST_ANONYMOUS_SYMBOL)) {
+                    invalid = 1;
+                }
+            }
+        }
+        if (invalid) {
+            tcc_error(mks("initializer element is not constant"), 0);
+        }
+    } else if (eq(expression_type, 2)) {
+        expr_eq();
+    }
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {
