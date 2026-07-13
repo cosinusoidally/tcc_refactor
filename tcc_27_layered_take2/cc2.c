@@ -6501,6 +6501,97 @@ function gcall_or_jmp(is_jump)
     return 0;
 }
 
+function gjmp(jump_chain)
+{
+    return oad(233, jump_chain);
+}
+
+function gjmp_addr(address)
+{
+    var displacement;
+    displacement = sub(sub(address, ind), 2);
+    if (and(le(sub(0, 128), displacement), lt(displacement, 128))) {
+        g(235);
+        g(displacement);
+    } else {
+        oad(233, sub(sub(address, ind), 5));
+    }
+    return 0;
+}
+
+function gtst_addr(inverted, address)
+{
+    var location;
+    var constant;
+    location = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        CC2_VALUE_LOCATION_MASK);
+    constant = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
+    if (eq(location, CC2_VALUE_COMPARISON)) {
+        inverted = xor(inverted, constant);
+        vtop = sub(vtop, CC2_SVALUE_BYTES);
+        address = sub(address, add(ind, 2));
+        if (and(le(sub(0, 128), address), lt(address, 128))) {
+            g(sub(inverted, 32));
+            g(address);
+        } else {
+            g(15);
+            oad(sub(inverted, 16), sub(address, 4));
+        }
+    } else if (eq(and(location, bnot(1)), CC2_VALUE_JUMP)) {
+        if (not(eq(and(location, 1), inverted))) {
+            gjmp_addr(address);
+            gsym(constant);
+        } else {
+            gsym(constant);
+            o(1515);
+            gjmp_addr(address);
+        }
+        vtop = sub(vtop, CC2_SVALUE_BYTES);
+    }
+    return 0;
+}
+
+function gtst(inverted, jump_chain)
+{
+    var location;
+    var constant;
+    var section;
+    var link;
+    var next;
+    location = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        CC2_VALUE_LOCATION_MASK);
+    constant = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
+    if (nocode_wanted) {
+        jump_chain = jump_chain;
+    } else if (eq(location, CC2_VALUE_COMPARISON)) {
+        g(15);
+        jump_chain = oad(xor(sub(constant, 16), inverted), jump_chain);
+    } else if (or(eq(location, CC2_VALUE_JUMP),
+        eq(location, CC2_VALUE_JUMP_FALSE))) {
+        if (eq(and(location, 1), inverted)) {
+            link = constant;
+            if (link) {
+                section = ri32(cur_text_section_address);
+                next = ri32(add(ri32(add(section,
+                    CC2_SECTION_DATA_POINTER_OFFSET)), link));
+                while (next) {
+                    link = next;
+                    next = ri32(add(ri32(add(section,
+                        CC2_SECTION_DATA_POINTER_OFFSET)), link));
+                }
+                wi32(add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)),
+                    link), jump_chain);
+                jump_chain = constant;
+            }
+        } else {
+            jump_chain = gjmp(jump_chain);
+            gsym(constant);
+        }
+    }
+    vtop = sub(vtop, CC2_SVALUE_BYTES);
+    return jump_chain;
+}
+
 function init_putv(type, section, offset)
 {
     var destination_type;

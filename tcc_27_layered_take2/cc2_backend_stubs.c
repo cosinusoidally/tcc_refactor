@@ -128,26 +128,6 @@ function gv(register_class)
     return 0;
 }
 
-function gjmp(jump_chain)
-{
-    return jump_chain;
-}
-
-function gtst(inverted, jump_chain)
-{
-    return jump_chain;
-}
-
-function gjmp_addr(address)
-{
-    return 0;
-}
-
-function gtst_addr(invert, address)
-{
-    return 0;
-}
-
 function tok_str_alloc()
 {
     return malloc(8);
