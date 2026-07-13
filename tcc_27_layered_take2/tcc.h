@@ -1323,7 +1323,7 @@ void tcc_debug_line(TCCState *s1);
 
 int tccgen_compile(TCCState *s1);
 void gen_inline_functions(TCCState *s);
-ST_FUNC void free_inline_functions(TCCState *s);
+void free_inline_functions(TCCState *s);
 extern void check_vstack(void);
 
 int is_float(int t);

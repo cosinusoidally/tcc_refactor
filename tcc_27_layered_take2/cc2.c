@@ -5953,6 +5953,28 @@ function gen_inline_functions(state)
     return 0;
 }
 
+function free_inline_functions(state)
+{
+    var index;
+    var count;
+    var functions;
+    var inline_function;
+    index = 0;
+    count = ri32(add(state, CC2_TCC_STATE_INLINE_FUNCTION_COUNT_OFFSET));
+    functions = ri32(add(state, CC2_TCC_STATE_INLINE_FUNCTIONS_OFFSET));
+    while (lt(index, count)) {
+        inline_function = ri32(add(functions, mul(index, 4)));
+        if (ri32(add(inline_function, CC2_INLINE_SYMBOL_OFFSET))) {
+            tok_str_free(ri32(add(inline_function,
+                CC2_INLINE_STREAM_OFFSET)));
+        }
+        index = add(index, 1);
+    }
+    dynarray_reset(add(state, CC2_TCC_STATE_INLINE_FUNCTIONS_OFFSET),
+        add(state, CC2_TCC_STATE_INLINE_FUNCTION_COUNT_OFFSET));
+    return 0;
+}
+
 function block_return()
 {
     next();
