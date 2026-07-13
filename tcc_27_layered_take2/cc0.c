@@ -3452,6 +3452,46 @@ function cc0_compiler_parse_logical(is_or)
     return cc0_compiler_parse_logical_(is_or, 0, 0);
 }
 
+function cc0_compiler_parse_select_(false_position, end_position)
+{
+    cc0_compiler_next_token();
+    if (cc0_compiler_parse_expression()) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        cc0_compiler_emit_test_result();
+        false_position = cc0_compiler_emit_zero_jump();
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_COMMA)) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_parse_expression()) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_COMMA)) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        end_position = cc0_compiler_emit_jump();
+        cc0_compiler_patch_relative(false_position, CC0_CODE_LENGTH);
+    }
+    if (cc0_compiler_parse_expression()) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        return cc0_compiler_patch_relative(end_position, CC0_CODE_LENGTH);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_parse_select()
+{
+    return cc0_compiler_parse_select_(0, 0);
+}
+
 function cc0_compiler_parse_expression_(name, length)
 {
     if (eq(CC0_TOKEN, CC0_TOKEN_NUMBER_LITERAL)) {
@@ -3504,6 +3544,9 @@ function cc0_compiler_parse_expression_(name, length)
         }
         if (cc0_text_equal(name, length, mks("lor"))) {
             return cc0_compiler_parse_logical(1);
+        }
+        if (cc0_text_equal(name, length, mks("select"))) {
+            return cc0_compiler_parse_select();
         }
         return cc0_compiler_parse_call_(name, length, 0, 0, 0, 0);
     }

@@ -120,6 +120,7 @@ var CC1_EXPRESSION_ADDRESS_KIND;
 var CC1_EXPRESSION_ASSIGN_KIND;
 var CC1_EXPRESSION_LOGICAL_AND_KIND;
 var CC1_EXPRESSION_LOGICAL_OR_KIND;
+var CC1_EXPRESSION_CONDITIONAL_KIND;
 var CC1_EXPRESSIONS;
 var CC1_EXPRESSION_CAPACITY;
 var CC1_EXPRESSION_COUNT;
@@ -1423,6 +1424,7 @@ function cc1_expression_init()
     CC1_EXPRESSION_ASSIGN_KIND = 22;
     CC1_EXPRESSION_LOGICAL_AND_KIND = 23;
     CC1_EXPRESSION_LOGICAL_OR_KIND = 24;
+    CC1_EXPRESSION_CONDITIONAL_KIND = 25;
     CC1_EXPRESSION_COUNT = 0;
     CC1_EXPRESSION_ERROR = 0;
     return 0;
@@ -1857,9 +1859,34 @@ function cc1_expression_parse_logical_or()
     return cc1_expression_parse_logical_or_(0, 0, 0);
 }
 
+function cc1_expression_parse_conditional_(condition, token, when_true,
+    when_false, choices)
+{
+    condition = cc1_expression_parse_logical_or();
+    if (not(eq(cc1_expression_token_kind(), 63))) {
+        return condition;
+    }
+    token = cc1_preprocessed_consume();
+    when_true = cc1_expression_parse_assignment();
+    if (not(cc1_expression_accept(58))) {
+        CC1_EXPRESSION_ERROR = 1;
+        return 0;
+    }
+    when_false = cc1_expression_parse_conditional();
+    choices = cc1_expression_new(CC1_EXPRESSION_ARGUMENT_KIND, token,
+        when_true, when_false);
+    return cc1_expression_new(CC1_EXPRESSION_CONDITIONAL_KIND, token,
+        condition, choices);
+}
+
+function cc1_expression_parse_conditional()
+{
+    return cc1_expression_parse_conditional_(0, 0, 0, 0, 0);
+}
+
 function cc1_expression_parse_assignment_(left, token, right)
 {
-    left = cc1_expression_parse_logical_or();
+    left = cc1_expression_parse_conditional();
     if (eq(cc1_expression_token_kind(), 61)) {
         token = cc1_preprocessed_consume();
         if (eq(cc1_expression_token_kind(), 61)) {
@@ -1989,6 +2016,44 @@ function cc1_expression_emit_assignment(expression)
     return cc1_expression_emit_assignment_(expression, 0, 0, 0, 0, 0);
 }
 
+function cc1_expression_emit_conditional_(expression, token, condition,
+    choices, origin)
+{
+    token = ri32(add(expression, CC1_EXPRESSION_TOKEN_OFFSET));
+    condition = ri32(add(expression, CC1_EXPRESSION_LEFT_OFFSET));
+    choices = ri32(add(expression, CC1_EXPRESSION_RIGHT_OFFSET));
+    origin = ri32(add(token, CC1_TOKEN_SOURCE_OFFSET));
+    if (cc1_expression_emit_name(mks("select"), token)) {
+        return 1;
+    }
+    if (cc1_normalized_byte(40, origin)) {
+        return 1;
+    }
+    if (cc1_expression_emit(condition)) {
+        return 1;
+    }
+    if (cc1_normalized_byte(44, origin)) {
+        return 1;
+    }
+    if (cc1_expression_emit(ri32(add(choices,
+        CC1_EXPRESSION_LEFT_OFFSET)))) {
+        return 1;
+    }
+    if (cc1_normalized_byte(44, origin)) {
+        return 1;
+    }
+    if (cc1_expression_emit(ri32(add(choices,
+        CC1_EXPRESSION_RIGHT_OFFSET)))) {
+        return 1;
+    }
+    return cc1_normalized_byte(41, origin);
+}
+
+function cc1_expression_emit_conditional(expression)
+{
+    return cc1_expression_emit_conditional_(expression, 0, 0, 0, 0);
+}
+
 function cc1_expression_emit_(expression, kind, token, argument, origin)
 {
     if (eq(expression, 0)) {
@@ -2024,6 +2089,9 @@ function cc1_expression_emit_(expression, kind, token, argument, origin)
     }
     if (eq(kind, CC1_EXPRESSION_ASSIGN_KIND)) {
         return cc1_expression_emit_assignment(expression);
+    }
+    if (eq(kind, CC1_EXPRESSION_CONDITIONAL_KIND)) {
+        return cc1_expression_emit_conditional(expression);
     }
     if (eq(kind, CC1_EXPRESSION_ADD_KIND)) {
         return cc1_expression_emit_binary(expression, mks("add"));

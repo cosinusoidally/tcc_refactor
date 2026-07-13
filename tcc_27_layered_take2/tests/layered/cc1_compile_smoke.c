@@ -30,6 +30,8 @@ int main()
     global_result = 0;
     temporary = temporary + (((temporary == 2) || record(99)) - 1);
     temporary = temporary + ((temporary != 2) && record(99));
+    temporary = (temporary == 2) ? temporary : record(99);
+    temporary = (temporary != 2) ? record(99) : temporary;
     temporary = temporary + global_result;
     scalar_value = temporary;
     temporary = (temporary << 1) >> 1;
