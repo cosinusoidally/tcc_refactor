@@ -118,6 +118,8 @@ var CC1_EXPRESSION_COMPLEMENT_KIND;
 var CC1_EXPRESSION_DEREFERENCE_KIND;
 var CC1_EXPRESSION_ADDRESS_KIND;
 var CC1_EXPRESSION_ASSIGN_KIND;
+var CC1_EXPRESSION_LOGICAL_AND_KIND;
+var CC1_EXPRESSION_LOGICAL_OR_KIND;
 var CC1_EXPRESSIONS;
 var CC1_EXPRESSION_CAPACITY;
 var CC1_EXPRESSION_COUNT;
@@ -1419,6 +1421,8 @@ function cc1_expression_init()
     CC1_EXPRESSION_DEREFERENCE_KIND = 20;
     CC1_EXPRESSION_ADDRESS_KIND = 21;
     CC1_EXPRESSION_ASSIGN_KIND = 22;
+    CC1_EXPRESSION_LOGICAL_AND_KIND = 23;
+    CC1_EXPRESSION_LOGICAL_OR_KIND = 24;
     CC1_EXPRESSION_COUNT = 0;
     CC1_EXPRESSION_ERROR = 0;
     return 0;
@@ -1811,9 +1815,51 @@ function cc1_expression_parse_bit_or()
     return cc1_expression_parse_bit_or_(0, 0, 0);
 }
 
-function cc1_expression_parse_assignment_(left, token, right)
+function cc1_expression_parse_logical_and_(left, token, right)
 {
     left = cc1_expression_parse_bit_or();
+    while (eq(cc1_expression_token_kind(), 38)) {
+        token = cc1_preprocessed_consume();
+        if (not(cc1_expression_accept(38))) {
+            CC1_PREPROCESSED_CURSOR = sub(CC1_PREPROCESSED_CURSOR, 1);
+            return left;
+        }
+        right = cc1_expression_parse_bit_or();
+        left = cc1_expression_new(CC1_EXPRESSION_LOGICAL_AND_KIND, token,
+            left, right);
+    }
+    return left;
+}
+
+function cc1_expression_parse_logical_and()
+{
+    return cc1_expression_parse_logical_and_(0, 0, 0);
+}
+
+function cc1_expression_parse_logical_or_(left, token, right)
+{
+    left = cc1_expression_parse_logical_and();
+    while (eq(cc1_expression_token_kind(), 124)) {
+        token = cc1_preprocessed_consume();
+        if (not(cc1_expression_accept(124))) {
+            CC1_PREPROCESSED_CURSOR = sub(CC1_PREPROCESSED_CURSOR, 1);
+            return left;
+        }
+        right = cc1_expression_parse_logical_and();
+        left = cc1_expression_new(CC1_EXPRESSION_LOGICAL_OR_KIND, token,
+            left, right);
+    }
+    return left;
+}
+
+function cc1_expression_parse_logical_or()
+{
+    return cc1_expression_parse_logical_or_(0, 0, 0);
+}
+
+function cc1_expression_parse_assignment_(left, token, right)
+{
+    left = cc1_expression_parse_logical_or();
     if (eq(cc1_expression_token_kind(), 61)) {
         token = cc1_preprocessed_consume();
         if (eq(cc1_expression_token_kind(), 61)) {
@@ -2008,6 +2054,12 @@ function cc1_expression_emit_(expression, kind, token, argument, origin)
     }
     if (eq(kind, CC1_EXPRESSION_BIT_OR_KIND)) {
         return cc1_expression_emit_binary(expression, mks("or"));
+    }
+    if (eq(kind, CC1_EXPRESSION_LOGICAL_AND_KIND)) {
+        return cc1_expression_emit_binary(expression, mks("land"));
+    }
+    if (eq(kind, CC1_EXPRESSION_LOGICAL_OR_KIND)) {
+        return cc1_expression_emit_binary(expression, mks("lor"));
     }
     if (eq(kind, CC1_EXPRESSION_EQUAL_KIND)) {
         return cc1_expression_emit_binary(expression, mks("eq"));

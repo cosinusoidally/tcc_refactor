@@ -3408,6 +3408,50 @@ function cc0_compiler_parse_address()
     return cc0_compiler_parse_address_(0, 0);
 }
 
+function cc0_compiler_parse_logical_(is_or, branch_position,
+    end_position)
+{
+    cc0_compiler_next_token();
+    if (cc0_compiler_parse_expression()) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        cc0_compiler_emit_test_result();
+        if (is_or) {
+            branch_position = cc0_compiler_emit_nonzero_jump();
+        } else {
+            branch_position = cc0_compiler_emit_zero_jump();
+        }
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_COMMA)) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_parse_expression()) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        cc0_compiler_emit_not();
+        cc0_compiler_emit_not();
+        end_position = cc0_compiler_emit_jump();
+        cc0_compiler_patch_relative(branch_position, CC0_CODE_LENGTH);
+        if (is_or) {
+            cc0_compiler_emit_immediate(1);
+        } else {
+            cc0_compiler_emit_immediate(0);
+        }
+        return cc0_compiler_patch_relative(end_position, CC0_CODE_LENGTH);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_parse_logical(is_or)
+{
+    return cc0_compiler_parse_logical_(is_or, 0, 0);
+}
+
 function cc0_compiler_parse_expression_(name, length)
 {
     if (eq(CC0_TOKEN, CC0_TOKEN_NUMBER_LITERAL)) {
@@ -3454,6 +3498,12 @@ function cc0_compiler_parse_expression_(name, length)
     if (eq(CC0_TOKEN, CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
         if (cc0_text_equal(name, length, mks("addr"))) {
             return cc0_compiler_parse_address();
+        }
+        if (cc0_text_equal(name, length, mks("land"))) {
+            return cc0_compiler_parse_logical(0);
+        }
+        if (cc0_text_equal(name, length, mks("lor"))) {
+            return cc0_compiler_parse_logical(1);
         }
         return cc0_compiler_parse_call_(name, length, 0, 0, 0, 0);
     }

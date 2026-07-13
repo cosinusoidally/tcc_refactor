@@ -27,6 +27,10 @@ int main()
     temporary = temporary + (*pointer - 5);
     temporary = temporary + (character - 'A');
     temporary = (unsigned long)temporary;
+    global_result = 0;
+    temporary = temporary + (((temporary == 2) || record(99)) - 1);
+    temporary = temporary + ((temporary != 2) && record(99));
+    temporary = temporary + global_result;
     scalar_value = temporary;
     temporary = (temporary << 1) >> 1;
     temporary = (temporary | 8) ^ 8;
