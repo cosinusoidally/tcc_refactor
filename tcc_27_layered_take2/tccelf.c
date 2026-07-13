@@ -295,7 +295,7 @@ void *section_ptr_add(Section *sec, addr_t size)
 }
 
 /* reserve at least 'size' bytes from section start */
-ST_FUNC void section_reserve(Section *sec, unsigned long size)
+void section_reserve(Section *sec, unsigned long size)
 {
     if (size > sec->data_allocated)
         section_realloc(sec, size);

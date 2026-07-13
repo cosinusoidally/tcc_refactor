@@ -309,12 +309,21 @@ var CC2_INLINE_FILENAME_OFFSET = 8;
 var CC2_BUFFERED_FILE_LINE_OFFSET = 16;
 var CC2_BUFFERED_FILE_FILENAME_OFFSET = 40;
 var CC2_SECTION_NUMBER_OFFSET = 16;
+var CC2_SECTION_DATA_POINTER_OFFSET = 4;
 var CC2_ELF_SYMBOL_BIND_SHIFT = 4;
 var CC2_ELF_SYMBOL_LOCAL_BINDING = 0;
 var CC2_ELF_SYMBOL_GLOBAL_BINDING = 1;
 var CC2_ELF_SYMBOL_NO_TYPE = 0;
 var CC2_ELF_SYMBOL_OBJECT_TYPE = 1;
 var CC2_ELF_SYMBOL_FUNCTION_TYPE = 2;
+var CC2_TCC_STATE_SECTIONS_OFFSET = 956;
+var CC2_ELF_RELOCATION_BYTES = 8;
+var CC2_ELF_RELOCATION_OFFSET_OFFSET = 0;
+var CC2_ELF_RELOCATION_INFO_OFFSET = 4;
+var CC2_ELF_RELOCATION_TYPE_MASK = 255;
+var CC2_ELF_RELOCATION_SYMBOL_SHIFT = 8;
+var CC2_I386_DATA_POINTER_RELOCATION = 1;
+var CC2_INITIALIZER_SYMBOL_CONSTANT = 560;
 var CC2_CSTRING_SIZE_OFFSET = 0;
 var CC2_CSTRING_DATA_OFFSET = 4;
 var CC2_CSTRING_BYTES = 12;
@@ -6063,6 +6072,215 @@ function greloca(section, symbol, offset, type, addend)
 function greloc(section, symbol, offset, type)
 {
     return greloca(section, symbol, offset, type, 0);
+}
+
+function init_putv(type, section, offset)
+{
+    var destination_type;
+    var alignment;
+    var type_value;
+    var basic_type;
+    var registers;
+    var symbol;
+    var size;
+    var destination;
+    var source_elf_symbol;
+    var source_section;
+    var source_offset;
+    var relocation_section;
+    var relocation_count;
+    var relocation;
+    var relocation_offset;
+    var relocation_info;
+    var bit_position;
+    var bit_size;
+    var bits_written;
+    var bits_this_byte;
+    var byte_value;
+    var byte_mask;
+    var value;
+    destination_type = malloc(8);
+    cc2_copy_type(destination_type, type);
+    wi32(destination_type, and(ri32(destination_type),
+        bnot(CC2_TCC_CONST_QUALIFIER)));
+    if (section) {
+        gen_assign_cast(destination_type);
+        type_value = ri32(type);
+        basic_type = and(type_value, CC2_TCC_BASIC_TYPE_MASK);
+        registers = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+            65535);
+        if (not(eq(and(registers, CC2_TCC_SYMBOL_VALUE), 0))) {
+            if (and(not(eq(basic_type, CC2_TCC_POINTER_TYPE)),
+                not(eq(basic_type, CC2_TCC_FUNCTION_TYPE)))) {
+                if (or(not(eq(basic_type, CC2_TCC_INT_TYPE)),
+                    not(eq(and(type_value, CC2_TCC_BITFIELD), 0)))) {
+                    symbol = ri32(add(vtop, CC2_SVALUE_SYMBOL_OFFSET));
+                    value = 0;
+                    if (not(eq(and(registers,
+                        CC2_VALUE_CONSTANT), 0))) {
+                        if (not(lt(ri32(add(symbol,
+                            CC2_SYM_VALUE_OFFSET)),
+                            CC2_SYMBOL_FIRST_ANONYMOUS))) {
+                            value = 1;
+                        }
+                    }
+                    if (eq(value, 0)) {
+                        tcc_error(mks("initializer element is not computable at load time"), 0);
+                    }
+                }
+            }
+        }
+        if (lt(0, nocode_wanted)) {
+            vtop = sub(vtop, CC2_SVALUE_BYTES);
+            free(destination_type);
+            return 0;
+        }
+        alignment = malloc(4);
+        size = type_size(type, alignment);
+        free(alignment);
+        section_reserve(section, add(offset, size));
+        destination = add(ri32(add(section,
+            CC2_SECTION_DATA_POINTER_OFFSET)),
+            offset);
+
+        value = 0;
+        if (eq(and(registers, CC2_INITIALIZER_SYMBOL_CONSTANT),
+            CC2_INITIALIZER_SYMBOL_CONSTANT)) {
+            symbol = ri32(add(vtop, CC2_SVALUE_SYMBOL_OFFSET));
+            if (not(lt(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)),
+                CC2_SYMBOL_FIRST_ANONYMOUS))) {
+                if (not(eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+                    CC2_TCC_POINTER_TYPE))) {
+                    value = 1;
+                }
+            }
+        }
+        if (value) {
+            source_elf_symbol = elfsym(symbol);
+            value = or(ri8(add(source_elf_symbol,
+                CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), shl(ri8(add(
+                source_elf_symbol, add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET,
+                1))), 8));
+            source_section = ri32(add(ri32(add(tcc_state_address,
+                CC2_TCC_STATE_SECTIONS_OFFSET)), mul(value, 4)));
+            source_offset = ri32(add(source_elf_symbol,
+                CC2_ELF_SYMBOL_VALUE_OFFSET));
+            memmove(destination, add(ri32(add(source_section,
+                CC2_SECTION_DATA_POINTER_OFFSET)), source_offset), size);
+            relocation_section = ri32(add(source_section,
+                CC2_SECTION_RELOCATION_OFFSET));
+            if (relocation_section) {
+                relocation_count = sdiv(ri32(add(relocation_section,
+                    CC2_SECTION_DATA_OFFSET)), CC2_ELF_RELOCATION_BYTES);
+                relocation = add(ri32(add(relocation_section,
+                    CC2_SECTION_DATA_POINTER_OFFSET)), mul(relocation_count,
+                    CC2_ELF_RELOCATION_BYTES));
+                while (relocation_count) {
+                    relocation = sub(relocation,
+                        CC2_ELF_RELOCATION_BYTES);
+                    relocation_count = sub(relocation_count, 1);
+                    relocation_offset = ri32(add(relocation,
+                        CC2_ELF_RELOCATION_OFFSET_OFFSET));
+                    if (not(lt(relocation_offset,
+                        add(source_offset, size)))) {
+                        value = 0;
+                    } else if (lt(relocation_offset, source_offset)) {
+                        relocation_count = 0;
+                    } else {
+                        relocation_info = ri32(add(relocation,
+                            CC2_ELF_RELOCATION_INFO_OFFSET));
+                        put_elf_reloca(ri32(symtab_section_address),
+                            section, add(offset, sub(relocation_offset,
+                            source_offset)), and(relocation_info,
+                            CC2_ELF_RELOCATION_TYPE_MASK), ushr(
+                            relocation_info,
+                            CC2_ELF_RELOCATION_SYMBOL_SHIFT), 0);
+                    }
+                }
+            }
+        } else if (not(eq(and(type_value, CC2_TCC_BITFIELD), 0))) {
+            bit_position = and(ushr(ri32(vtop),
+                CC2_TCC_BITFIELD_POSITION_SHIFT),
+                CC2_TCC_BITFIELD_VALUE_MASK);
+            bit_size = and(ushr(ri32(vtop),
+                CC2_TCC_BITFIELD_SIZE_SHIFT),
+                CC2_TCC_BITFIELD_VALUE_MASK);
+            destination = add(destination, ushr(bit_position, 3));
+            bit_position = and(bit_position, 7);
+            bits_written = 0;
+            while (bit_size) {
+                bits_this_byte = sub(8, bit_position);
+                if (lt(bit_size, bits_this_byte)) {
+                    bits_this_byte = bit_size;
+                }
+                byte_value = shl(ushr(ri32(add(vtop,
+                    CC2_SVALUE_CONSTANT_OFFSET)), bits_written),
+                    bit_position);
+                byte_mask = shl(sub(shl(1, bits_this_byte), 1),
+                    bit_position);
+                wi8(destination, or(and(ri8(destination),
+                    bnot(byte_mask)), and(byte_value, byte_mask)));
+                bits_written = add(bits_written, bits_this_byte);
+                bit_size = sub(bit_size, bits_this_byte);
+                bit_position = 0;
+                destination = add(destination, 1);
+            }
+        } else if (eq(basic_type, CC2_TCC_BOOLEAN_TYPE)) {
+            value = not(eq(ri32(add(vtop,
+                CC2_SVALUE_CONSTANT_OFFSET)), 0));
+            wi32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET), value);
+            wi8(destination, or(ri8(destination), value));
+        } else if (eq(basic_type, CC2_TCC_BYTE_TYPE)) {
+            wi8(destination, or(ri8(destination), ri32(add(vtop,
+                CC2_SVALUE_CONSTANT_OFFSET))));
+        } else if (eq(basic_type, CC2_TCC_SHORT_TYPE)) {
+            value = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
+            wi8(destination, or(ri8(destination), value));
+            wi8(add(destination, 1), or(ri8(add(destination, 1)),
+                ushr(value, 8)));
+        } else if (eq(basic_type, CC2_TCC_FLOAT_TYPE)) {
+            wi32(destination, ri32(add(vtop,
+                CC2_SVALUE_CONSTANT_OFFSET)));
+        } else if (eq(basic_type, CC2_TCC_DOUBLE_TYPE)) {
+            wi32(destination, ri32(add(vtop,
+                CC2_SVALUE_CONSTANT_OFFSET)));
+            wi32(add(destination, 4), ri32(add(vtop,
+                add(CC2_SVALUE_CONSTANT_OFFSET, 4))));
+        } else if (eq(basic_type, CC2_TCC_LONG_DOUBLE_TYPE)) {
+            cc2_copy_bytes(destination, add(vtop,
+                CC2_SVALUE_CONSTANT_OFFSET), 10);
+        } else if (eq(basic_type, CC2_TCC_LONG_LONG_TYPE)) {
+            wi32(destination, or(ri32(destination), ri32(add(vtop,
+                CC2_SVALUE_CONSTANT_OFFSET))));
+            wi32(add(destination, 4), or(ri32(add(destination, 4)),
+                ri32(add(vtop, add(CC2_SVALUE_CONSTANT_OFFSET, 4)))));
+        } else if (eq(basic_type, CC2_TCC_POINTER_TYPE)) {
+            symbol = ri32(add(vtop, CC2_SVALUE_SYMBOL_OFFSET));
+            if (not(eq(and(registers, CC2_TCC_SYMBOL_VALUE), 0))) {
+                greloc(section, symbol, offset,
+                    CC2_I386_DATA_POINTER_RELOCATION);
+            }
+            wi32(destination, or(ri32(destination), ri32(add(vtop,
+                CC2_SVALUE_CONSTANT_OFFSET))));
+        } else {
+            symbol = ri32(add(vtop, CC2_SVALUE_SYMBOL_OFFSET));
+            if (not(eq(and(registers, CC2_TCC_SYMBOL_VALUE), 0))) {
+                greloc(section, symbol, offset,
+                    CC2_I386_DATA_POINTER_RELOCATION);
+            }
+            wi32(destination, or(ri32(destination), ri32(add(vtop,
+                CC2_SVALUE_CONSTANT_OFFSET))));
+        }
+        vtop = sub(vtop, CC2_SVALUE_BYTES);
+    } else {
+        vset(destination_type, or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE),
+            offset);
+        vswap();
+        vstore();
+        vpop();
+    }
+    free(destination_type);
+    return 0;
 }
 
 function block_return()

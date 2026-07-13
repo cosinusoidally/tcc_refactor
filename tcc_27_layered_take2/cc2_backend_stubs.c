@@ -31,6 +31,11 @@ function put_elf_reloca(symbol_table, section, offset, type, symbol,
     return 0;
 }
 
+function section_reserve(section, size)
+{
+    return 0;
+}
+
 function tcc_debug_start(state)
 {
     return 0;
