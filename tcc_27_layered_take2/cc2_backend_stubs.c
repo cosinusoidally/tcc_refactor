@@ -302,11 +302,6 @@ function gen_opic(operation)
     return 0;
 }
 
-function gen_opi(operation)
-{
-    return 0;
-}
-
 function gen_opic_fold_constant(operation)
 {
     return 0;

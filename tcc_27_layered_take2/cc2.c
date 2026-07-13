@@ -93,6 +93,7 @@ var CC2_I386_REGISTER_COUNT = 5;
 var CC2_I386_EAX_CLASS = 5;
 var CC2_I386_INTEGER_RETURN_CLASS = 4;
 var CC2_I386_ECX_CLASS = 17;
+var CC2_I386_EXACT_ECX_CLASS = 16;
 var CC2_I386_EDX_CLASS = 33;
 var CC2_I386_EBX_CLASS = 0;
 var CC2_I386_ST0_CLASS = 10;
@@ -365,6 +366,11 @@ var CC2_I386_COMPARE_NOT_EQUAL_AH = 4256896;
 var CC2_I386_TEST_ORDERED_AH = 378102;
 var CC2_I386_TEST_LESS_AH = 4572406;
 var CC2_I386_FLOAT_POP_MODRM_BASE = 193;
+var CC2_TOKEN_UNSIGNED_MULTIPLY_LONG = 194;
+var CC2_TOKEN_ADD_CARRY_GENERATE = 195;
+var CC2_TOKEN_ADD_CARRY_USE = 196;
+var CC2_TOKEN_SUBTRACT_CARRY_GENERATE = 197;
+var CC2_TOKEN_SUBTRACT_CARRY_USE = 198;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -6959,6 +6965,202 @@ function gen_opf(operation)
     }
     vtop = sub(vtop, CC2_SVALUE_BYTES);
     return 0;
+}
+
+/* SValue packs r and r2 into adjacent 16-bit fields. */
+function cc2_set_primary_register(value, reg)
+{
+    wi8(add(value, CC2_SVALUE_REGISTER_OFFSET), reg);
+    wi8(add(value, add(CC2_SVALUE_REGISTER_OFFSET, 1)), 0);
+    return 0;
+}
+
+function cc2_set_secondary_register(value, reg)
+{
+    wi8(add(value, add(CC2_SVALUE_REGISTER_OFFSET, 2)), reg);
+    wi8(add(value, add(CC2_SVALUE_REGISTER_OFFSET, 3)), 0);
+    return 0;
+}
+
+function cc2_gen_integer_op8(operation, opcode)
+{
+    var first;
+    var registers;
+    var second_registers;
+    var constant;
+    if (eq(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT)) {
+        vswap();
+        registers = gv(CC2_INTEGER_REGISTER_CLASS);
+        vswap();
+        constant = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
+        if (and(le(sub(0, 128), constant), lt(constant, 128))) {
+            if (and(eq(constant, 1), and(eq(opcode, 0), not(eq(operation,
+                CC2_TOKEN_ADD_CARRY_GENERATE))))) {
+                o(or(64, registers));
+            } else if (and(eq(constant, 1), and(eq(opcode, 5),
+                not(eq(operation,
+                CC2_TOKEN_SUBTRACT_CARRY_GENERATE))))) {
+                o(or(72, registers));
+            } else {
+                o(131);
+                o(or(or(192, shl(opcode, 3)), registers));
+                g(constant);
+            }
+        } else {
+            o(129);
+            oad(or(or(192, shl(opcode, 3)), registers), constant);
+        }
+    } else {
+        gv2(CC2_INTEGER_REGISTER_CLASS, CC2_INTEGER_REGISTER_CLASS);
+        first = sub(vtop, CC2_SVALUE_BYTES);
+        registers = and(ri32(add(first,
+            CC2_SVALUE_REGISTER_OFFSET)), 65535);
+        second_registers = and(ri32(add(vtop,
+            CC2_SVALUE_REGISTER_OFFSET)), 65535);
+        o(or(shl(opcode, 3), 1));
+        o(add(add(192, registers), mul(second_registers, 8)));
+    }
+    vtop = sub(vtop, CC2_SVALUE_BYTES);
+    if (and(le(CC2_TOKEN_UNSIGNED_LESS, operation),
+        le(operation, CC2_TOKEN_SIGNED_GREATER))) {
+        cc2_set_primary_register(vtop, CC2_VALUE_COMPARISON);
+        wi32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET), operation);
+    }
+    return 0;
+}
+
+function cc2_gen_integer_shift(opcode)
+{
+    var first;
+    var registers;
+    var constant;
+    opcode = or(192, shl(opcode, 3));
+    if (eq(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+        CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT)) {
+        vswap();
+        registers = gv(CC2_INTEGER_REGISTER_CLASS);
+        vswap();
+        constant = and(ri32(add(vtop,
+            CC2_SVALUE_CONSTANT_OFFSET)), 31);
+        o(193);
+        o(or(opcode, registers));
+        g(constant);
+    } else {
+        gv2(CC2_INTEGER_REGISTER_CLASS, CC2_I386_EXACT_ECX_CLASS);
+        first = sub(vtop, CC2_SVALUE_BYTES);
+        registers = and(ri32(add(first,
+            CC2_SVALUE_REGISTER_OFFSET)), 65535);
+        o(211);
+        o(or(opcode, registers));
+    }
+    vtop = sub(vtop, CC2_SVALUE_BYTES);
+    return 0;
+}
+
+function cc2_gen_integer_multiply()
+{
+    var first;
+    var registers;
+    var second_registers;
+    gv2(CC2_INTEGER_REGISTER_CLASS, CC2_INTEGER_REGISTER_CLASS);
+    first = sub(vtop, CC2_SVALUE_BYTES);
+    registers = and(ri32(add(first,
+        CC2_SVALUE_REGISTER_OFFSET)), 65535);
+    second_registers = and(ri32(add(vtop,
+        CC2_SVALUE_REGISTER_OFFSET)), 65535);
+    vtop = first;
+    o(44815);
+    o(add(add(192, second_registers), mul(registers, 8)));
+    return 0;
+}
+
+function cc2_gen_integer_divide(operation)
+{
+    var first;
+    var registers;
+    var second_registers;
+    gv2(CC2_I386_INTEGER_RETURN_CLASS, CC2_I386_EXACT_ECX_CLASS);
+    first = sub(vtop, CC2_SVALUE_BYTES);
+    registers = and(ri32(add(first,
+        CC2_SVALUE_REGISTER_OFFSET)), 65535);
+    second_registers = and(ri32(add(vtop,
+        CC2_SVALUE_REGISTER_OFFSET)), 65535);
+    vtop = first;
+    save_reg(CC2_I386_LONG_LONG_RETURN_REGISTER);
+    save_reg_upstack(CC2_I386_INTEGER_RETURN_REGISTER, 1);
+    if (eq(operation, CC2_TOKEN_UNSIGNED_MULTIPLY_LONG)) {
+        o(247);
+        o(add(224, second_registers));
+        cc2_set_secondary_register(vtop,
+            CC2_I386_LONG_LONG_RETURN_REGISTER);
+        registers = CC2_I386_INTEGER_RETURN_REGISTER;
+    } else {
+        if (or(eq(operation, CC2_TOKEN_UNSIGNED_DIVIDE),
+            eq(operation, CC2_TOKEN_UNSIGNED_MODULO))) {
+            o(16241201);
+            o(add(240, second_registers));
+        } else {
+            o(63385);
+            o(add(248, second_registers));
+        }
+        if (or(eq(operation, CC2_ASCII_PERCENT),
+            eq(operation, CC2_TOKEN_UNSIGNED_MODULO))) {
+            registers = CC2_I386_LONG_LONG_RETURN_REGISTER;
+        } else {
+            registers = CC2_I386_INTEGER_RETURN_REGISTER;
+        }
+    }
+    cc2_set_primary_register(vtop, registers);
+    return 0;
+}
+
+function gen_opi(operation)
+{
+    if (or(eq(operation, CC2_ASCII_PLUS),
+        eq(operation, CC2_TOKEN_ADD_CARRY_GENERATE))) {
+        return cc2_gen_integer_op8(operation, 0);
+    }
+    if (or(eq(operation, CC2_ASCII_MINUS),
+        eq(operation, CC2_TOKEN_SUBTRACT_CARRY_GENERATE))) {
+        return cc2_gen_integer_op8(operation, 5);
+    }
+    if (eq(operation, CC2_TOKEN_ADD_CARRY_USE)) {
+        return cc2_gen_integer_op8(operation, 2);
+    }
+    if (eq(operation, CC2_TOKEN_SUBTRACT_CARRY_USE)) {
+        return cc2_gen_integer_op8(operation, 3);
+    }
+    if (eq(operation, CC2_ASCII_AMPERSAND)) {
+        return cc2_gen_integer_op8(operation, 4);
+    }
+    if (eq(operation, CC2_ASCII_CARET)) {
+        return cc2_gen_integer_op8(operation, 6);
+    }
+    if (eq(operation, CC2_ASCII_VERTICAL_BAR)) {
+        return cc2_gen_integer_op8(operation, 1);
+    }
+    if (eq(operation, CC2_ASCII_ASTERISK)) {
+        return cc2_gen_integer_multiply();
+    }
+    if (eq(operation, CC2_TOKEN_SHIFT_LEFT)) {
+        return cc2_gen_integer_shift(4);
+    }
+    if (eq(operation, CC2_TOKEN_UNSIGNED_SHIFT_RIGHT)) {
+        return cc2_gen_integer_shift(5);
+    }
+    if (eq(operation, CC2_TOKEN_SHIFT_RIGHT)) {
+        return cc2_gen_integer_shift(7);
+    }
+    if (or(or(or(eq(operation, CC2_ASCII_SLASH),
+        eq(operation, CC2_TOKEN_UNSIGNED_DIVIDE)),
+        or(eq(operation, CC2_TOKEN_POINTER_DIVIDE),
+        eq(operation, CC2_ASCII_PERCENT))),
+        or(eq(operation, CC2_TOKEN_UNSIGNED_MODULO),
+        eq(operation, CC2_TOKEN_UNSIGNED_MULTIPLY_LONG)))) {
+        return cc2_gen_integer_divide(operation);
+    }
+    return cc2_gen_integer_op8(operation, 7);
 }
 
 function gfunc_call(argument_count)
