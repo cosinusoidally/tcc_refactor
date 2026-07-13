@@ -78,6 +78,9 @@ var CC0_LEXER_FIELD_TEXT;
 var CC0_LEXER_FIELD_LENGTH;
 var CC0_LEXER_FIELD_NUMBER;
 var CC0_COMPILER_ERROR_POSITION;
+var CC0_COMPILER_ERROR_FILE;
+var CC0_COMPILER_ERROR_LINE;
+var CC0_COMPILER_ERROR_COLUMN;
 var CC0_DECIMAL_MAX_PLACE;
 var CC0_PUNCTUATION_LEFT_PARENTHESIS;
 var CC0_PUNCTUATION_RIGHT_PARENTHESIS;
@@ -278,6 +281,7 @@ var CC0_ELF_LEXER_FIELD_SYMBOL;
 var CC0_ELF_CC0_COMPILE_SYMBOL;
 var CC0_ELF_CC1_COMPILE_SYMBOL;
 var CC0_ELF_REMAP_ERROR_SYMBOL;
+var CC0_ELF_REMAP_LOCATION_SYMBOL;
 var CC0_FILE_READ_ONLY;
 var CC0_FILE_WRITE_FLAGS;
 var CC0_FILE_CREATE_MODE;
@@ -362,6 +366,9 @@ function cc0_init()
     CC0_LEXER_FIELD_LENGTH = 2;
     CC0_LEXER_FIELD_NUMBER = 3;
     CC0_COMPILER_ERROR_POSITION = sub(0, 1);
+    CC0_COMPILER_ERROR_FILE = 0;
+    CC0_COMPILER_ERROR_LINE = 0;
+    CC0_COMPILER_ERROR_COLUMN = 0;
     CC0_DECIMAL_MAX_PLACE = 1000000000;
     CC0_PUNCTUATION_LEFT_PARENTHESIS = 40;
     CC0_PUNCTUATION_RIGHT_PARENTHESIS = 41;
@@ -562,6 +569,7 @@ function cc0_init()
     CC0_ELF_CC0_COMPILE_SYMBOL = 0;
     CC0_ELF_CC1_COMPILE_SYMBOL = 0;
     CC0_ELF_REMAP_ERROR_SYMBOL = 0;
+    CC0_ELF_REMAP_LOCATION_SYMBOL = 0;
     CC0_FILE_READ_ONLY = 0;
     CC0_FILE_WRITE_FLAGS = 577;
     CC0_FILE_CREATE_MODE = 438;
@@ -999,6 +1007,7 @@ function cc0_elf_emit_external_symbols()
     CC0_ELF_CC0_COMPILE_SYMBOL = 0;
     CC0_ELF_CC1_COMPILE_SYMBOL = 0;
     CC0_ELF_REMAP_ERROR_SYMBOL = 0;
+    CC0_ELF_REMAP_LOCATION_SYMBOL = 0;
     return CC0_FALSE;
 }
 
@@ -1110,6 +1119,14 @@ function cc0_elf_external_symbol(name, length)
                 mks("cc0_remap_error"), 15);
         }
         return CC0_ELF_REMAP_ERROR_SYMBOL;
+    }
+    if (cc0_compiler_slice_equal(name, length,
+        mks("cc0_remap_error_location"), 24)) {
+        if (eq(CC0_ELF_REMAP_LOCATION_SYMBOL, 0)) {
+            CC0_ELF_REMAP_LOCATION_SYMBOL = cc0_elf_put_undefined_function(
+                mks("cc0_remap_error_location"), 24);
+        }
+        return CC0_ELF_REMAP_LOCATION_SYMBOL;
     }
     return sub(0, 1);
 }
@@ -1395,6 +1412,9 @@ function cc0_elf_serialize_object(section_header_offset)
 function cc0_compiler_build_object(source, length)
 {
     CC0_COMPILER_ERROR_POSITION = sub(0, 1);
+    CC0_COMPILER_ERROR_FILE = 0;
+    CC0_COMPILER_ERROR_LINE = 0;
+    CC0_COMPILER_ERROR_COLUMN = 0;
     if (cc0_compiler_compile_program(source, length)) {
         return CC0_TRUE;
     }
@@ -1417,6 +1437,16 @@ function cc0_remap_error(source, length, position)
     CC0_SOURCE = source;
     CC0_SOURCE_LENGTH = length;
     CC0_COMPILER_ERROR_POSITION = position;
+    return 0;
+}
+
+function cc0_remap_error_location(source, length, position, file, line,
+    column)
+{
+    cc0_remap_error(source, length, position);
+    CC0_COMPILER_ERROR_FILE = file;
+    CC0_COMPILER_ERROR_LINE = line;
+    CC0_COMPILER_ERROR_COLUMN = column;
     return 0;
 }
 
@@ -3263,6 +3293,9 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("cc0_remap_error"))) {
         return 3;
     }
+    if (cc0_text_equal(name, length, mks("cc0_remap_error_location"))) {
+        return 6;
+    }
     return sub(0, 1);
 }
 
@@ -3315,6 +3348,9 @@ function cc0_compiler_external_arity(name, length)
     }
     if (cc0_text_equal(name, length, mks("cc0_remap_error"))) {
         return 3;
+    }
+    if (cc0_text_equal(name, length, mks("cc0_remap_error_location"))) {
+        return 6;
     }
     return sub(0, 1);
 }
@@ -4374,21 +4410,29 @@ function cc0_write_decimal(descriptor, value)
 function cc0_report_compile_error_(name, position, line, column, index,
     character)
 {
-    line = 1;
-    column = 1;
+    if (not(eq(CC0_COMPILER_ERROR_FILE, 0))) {
+        name = CC0_COMPILER_ERROR_FILE;
+        line = CC0_COMPILER_ERROR_LINE;
+        column = CC0_COMPILER_ERROR_COLUMN;
+    } else {
+        line = 1;
+        column = 1;
+    }
     index = 0;
     if (lt(position, 0)) {
         position = 0;
     }
-    while (lt(index, position)) {
-        character = ri8(add(CC0_SOURCE, index));
-        if (eq(character, CC0_ASCII_LINE_FEED)) {
-            line = add(line, 1);
-            column = 1;
-        } else {
-            column = add(column, 1);
+    if (eq(CC0_COMPILER_ERROR_FILE, 0)) {
+        while (lt(index, position)) {
+            character = ri8(add(CC0_SOURCE, index));
+            if (eq(character, CC0_ASCII_LINE_FEED)) {
+                line = add(line, 1);
+                column = 1;
+            } else {
+                column = add(column, 1);
+            }
+            index = add(index, 1);
         }
-        index = add(index, 1);
     }
     cc0_write_text(CC0_STANDARD_ERROR, name);
     file_write_byte(CC0_STANDARD_ERROR, 58);

@@ -133,6 +133,13 @@ if ./cc1.exe -c ../tcc_27_layered_take2/tests/layered/cc0_invalid.c \
 fi
 grep '^../tcc_27_layered_take2/tests/layered/cc0_invalid.c:[0-9][0-9]*:[0-9][0-9]*: error:' \
     cc1_invalid.txt
+if ./cc1.exe -c \
+    ../tcc_27_layered_take2/tests/layered/cc1_include_invalid.c \
+    -o cc1_include_invalid.o 2>cc1_include_invalid.txt; then
+    exit 1
+fi
+grep '^../tcc_27_layered_take2/tests/layered/cc1_include_invalid.h:[0-9][0-9]*:[0-9][0-9]*: error:' \
+    cc1_include_invalid.txt
 
 # SpiderMonkey must reproduce both cc0 objects and the linked executable.
 js ../tcc_27_layered_take2/tests/layered/cc0_js_bootstrap.js

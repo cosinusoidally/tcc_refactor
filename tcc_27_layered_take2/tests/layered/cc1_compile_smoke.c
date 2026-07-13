@@ -1,3 +1,5 @@
+#include "cc1_include_smoke.h"
+
 #define RESULT 0
 #define ENABLED 1
 #define COMBINE(left, right) ((left) + (right))
@@ -20,6 +22,7 @@ int record(int value)
 int main()
 {
     int temporary = identity(COMBINE(RESULT, (6 / 3 + 5 % 3 - 2)) * 1);
+    temporary = temporary + (INCLUDED_VALUE - 2);
     int pointed_value = 3;
     int *pointer = &pointed_value;
     char character = 'A';

@@ -91,6 +91,27 @@ var CC1_NORMALIZED_SOURCE;
 var CC1_NORMALIZED_CAPACITY;
 var CC1_NORMALIZED_LENGTH;
 var CC1_NORMALIZED_ORIGINS;
+var CC1_NORMALIZED_FILES;
+var CC1_NORMALIZED_LINES;
+var CC1_NORMALIZED_COLUMNS;
+var CC1_NORMALIZED_CURRENT_FILE;
+var CC1_NORMALIZED_CURRENT_LINE;
+var CC1_NORMALIZED_CURRENT_COLUMN;
+var CC1_EXPANDED_SOURCE;
+var CC1_EXPANDED_FILES;
+var CC1_EXPANDED_OFFSETS;
+var CC1_EXPANDED_LINES;
+var CC1_EXPANDED_COLUMNS;
+var CC1_EXPANDED_CAPACITY;
+var CC1_EXPANDED_LENGTH;
+var CC1_EXPANSION_ACTIVE;
+var CC1_ASCII_TAB;
+var CC1_ASCII_LINE_FEED;
+var CC1_ASCII_CARRIAGE_RETURN;
+var CC1_ASCII_SPACE;
+var CC1_ASCII_QUOTE;
+var CC1_ASCII_HASH;
+var CC1_ASCII_SLASH;
 var CC1_EXPRESSION_RECORD_SHIFT;
 var CC1_EXPRESSION_KIND_OFFSET;
 var CC1_EXPRESSION_TOKEN_OFFSET;
@@ -211,10 +232,29 @@ function cc1_token_append_(kind, text, length, number, source_offset, record)
     wi32(add(record, CC1_TOKEN_TEXT_OFFSET), text);
     wi32(add(record, CC1_TOKEN_LENGTH_OFFSET), length);
     wi32(add(record, CC1_TOKEN_NUMBER_OFFSET), number);
-    wi32(add(record, CC1_TOKEN_SOURCE_OFFSET), source_offset);
-    wi32(add(record, CC1_TOKEN_FILE_OFFSET), CC1_TOKEN_FILE);
-    wi32(add(record, CC1_TOKEN_LINE_OFFSET), CC1_LOCATION_LINE);
-    wi32(add(record, CC1_TOKEN_COLUMN_OFFSET), CC1_LOCATION_COLUMN);
+    if (CC1_EXPANSION_ACTIVE) {
+        if (not(lt(source_offset, CC1_EXPANDED_LENGTH))) {
+            wi32(add(record, CC1_TOKEN_SOURCE_OFFSET),
+                CC1_TOKEN_SOURCE_LENGTH);
+            wi32(add(record, CC1_TOKEN_FILE_OFFSET), CC1_TOKEN_FILE);
+            wi32(add(record, CC1_TOKEN_LINE_OFFSET), CC1_LOCATION_LINE);
+            wi32(add(record, CC1_TOKEN_COLUMN_OFFSET), CC1_LOCATION_COLUMN);
+        } else {
+        wi32(add(record, CC1_TOKEN_SOURCE_OFFSET), ri32(add(
+            CC1_EXPANDED_OFFSETS, shl(source_offset, 2))));
+        wi32(add(record, CC1_TOKEN_FILE_OFFSET), ri32(add(
+            CC1_EXPANDED_FILES, shl(source_offset, 2))));
+        wi32(add(record, CC1_TOKEN_LINE_OFFSET), ri32(add(
+            CC1_EXPANDED_LINES, shl(source_offset, 2))));
+        wi32(add(record, CC1_TOKEN_COLUMN_OFFSET), ri32(add(
+            CC1_EXPANDED_COLUMNS, shl(source_offset, 2))));
+        }
+    } else {
+        wi32(add(record, CC1_TOKEN_SOURCE_OFFSET), source_offset);
+        wi32(add(record, CC1_TOKEN_FILE_OFFSET), CC1_TOKEN_FILE);
+        wi32(add(record, CC1_TOKEN_LINE_OFFSET), CC1_LOCATION_LINE);
+        wi32(add(record, CC1_TOKEN_COLUMN_OFFSET), CC1_LOCATION_COLUMN);
+    }
     CC1_TOKEN_COUNT = add(CC1_TOKEN_COUNT, 1);
     return 0;
 }
@@ -1226,9 +1266,351 @@ function cc1_preprocess_tokens()
     return cc1_preprocess_tokens_(0, 0, 0, 0, 0, 0, 0, 0);
 }
 
+function cc1_expanded_reserve_(needed, capacity, source, files, offsets,
+    lines, columns, used)
+{
+    needed = add(CC1_EXPANDED_LENGTH, 1);
+    if (le(needed, CC1_EXPANDED_CAPACITY)) {
+        return 0;
+    }
+    capacity = CC1_EXPANDED_CAPACITY;
+    if (eq(capacity, 0)) {
+        capacity = 256;
+    }
+    while (lt(capacity, needed)) {
+        capacity = shl(capacity, 1);
+    }
+    source = malloc(capacity);
+    files = malloc(shl(capacity, 2));
+    offsets = malloc(shl(capacity, 2));
+    lines = malloc(shl(capacity, 2));
+    columns = malloc(shl(capacity, 2));
+    if (eq(source, 0)) {
+        return 1;
+    }
+    if (eq(files, 0)) {
+        return 1;
+    }
+    if (eq(offsets, 0)) {
+        return 1;
+    }
+    if (eq(lines, 0)) {
+        return 1;
+    }
+    if (eq(columns, 0)) {
+        return 1;
+    }
+    used = CC1_EXPANDED_LENGTH;
+    if (not(eq(CC1_EXPANDED_SOURCE, 0))) {
+        cc1_token_copy_bytes(source, CC1_EXPANDED_SOURCE, used);
+        cc1_token_copy_bytes(files, CC1_EXPANDED_FILES, shl(used, 2));
+        cc1_token_copy_bytes(offsets, CC1_EXPANDED_OFFSETS, shl(used, 2));
+        cc1_token_copy_bytes(lines, CC1_EXPANDED_LINES, shl(used, 2));
+        cc1_token_copy_bytes(columns, CC1_EXPANDED_COLUMNS, shl(used, 2));
+    }
+    CC1_EXPANDED_SOURCE = source;
+    CC1_EXPANDED_FILES = files;
+    CC1_EXPANDED_OFFSETS = offsets;
+    CC1_EXPANDED_LINES = lines;
+    CC1_EXPANDED_COLUMNS = columns;
+    CC1_EXPANDED_CAPACITY = capacity;
+    return 0;
+}
+
+function cc1_expanded_reserve()
+{
+    return cc1_expanded_reserve_(0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc1_expanded_append(value, file, offset, line, column)
+{
+    if (cc1_expanded_reserve()) {
+        return 1;
+    }
+    wi8(add(CC1_EXPANDED_SOURCE, CC1_EXPANDED_LENGTH), value);
+    wi32(add(CC1_EXPANDED_FILES, shl(CC1_EXPANDED_LENGTH, 2)), file);
+    wi32(add(CC1_EXPANDED_OFFSETS, shl(CC1_EXPANDED_LENGTH, 2)), offset);
+    wi32(add(CC1_EXPANDED_LINES, shl(CC1_EXPANDED_LENGTH, 2)), line);
+    wi32(add(CC1_EXPANDED_COLUMNS, shl(CC1_EXPANDED_LENGTH, 2)), column);
+    CC1_EXPANDED_LENGTH = add(CC1_EXPANDED_LENGTH, 1);
+    return 0;
+}
+
+function cc1_c_string_equal_(left, right, left_value, right_value)
+{
+    while (1) {
+        left_value = ri8(left);
+        right_value = ri8(right);
+        if (not(eq(left_value, right_value))) {
+            return 0;
+        }
+        if (eq(left_value, 0)) {
+            return 1;
+        }
+        left = add(left, 1);
+        right = add(right, 1);
+    }
+}
+
+function cc1_c_string_equal(left, right)
+{
+    return cc1_c_string_equal_(left, right, 0, 0);
+}
+
+function cc1_include_stack_contains_(stack, file)
+{
+    while (not(eq(stack, 0))) {
+        if (cc1_c_string_equal(ri32(stack), file)) {
+            return 1;
+        }
+        stack = ri32(add(stack, 4));
+    }
+    return 0;
+}
+
+function cc1_include_stack_contains(stack, file)
+{
+    return cc1_include_stack_contains_(stack, file);
+}
+
+function cc1_include_path_(file, text, length, directory_length, index,
+    path)
+{
+    directory_length = 0;
+    index = 0;
+    while (not(eq(ri8(add(file, index)), 0))) {
+        if (eq(ri8(add(file, index)), CC1_ASCII_SLASH)) {
+            directory_length = add(index, 1);
+        }
+        index = add(index, 1);
+    }
+    path = malloc(add(add(directory_length, length), 1));
+    if (eq(path, 0)) {
+        return 0;
+    }
+    index = 0;
+    while (lt(index, directory_length)) {
+        wi8(add(path, index), ri8(add(file, index)));
+        index = add(index, 1);
+    }
+    index = 0;
+    while (lt(index, length)) {
+        wi8(add(path, add(directory_length, index)), ri8(add(text, index)));
+        index = add(index, 1);
+    }
+    wi8(add(path, add(directory_length, length)), 0);
+    return path;
+}
+
+function cc1_include_path(file, text, length)
+{
+    return cc1_include_path_(file, text, length, 0, 0, 0);
+}
+
+function cc1_include_read_(file, size_pointer, descriptor, size, source,
+    position, count)
+{
+    descriptor = open(file, 0, 0);
+    if (lt(descriptor, 0)) {
+        return 0;
+    }
+    size = lseek(descriptor, 0, 2);
+    if (lt(size, 0)) {
+        close(descriptor);
+        return 0;
+    }
+    if (lt(lseek(descriptor, 0, 0), 0)) {
+        close(descriptor);
+        return 0;
+    }
+    source = malloc(add(size, 1));
+    if (eq(source, 0)) {
+        close(descriptor);
+        return 0;
+    }
+    position = 0;
+    while (lt(position, size)) {
+        count = read(descriptor, add(source, position), sub(size, position));
+        if (not(lt(0, count))) {
+            close(descriptor);
+            return 0;
+        }
+        position = add(position, count);
+    }
+    close(descriptor);
+    wi8(add(source, size), 0);
+    wi32(size_pointer, size);
+    return source;
+}
+
+function cc1_include_read(file, size_pointer)
+{
+    return cc1_include_read_(file, size_pointer, 0, 0, 0, 0, 0);
+}
+
+function cc1_expand_source_recursive_(source, length, file, stack, index,
+    line, column, cursor, word_start, path_start, path_length, path,
+    size_pointer, included_source, included_length, child_stack, character)
+{
+    index = 0;
+    line = 1;
+    column = 1;
+    while (lt(index, length)) {
+        character = ri8(add(source, index));
+        if (eq(column, 1)) {
+            cursor = index;
+            while (lt(cursor, length)) {
+                character = ri8(add(source, cursor));
+                if (eq(character, CC1_ASCII_SPACE)) {
+                    cursor = add(cursor, 1);
+                } else if (eq(character, CC1_ASCII_TAB)) {
+                    cursor = add(cursor, 1);
+                } else {
+                    break;
+                }
+            }
+            if (lt(cursor, length)) {
+                if (eq(ri8(add(source, cursor)), CC1_ASCII_HASH)) {
+                    cursor = add(cursor, 1);
+                    while (lt(cursor, length)) {
+                        character = ri8(add(source, cursor));
+                        if (eq(character, CC1_ASCII_SPACE)) {
+                            cursor = add(cursor, 1);
+                        } else if (eq(character, CC1_ASCII_TAB)) {
+                            cursor = add(cursor, 1);
+                        } else {
+                            break;
+                        }
+                    }
+                    word_start = cursor;
+                    if (le(add(cursor, 7), length)) {
+                        cursor = add(cursor, 7);
+                        if (cc1_slice_equal(add(source, word_start),
+                            mks("include"), 7)) {
+                            while (lt(cursor, length)) {
+                                character = ri8(add(source, cursor));
+                                if (eq(character, CC1_ASCII_SPACE)) {
+                                    cursor = add(cursor, 1);
+                                } else if (eq(character, CC1_ASCII_TAB)) {
+                                    cursor = add(cursor, 1);
+                                } else {
+                                    break;
+                                }
+                            }
+                            if (eq(ri8(add(source, cursor)),
+                                CC1_ASCII_QUOTE)) {
+                                path_start = add(cursor, 1);
+                                cursor = path_start;
+                                while (lt(cursor, length)) {
+                                    if (eq(ri8(add(source, cursor)),
+                                        CC1_ASCII_QUOTE)) {
+                                        break;
+                                    }
+                                    cursor = add(cursor, 1);
+                                }
+                                path_length = sub(cursor, path_start);
+                                path = cc1_include_path(file,
+                                    add(source, path_start), path_length);
+                                if (eq(path, 0)) {
+                                    return 1;
+                                }
+                                if (not(cc1_include_stack_contains(stack,
+                                    path))) {
+                                    size_pointer = malloc(4);
+                                    if (eq(size_pointer, 0)) {
+                                        return 1;
+                                    }
+                                    included_source = cc1_include_read(path,
+                                        size_pointer);
+                                    if (eq(included_source, 0)) {
+                                        return 1;
+                                    }
+                                    included_length = ri32(size_pointer);
+                                    child_stack = malloc(8);
+                                    if (eq(child_stack, 0)) {
+                                        return 1;
+                                    }
+                                    wi32(child_stack, path);
+                                    wi32(add(child_stack, 4), stack);
+                                    if (cc1_expand_source_recursive(
+                                        included_source, included_length,
+                                        path, child_stack)) {
+                                        return 1;
+                                    }
+                                }
+                                while (lt(index, length)) {
+                                    character = ri8(add(source, index));
+                                    if (eq(character,
+                                        CC1_ASCII_LINE_FEED)) {
+                                        break;
+                                    }
+                                    index = add(index, 1);
+                                }
+                                column = 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (lt(index, length)) {
+            character = ri8(add(source, index));
+            if (cc1_expanded_append(character, file, index, line, column)) {
+                return 1;
+            }
+            if (eq(character, CC1_ASCII_LINE_FEED)) {
+                line = add(line, 1);
+                column = 1;
+            } else {
+                column = add(column, 1);
+            }
+            index = add(index, 1);
+        }
+    }
+    return 0;
+}
+
+function cc1_expand_source_recursive(source, length, file, stack)
+{
+    return cc1_expand_source_recursive_(source, length, file, stack, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc1_expand_source_(source, length, file, stack)
+{
+    CC1_ASCII_TAB = 9;
+    CC1_ASCII_LINE_FEED = 10;
+    CC1_ASCII_CARRIAGE_RETURN = 13;
+    CC1_ASCII_SPACE = 32;
+    CC1_ASCII_QUOTE = 34;
+    CC1_ASCII_HASH = 35;
+    CC1_ASCII_SLASH = 47;
+    CC1_EXPANDED_LENGTH = 0;
+    stack = malloc(8);
+    if (eq(stack, 0)) {
+        return 1;
+    }
+    wi32(stack, file);
+    wi32(add(stack, 4), 0);
+    if (cc1_expand_source_recursive(source, length, file, stack)) {
+        return 1;
+    }
+    CC1_EXPANSION_ACTIVE = 1;
+    return 0;
+}
+
+function cc1_expand_source(source, length, file)
+{
+    return cc1_expand_source_(source, length, file, 0);
+}
+
 function cc1_preprocess(source, length, file)
 {
-    if (cc1_tokenize(source, length, file)) {
+    CC1_EXPANSION_ACTIVE = 0;
+    if (cc1_expand_source(source, length, file)) {
+        return 1;
+    }
+    if (cc1_tokenize(CC1_EXPANDED_SOURCE, CC1_EXPANDED_LENGTH, file)) {
         return 1;
     }
     return cc1_preprocess_tokens();
@@ -1265,7 +1647,8 @@ function cc1_preprocessed_consume()
     return cc1_preprocessed_consume_(0);
 }
 
-function cc1_normalized_reserve_(extra, needed, capacity, source, origins)
+function cc1_normalized_reserve_(extra, needed, capacity, source, origins,
+    files, lines, columns)
 {
     needed = add(CC1_NORMALIZED_LENGTH, extra);
     if (le(needed, CC1_NORMALIZED_CAPACITY)) {
@@ -1280,10 +1663,22 @@ function cc1_normalized_reserve_(extra, needed, capacity, source, origins)
     }
     source = malloc(capacity);
     origins = malloc(shl(capacity, 2));
+    files = malloc(shl(capacity, 2));
+    lines = malloc(shl(capacity, 2));
+    columns = malloc(shl(capacity, 2));
     if (eq(source, 0)) {
         return 1;
     }
     if (eq(origins, 0)) {
+        return 1;
+    }
+    if (eq(files, 0)) {
+        return 1;
+    }
+    if (eq(lines, 0)) {
+        return 1;
+    }
+    if (eq(columns, 0)) {
         return 1;
     }
     if (not(eq(CC1_NORMALIZED_SOURCE, 0))) {
@@ -1291,16 +1686,25 @@ function cc1_normalized_reserve_(extra, needed, capacity, source, origins)
             CC1_NORMALIZED_LENGTH);
         cc1_token_copy_bytes(origins, CC1_NORMALIZED_ORIGINS,
             shl(CC1_NORMALIZED_LENGTH, 2));
+        cc1_token_copy_bytes(files, CC1_NORMALIZED_FILES,
+            shl(CC1_NORMALIZED_LENGTH, 2));
+        cc1_token_copy_bytes(lines, CC1_NORMALIZED_LINES,
+            shl(CC1_NORMALIZED_LENGTH, 2));
+        cc1_token_copy_bytes(columns, CC1_NORMALIZED_COLUMNS,
+            shl(CC1_NORMALIZED_LENGTH, 2));
     }
     CC1_NORMALIZED_SOURCE = source;
     CC1_NORMALIZED_ORIGINS = origins;
+    CC1_NORMALIZED_FILES = files;
+    CC1_NORMALIZED_LINES = lines;
+    CC1_NORMALIZED_COLUMNS = columns;
     CC1_NORMALIZED_CAPACITY = capacity;
     return 0;
 }
 
 function cc1_normalized_reserve(extra)
 {
-    return cc1_normalized_reserve_(extra, 0, 0, 0, 0);
+    return cc1_normalized_reserve_(extra, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function cc1_normalized_byte(value, origin)
@@ -1310,6 +1714,12 @@ function cc1_normalized_byte(value, origin)
     }
     wi8(add(CC1_NORMALIZED_SOURCE, CC1_NORMALIZED_LENGTH), value);
     wi32(add(CC1_NORMALIZED_ORIGINS, shl(CC1_NORMALIZED_LENGTH, 2)), origin);
+    wi32(add(CC1_NORMALIZED_FILES, shl(CC1_NORMALIZED_LENGTH, 2)),
+        CC1_NORMALIZED_CURRENT_FILE);
+    wi32(add(CC1_NORMALIZED_LINES, shl(CC1_NORMALIZED_LENGTH, 2)),
+        CC1_NORMALIZED_CURRENT_LINE);
+    wi32(add(CC1_NORMALIZED_COLUMNS, shl(CC1_NORMALIZED_LENGTH, 2)),
+        CC1_NORMALIZED_CURRENT_COLUMN);
     CC1_NORMALIZED_LENGTH = add(CC1_NORMALIZED_LENGTH, 1);
     return 0;
 }
@@ -1325,6 +1735,12 @@ function cc1_normalized_text_(text, length, origin, index)
             ri8(add(text, index)));
         wi32(add(CC1_NORMALIZED_ORIGINS, shl(CC1_NORMALIZED_LENGTH, 2)),
             add(origin, index));
+        wi32(add(CC1_NORMALIZED_FILES, shl(CC1_NORMALIZED_LENGTH, 2)),
+            CC1_NORMALIZED_CURRENT_FILE);
+        wi32(add(CC1_NORMALIZED_LINES, shl(CC1_NORMALIZED_LENGTH, 2)),
+            CC1_NORMALIZED_CURRENT_LINE);
+        wi32(add(CC1_NORMALIZED_COLUMNS, shl(CC1_NORMALIZED_LENGTH, 2)),
+            add(CC1_NORMALIZED_CURRENT_COLUMN, index));
         CC1_NORMALIZED_LENGTH = add(CC1_NORMALIZED_LENGTH, 1);
         index = add(index, 1);
     }
@@ -2129,6 +2545,15 @@ function cc1_expression_emit_conditional(expression)
     return cc1_expression_emit_conditional_(expression, 0, 0, 0, 0);
 }
 
+function cc1_normalized_set_token(token)
+{
+    CC1_NORMALIZED_CURRENT_FILE = ri32(add(token, CC1_TOKEN_FILE_OFFSET));
+    CC1_NORMALIZED_CURRENT_LINE = ri32(add(token, CC1_TOKEN_LINE_OFFSET));
+    CC1_NORMALIZED_CURRENT_COLUMN = ri32(add(token,
+        CC1_TOKEN_COLUMN_OFFSET));
+    return 0;
+}
+
 function cc1_expression_emit_(expression, kind, token, argument, origin)
 {
     if (eq(expression, 0)) {
@@ -2136,6 +2561,7 @@ function cc1_expression_emit_(expression, kind, token, argument, origin)
     }
     kind = ri32(add(expression, CC1_EXPRESSION_KIND_OFFSET));
     token = ri32(add(expression, CC1_EXPRESSION_TOKEN_OFFSET));
+    cc1_normalized_set_token(token);
     if (eq(kind, CC1_EXPRESSION_CONSTANT_KIND)) {
         origin = ri32(add(token, CC1_TOKEN_SOURCE_OFFSET));
         return cc1_normalized_byte(add(48, ri32(add(expression,
@@ -2326,6 +2752,7 @@ function cc1_normalize_tokens_(index, token, kind, text, length, origin,
         if (eq(kind, CC1_TOKEN_EOF)) {
             return 0;
         }
+        cc1_normalized_set_token(token);
         origin = ri32(add(token, CC1_TOKEN_SOURCE_OFFSET));
         if (cc1_normalized_byte(32, origin)) {
             return 1;
@@ -2619,7 +3046,8 @@ function cc1_normalize_tokens()
 }
 
 /* This is the permanent frontend dispatch point replaced by cc1_stubs in cc0. */
-function cc1_compile_(source, length, file, result, position)
+function cc1_compile_(source, length, file, result, position, error_file,
+    error_line, error_column, normalized_position)
 {
     if (cc1_preprocess(source, length, file)) {
         return 1;
@@ -2637,15 +3065,23 @@ function cc1_compile_(source, length, file, result, position)
         if (lt(position, 0)) {
             position = 0;
         }
+        normalized_position = position;
         position = ri32(add(CC1_NORMALIZED_ORIGINS, shl(position, 2)));
-        cc0_remap_error(source, length, position);
+        error_file = ri32(add(CC1_NORMALIZED_FILES,
+            shl(normalized_position, 2)));
+        error_line = ri32(add(CC1_NORMALIZED_LINES,
+            shl(normalized_position, 2)));
+        error_column = ri32(add(CC1_NORMALIZED_COLUMNS,
+            shl(normalized_position, 2)));
+        cc0_remap_error_location(source, length, position, error_file,
+            error_line, error_column);
     }
     return result;
 }
 
 function cc1_compile(source, length, file)
 {
-    return cc1_compile_(source, length, file, 0, 0);
+    return cc1_compile_(source, length, file, 0, 0, 0, 0, 0, 0);
 }
 
 function cc1_product_(left, right, result, index)
