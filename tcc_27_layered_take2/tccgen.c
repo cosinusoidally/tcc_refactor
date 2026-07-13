@@ -946,59 +946,6 @@ void parse_mult_str (CString *astr, const char *msg)
 }
 
 /* Parse __attribute__((...)) GNUC extension. */
-
-/* enum/struct/union declaration. u is VT_ENUM/VT_STRUCT/VT_UNION */
-static void struct_decl(CType *type, int u)
-{
-    int v;
-    Sym *s;
-    AttributeDef ad;
-    CType type1;
-
-    memset(&ad, 0, sizeof ad);
-    next();
-    parse_attribute(&ad);
-    if (tok != '{') {
-        v = tok;
-        next();
-        /* struct already defined ? return it */
-        if (v < TOK_IDENT)
-            expect("struct/union/enum name");
-        s = struct_find(v);
-        if (s && (s->sym_scope == local_scope || tok != '{')) {
-            if (u == s->type.t)
-                goto do_decl;
-            if (u == VT_ENUM && IS_ENUM(s->type.t))
-                goto do_decl;
-            tcc_error("redefinition of '%s'", get_tok_str(v, NULL));
-        }
-    } else {
-        v = anon_sym++;
-    }
-    /* Record the original enum/struct/union token.  */
-    type1.t = u == VT_ENUM ? u | VT_INT | VT_UNSIGNED : u;
-    type1.ref = NULL;
-    /* we put an undefined size for struct/union */
-    s = sym_push(v | SYM_STRUCT, &type1, 0, -1);
-    s->r = 0; /* default alignment is zero as gcc */
-do_decl:
-    type->t = s->type.t;
-    type->ref = s;
-
-    if (tok == '{') {
-        next();
-        if (s->c != -1)
-            tcc_error("struct/union/enum already defined");
-        /* cannot be empty */
-        /* non empty enums are not allowed */
-        if (u == VT_ENUM) {
-            struct_decl_enum(type, s);
-        } else {
-            struct_decl_fields(type, u, s, &ad);
-        }
-    }
-}
-
 /* Add type qualifiers to a type. If the type is an array then the qualifiers
    are added to the element type, copied because it could be a typedef. */
 /* return 0 if no type declaration. otherwise, return the basic type

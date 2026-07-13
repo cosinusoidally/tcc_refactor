@@ -4074,6 +4074,79 @@ function struct_decl_fields(type, structure_kind, symbol, attributes)
     return result;
 }
 
+function struct_decl_(type, structure_kind, attributes, declared_type,
+    name, symbol, found)
+{
+    cc2_zero_bytes(attributes, CC2_ATTRIBUTE_BYTES);
+    next();
+    parse_attribute(attributes);
+    symbol = 0;
+    if (not(eq(ri32(tok_address), 123))) {
+        name = ri32(tok_address);
+        next();
+        if (lt(name, CC2_TOKEN_IDENTIFIER)) {
+            expect(mks("struct/union/enum name"));
+        }
+        found = struct_find(name);
+        if (found) {
+            if (or(eq(ri32(add(found, CC2_SYM_SCOPE_OFFSET)),
+                local_scope), not(eq(ri32(tok_address), 123)))) {
+                if (eq(structure_kind,
+                    ri32(add(found, CC2_SYM_TYPE_OFFSET)))) {
+                    symbol = found;
+                } else if (and(eq(structure_kind, CC2_TCC_ENUM_TYPE),
+                    eq(and(ri32(add(found, CC2_SYM_TYPE_OFFSET)),
+                    CC2_TCC_STRUCT_MASK), CC2_TCC_ENUM_TYPE))) {
+                    symbol = found;
+                } else {
+                    tcc_error(mks("redefinition of '%s'"),
+                        get_tok_str(name, 0));
+                }
+            }
+        }
+    } else {
+        name = anon_sym;
+        anon_sym = add(anon_sym, 1);
+    }
+    if (not(symbol)) {
+        if (eq(structure_kind, CC2_TCC_ENUM_TYPE)) {
+            wi32(declared_type, or(or(structure_kind,
+                CC2_TCC_INT_TYPE), CC2_TCC_UNSIGNED_TYPE));
+        } else {
+            wi32(declared_type, structure_kind);
+        }
+        wi32(add(declared_type, 4), 0);
+        symbol = sym_push(or(name, CC2_SYMBOL_STRUCT_FLAG), declared_type,
+            0, sub(0, 1));
+        wi32(add(symbol, 4), and(ri32(add(symbol, 4)), 0xffff0000));
+    }
+    wi32(type, ri32(add(symbol, CC2_SYM_TYPE_OFFSET)));
+    wi32(add(type, 4), symbol);
+    if (eq(ri32(tok_address), 123)) {
+        next();
+        if (not(eq(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), sub(0, 1)))) {
+            tcc_error(mks("struct/union/enum already defined"), 0);
+        }
+        if (eq(structure_kind, CC2_TCC_ENUM_TYPE)) {
+            struct_decl_enum(type, symbol);
+        } else {
+            struct_decl_fields(type, structure_kind, symbol, attributes);
+        }
+    }
+    return 0;
+}
+
+function struct_decl(type, structure_kind)
+{
+    var scratch;
+    var result;
+    scratch = malloc(32);
+    result = struct_decl_(type, structure_kind, scratch,
+        add(scratch, 24), 0, 0, 0);
+    free(scratch);
+    return result;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {
