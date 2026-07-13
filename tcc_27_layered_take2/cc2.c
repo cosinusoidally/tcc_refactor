@@ -41,6 +41,8 @@ var CC2_TCC_LONG_DOUBLE_TYPE = 10;
 var CC2_TCC_QUAD_FLOAT_TYPE = 14;
 var CC2_I386_FLOAT_RETURN_CLASS = 8;
 var CC2_I386_FLOAT_RETURN_REGISTER = 4;
+var CC2_I386_INTEGER_RETURN_REGISTER = 0;
+var CC2_I386_LONG_LONG_RETURN_REGISTER = 2;
 var CC2_I386_FLOAT_REGISTER_CLASS = 2;
 /* TCC's i386 Sym layout and its existing 8192-byte allocation policy. */
 var CC2_SYM_BYTES = 36;
@@ -160,6 +162,12 @@ var CC2_TCC_BITFIELD_SIZE_SHIFT = 26;
 var CC2_TCC_BITFIELD_VALUE_MASK = 63;
 var CC2_TCC_BITFIELD_POSITION_MASK = 66060288;
 var CC2_SYM_ATTRIBUTE_PACKED = 32;
+var CC2_TOKEN_FLOAT_UNSIGNED_LONG_LONG_TO_FLOAT = 396;
+var CC2_TOKEN_FLOAT_UNSIGNED_LONG_LONG_TO_DOUBLE = 397;
+var CC2_TOKEN_FLOAT_UNSIGNED_LONG_LONG_TO_LONG_DOUBLE = 398;
+var CC2_TOKEN_FLOAT_TO_UNSIGNED_LONG_LONG = 400;
+var CC2_TOKEN_DOUBLE_TO_UNSIGNED_LONG_LONG = 401;
+var CC2_TOKEN_LONG_DOUBLE_TO_UNSIGNED_LONG_LONG = 399;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -2678,6 +2686,58 @@ function gen_cast_(type, source_type, destination_type, source_float,
 function gen_cast(type)
 {
     return gen_cast_(type, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function gen_cvt_itof1(type)
+{
+    if (eq(and(ri32(vtop), or(CC2_TCC_BASIC_TYPE_MASK,
+        CC2_TCC_UNSIGNED_TYPE)), or(CC2_TCC_LONG_LONG_TYPE,
+        CC2_TCC_UNSIGNED_TYPE))) {
+        if (eq(type, CC2_TCC_FLOAT_TYPE)) {
+            vpush_global_sym(func_old_type_address,
+                CC2_TOKEN_FLOAT_UNSIGNED_LONG_LONG_TO_FLOAT);
+        } else if (eq(type, CC2_TCC_LONG_DOUBLE_TYPE)) {
+            vpush_global_sym(func_old_type_address,
+                CC2_TOKEN_FLOAT_UNSIGNED_LONG_LONG_TO_LONG_DOUBLE);
+        } else {
+            vpush_global_sym(func_old_type_address,
+                CC2_TOKEN_FLOAT_UNSIGNED_LONG_LONG_TO_DOUBLE);
+        }
+        vrott(2);
+        gfunc_call(1);
+        vpushi(0);
+        cc2_set_value_register(vtop, reg_fret(type));
+    } else {
+        gen_cvt_itof(type);
+    }
+    return 0;
+}
+
+function gen_cvt_ftoi1(type)
+{
+    if (eq(type, or(CC2_TCC_LONG_LONG_TYPE, CC2_TCC_UNSIGNED_TYPE))) {
+        if (eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_FLOAT_TYPE)) {
+            vpush_global_sym(func_old_type_address,
+                CC2_TOKEN_FLOAT_TO_UNSIGNED_LONG_LONG);
+        } else if (eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_LONG_DOUBLE_TYPE)) {
+            vpush_global_sym(func_old_type_address,
+                CC2_TOKEN_LONG_DOUBLE_TO_UNSIGNED_LONG_LONG);
+        } else {
+            vpush_global_sym(func_old_type_address,
+                CC2_TOKEN_DOUBLE_TO_UNSIGNED_LONG_LONG);
+        }
+        vrott(2);
+        gfunc_call(1);
+        vpushi(0);
+        cc2_set_value_register(vtop, CC2_I386_INTEGER_RETURN_REGISTER);
+        cc2_set_value_second_register(vtop,
+            CC2_I386_LONG_LONG_RETURN_REGISTER);
+    } else {
+        gen_cvt_ftoi(type);
+    }
+    return 0;
 }
 
 function is_label_(identifier_floor, saved_token)

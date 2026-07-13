@@ -1531,7 +1531,7 @@ extern void convert_parameter_type(CType *type);
 extern void sym_to_attr(AttributeDef *attributes, Sym *symbol);
 extern void store(int r, SValue *v);
 ST_FUNC int gfunc_sret(CType *vt, int variadic, CType *ret, int *align, int *regsize);
-ST_FUNC void gfunc_call(int nb_args);
+void gfunc_call(int nb_args);
 ST_FUNC void gfunc_prolog(CType *func_type);
 ST_FUNC void gfunc_epilog(void);
 ST_FUNC int gjmp(int t);
@@ -1544,14 +1544,14 @@ ST_FUNC void gtst_addr(int inv, int a);
 #endif
 ST_FUNC void gen_opi(int op);
 ST_FUNC void gen_opf(int op);
-ST_FUNC void gen_cvt_ftoi(int t);
+void gen_cvt_ftoi(int t);
 void gen_cvt_ftof(int t);
 ST_FUNC void ggoto(void);
 #ifndef TCC_TARGET_C67
 extern void o(unsigned int c);
 #endif
 #ifndef TCC_TARGET_ARM
-ST_FUNC void gen_cvt_itof(int t);
+void gen_cvt_itof(int t);
 #endif
 ST_FUNC void gen_vla_sp_save(int addr);
 void gen_vla_sp_restore(int addr);

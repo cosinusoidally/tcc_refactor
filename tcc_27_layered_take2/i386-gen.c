@@ -417,7 +417,7 @@ ST_FUNC int gfunc_sret(CType *vt, int variadic, CType *ret, int *ret_align, int 
 /* Generate function call. The function address is pushed first, then
    all the parameters in call order. This functions pops all the
    parameters and the function address. */
-ST_FUNC void gfunc_call(int nb_args)
+void gfunc_call(int nb_args)
 {
     int size, align, r, args_size, i, func_call;
     Sym *func_sym;
@@ -1004,7 +1004,7 @@ ST_FUNC void gen_opf(int op)
 
 /* convert integers to fp 't' type. Must handle 'int', 'unsigned int'
    and 'long long' cases. */
-ST_FUNC void gen_cvt_itof(int t)
+void gen_cvt_itof(int t)
 {
     save_reg(TREG_ST0);
     gv(RC_INT);
@@ -1033,7 +1033,7 @@ ST_FUNC void gen_cvt_itof(int t)
 }
 
 /* convert fp to int 't' type */
-ST_FUNC void gen_cvt_ftoi(int t)
+void gen_cvt_ftoi(int t)
 {
     int bt = vtop->type.t & VT_BTYPE;
     if (bt == VT_FLOAT)
