@@ -40,6 +40,7 @@ static int nb_states;
 #define malloc(s) use_tcc_malloc(s)
 #include "tccpp.c"
 #include "tccgen.c"
+#include "cc2_tcc_prims.c"
 #include "cc3.c"
 #include "cc4.c"
 #endif /* ONE_SOURCE */

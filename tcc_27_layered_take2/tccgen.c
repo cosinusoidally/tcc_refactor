@@ -95,18 +95,6 @@ void skip_or_save_block(TokenString **str);
 /* we use our own 'finite' function to avoid potential problems with
    non standard math libs */
 /* XXX: endianness dependent */
-ST_FUNC int ieee_finite(double d)
-{
-    int p[4];
-    memcpy(p, &d, sizeof(double));
-    return ((unsigned)((p[1] | 0x800fffff) + 1)) >> 31;
-}
-
-/* compiling intel long double natively */
-#if (defined __i386__ || defined __x86_64__) \
-    && (defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64)
-# define TCC_IS_NATIVE_387
-#endif
 
 /* ------------------------------------------------------------------------- */
 /* vstack debugging aid */
@@ -222,87 +210,10 @@ ElfSym *elfsym(Sym *s)
 /* add a new relocation entry to symbol 'sym' in section 's' */
 
 /* push arbitrary 64bit constant */
-ST_FUNC void vpush64(int ty, unsigned long long v)
-{
-    CValue cval;
-    CType ctype;
-    ctype.t = ty;
-    ctype.ref = NULL;
-    cval.i = v;
-    vsetc(&ctype, VT_CONST, &cval);
-}
-
-/* cc2 represents i386 constants as explicit little-endian 32-bit words. */
-void vpush64_words(int type, unsigned int low_word, unsigned int high_word)
-{
-    unsigned long long value;
-
-    value = low_word | ((unsigned long long)high_word << 32);
-    vpush64(type, value);
-}
-
-/* cc2 selects unary negation; this primitive writes the target CValue union. */
-void neg_zero(int basic_type)
-{
-    vpush(&vtop->type);
-    if (basic_type == VT_FLOAT) {
-        vtop->c.f = -1.0 * 0.0;
-    } else if (basic_type == VT_DOUBLE) {
-        vtop->c.d = -1.0 * 0.0;
-    } else {
-        vtop->c.ld = -1.0 * 0.0;
-    }
-}
-
-/* push long long constant */
-static inline void vpushll(long long v)
-{
-    vpush64(VT_LLONG, v);
-}
-
-/* cc2 cannot form a 64-bit scalar, so expose only mask construction. */
-void vpush_bitfield_mask(int basic_type, int bit_size, int bit_pos, int invert)
-{
-    unsigned long long mask = (1ULL << bit_size) - 1;
-    if (invert)
-        mask = ~(mask << bit_pos);
-    if (basic_type == VT_LLONG)
-        vpushll(mask);
-    else
-        vpushi((unsigned)mask);
-}
 
 
 /* move register 's' (of type 't') to 'r', and flush previous value of r to memory
    if needed */
-#ifdef CONFIG_TCC_BCHECK
-/* generate lvalue bound code */
-static void gbound(void)
-{
-    int lval_type;
-    CType type1;
-
-    vtop->r &= ~VT_MUSTBOUND;
-    /* if lvalue, then use checking code before dereferencing */
-    if (vtop->r & VT_LVAL) {
-        /* if not VT_BOUNDED value, then make one */
-        if (!(vtop->r & VT_BOUNDED)) {
-            lval_type = vtop->r & (VT_LVAL_TYPE | VT_LVAL);
-            /* must save type because we must set it to int to get pointer */
-            type1 = vtop->type;
-            vtop->type.t = VT_PTR;
-            gaddrof();
-            vpushi(0);
-            gen_bounded_ptr_add();
-            vtop->r |= lval_type;
-            vtop->type = type1;
-        }
-        /* then check for dereferencing */
-        gen_bounded_ptr_deref();
-    }
-}
-#endif
-
 
 /* single-byte load mode for packed or otherwise unaligned bitfields */
 
@@ -330,237 +241,6 @@ static void gbound(void)
  * Generate a test for any value (jump, comparison and integers) */
 
 
-static uint64_t gen_opic_sdiv(uint64_t a, uint64_t b)
-{
-    uint64_t x = (a >> 63 ? -a : a) / (b >> 63 ? -b : b);
-    return (a ^ b) >> 63 ? -x : x;
-}
-
-static int gen_opic_lt(uint64_t a, uint64_t b)
-{
-    return (a ^ (uint64_t)1 << 63) < (b ^ (uint64_t)1 << 63);
-}
-
-/* Evaluate one already-selected 64-bit operation for two constants. */
-int gen_opic_fold_constant(int op)
-{
-    SValue *v1 = vtop - 1;
-    SValue *v2 = vtop;
-    int t1 = v1->type.t & VT_BTYPE;
-    int t2 = v2->type.t & VT_BTYPE;
-    uint64_t l1 = v1->c.i;
-    uint64_t l2 = v2->c.i;
-    int shm = t1 == VT_LLONG ? 63 : 31;
-
-    if (t1 != VT_LLONG)
-        l1 = (uint32_t)l1 | (v1->type.t & VT_UNSIGNED ? 0 : -(l1 & 0x80000000));
-    if (t2 != VT_LLONG)
-        l2 = (uint32_t)l2 | (v2->type.t & VT_UNSIGNED ? 0 : -(l2 & 0x80000000));
-    switch (op) {
-    case '+': l1 += l2; break;
-    case '-': l1 -= l2; break;
-    case '&': l1 &= l2; break;
-    case '^': l1 ^= l2; break;
-    case '|': l1 |= l2; break;
-    case '*': l1 *= l2; break;
-    case TOK_PDIV:
-    case '/':
-    case '%':
-    case TOK_UDIV:
-    case TOK_UMOD:
-        if (l2 == 0) {
-            if (const_wanted)
-                tcc_error("division by zero in constant");
-            return 0;
-        }
-        if (op == '%')
-            l1 = l1 - l2 * gen_opic_sdiv(l1, l2);
-        else if (op == TOK_UDIV)
-            l1 = l1 / l2;
-        else if (op == TOK_UMOD)
-            l1 = l1 % l2;
-        else
-            l1 = gen_opic_sdiv(l1, l2);
-        break;
-    case TOK_SHL: l1 <<= (l2 & shm); break;
-    case TOK_SHR: l1 >>= (l2 & shm); break;
-    case TOK_SAR:
-        l1 = l1 >> 63 ? ~(~l1 >> (l2 & shm)) : l1 >> (l2 & shm);
-        break;
-    case TOK_ULT: l1 = l1 < l2; break;
-    case TOK_UGE: l1 = l1 >= l2; break;
-    case TOK_EQ: l1 = l1 == l2; break;
-    case TOK_NE: l1 = l1 != l2; break;
-    case TOK_ULE: l1 = l1 <= l2; break;
-    case TOK_UGT: l1 = l1 > l2; break;
-    case TOK_LT: l1 = gen_opic_lt(l1, l2); break;
-    case TOK_GE: l1 = !gen_opic_lt(l1, l2); break;
-    case TOK_LE: l1 = !gen_opic_lt(l2, l1); break;
-    case TOK_GT: l1 = gen_opic_lt(l2, l1); break;
-    case TOK_LAND: l1 = l1 && l2; break;
-    case TOK_LOR: l1 = l1 || l2; break;
-    default: return 0;
-    }
-    if (t1 != VT_LLONG)
-        l1 = (uint32_t)l1 | (v1->type.t & VT_UNSIGNED ? 0 : -(l1 & 0x80000000));
-    v1->c.i = l1;
-    vtop--;
-    return 1;
-}
-
-/* Return the shift for a positive power-of-two vtop constant. */
-int gen_opic_power_shift(void)
-{
-    uint64_t value = vtop->c.i;
-    int type = vtop->type.t;
-    int shift = -1;
-
-    if ((type & VT_BTYPE) != VT_LLONG)
-        value = (uint32_t)value | (type & VT_UNSIGNED ? 0 : -(value & 0x80000000));
-    if ((int64_t)value <= 0 || (value & (value - 1)) != 0)
-        return -1;
-    while (value) {
-        value >>= 1;
-        shift++;
-    }
-    return shift;
-}
-
-/* Merge a selected plus/minus constant into a symbol or local addend. */
-int gen_opic_merge_addend(int op)
-{
-    SValue *left = vtop - 1;
-    uint64_t value = vtop->c.i;
-    int type = vtop->type.t;
-
-    if ((type & VT_BTYPE) != VT_LLONG)
-        value = (uint32_t)value | (type & VT_UNSIGNED ? 0 : -(value & 0x80000000));
-    if (op == '-')
-        value = -value;
-    value += left->c.i;
-    if ((int)value != value)
-        return 0;
-    vtop--;
-    vtop->c.i = value;
-    return 1;
-}
-
-int gen_opif_fold_constant(int op)
-{
-    SValue *v1 = vtop - 1;
-    SValue *v2 = vtop;
-    long double f1, f2;
-
-    if (v1->type.t == VT_FLOAT) {
-        f1 = v1->c.f;
-        f2 = v2->c.f;
-    } else if (v1->type.t == VT_DOUBLE) {
-        f1 = v1->c.d;
-        f2 = v2->c.d;
-    } else {
-        f1 = v1->c.ld;
-        f2 = v2->c.ld;
-    }
-    if (!ieee_finite(f1) || !ieee_finite(f2))
-        return 0;
-    switch (op) {
-    case '+': f1 += f2; break;
-    case '-': f1 -= f2; break;
-    case '*': f1 *= f2; break;
-    case '/':
-        if (f2 == 0.0) {
-            if (const_wanted)
-                tcc_error("division by zero in constant");
-            return 0;
-        }
-        f1 /= f2;
-        break;
-    default:
-        return 0;
-    }
-    if (v1->type.t == VT_FLOAT)
-        v1->c.f = f1;
-    else if (v1->type.t == VT_DOUBLE)
-        v1->c.d = f1;
-    else
-        v1->c.ld = f1;
-    vtop--;
-    return 1;
-}
-/* Convert an already-classified constant without generating target code.
-   cc2 owns cast policy; this primitive only accesses C's 64-bit and floating
-   representations, which the scalar cc0 dialect cannot express directly. */
-void gen_cast_constant(CType *type)
-{
-    int sbt, dbt, sf, df;
-
-    dbt = type->t & (VT_BTYPE | VT_UNSIGNED);
-    sbt = vtop->type.t & (VT_BTYPE | VT_UNSIGNED);
-    sf = is_float(sbt);
-    df = is_float(dbt);
-#if !defined TCC_IS_NATIVE && !defined TCC_IS_NATIVE_387
-    if (dbt == VT_LDOUBLE)
-        tcc_error("long double constant conversion is unavailable");
-#endif
-    if (sbt == VT_FLOAT)
-        vtop->c.ld = vtop->c.f;
-    else if (sbt == VT_DOUBLE)
-        vtop->c.ld = vtop->c.d;
-
-    if (df) {
-        if ((sbt & VT_BTYPE) == VT_LLONG) {
-            if ((sbt & VT_UNSIGNED) || !(vtop->c.i >> 63))
-                vtop->c.ld = vtop->c.i;
-            else
-                vtop->c.ld = -(long double)-vtop->c.i;
-        } else if(!sf) {
-            if ((sbt & VT_UNSIGNED) || !(vtop->c.i >> 31))
-                vtop->c.ld = (uint32_t)vtop->c.i;
-            else
-                vtop->c.ld = -(long double)-(uint32_t)vtop->c.i;
-        }
-
-        if (dbt == VT_FLOAT)
-            vtop->c.f = (float)vtop->c.ld;
-        else if (dbt == VT_DOUBLE)
-            vtop->c.d = (double)vtop->c.ld;
-    } else if (sf && dbt == (VT_LLONG|VT_UNSIGNED)) {
-        vtop->c.i = vtop->c.ld;
-    } else if (sf && dbt == VT_BOOL) {
-        vtop->c.i = (vtop->c.ld != 0);
-    } else {
-        if(sf)
-            vtop->c.i = vtop->c.ld;
-        else if (sbt == (VT_LLONG|VT_UNSIGNED))
-            ;
-        else if (sbt & VT_UNSIGNED)
-            vtop->c.i = (uint32_t)vtop->c.i;
-#if PTR_SIZE == 8
-        else if (sbt == VT_PTR)
-            ;
-#endif
-        else if (sbt != VT_LLONG)
-            vtop->c.i = ((uint32_t)vtop->c.i |
-                          -(vtop->c.i & 0x80000000));
-
-        if (dbt == (VT_LLONG|VT_UNSIGNED))
-            ;
-        else if (dbt == VT_BOOL)
-            vtop->c.i = (vtop->c.i != 0);
-#if PTR_SIZE == 8
-        else if (dbt == VT_PTR)
-            ;
-#endif
-        else if (dbt != VT_LLONG) {
-            uint32_t m = ((dbt & VT_BTYPE) == VT_BYTE ? 0xff :
-                          (dbt & VT_BTYPE) == VT_SHORT ? 0xffff :
-                          0xffffffff);
-            vtop->c.i &= m;
-            if (!(dbt & VT_UNSIGNED))
-                vtop->c.i |= -(vtop->c.i & ((m >> 1) + 1));
-        }
-    }
-}
 
 /* print a type. If 'varstr' is not NULL, then the variable is also
    printed in the type */
@@ -731,24 +411,6 @@ void parse_mult_str (CString *astr, const char *msg)
 /* parse an expression and return its type without any side effect. */
 
 /* parse an integer constant and return its value. */
-static inline int64_t expr_const64(void)
-{
-    int64_t c;
-    expr_const1();
-    if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) != VT_CONST)
-        expect("constant expression");
-    c = vtop->c.i;
-    vpop();
-    return c;
-}
-
-/* Expose the representation only; cc2 owns the 32-bit range policy. */
-void expr_const64_words(int *words)
-{
-    int64_t wc = expr_const64();
-    words[0] = wc;
-    words[1] = wc >> 32;
-}
 
 /* return the label token if current token is a label, otherwise
    return zero */
@@ -763,49 +425,9 @@ void expr_const64_words(int *words)
 #define EXPR_ANY   2
 
 /* Replicate already encoded target bytes for a GNU range designator. */
-void initializer_repeat(Section *sec, unsigned long c, int elem_size,
-                        int nb_elems)
-{
-    unsigned long end = c + nb_elems * elem_size;
-    unsigned char *src, *dst;
-    int i;
-
-    if (end > sec->data_allocated)
-        section_realloc(sec, end);
-    src = sec->data + c;
-    dst = src;
-    for (i = 1; i < nb_elems; i++) {
-        dst += elem_size;
-        memcpy(dst, src, elem_size);
-    }
-}
-
-/* Copy tokenized narrow-string bytes into TCC's target section storage. */
-void initializer_copy_string(Section *sec, unsigned long offset,
-                             const void *source, int count)
-{
-    memcpy(sec->data + offset, source, count);
-}
-
-/* Rewind a captured initializer through TCC's active macro stream. */
-void initializer_rewind(TokenString *stream)
-{
-    macro_ptr = stream->str;
-}
 
 /* store a value or an expression directly in global data or in local array */
 /* Allocate TCC's variable-sized inline record and capture its body. */
-void decl_record_inline(Sym *sym)
-{
-    struct InlineFunc *fn;
-    const char *filename = file ? file->filename : "";
-
-    fn = tcc_malloc(sizeof *fn + strlen(filename));
-    strcpy(fn->filename, filename);
-    fn->sym = sym;
-    skip_or_save_block(&fn->func_str);
-    dynarray_add(&tcc_state->inline_fns, &tcc_state->nb_inline_fns, fn);
-}
 
 /* 'l' is VT_LOCAL or VT_CONST to define default storage type, or VT_CMP
    if parsing old style parameter decl list (and FUNC_SYM is set then) */
