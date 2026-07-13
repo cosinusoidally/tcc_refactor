@@ -16,6 +16,12 @@ var CC2_TOKEN_KIND_FIELD;
 var CC2_TOKEN_TEXT_FIELD;
 var CC2_TOKEN_LENGTH_FIELD;
 var CC2_TOKEN_NUMBER_FIELD;
+var CC2_TYPEDEF_RECORD_SHIFT;
+var CC2_TYPEDEF_NAME_OFFSET;
+var CC2_TYPEDEF_LENGTH_OFFSET;
+var CC2_TYPEDEFS;
+var CC2_TYPEDEF_CAPACITY;
+var CC2_TYPEDEF_COUNT;
 
 function cc2_copy_bytes_(destination, source, length, index)
 {
@@ -135,6 +141,76 @@ function cc2_enum_lookup_(name, length, index, record)
 function cc2_enum_lookup(name, length)
 {
     return cc2_enum_lookup_(name, length, 0, 0);
+}
+
+function cc2_typedef_record(index)
+{
+    return add(CC2_TYPEDEFS, shl(index, CC2_TYPEDEF_RECORD_SHIFT));
+}
+
+function cc2_typedef_reserve_(needed, capacity, records, used)
+{
+    needed = shl(add(CC2_TYPEDEF_COUNT, 1), CC2_TYPEDEF_RECORD_SHIFT);
+    if (le(needed, CC2_TYPEDEF_CAPACITY)) {
+        return 0;
+    }
+    capacity = CC2_TYPEDEF_CAPACITY;
+    if (eq(capacity, 0)) {
+        capacity = 256;
+    }
+    while (lt(capacity, needed)) {
+        capacity = shl(capacity, 1);
+    }
+    records = alloc(capacity);
+    if (eq(records, 0)) {
+        return 1;
+    }
+    used = shl(CC2_TYPEDEF_COUNT, CC2_TYPEDEF_RECORD_SHIFT);
+    if (not(eq(CC2_TYPEDEFS, 0))) {
+        cc2_copy_bytes(records, CC2_TYPEDEFS, used);
+    }
+    CC2_TYPEDEFS = records;
+    CC2_TYPEDEF_CAPACITY = capacity;
+    return 0;
+}
+
+function cc2_typedef_reserve()
+{
+    return cc2_typedef_reserve_(0, 0, 0, 0);
+}
+
+function cc2_typedef_define(name, length)
+{
+    var record;
+    if (cc2_typedef_reserve()) {
+        return 1;
+    }
+    record = cc2_typedef_record(CC2_TYPEDEF_COUNT);
+    wi32(add(record, CC2_TYPEDEF_NAME_OFFSET), name);
+    wi32(add(record, CC2_TYPEDEF_LENGTH_OFFSET), length);
+    CC2_TYPEDEF_COUNT = add(CC2_TYPEDEF_COUNT, 1);
+    return 0;
+}
+
+function cc2_typedef_lookup_(name, length, index, record)
+{
+    index = CC2_TYPEDEF_COUNT;
+    while (not(eq(index, 0))) {
+        index = sub(index, 1);
+        record = cc2_typedef_record(index);
+        if (eq(ri32(add(record, CC2_TYPEDEF_LENGTH_OFFSET)), length)) {
+            if (cc2_slice_equal(name,
+                ri32(add(record, CC2_TYPEDEF_NAME_OFFSET)), length)) {
+                return record;
+            }
+        }
+    }
+    return 0;
+}
+
+function cc2_typedef_lookup(name, length)
+{
+    return cc2_typedef_lookup_(name, length, 0, 0);
 }
 
 function cc2_token_reserve_(needed, capacity, tokens, used)
@@ -390,6 +466,68 @@ function cc2_lower_enums()
     return cc2_lower_enums_(0, 0, 0, 0, 0, 0);
 }
 
+function cc2_lower_typedefs_(index, token, scan, candidate, record,
+    replacement)
+{
+    index = 0;
+    CC2_TYPEDEF_COUNT = 0;
+    CC2_TOKEN_COUNT = 0;
+    CC2_TOKENS = 0;
+    CC2_TOKEN_CAPACITY = 0;
+    CC2_INPUT_TOKEN_COUNT = cc1_layer_token_count();
+    while (lt(index, CC2_INPUT_TOKEN_COUNT)) {
+        token = cc2_token_at(index);
+        if (cc2_token_is_identifier(token, mks("typedef"))) {
+            scan = add(index, 1);
+            candidate = 0;
+            while (lt(scan, CC2_INPUT_TOKEN_COUNT)) {
+                token = cc2_token_at(scan);
+                if (eq(cc2_token_kind(token), 59)) {
+                    break;
+                }
+                if (eq(cc2_token_kind(token), 2)) {
+                    candidate = token;
+                }
+                scan = add(scan, 1);
+            }
+            if (eq(candidate, 0)) {
+                return 1;
+            }
+            if (not(lt(scan, CC2_INPUT_TOKEN_COUNT))) {
+                return 1;
+            }
+            if (cc2_typedef_define(cc2_token_text(candidate),
+                cc2_token_length(candidate))) {
+                return 1;
+            }
+            index = add(scan, 1);
+        } else {
+            record = 0;
+            if (eq(cc2_token_kind(token), 2)) {
+                record = cc2_typedef_lookup(cc2_token_text(token),
+                    cc2_token_length(token));
+            }
+            if (not(eq(record, 0))) {
+                replacement = cc2_int_token(token);
+                if (eq(replacement, 0)) {
+                    return 1;
+                }
+                token = replacement;
+            }
+            if (cc2_token_append(token)) {
+                return 1;
+            }
+            index = add(index, 1);
+        }
+    }
+    return cc1_layer_replace_tokens(CC2_TOKENS, CC2_TOKEN_COUNT);
+}
+
+function cc2_lower_typedefs()
+{
+    return cc2_lower_typedefs_(0, 0, 0, 0, 0, 0);
+}
+
 function cc2_init()
 {
     CC2_ENUM_RECORD_SHIFT = 4;
@@ -401,6 +539,9 @@ function cc2_init()
     CC2_TOKEN_TEXT_FIELD = 1;
     CC2_TOKEN_LENGTH_FIELD = 2;
     CC2_TOKEN_NUMBER_FIELD = 3;
+    CC2_TYPEDEF_RECORD_SHIFT = 3;
+    CC2_TYPEDEF_NAME_OFFSET = 0;
+    CC2_TYPEDEF_LENGTH_OFFSET = 4;
     return 0;
 }
 
@@ -411,6 +552,9 @@ function cc2_compile(source, length, file)
         return 1;
     }
     if (cc2_lower_enums()) {
+        return cc1_layer_fail(source, length);
+    }
+    if (cc2_lower_typedefs()) {
         return cc1_layer_fail(source, length);
     }
     return cc1_layer_finish(source, length);
