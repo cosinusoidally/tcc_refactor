@@ -644,63 +644,10 @@ void next_nomacro1(void)
         }
         goto keep_tok_flags;
     case '\\':
-        /* first look if it is in fact an end of buffer */
-        c = handle_stray1(p);
-        p = file->buf_ptr;
-        if (c == '\\') {
-            p = (uint8_t *)cc2_lex_operator((int)p, c);
-            goto keep_tok_flags;
-        }
-        if (c != CH_EOF)
+        p = (uint8_t *)cc2_lex_end_of_buffer((int)p);
+        if (cc2_lex_should_restart()) {
             goto redo_no_start;
-        {
-            TCCState *s1 = tcc_state;
-            if ((parse_flags & PARSE_FLAG_LINEFEED)
-                && !(tok_flags & TOK_FLAG_EOF)) {
-                tok_flags |= TOK_FLAG_EOF;
-                tok = TOK_LINEFEED;
-                goto keep_tok_flags;
-            } else if (!(parse_flags & PARSE_FLAG_PREPROCESS)) {
-                tok = TOK_EOF;
-            } else if (s1->ifdef_stack_ptr != file->ifdef_stack_ptr) {
-                tcc_error("missing #endif");
-            } else if (s1->include_stack_ptr == s1->include_stack) {
-                /* no include left : end of file. */
-                tok = TOK_EOF;
-            } else {
-                tok_flags &= ~TOK_FLAG_EOF;
-                /* pop include file */
-                
-                /* test if previous '#endif' was after a #ifdef at
-                   start of file */
-                if (tok_flags & TOK_FLAG_ENDIF) {
-#ifdef INC_DEBUG
-                    printf("#endif %s\n", get_tok_str(file->ifndef_macro_saved, NULL));
-#endif
-                    search_cached_include(s1, file->filename, 1)
-                        ->ifndef_macro = file->ifndef_macro_saved;
-                    tok_flags &= ~TOK_FLAG_ENDIF;
-                }
-
-                /* add end of include file debug info */
-                if (tcc_state->do_debug) {
-                    put_stabd(N_EINCL, 0, 0);
-                }
-                /* pop include stack */
-                tcc_close();
-                s1->include_stack_ptr--;
-                p = file->buf_ptr;
-                if (p == file->buffer)
-                    tok_flags = TOK_FLAG_BOF|TOK_FLAG_BOL;
-                goto redo_no_start;
-            }
         }
-        break;
-
-maybe_newline:
-        if (0 == (parse_flags & PARSE_FLAG_LINEFEED))
-            goto redo_no_start;
-        tok = TOK_LINEFEED;
         goto keep_tok_flags;
 
     case '#':

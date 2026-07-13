@@ -143,6 +143,11 @@ function cc2_tcc_open(state, filename)
     return sub(0, 1);
 }
 
+function cc2_tcc_close()
+{
+    return 0;
+}
+
 function put_extern_sym(symbol, section, offset, size)
 {
     return 0;

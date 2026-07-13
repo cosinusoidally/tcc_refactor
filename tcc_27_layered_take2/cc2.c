@@ -468,6 +468,7 @@ var CC2_BUFFERED_FILE_IFDEF_STACK_POINTER_OFFSET;
 var CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET;
 var CC2_BUFFERED_FILE_IFNDEF_MACRO_SAVED_OFFSET;
 var CC2_TOKEN_FLAG_ENDIF;
+var CC2_TOKEN_FLAG_END_OF_FILE;
 var CC2_TOKEN_LINE_DIRECTIVE;
 var CC2_TOKEN_DEFINE_DIRECTIVE;
 var CC2_TOKEN_UNDEF_DIRECTIVE;
@@ -497,6 +498,7 @@ var CC2_TOKEN_ALLOC_INCREMENT;
 var CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET;
 var CC2_BUFFERED_FILE_FILENAME_CAPACITY;
 var CC2_STABS_INCLUDE_TYPE;
+var CC2_STABS_END_INCLUDE_TYPE;
 var CC2_TOKEN_CHARACTER;
 var CC2_TOKEN_WIDE_CHARACTER;
 var CC2_TOKEN_INTEGER_CONSTANT;
@@ -1529,6 +1531,79 @@ function cc2_lex_unrecognized(character)
 {
     tcc_error(mks("unrecognized character \\x%02x"), character);
     return 0;
+}
+
+function cc2_lex_end_of_buffer_(pointer, character, state, source_file,
+    flags, cached_include, include_pointer)
+{
+    CC2_LEX_RESTART = 0;
+    character = handle_stray1(pointer);
+    source_file = ri32(file_address);
+    pointer = ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET));
+    if (eq(character, mkC("\\"))) {
+        return cc2_lex_operator(pointer, character);
+    }
+    if (not(eq(character, CC2_CHARACTER_END_OF_FILE))) {
+        CC2_LEX_RESTART = 1;
+        return pointer;
+    }
+    flags = ri32(tok_flags_address);
+    if (and(not(eq(and(ri32(parse_flags_address),
+        CC2_PARSE_FLAG_LINE_FEED), 0)),
+        eq(and(flags, CC2_TOKEN_FLAG_END_OF_FILE), 0))) {
+        wi32(tok_flags_address, or(flags, CC2_TOKEN_FLAG_END_OF_FILE));
+        wi32(tok_address, CC2_TOKEN_LINE_FEED);
+        return pointer;
+    }
+    if (eq(and(ri32(parse_flags_address),
+        CC2_PARSE_FLAG_PREPROCESS), 0)) {
+        wi32(tok_address, CC2_CHARACTER_END_OF_FILE);
+        wi32(tok_flags_address, 0);
+        return pointer;
+    }
+    state = tcc_state_address;
+    if (not(eq(ri32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET)),
+        ri32(add(source_file,
+        CC2_BUFFERED_FILE_IFDEF_STACK_POINTER_OFFSET))))) {
+        tcc_error(mks("missing #endif"), 0);
+        return pointer;
+    }
+    include_pointer = ri32(add(state,
+        CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET));
+    if (eq(include_pointer, add(state, CC2_TCC_STATE_INCLUDE_STACK_OFFSET))) {
+        wi32(tok_address, CC2_CHARACTER_END_OF_FILE);
+        wi32(tok_flags_address, 0);
+        return pointer;
+    }
+    flags = and(flags, bnot(CC2_TOKEN_FLAG_END_OF_FILE));
+    if (not(eq(and(flags, CC2_TOKEN_FLAG_ENDIF), 0))) {
+        cached_include = search_cached_include(state, add(source_file,
+            CC2_BUFFERED_FILE_FILENAME_OFFSET), 1);
+        wi32(add(cached_include, CC2_CACHED_INCLUDE_IFNDEF_OFFSET),
+            ri32(add(source_file,
+            CC2_BUFFERED_FILE_IFNDEF_MACRO_SAVED_OFFSET)));
+        flags = and(flags, bnot(CC2_TOKEN_FLAG_ENDIF));
+    }
+    if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
+        cc2_put_stabs(0, CC2_STABS_END_INCLUDE_TYPE, 0, 0, 0);
+    }
+    cc2_tcc_close();
+    wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
+        sub(include_pointer, CC2_I386_WORD_BYTES));
+    source_file = ri32(file_address);
+    pointer = ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET));
+    if (eq(pointer, add(source_file, CC2_BUFFERED_FILE_BUFFER_OFFSET))) {
+        flags = or(CC2_TOKEN_FLAG_BEGINNING_OF_FILE,
+            CC2_TOKEN_FLAG_BEGINNING_OF_LINE);
+    }
+    wi32(tok_flags_address, flags);
+    CC2_LEX_RESTART = 1;
+    return pointer;
+}
+
+function cc2_lex_end_of_buffer(pointer)
+{
+    return cc2_lex_end_of_buffer_(pointer, 0, 0, 0, 0, 0, 0);
 }
 
 function skip_spaces()
@@ -14974,6 +15049,7 @@ function cc2_init_constants()
     CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET = 24;
     CC2_BUFFERED_FILE_IFNDEF_MACRO_SAVED_OFFSET = 28;
     CC2_TOKEN_FLAG_ENDIF = 4;
+    CC2_TOKEN_FLAG_END_OF_FILE = 8;
     CC2_TOKEN_LINE_DIRECTIVE = 325;
     CC2_TOKEN_DEFINE_DIRECTIVE = 314;
     CC2_TOKEN_UNDEF_DIRECTIVE = 322;
@@ -15003,6 +15079,7 @@ function cc2_init_constants()
     CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET = 1064;
     CC2_BUFFERED_FILE_FILENAME_CAPACITY = 1024;
     CC2_STABS_INCLUDE_TYPE = 130;
+    CC2_STABS_END_INCLUDE_TYPE = 162;
     return 0;
 }
 
