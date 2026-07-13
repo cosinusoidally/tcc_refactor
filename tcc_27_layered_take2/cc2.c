@@ -172,6 +172,8 @@ var CC2_TOKEN_INCREMENT;
 var CC2_TOKEN_DECREMENT;
 var CC2_TOKEN_ARROW;
 var CC2_CHARACTER_SPACE_CLASS;
+var CC2_CHARACTER_IDENTIFIER_CLASS;
+var CC2_CHARACTER_NUMBER_CLASS;
 var CC2_LEX_RESTART;
 var CC2_TOKEN_OPERATOR_MASK;
 var CC2_TOKEN_SIGNED_LESS;
@@ -1328,6 +1330,72 @@ function cc2_lex_hash_(pointer, character, source_file, flags)
 function cc2_lex_hash(pointer)
 {
     return cc2_lex_hash_(pointer, 0, 0, 0);
+}
+
+function cc2_lex_identifier_(pointer, start, character_class, symbol)
+{
+    start = pointer;
+    character_class = ri8(add(isidnum_table_address,
+        sub(ri8(pointer), CC2_CHARACTER_END_OF_FILE)));
+    while (not(eq(and(character_class, or(CC2_CHARACTER_IDENTIFIER_CLASS,
+        CC2_CHARACTER_NUMBER_CLASS)), 0))) {
+        pointer = add(pointer, 1);
+        character_class = ri8(add(isidnum_table_address,
+            sub(ri8(pointer), CC2_CHARACTER_END_OF_FILE)));
+    }
+    if (not(eq(ri8(pointer), mkC("\\")))) {
+        symbol = tok_alloc(start, sub(pointer, start));
+    } else {
+        cstr_reset(tokcstr_address);
+        cstr_cat(tokcstr_address, start, sub(pointer, start));
+        pointer = cc2_lex_peek(sub(pointer, 1));
+        character_class = ri8(add(isidnum_table_address,
+            sub(ri8(pointer), CC2_CHARACTER_END_OF_FILE)));
+        while (not(eq(and(character_class,
+            or(CC2_CHARACTER_IDENTIFIER_CLASS,
+            CC2_CHARACTER_NUMBER_CLASS)), 0))) {
+            cstr_ccat(tokcstr_address, ri8(pointer));
+            pointer = cc2_lex_peek(pointer);
+            character_class = ri8(add(isidnum_table_address,
+                sub(ri8(pointer), CC2_CHARACTER_END_OF_FILE)));
+        }
+        symbol = tok_alloc(ri32(add(tokcstr_address,
+            CC2_CSTRING_DATA_OFFSET)), ri32(add(tokcstr_address,
+            CC2_CSTRING_SIZE_OFFSET)));
+    }
+    wi32(tok_address, ri32(add(symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET)));
+    wi32(tok_flags_address, 0);
+    return pointer;
+}
+
+function cc2_lex_identifier(pointer)
+{
+    return cc2_lex_identifier_(pointer, 0, 0, 0);
+}
+
+function cc2_lex_identifier_long_(pointer, character_class, symbol)
+{
+    cstr_reset(tokcstr_address);
+    cstr_ccat(tokcstr_address, mkC("L"));
+    character_class = ri8(add(isidnum_table_address,
+        sub(ri8(pointer), CC2_CHARACTER_END_OF_FILE)));
+    while (not(eq(and(character_class, or(CC2_CHARACTER_IDENTIFIER_CLASS,
+        CC2_CHARACTER_NUMBER_CLASS)), 0))) {
+        cstr_ccat(tokcstr_address, ri8(pointer));
+        pointer = cc2_lex_peek(pointer);
+        character_class = ri8(add(isidnum_table_address,
+            sub(ri8(pointer), CC2_CHARACTER_END_OF_FILE)));
+    }
+    symbol = tok_alloc(ri32(add(tokcstr_address, CC2_CSTRING_DATA_OFFSET)),
+        ri32(add(tokcstr_address, CC2_CSTRING_SIZE_OFFSET)));
+    wi32(tok_address, ri32(add(symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET)));
+    wi32(tok_flags_address, 0);
+    return pointer;
+}
+
+function cc2_lex_identifier_long(pointer)
+{
+    return cc2_lex_identifier_long_(pointer, 0, 0);
 }
 
 function skip_spaces()
@@ -14391,6 +14459,8 @@ function cc2_init_constants()
     CC2_TOKEN_DECREMENT = 162;
     CC2_TOKEN_ARROW = 199;
     CC2_CHARACTER_SPACE_CLASS = 1;
+    CC2_CHARACTER_IDENTIFIER_CLASS = 2;
+    CC2_CHARACTER_NUMBER_CLASS = 4;
     CC2_LEX_RESTART = 0;
     CC2_TOKEN_OPERATOR_MASK = 127;
     CC2_TOKEN_SIGNED_LESS = 156;

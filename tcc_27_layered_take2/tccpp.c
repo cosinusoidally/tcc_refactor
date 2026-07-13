@@ -625,10 +625,8 @@ static void parse_number(const char *p)
 /* return next token without macro substitution */
 void next_nomacro1(void)
 {
-    int t, c, is_long, len;
-    TokenSym *ts;
-    uint8_t *p, *p1;
-    unsigned int h;
+    int t, c, is_long;
+    uint8_t *p;
 
     p = file->buf_ptr;
  redo_no_start:
@@ -713,8 +711,9 @@ maybe_newline:
     /* dollar is allowed to start identifiers when not parsing asm */
     case '$':
         if (!(isidnum_table[c - CH_EOF] & IS_ID)
-         || (parse_flags & PARSE_FLAG_ASM_FILE))
+         || (parse_flags & PARSE_FLAG_ASM_FILE)) {
             goto parse_simple;
+        }
 
     case 'a': case 'b': case 'c': case 'd':
     case 'e': case 'f': case 'g': case 'h':
@@ -731,58 +730,21 @@ maybe_newline:
     case 'U': case 'V': case 'W': case 'X':
     case 'Y': case 'Z': 
     case '_':
-    parse_ident_fast:
-        p1 = p;
-        p = (uint8_t *)cc0_scan_identifier((int)isidnum_table, (int)p1,
-                                           IS_ID | IS_NUM, (int)&h);
-        c = *p;
-        len = p - p1;
-        if (c != '\\') {
-            TokenSym **pts;
-
-            /* fast case : no stray found, so we have the full token
-               and we have already hashed it */
-            pts = &hash_ident[h];
-            for(;;) {
-                ts = *pts;
-                if (!ts)
-                    break;
-                if (ts->len == len && !memcmp(ts->str, p1, len))
-                    goto token_found;
-                pts = &(ts->hash_next);
-            }
-            ts = tok_alloc_new(pts, (char *) p1, len);
-        token_found: ;
-        } else {
-            /* slower case */
-            cstr_reset(&tokcstr);
-            cstr_cat(&tokcstr, (char *) p1, len);
-            p--;
-            PEEKC(c, p);
-        parse_ident_slow:
-            while (isidnum_table[c - CH_EOF] & (IS_ID|IS_NUM))
-            {
-                cstr_ccat(&tokcstr, c);
-                PEEKC(c, p);
-            }
-            ts = tok_alloc(tokcstr.data, tokcstr.size);
-        }
-        tok = ts->tok;
-        break;
+        p = (uint8_t *)cc2_lex_identifier((int)p);
+        goto keep_tok_flags;
     case 'L':
         t = p[1];
         if (t != '\\' && t != '\'' && t != '\"') {
-            /* fast case */
-            goto parse_ident_fast;
+            p = (uint8_t *)cc2_lex_identifier((int)p);
+            goto keep_tok_flags;
         } else {
             PEEKC(c, p);
             if (c == '\'' || c == '\"') {
                 is_long = 1;
                 goto str_const;
             } else {
-                cstr_reset(&tokcstr);
-                cstr_ccat(&tokcstr, 'L');
-                goto parse_ident_slow;
+                p = (uint8_t *)cc2_lex_identifier_long((int)p);
+                goto keep_tok_flags;
             }
         }
         break;
@@ -827,7 +789,8 @@ maybe_newline:
         } else if ((isidnum_table['.' - CH_EOF] & IS_ID)
                    && (isidnum_table[c - CH_EOF] & (IS_ID|IS_NUM))) {
             *--p = c = '.';
-            goto parse_ident_fast;
+            p = (uint8_t *)cc2_lex_identifier((int)p);
+            goto keep_tok_flags;
         } else if (c == '.') {
             PEEKC(c, p);
             if (c == '.') {
@@ -890,10 +853,13 @@ maybe_newline:
         p++;
         break;
     default:
-        if (c >= 0x80 && c <= 0xFF) /* utf8 identifiers */
-	    goto parse_ident_fast;
-        if (parse_flags & PARSE_FLAG_ASM_FILE)
+        if (c >= 0x80 && c <= 0xFF) { /* utf8 identifiers */
+            p = (uint8_t *)cc2_lex_identifier((int)p);
+            goto keep_tok_flags;
+        }
+        if (parse_flags & PARSE_FLAG_ASM_FILE) {
             goto parse_simple;
+        }
         tcc_error("unrecognized character \\x%02x", c);
         break;
     }
