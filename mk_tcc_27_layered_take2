@@ -133,6 +133,20 @@ diff -u -s cc2.o cc2_self.o
 ./cc2.exe cc2_typed_smoke.o -o cc2_typed_smoke.exe
 ./cc2_typed_smoke.exe
 
+# The compiler under compatibility test is a real component link.  tcc_rest.o
+# contains only code not yet compiled through the explicit layer chain.
+./tcc_27_layered_take2 -DTCC_LAYER_OBJECTS \
+    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
+    -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ \
+    -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ -o tcc_rest.o
+./tcc_27_layered_take2 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    cc0.o cc1.o cc2.o tcc_rest.o libtcc1_layered_take2_2.o \
+    "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    -o tcc_layered.exe
+chmod +x tcc_layered.exe
+mv tcc_27_layered_take2 tcc_27_layered_take2_monolithic
+cp tcc_layered.exe tcc_27_layered_take2
+
 # Both front ends expose help and source locations without host-side parsing.
 ./cc0.exe --help >cc0_help.txt
 ./cc1.exe --help >cc1_help.txt

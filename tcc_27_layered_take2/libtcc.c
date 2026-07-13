@@ -38,6 +38,7 @@ static int nb_states;
 
 #if ONE_SOURCE
 #include "prims.c"
+#ifndef TCC_LAYER_OBJECTS
 #undef malloc
 #define function int
 #define var int
@@ -47,13 +48,16 @@ static int nb_states;
 #include "cc1.c"
 #undef var
 #undef function
+#endif
 #define malloc(s) use_tcc_malloc(s)
 #include "tccpp.c"
+#ifndef TCC_LAYER_OBJECTS
 #define function int
 #define var int
 #include "cc2.c"
 #undef var
 #undef function
+#endif
 /* Transitional legacy backend until its typed routines migrate into cc2.c. */
 #include "tccgen.c"
 #include "cc3.c"

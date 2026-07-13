@@ -264,6 +264,7 @@ var CC0_ELF_DATA_SYMBOL_INDEX;
 var CC0_ELF_SYMBOL_LOCAL_SECTION;
 var CC0_ELF_SYMBOL_GLOBAL_OBJECT;
 var CC0_ELF_SYMBOL_GLOBAL_FUNCTION;
+var CC0_ELF_SYMBOL_WEAK_FUNCTION;
 var CC0_ELF_RELOCATION_ABSOLUTE;
 var CC0_ELF_RELOCATION_PC_RELATIVE;
 var CC0_ELF_MALLOC_SYMBOL;
@@ -554,6 +555,7 @@ function cc0_init()
     CC0_ELF_SYMBOL_LOCAL_SECTION = 3;
     CC0_ELF_SYMBOL_GLOBAL_OBJECT = 17;
     CC0_ELF_SYMBOL_GLOBAL_FUNCTION = 18;
+    CC0_ELF_SYMBOL_WEAK_FUNCTION = 34;
     CC0_ELF_RELOCATION_ABSOLUTE = 1;
     CC0_ELF_RELOCATION_PC_RELATIVE = 2;
     CC0_ELF_MALLOC_SYMBOL = 0;
@@ -926,7 +928,7 @@ function cc0_elf_prepare_symbol_indices()
 }
 
 function cc0_elf_emit_function_symbols_(index, entry, next_entry, offset,
-    size, symbol)
+    size, symbol, info)
 {
     index = 0;
     while (lt(index, CC0_FUNCTION_COUNT)) {
@@ -938,11 +940,18 @@ function cc0_elf_emit_function_symbols_(index, entry, next_entry, offset,
                 add(index, 1));
             size = sub(ri32(add(next_entry, CC0_SYMBOL_CODE_OFFSET)), offset);
         }
+        info = CC0_ELF_SYMBOL_GLOBAL_FUNCTION;
+        /* A final layered executable supplies its own strong driver. */
+        if (cc0_compiler_slice_equal(
+            ri32(add(entry, CC0_SYMBOL_NAME_OFFSET)),
+            ri32(add(entry, CC0_SYMBOL_LENGTH_OFFSET)), mks("main"), 4)) {
+            info = CC0_ELF_SYMBOL_WEAK_FUNCTION;
+        }
         symbol = cc0_elf_put_symbol(CC0_ELF_SYMTAB_SECTION,
             CC0_ELF_STRTAB_SECTION,
             ri32(add(entry, CC0_SYMBOL_NAME_OFFSET)),
             ri32(add(entry, CC0_SYMBOL_LENGTH_OFFSET)), offset, size,
-            CC0_ELF_SYMBOL_GLOBAL_FUNCTION, 0,
+            info, 0,
             cc0_elf_section_number(CC0_ELF_TEXT_SECTION));
         if (lt(symbol, 0)) {
             return cc0_compiler_fail();
@@ -956,7 +965,7 @@ function cc0_elf_emit_function_symbols_(index, entry, next_entry, offset,
 
 function cc0_elf_emit_function_symbols()
 {
-    return cc0_elf_emit_function_symbols_(0, 0, 0, 0, 0, 0);
+    return cc0_elf_emit_function_symbols_(0, 0, 0, 0, 0, 0, 0);
 }
 
 function cc0_elf_emit_global_symbols_(index, entry, symbol, offset, section)
