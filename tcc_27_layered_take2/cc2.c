@@ -1170,6 +1170,46 @@ function convert_parameter_type(type)
     return convert_parameter_type_(type, 0);
 }
 
+function sym_to_attr_(attributes, symbol, symbol_attributes,
+    declaration_attributes, symbol_function, declaration_function,
+    aligned, function_call, function_type)
+{
+    symbol_attributes = and(ushr(ri32(add(symbol, 4)), 16), 65535);
+    declaration_attributes = and(ri32(attributes), 65535);
+    aligned = and(symbol_attributes, 31);
+    if (not(eq(aligned, 0))) {
+        if (eq(and(declaration_attributes, 31), 0)) {
+            declaration_attributes = or(declaration_attributes, aligned);
+        }
+    }
+    if (not(eq(and(symbol_attributes, 32), 0))) {
+        declaration_attributes = or(declaration_attributes, 32);
+    }
+    wi32(attributes, or(and(ri32(attributes), bnot(65535)),
+        declaration_attributes));
+    symbol_function = ri32(add(symbol, CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET));
+    declaration_function = ri32(add(attributes, 4));
+    function_call = and(symbol_function, 7);
+    if (not(eq(function_call, 0))) {
+        if (eq(and(declaration_function, 7), 0)) {
+            declaration_function = or(declaration_function, function_call);
+        }
+    }
+    function_type = and(symbol_function, 24);
+    if (not(eq(function_type, 0))) {
+        if (eq(and(declaration_function, 24), 0)) {
+            declaration_function = or(declaration_function, function_type);
+        }
+    }
+    wi32(add(attributes, 4), declaration_function);
+    return 0;
+}
+
+function sym_to_attr(attributes, symbol)
+{
+    return sym_to_attr_(attributes, symbol, 0, 0, 0, 0, 0, 0, 0);
+}
+
 function vpushv_(value, limit)
 {
     limit = vstack_limit;

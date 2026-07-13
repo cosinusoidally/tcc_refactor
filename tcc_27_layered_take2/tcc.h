@@ -1488,6 +1488,7 @@ extern void move_reg(int destination, int source, int type);
 extern void struct_add_offset(Sym *symbol, int offset);
 extern void parse_btype_qualify(CType *type, int qualifiers);
 extern void convert_parameter_type(CType *type);
+extern void sym_to_attr(AttributeDef *attributes, Sym *symbol);
 extern void store(int r, SValue *v);
 ST_FUNC int gfunc_sret(CType *vt, int variadic, CType *ret, int *align, int *regsize);
 ST_FUNC void gfunc_call(int nb_args);

@@ -3121,18 +3121,6 @@ do_decl:
     }
 }
 
-static void sym_to_attr(AttributeDef *ad, Sym *s)
-{
-    if (s->a.aligned && 0 == ad->a.aligned)
-        ad->a.aligned = s->a.aligned;
-    if (s->f.func_call && 0 == ad->f.func_call)
-        ad->f.func_call = s->f.func_call;
-    if (s->f.func_type && 0 == ad->f.func_type)
-        ad->f.func_type = s->f.func_type;
-    if (s->a.packed)
-        ad->a.packed = 1;
-}
-
 /* Add type qualifiers to a type. If the type is an array then the qualifiers
    are added to the element type, copied because it could be a typedef. */
 /* return 0 if no type declaration. otherwise, return the basic type
