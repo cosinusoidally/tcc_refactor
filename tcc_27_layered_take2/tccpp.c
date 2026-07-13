@@ -3131,18 +3131,6 @@ void next(void)
     }
 }
 
-/* push back current token and set current token to 'last_tok'. Only
-   identifier case handled for labels. */
-void unget_tok(int last_tok)
-{
-
-    TokenString *str = tok_str_alloc();
-    tok_str_add2(str, tok, &tokc);
-    tok_str_add(str, 0);
-    begin_macro(str, 1);
-    tok = last_tok;
-}
-
 ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
 {
     CString cstr;

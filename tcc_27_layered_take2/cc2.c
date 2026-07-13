@@ -909,6 +909,18 @@ function end_macro()
     return 0;
 }
 
+/* Push one fully encoded token in front of the current input stream. */
+function unget_tok(last_token)
+{
+    var stream;
+    stream = tok_str_alloc();
+    tok_str_add2(stream, ri32(tok_address), tokc_address);
+    tok_str_add(stream, 0);
+    begin_macro(stream, 1);
+    wi32(tok_address, last_token);
+    return 0;
+}
+
 function dynarray_add(table_pointer, count_pointer, data)
 {
     var count;

@@ -267,11 +267,6 @@ function gen_opif_fold_constant(operation)
     return 0;
 }
 
-function unget_tok(token)
-{
-    return 0;
-}
-
 function tcc_debug_line(state)
 {
     return 0;
