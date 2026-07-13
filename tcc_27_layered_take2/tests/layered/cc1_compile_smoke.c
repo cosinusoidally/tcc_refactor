@@ -9,8 +9,8 @@ int identity(int value)
 #ifdef RESULT
 int main()
 {
-    global_result = identity(RESULT);
-    return global_result;
+    global_result = identity(RESULT + 2);
+    return !(global_result == 2);
 }
 #else
 int main()
