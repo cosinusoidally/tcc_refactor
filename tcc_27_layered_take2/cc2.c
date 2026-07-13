@@ -285,6 +285,20 @@ var CC2_TCC_STATE_NOCOMMON_OFFSET = 12;
 var CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET = 14;
 var CC2_NO_DATA_STATIC = 1073741824;
 var CC2_DATA_STATIC = 2147483648;
+var CC2_TOKEN_ASM_FIRST = 311;
+var CC2_TOKEN_ASM_SECOND = 312;
+var CC2_TOKEN_ASM_THIRD = 313;
+var CC2_TOKEN_USER_IDENTIFIER = 314;
+var CC2_FUNCTION_OLD = 2;
+var CC2_FUNCTION_TYPE_VALUE_MASK = 3;
+var CC2_SYMBOL_FIRST_ANONYMOUS = 268435456;
+var CC2_TCC_TYPEDEF_STORAGE = 16384;
+var CC2_TCC_ENUM_MASK = 3145728;
+var CC2_VALUE_COMPARE = 51;
+var CC2_ASCII_SEMICOLON = 59;
+var CC2_ASCII_OPEN_BRACE = 123;
+var CC2_ELF_SYMBOL_VALUE_OFFSET = 4;
+var CC2_ELF_SYMBOL_SIZE_OFFSET = 8;
 var CC2_CSTRING_SIZE_OFFSET = 0;
 var CC2_CSTRING_DATA_OFFSET = 4;
 var CC2_CSTRING_BYTES = 12;
@@ -346,6 +360,7 @@ var data_section_address;
 var cur_text_section_address;
 var bss_section_address;
 var common_section_address;
+var text_section_address;
 var tcc_state_address;
 var gnu_ext_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
@@ -5473,6 +5488,364 @@ function decl_initializer_alloc(type, attributes, storage, has_initializer,
     free(initializer_holder);
     free(alignment);
     return 0;
+}
+
+/* Drive declarations after cc2 has recognized their shared base type. */
+function decl0(scope, is_for_loop_initializer, function_symbol)
+{
+    var identifier;
+    var has_initializer;
+    var storage;
+    var type;
+    var base_type;
+    var attributes;
+    var symbol;
+    var field;
+    var token;
+    var type_value;
+    var result;
+    var finished;
+    var alias_symbol;
+    var elf_symbol;
+    type = malloc(8);
+    base_type = malloc(8);
+    attributes = malloc(CC2_ATTRIBUTE_BYTES);
+    identifier = malloc(4);
+    result = 0;
+    finished = 0;
+    while (not(finished)) {
+        type_value = 0;
+        if (eq(parse_btype(base_type, attributes), 0)) {
+            if (is_for_loop_initializer) {
+                finished = 1;
+            } else if (and(eq(ri32(tok_address), CC2_ASCII_SEMICOLON),
+                not(eq(scope, CC2_VALUE_COMPARE)))) {
+                next();
+                type_value = sub(0, 1);
+            } else if (not(eq(scope, CC2_VALUE_CONSTANT))) {
+                finished = 1;
+            } else {
+                token = ri32(tok_address);
+                if (or(eq(token, CC2_TOKEN_ASM_FIRST), or(eq(token,
+                    CC2_TOKEN_ASM_SECOND), eq(token,
+                    CC2_TOKEN_ASM_THIRD)))) {
+                    asm_global_instr();
+                    type_value = sub(0, 1);
+                } else if (not(lt(token, CC2_TOKEN_USER_IDENTIFIER))) {
+                    wi32(base_type, CC2_TCC_INT_TYPE);
+                    wi32(add(base_type, 4), 0);
+                } else {
+                    if (not(eq(token, sub(0, 1)))) {
+                        expect(mks("declaration"));
+                    }
+                    finished = 1;
+                }
+            }
+        }
+        if (and(not(finished), not(eq(type_value, sub(0, 1))))) {
+            type_value = ri32(base_type);
+            if (eq(ri32(tok_address), CC2_ASCII_SEMICOLON)) {
+                if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+                    CC2_TCC_STRUCT_TYPE)) {
+                    symbol = ri32(add(base_type, 4));
+                    token = ri32(symbol);
+                    if (and(eq(and(token, CC2_SYMBOL_FIELD_FLAG), 0),
+                        not(lt(and(token, bnot(CC2_SYMBOL_STRUCT_FLAG)),
+                        CC2_SYMBOL_FIRST_ANONYMOUS)))) {
+                        tcc_warning(mks("unnamed struct/union that defines no instances"), 0);
+                    }
+                    next();
+                    type_value = sub(0, 1);
+                } else if (eq(and(type_value, CC2_TCC_ENUM_MASK),
+                    CC2_TCC_ENUM_TYPE)) {
+                    next();
+                    type_value = sub(0, 1);
+                }
+            }
+            if (not(eq(type_value, sub(0, 1)))) {
+                token = 1;
+                while (token) {
+                    cc2_copy_type(type, base_type);
+                    type_value = ri32(type);
+                    if (not(eq(and(type_value,
+                        CC2_TCC_ARRAY_TYPE), 0))) {
+                        symbol = ri32(add(type, 4));
+                        if (lt(ri32(add(symbol,
+                            CC2_SYM_CONSTANT_OFFSET)), 0)) {
+                            field = sym_push(CC2_SYMBOL_FIELD_FLAG,
+                                add(symbol, CC2_SYM_TYPE_OFFSET), 0,
+                                ri32(add(symbol,
+                                CC2_SYM_CONSTANT_OFFSET)));
+                            wi32(add(type, 4), field);
+                        }
+                    }
+                    type_decl(type, attributes, identifier,
+                        CC2_TYPE_DIRECT);
+                    type_value = ri32(type);
+                    if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+                        CC2_TCC_FUNCTION_TYPE)) {
+                        if (and(not(eq(and(type_value,
+                            CC2_TCC_STATIC_STORAGE), 0)),
+                            eq(scope, CC2_VALUE_LOCAL))) {
+                            tcc_error(mks("function without file scope cannot be static"), 0);
+                        }
+                        symbol = ri32(add(type, 4));
+                        if (and(eq(and(ushr(ri32(add(symbol,
+                            CC2_SYM_SCOPE_OFFSET)),
+                            CC2_FUNCTION_TYPE_SHIFT),
+                            CC2_FUNCTION_TYPE_VALUE_MASK),
+                            CC2_FUNCTION_OLD),
+                            eq(scope, CC2_VALUE_CONSTANT))) {
+                            decl0(51, 0, symbol);
+                        }
+                    }
+                    token = ri32(tok_address);
+                    if (and(not(eq(ri32(gnu_ext_address), 0)),
+                        or(eq(token, CC2_TOKEN_ASM_FIRST), or(eq(token,
+                        CC2_TOKEN_ASM_SECOND), eq(token,
+                        CC2_TOKEN_ASM_THIRD))))) {
+                        wi32(add(attributes,
+                            CC2_ATTRIBUTE_ASM_LABEL_OFFSET),
+                            asm_label_instr());
+                        parse_attribute(attributes);
+                        if (eq(ri32(tok_address), CC2_ASCII_OPEN_BRACE)) {
+                            expect(mks(";"));
+                        }
+                    }
+                    if (eq(ri32(tok_address), CC2_ASCII_OPEN_BRACE)) {
+                        if (not(eq(scope, CC2_VALUE_CONSTANT))) {
+                            tcc_error(mks("cannot use local functions"), 0);
+                        }
+                        if (not(eq(and(ri32(type),
+                            CC2_TCC_BASIC_TYPE_MASK),
+                            CC2_TCC_FUNCTION_TYPE))) {
+                            expect(mks("function definition"));
+                        }
+                        symbol = ri32(add(type, 4));
+                        field = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
+                        while (field) {
+                            if (eq(and(ri32(field),
+                                bnot(CC2_SYMBOL_FIELD_FLAG)), 0)) {
+                                expect(mks("identifier"));
+                            }
+                            if (eq(ri32(add(field,
+                                CC2_SYM_TYPE_OFFSET)),
+                                CC2_TCC_VOID_TYPE)) {
+                                cc2_copy_type(add(field,
+                                    CC2_SYM_TYPE_OFFSET),
+                                    int_type_address);
+                            }
+                            field = ri32(add(field, CC2_SYM_NEXT_OFFSET));
+                        }
+                        type_value = ri32(type);
+                        if (eq(and(type_value, or(
+                            CC2_TCC_EXTERN_STORAGE,
+                            CC2_TCC_INLINE_STORAGE)), or(
+                            CC2_TCC_EXTERN_STORAGE,
+                            CC2_TCC_INLINE_STORAGE))) {
+                            type_value = or(and(type_value,
+                                bnot(CC2_TCC_EXTERN_STORAGE)),
+                                CC2_TCC_STATIC_STORAGE);
+                            wi32(type, type_value);
+                        }
+                        symbol = external_global_sym(ri32(identifier),
+                            type, 0);
+                        wi32(type, and(ri32(type),
+                            bnot(CC2_TCC_EXTERN_STORAGE)));
+                        patch_storage(symbol, attributes, type);
+                        type_value = ri32(type);
+                        if (eq(and(type_value, or(
+                            CC2_TCC_INLINE_STORAGE,
+                            CC2_TCC_STATIC_STORAGE)), or(
+                            CC2_TCC_INLINE_STORAGE,
+                            CC2_TCC_STATIC_STORAGE))) {
+                            decl_record_inline(symbol);
+                        } else {
+                            field = ri32(add(attributes,
+                                CC2_ATTRIBUTE_SECTION_OFFSET));
+                            if (eq(field, 0)) {
+                                field = ri32(text_section_address);
+                            }
+                            wi32(cur_text_section_address, field);
+                            gen_function(symbol);
+                        }
+                        token = 0;
+                    } else if (eq(scope, CC2_VALUE_COMPARE)) {
+                        field = 0;
+                        symbol = ri32(add(function_symbol,
+                            CC2_SYM_NEXT_OFFSET));
+                        while (symbol) {
+                            if (eq(and(ri32(symbol),
+                                bnot(CC2_SYMBOL_FIELD_FLAG)),
+                                ri32(identifier))) {
+                                field = symbol;
+                                symbol = 0;
+                            } else {
+                                symbol = ri32(add(symbol,
+                                    CC2_SYM_NEXT_OFFSET));
+                            }
+                        }
+                        symbol = field;
+                        if (eq(symbol, 0)) {
+                            tcc_error(mks("declaration for parameter '%s' but no such parameter"),
+                                get_tok_str(ri32(identifier), 0));
+                        }
+                        if (not(eq(and(ri32(type),
+                            CC2_TCC_STORAGE_MASK), 0))) {
+                            tcc_error(mks("storage class specified for '%s'"),
+                                get_tok_str(ri32(identifier), 0));
+                        }
+                        if (not(eq(ri32(add(symbol,
+                            CC2_SYM_TYPE_OFFSET)), CC2_TCC_VOID_TYPE))) {
+                            tcc_error(mks("redefinition of parameter '%s'"),
+                                get_tok_str(ri32(identifier), 0));
+                        }
+                        convert_parameter_type(type);
+                        cc2_copy_type(add(symbol, CC2_SYM_TYPE_OFFSET),
+                            type);
+                    } else if (not(eq(and(ri32(type),
+                        CC2_TCC_TYPEDEF_STORAGE), 0))) {
+                        symbol = sym_find(ri32(identifier));
+                        field = 0;
+                        if (symbol) {
+                            if (eq(ri32(add(symbol,
+                                CC2_SYM_SCOPE_OFFSET)), local_scope)) {
+                                field = 1;
+                            }
+                        }
+                        if (field) {
+                            if (or(eq(is_compatible_types(add(symbol,
+                                CC2_SYM_TYPE_OFFSET), type), 0),
+                                eq(and(ri32(add(symbol,
+                                CC2_SYM_TYPE_OFFSET)),
+                                CC2_TCC_TYPEDEF_STORAGE), 0))) {
+                                tcc_error(mks("incompatible redefinition of '%s'"),
+                                    get_tok_str(ri32(identifier), 0));
+                            }
+                            cc2_copy_type(add(symbol,
+                                CC2_SYM_TYPE_OFFSET), type);
+                        } else {
+                            symbol = sym_push(ri32(identifier), type,
+                                0, 0);
+                        }
+                        cc2_copy_bytes(add(symbol,
+                            CC2_SYM_ATTRIBUTES_OFFSET), attributes,
+                            CC2_SYM_ATTRIBUTES_BYTES);
+                        wi32(add(symbol, CC2_SYM_SCOPE_OFFSET),
+                            ri32(add(attributes, 4)));
+                    } else {
+                        storage = 0;
+                        type_value = ri32(type);
+                        if (eq(and(type_value,
+                            CC2_TCC_BASIC_TYPE_MASK),
+                            CC2_TCC_FUNCTION_TYPE)) {
+                            field = ri32(add(type, 4));
+                            wi32(add(field, CC2_SYM_SCOPE_OFFSET),
+                                ri32(add(attributes, 4)));
+                        } else if (eq(and(type_value,
+                            CC2_TCC_ARRAY_TYPE), 0)) {
+                            storage = or(storage,
+                                lvalue_type(type_value));
+                        }
+                        has_initializer = eq(ri32(tok_address),
+                            CC2_ASCII_ASSIGN);
+                        if (and(has_initializer, not(eq(and(type_value,
+                            CC2_TCC_VLA_TYPE), 0)))) {
+                            tcc_error(mks("variable length array cannot be initialized"), 0);
+                        }
+                        field = 0;
+                        if (not(eq(and(type_value,
+                            CC2_TCC_EXTERN_STORAGE), 0))) {
+                            if (or(not(has_initializer), not(eq(scope,
+                                CC2_VALUE_CONSTANT)))) {
+                                field = 1;
+                            }
+                        }
+                        if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+                            CC2_TCC_FUNCTION_TYPE)) {
+                            field = 1;
+                        }
+                        if (not(eq(and(type_value,
+                            CC2_TCC_ARRAY_TYPE), 0))) {
+                            if (not(eq(and(type_value,
+                                CC2_TCC_STATIC_STORAGE), 0))) {
+                                if (not(has_initializer)) {
+                                    if (eq(scope, CC2_VALUE_CONSTANT)) {
+                                        symbol = ri32(add(type, 4));
+                                        if (lt(ri32(add(symbol,
+                                            CC2_SYM_CONSTANT_OFFSET)), 0)) {
+                                            field = 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (field) {
+                            wi32(type, or(type_value,
+                                CC2_TCC_EXTERN_STORAGE));
+                            symbol = external_sym(ri32(identifier), type,
+                                storage, attributes);
+                            field = ri32(add(attributes,
+                                CC2_ATTRIBUTE_ALIAS_OFFSET));
+                            if (field) {
+                                alias_symbol = sym_find(field);
+                                elf_symbol = elfsym(alias_symbol);
+                                if (eq(elf_symbol, 0)) {
+                                    tcc_error(mks("unsupported forward __alias__ attribute"), 0);
+                                }
+                                wi32(add(symbol, CC2_SYM_SCOPE_OFFSET), 0);
+                                put_extern_sym2(symbol, or(ri8(add(elf_symbol,
+                                    14)), shl(ri8(add(elf_symbol, 15)), 8)),
+                                    ri32(add(elf_symbol,
+                                    CC2_ELF_SYMBOL_VALUE_OFFSET)),
+                                    ri32(add(elf_symbol,
+                                    CC2_ELF_SYMBOL_SIZE_OFFSET)), 0);
+                            }
+                        } else {
+                            if (not(eq(and(type_value,
+                                CC2_TCC_STATIC_STORAGE), 0))) {
+                                storage = or(storage,
+                                    CC2_VALUE_CONSTANT);
+                            } else {
+                                storage = or(storage, scope);
+                            }
+                            if (has_initializer) {
+                                next();
+                            } else if (eq(scope,
+                                CC2_VALUE_CONSTANT)) {
+                                wi32(type, or(type_value,
+                                    CC2_TCC_EXTERN_STORAGE));
+                            }
+                            decl_initializer_alloc(type, attributes,
+                                storage, has_initializer,
+                                ri32(identifier), scope);
+                        }
+                    }
+                    if (token) {
+                        if (not(eq(ri32(tok_address),
+                            CC2_ASCII_COMMA))) {
+                            if (is_for_loop_initializer) {
+                                result = 1;
+                                finished = 1;
+                            } else {
+                                skip(CC2_ASCII_SEMICOLON);
+                            }
+                            token = 0;
+                        } else {
+                            next();
+                        }
+                    }
+                    wi32(attributes, and(ri32(attributes),
+                        bnot(CC2_ATTRIBUTE_ALIGNED_MASK)));
+                }
+            }
+        }
+    }
+    free(identifier);
+    free(attributes);
+    free(base_type);
+    free(type);
+    return result;
 }
 
 function block_return()

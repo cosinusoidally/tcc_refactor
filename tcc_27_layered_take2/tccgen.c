@@ -268,7 +268,7 @@ ElfSym *elfsym(Sym *s)
 /* update sym->c so that it points to an external symbol in section
    'section' with value 'value' */
 
-ST_FUNC void put_extern_sym2(Sym *sym, int sh_num,
+void put_extern_sym2(Sym *sym, int sh_num,
                             addr_t value, unsigned long size,
                             int can_add_underscore)
 {
@@ -1321,243 +1321,18 @@ ST_FUNC void free_inline_functions(TCCState *s)
     dynarray_reset(&s->inline_fns, &s->nb_inline_fns);
 }
 
-/* 'l' is VT_LOCAL or VT_CONST to define default storage type, or VT_CMP
-   if parsing old style parameter decl list (and FUNC_SYM is set then) */
-int decl0(int l, int is_for_loop_init, Sym *func_sym)
+/* Allocate TCC's variable-sized inline record and capture its body. */
+void decl_record_inline(Sym *sym)
 {
-    int v, has_init, r;
-    CType type, btype;
-    Sym *sym;
-    AttributeDef ad;
+    struct InlineFunc *fn;
+    const char *filename = file ? file->filename : "";
 
-    while (1) {
-        if (!parse_btype(&btype, &ad)) {
-            if (is_for_loop_init)
-                return 0;
-            /* skip redundant ';' if not in old parameter decl scope */
-            if (tok == ';' && l != VT_CMP) {
-                next();
-                continue;
-            }
-            if (l != VT_CONST)
-                break;
-            if (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3) {
-                /* global asm block */
-                asm_global_instr();
-                continue;
-            }
-            if (tok >= TOK_UIDENT) {
-               /* special test for old K&R protos without explicit int
-                  type. Only accepted when defining global data */
-                btype.t = VT_INT;
-            } else {
-                if (tok != TOK_EOF)
-                    expect("declaration");
-                break;
-            }
-        }
-        if (tok == ';') {
-	    if ((btype.t & VT_BTYPE) == VT_STRUCT) {
-		int v = btype.ref->v;
-		if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) >= SYM_FIRST_ANOM)
-        	    tcc_warning("unnamed struct/union that defines no instances");
-                next();
-                continue;
-	    }
-            if (IS_ENUM(btype.t)) {
-                next();
-                continue;
-            }
-        }
-        while (1) { /* iterate thru each declaration */
-            type = btype;
-	    /* If the base type itself was an array type of unspecified
-	       size (like in 'typedef int arr[]; arr x = {1};') then
-	       we will overwrite the unknown size by the real one for
-	       this decl.  We need to unshare the ref symbol holding
-	       that size.  */
-	    if ((type.t & VT_ARRAY) && type.ref->c < 0) {
-		type.ref = sym_push(SYM_FIELD, &type.ref->type, 0, type.ref->c);
-	    }
-            type_decl(&type, &ad, &v, TYPE_DIRECT);
-#if 0
-            {
-                char buf[500];
-                type_to_str(buf, sizeof(buf), &type, get_tok_str(v, NULL));
-                printf("type = '%s'\n", buf);
-            }
-#endif
-            if ((type.t & VT_BTYPE) == VT_FUNC) {
-                if ((type.t & VT_STATIC) && (l == VT_LOCAL)) {
-                    tcc_error("function without file scope cannot be static");
-                }
-                /* if old style function prototype, we accept a
-                   declaration list */
-                sym = type.ref;
-                if (sym->f.func_type == FUNC_OLD && l == VT_CONST)
-                    decl0(VT_CMP, 0, sym);
-            }
-
-            if (gnu_ext && (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3)) {
-                ad.asm_label = asm_label_instr();
-                /* parse one last attribute list, after asm label */
-                parse_attribute(&ad);
-                if (tok == '{')
-                    expect(";");
-            }
-
-#ifdef TCC_TARGET_PE
-            if (ad.a.dllimport || ad.a.dllexport) {
-                if (type.t & (VT_STATIC|VT_TYPEDEF))
-                    tcc_error("cannot have dll linkage with static or typedef");
-                if (ad.a.dllimport) {
-                    if ((type.t & VT_BTYPE) == VT_FUNC)
-                        ad.a.dllimport = 0;
-                    else
-                        type.t |= VT_EXTERN;
-                }
-            }
-#endif
-            if (tok == '{') {
-                if (l != VT_CONST)
-                    tcc_error("cannot use local functions");
-                if ((type.t & VT_BTYPE) != VT_FUNC)
-                    expect("function definition");
-
-                /* reject abstract declarators in function definition
-		   make old style params without decl have int type */
-                sym = type.ref;
-                while ((sym = sym->next) != NULL) {
-                    if (!(sym->v & ~SYM_FIELD))
-                        expect("identifier");
-		    if (sym->type.t == VT_VOID)
-		        sym->type = int_type;
-		}
-                
-                /* XXX: cannot do better now: convert extern line to static inline */
-                if ((type.t & (VT_EXTERN | VT_INLINE)) == (VT_EXTERN | VT_INLINE))
-                    type.t = (type.t & ~VT_EXTERN) | VT_STATIC;
-
-                /* put function symbol */
-                sym = external_global_sym(v, &type, 0);
-                type.t &= ~VT_EXTERN;
-                patch_storage(sym, &ad, &type);
-
-                /* static inline functions are just recorded as a kind
-                   of macro. Their code will be emitted at the end of
-                   the compilation unit only if they are used */
-                if ((type.t & (VT_INLINE | VT_STATIC)) == 
-                    (VT_INLINE | VT_STATIC)) {
-                    struct InlineFunc *fn;
-                    const char *filename;
-                           
-                    filename = file ? file->filename : "";
-                    fn = tcc_malloc(sizeof *fn + strlen(filename));
-                    strcpy(fn->filename, filename);
-                    fn->sym = sym;
-		    skip_or_save_block(&fn->func_str);
-                    dynarray_add(&tcc_state->inline_fns,
-				 &tcc_state->nb_inline_fns, fn);
-                } else {
-                    /* compute text section */
-                    cur_text_section = ad.section;
-                    if (!cur_text_section)
-                        cur_text_section = text_section;
-                    gen_function(sym);
-                }
-                break;
-            } else {
-		if (l == VT_CMP) {
-		    /* find parameter in function parameter list */
-		    for (sym = func_sym->next; sym; sym = sym->next)
-			if ((sym->v & ~SYM_FIELD) == v)
-			    goto found;
-		    tcc_error("declaration for parameter '%s' but no such parameter",
-			      get_tok_str(v, NULL));
-found:
-		    if (type.t & VT_STORAGE) /* 'register' is okay */
-		        tcc_error("storage class specified for '%s'",
-				  get_tok_str(v, NULL));
-		    if (sym->type.t != VT_VOID)
-		        tcc_error("redefinition of parameter '%s'",
-				  get_tok_str(v, NULL));
-		    convert_parameter_type(&type);
-		    sym->type = type;
-		} else if (type.t & VT_TYPEDEF) {
-                    /* save typedefed type  */
-                    /* XXX: test storage specifiers ? */
-                    sym = sym_find(v);
-                    if (sym && sym->sym_scope == local_scope) {
-                        if (!is_compatible_types(&sym->type, &type)
-                            || !(sym->type.t & VT_TYPEDEF))
-                            tcc_error("incompatible redefinition of '%s'",
-                                get_tok_str(v, NULL));
-                        sym->type = type;
-                    } else {
-                        sym = sym_push(v, &type, 0, 0);
-                    }
-                    sym->a = ad.a;
-                    sym->f = ad.f;
-                } else {
-                    r = 0;
-                    if ((type.t & VT_BTYPE) == VT_FUNC) {
-                        /* external function definition */
-                        /* specific case for func_call attribute */
-                        type.ref->f = ad.f;
-                    } else if (!(type.t & VT_ARRAY)) {
-                        /* not lvalue if array */
-                        r |= lvalue_type(type.t);
-                    }
-                    has_init = (tok == '=');
-                    if (has_init && (type.t & VT_VLA))
-                        tcc_error("variable length array cannot be initialized");
-                    if (((type.t & VT_EXTERN) && (!has_init || l != VT_CONST)) ||
-			((type.t & VT_BTYPE) == VT_FUNC) ||
-                        ((type.t & VT_ARRAY) && (type.t & VT_STATIC) &&
-                         !has_init && l == VT_CONST && type.ref->c < 0)) {
-                        /* external variable or function */
-                        /* NOTE: as GCC, uninitialized global static
-                           arrays of null size are considered as
-                           extern */
-                        type.t |= VT_EXTERN;
-                        sym = external_sym(v, &type, r, &ad);
-                        if (ad.alias_target) {
-                            ElfSym *esym;
-                            Sym *alias_target;
-                            alias_target = sym_find(ad.alias_target);
-                            esym = elfsym(alias_target);
-                            if (!esym)
-                                tcc_error("unsupported forward __alias__ attribute");
-                            /* Local statics have a scope until now (for
-                               warnings), remove it here.  */
-                            sym->sym_scope = 0;
-                            put_extern_sym2(sym, esym->st_shndx, esym->st_value, esym->st_size, 0);
-                        }
-                    } else {
-                        if (type.t & VT_STATIC)
-                            r |= VT_CONST;
-                        else
-                            r |= l;
-                        if (has_init)
-                            next();
-                        else if (l == VT_CONST)
-                            /* uninitialized global variables may be overridden */
-                            type.t |= VT_EXTERN;
-                        decl_initializer_alloc(&type, &ad, r, has_init, v, l);
-                    }
-                }
-                if (tok != ',') {
-                    if (is_for_loop_init)
-                        return 1;
-                    skip(';');
-                    break;
-                }
-                next();
-            }
-            ad.a.aligned = 0;
-        }
-    }
-    return 0;
+    fn = tcc_malloc(sizeof *fn + strlen(filename));
+    strcpy(fn->filename, filename);
+    fn->sym = sym;
+    skip_or_save_block(&fn->func_str);
+    dynarray_add(&tcc_state->inline_fns, &tcc_state->nb_inline_fns, fn);
 }
 
-/* ------------------------------------------------------------------------- */
+/* 'l' is VT_LOCAL or VT_CONST to define default storage type, or VT_CMP
+   if parsing old style parameter decl list (and FUNC_SYM is set then) */

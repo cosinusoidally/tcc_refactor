@@ -1278,6 +1278,7 @@ extern Section **data_section_address;
 extern Section **cur_text_section_address;
 extern Section **bss_section_address;
 extern Section **common_section_address;
+extern Section **text_section_address;
 extern TCCState *tcc_state_address;
 extern CValue *tokc_address;
 extern SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE];
@@ -1393,6 +1394,7 @@ void struct_decl_fields(CType *type, int structure_kind, Sym *symbol,
                         AttributeDef *attributes);
 void struct_decl(CType *type, int structure_kind);
 extern int lvalue_type(int t);
+void decl_record_inline(Sym *sym);
 extern void indir(void);
 extern void lexpand(void);
 extern void lbuild(int type);
@@ -1471,7 +1473,7 @@ ST_FUNC void section_reserve(Section *sec, unsigned long size);
 Section *find_section(TCCState *s1, const char *name);
 ST_FUNC Section *new_symtab(TCCState *s1, const char *symtab_name, int sh_type, int sh_flags, const char *strtab_name, const char *hash_name, int hash_sh_flags);
 
-ST_FUNC void put_extern_sym2(Sym *sym, int sh_num, addr_t value, unsigned long size, int can_add_underscore);
+void put_extern_sym2(Sym *sym, int sh_num, addr_t value, unsigned long size, int can_add_underscore);
 extern void put_extern_sym(Sym *sym, Section *section, addr_t value, unsigned long size);
 #if PTR_SIZE == 4
 ST_FUNC void greloc(Section *s, Sym *sym, unsigned long offset, int type);
@@ -1662,7 +1664,7 @@ ST_FUNC int tcc_load_coff(TCCState * s1, int fd);
 
 /* ------------ tccasm.c ------------ */
 void asm_instr(void);
-ST_FUNC void asm_global_instr(void);
+void asm_global_instr(void);
 #ifdef CONFIG_TCC_ASM
 ST_FUNC int find_constraint(ASMOperand *operands, int nb_operands, const char *name, const char **pp);
 ST_FUNC Sym* get_asm_sym(int name, Sym *csym);

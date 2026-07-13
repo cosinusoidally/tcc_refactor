@@ -1242,7 +1242,7 @@ void asm_instr(void)
     cstr_free(&astr1);
 }
 
-ST_FUNC void asm_global_instr(void)
+void asm_global_instr(void)
 {
     CString astr;
     int saved_nocode_wanted = nocode_wanted;

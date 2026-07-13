@@ -4,6 +4,21 @@ function gen_vla_sp_restore(address)
     return 0;
 }
 
+function asm_global_instr()
+{
+    return 0;
+}
+
+function decl_record_inline(symbol)
+{
+    return 0;
+}
+
+function put_extern_sym2(symbol, section_index, value, size, add_underscore)
+{
+    return 0;
+}
+
 function neg_zero(basic_type)
 {
     return 0;
