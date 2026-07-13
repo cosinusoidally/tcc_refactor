@@ -117,6 +117,7 @@ var CC1_EXPRESSION_BIT_OR_KIND;
 var CC1_EXPRESSION_COMPLEMENT_KIND;
 var CC1_EXPRESSION_DEREFERENCE_KIND;
 var CC1_EXPRESSION_ADDRESS_KIND;
+var CC1_EXPRESSION_ASSIGN_KIND;
 var CC1_EXPRESSIONS;
 var CC1_EXPRESSION_CAPACITY;
 var CC1_EXPRESSION_COUNT;
@@ -1417,6 +1418,7 @@ function cc1_expression_init()
     CC1_EXPRESSION_COMPLEMENT_KIND = 19;
     CC1_EXPRESSION_DEREFERENCE_KIND = 20;
     CC1_EXPRESSION_ADDRESS_KIND = 21;
+    CC1_EXPRESSION_ASSIGN_KIND = 22;
     CC1_EXPRESSION_COUNT = 0;
     CC1_EXPRESSION_ERROR = 0;
     return 0;
@@ -1447,7 +1449,7 @@ function cc1_expression_accept(kind)
 
 function cc1_expression_parse_equality()
 {
-    return cc1_expression_parse_bit_or();
+    return cc1_expression_parse_assignment();
 }
 
 function cc1_expression_parse_primary_(token, kind, expression, first,
@@ -1782,6 +1784,27 @@ function cc1_expression_parse_bit_or()
     return cc1_expression_parse_bit_or_(0, 0, 0);
 }
 
+function cc1_expression_parse_assignment_(left, token, right)
+{
+    left = cc1_expression_parse_bit_or();
+    if (eq(cc1_expression_token_kind(), 61)) {
+        token = cc1_preprocessed_consume();
+        if (eq(cc1_expression_token_kind(), 61)) {
+            CC1_PREPROCESSED_CURSOR = sub(CC1_PREPROCESSED_CURSOR, 1);
+            return left;
+        }
+        right = cc1_expression_parse_assignment();
+        return cc1_expression_new(CC1_EXPRESSION_ASSIGN_KIND, token,
+            left, right);
+    }
+    return left;
+}
+
+function cc1_expression_parse_assignment()
+{
+    return cc1_expression_parse_assignment_(0, 0, 0);
+}
+
 function cc1_expression_emit_token_(token, kind, text, length, origin)
 {
     kind = ri32(add(token, CC1_TOKEN_KIND_OFFSET));
@@ -1848,6 +1871,51 @@ function cc1_expression_emit_binary(expression, name)
     return cc1_expression_emit_binary_(expression, name, 0, 0, 0, 0);
 }
 
+function cc1_expression_emit_assignment_(expression, left, right, kind,
+    token, origin)
+{
+    left = ri32(add(expression, CC1_EXPRESSION_LEFT_OFFSET));
+    right = ri32(add(expression, CC1_EXPRESSION_RIGHT_OFFSET));
+    kind = ri32(add(left, CC1_EXPRESSION_KIND_OFFSET));
+    token = ri32(add(expression, CC1_EXPRESSION_TOKEN_OFFSET));
+    origin = ri32(add(token, CC1_TOKEN_SOURCE_OFFSET));
+    if (eq(kind, CC1_EXPRESSION_ATOM_KIND)) {
+        if (cc1_expression_emit_token(ri32(add(left,
+            CC1_EXPRESSION_TOKEN_OFFSET)))) {
+            return 1;
+        }
+        if (cc1_normalized_byte(61, origin)) {
+            return 1;
+        }
+        return cc1_expression_emit(right);
+    }
+    if (not(eq(kind, CC1_EXPRESSION_DEREFERENCE_KIND))) {
+        return 1;
+    }
+    if (cc1_expression_emit_name(mks("wi32"), token)) {
+        return 1;
+    }
+    if (cc1_normalized_byte(40, origin)) {
+        return 1;
+    }
+    if (cc1_expression_emit(ri32(add(left,
+        CC1_EXPRESSION_LEFT_OFFSET)))) {
+        return 1;
+    }
+    if (cc1_normalized_byte(44, origin)) {
+        return 1;
+    }
+    if (cc1_expression_emit(right)) {
+        return 1;
+    }
+    return cc1_normalized_byte(41, origin);
+}
+
+function cc1_expression_emit_assignment(expression)
+{
+    return cc1_expression_emit_assignment_(expression, 0, 0, 0, 0, 0);
+}
+
 function cc1_expression_emit_(expression, kind, token, argument, origin)
 {
     if (eq(expression, 0)) {
@@ -1880,6 +1948,9 @@ function cc1_expression_emit_(expression, kind, token, argument, origin)
             }
         }
         return cc1_normalized_byte(41, origin);
+    }
+    if (eq(kind, CC1_EXPRESSION_ASSIGN_KIND)) {
+        return cc1_expression_emit_assignment(expression);
     }
     if (eq(kind, CC1_EXPRESSION_ADD_KIND)) {
         return cc1_expression_emit_binary(expression, mks("add"));
@@ -2070,7 +2141,23 @@ function cc1_normalize_tokens_(index, token, kind, text, length, origin,
             }
             index = sub(CC1_PREPROCESSED_CURSOR, 1);
             skip = 1;
+        } else if (eq(kind, 42)) {
+            if (not(declaration)) {
+                CC1_PREPROCESSED_CURSOR = index;
+                expression = cc1_expression_parse_equality();
+                if (CC1_EXPRESSION_ERROR) {
+                    return 1;
+                }
+                if (cc1_expression_emit(expression)) {
+                    return 1;
+                }
+                index = sub(CC1_PREPROCESSED_CURSOR, 1);
+                skip = 1;
+            }
         } else if (eq(kind, 2)) {
+            if (declaration) {
+                declaration = 0;
+            }
             if (lt(add(index, 1), CC1_PREPROCESSED_COUNT)) {
                 next_token = ri32(add(CC1_PREPROCESSED_TOKENS,
                     shl(add(index, 1), 2)));
