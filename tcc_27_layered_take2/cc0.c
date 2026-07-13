@@ -89,6 +89,8 @@ var CC0_PUNCTUATION_RIGHT_BRACE;
 var CC0_PUNCTUATION_SEMICOLON;
 var CC0_PUNCTUATION_COMMA;
 var CC0_PUNCTUATION_ASSIGN;
+var CC0_PUNCTUATION_LEFT_BRACKET;
+var CC0_PUNCTUATION_RIGHT_BRACKET;
 var CC0_SYMBOL_ENTRY_ADDRESS_SHIFT;
 var CC0_INITIAL_ALLOCATION_BYTES;
 var CC0_GLOBAL_SYMBOL_CAPACITY;
@@ -380,6 +382,8 @@ function cc0_init()
     CC0_PUNCTUATION_SEMICOLON = 59;
     CC0_PUNCTUATION_COMMA = 44;
     CC0_PUNCTUATION_ASSIGN = 61;
+    CC0_PUNCTUATION_LEFT_BRACKET = 91;
+    CC0_PUNCTUATION_RIGHT_BRACKET = 93;
     CC0_SYMBOL_ENTRY_ADDRESS_SHIFT = 4;
     CC0_INITIAL_ALLOCATION_BYTES = 256;
     CC0_GLOBAL_SYMBOL_CAPACITY = 0;
@@ -968,23 +972,26 @@ function cc0_elf_emit_function_symbols()
     return cc0_elf_emit_function_symbols_(0, 0, 0, 0, 0, 0, 0);
 }
 
-function cc0_elf_emit_global_symbols_(index, entry, symbol, offset, section)
+function cc0_elf_emit_global_symbols_(index, entry, symbol, offset, section,
+    size)
 {
     index = 0;
     while (lt(index, CC0_GLOBAL_COUNT)) {
         entry = cc0_compiler_symbol_entry(CC0_GLOBAL_SYMBOLS, index);
         offset = ri32(add(entry, CC0_SYMBOL_CODE_OFFSET));
         section = CC0_ELF_DATA_SECTION;
+        size = CC0_WORD_BYTES;
         if (lt(offset, 0)) {
             /* Negative offsets encode -(bss offset + 1). */
             offset = sub(sub(0, offset), 1);
             section = CC0_ELF_BSS_SECTION;
+            size = ri32(add(entry, CC0_SYMBOL_VALUE_OFFSET));
         }
         symbol = cc0_elf_put_symbol(CC0_ELF_SYMTAB_SECTION,
             CC0_ELF_STRTAB_SECTION,
             ri32(add(entry, CC0_SYMBOL_NAME_OFFSET)),
             ri32(add(entry, CC0_SYMBOL_LENGTH_OFFSET)), offset,
-            CC0_WORD_BYTES, CC0_ELF_SYMBOL_GLOBAL_OBJECT, 0,
+            size, CC0_ELF_SYMBOL_GLOBAL_OBJECT, 0,
             cc0_elf_section_number(section));
         if (lt(symbol, 0)) {
             return cc0_compiler_fail();
@@ -998,7 +1005,7 @@ function cc0_elf_emit_global_symbols_(index, entry, symbol, offset, section)
 
 function cc0_elf_emit_global_symbols()
 {
-    return cc0_elf_emit_global_symbols_(0, 0, 0, 0, 0);
+    return cc0_elf_emit_global_symbols_(0, 0, 0, 0, 0, 0);
 }
 
 /* Assign storage after strings have been emitted, so their offsets stay stable. */
@@ -1020,7 +1027,8 @@ function cc0_elf_layout_globals_(index, entry, offset, bss_bytes)
         } else {
             wi32(add(entry, CC0_SYMBOL_CODE_OFFSET),
                 sub(0, add(bss_bytes, 1)));
-            bss_bytes = add(bss_bytes, CC0_WORD_BYTES);
+            bss_bytes = add(bss_bytes,
+                ri32(add(entry, CC0_SYMBOL_VALUE_OFFSET)));
         }
         index = add(index, 1);
     }
@@ -4332,7 +4340,7 @@ function cc0_compiler_parse_function()
     return cc0_compiler_parse_function_(0);
 }
 
-function cc0_compiler_parse_global_(global_index, entry)
+function cc0_compiler_parse_global_(global_index, entry, size)
 {
     cc0_compiler_next_token();
     if (not(eq(CC0_TOKEN, CC0_TOKEN_IDENTIFIER))) {
@@ -4351,13 +4359,29 @@ function cc0_compiler_parse_global_(global_index, entry)
             return CC0_TRUE;
         }
         cc0_compiler_add_symbol(CC0_GLOBAL_SYMBOLS, CC0_GLOBAL_COUNT,
-            CC0_TOKEN_START, CC0_TOKEN_LENGTH, 0);
+            CC0_TOKEN_START, CC0_TOKEN_LENGTH, CC0_WORD_BYTES);
         global_index = CC0_GLOBAL_COUNT;
         CC0_GLOBAL_COUNT = add(CC0_GLOBAL_COUNT, 1);
     } else if (lt(global_index, 0)) {
         return cc0_compiler_fail();
     }
     cc0_compiler_next_token();
+    if (eq(CC0_TOKEN, CC0_PUNCTUATION_LEFT_BRACKET)) {
+        cc0_compiler_next_token();
+        if (not(eq(CC0_TOKEN, CC0_TOKEN_NUMBER_LITERAL))) {
+            return cc0_compiler_fail();
+        }
+        size = mul(CC0_TOKEN_NUMBER, CC0_WORD_BYTES);
+        if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_COLLECT)) {
+            entry = cc0_compiler_symbol_entry(CC0_GLOBAL_SYMBOLS,
+                global_index);
+            wi32(add(entry, CC0_SYMBOL_VALUE_OFFSET), size);
+        }
+        cc0_compiler_next_token();
+        if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_BRACKET)) {
+            return CC0_TRUE;
+        }
+    }
     if (eq(CC0_TOKEN, CC0_PUNCTUATION_ASSIGN)) {
         cc0_compiler_next_token();
         if (not(eq(CC0_TOKEN, CC0_TOKEN_NUMBER_LITERAL))) {
@@ -4377,7 +4401,7 @@ function cc0_compiler_parse_global_(global_index, entry)
 
 function cc0_compiler_parse_global()
 {
-    return cc0_compiler_parse_global_(0, 0);
+    return cc0_compiler_parse_global_(0, 0, 0);
 }
 
 function cc0_compiler_parse_program_(source, length, phase)

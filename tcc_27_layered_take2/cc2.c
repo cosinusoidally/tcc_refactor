@@ -42,7 +42,7 @@ var CC2_TCC_QUAD_FLOAT_TYPE = 14;
 var CC2_I386_FLOAT_RETURN_CLASS = 8;
 var CC2_I386_FLOAT_RETURN_REGISTER = 4;
 
-/* Scalar production frontend state; structured state remains in tcc_rest.o. */
+/* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
 var rsym;
 var anon_sym;
@@ -75,6 +75,14 @@ var vtop;
 var pvtop;
 var funcname;
 var cur_switch;
+/* CType is two i386 words. */
+var char_pointer_type[2];
+var func_old_type[2];
+var int_type[2];
+var size_type[2];
+var ptrdiff_type[2];
+/* TCC's 257-entry value stack, with seven i386 words per SValue. */
+var __vstack[1799];
 
 function cc2_copy_bytes_(destination, source, length, index)
 {
@@ -827,9 +835,11 @@ function cc2_emit_array_access(name_token, record, index)
     return cc2_emit_array_access_(name_token, record, index, 0, 0, 0, 0);
 }
 
-function cc2_lower_arrays_(index, token, next, after, record, end)
+function cc2_lower_arrays_(index, token, next, after, record, end,
+    brace_depth)
 {
     index = 0;
+    brace_depth = 0;
     CC2_ARRAY_COUNT = 0;
     CC2_TOKEN_COUNT = 0;
     CC2_TOKENS = 0;
@@ -837,6 +847,11 @@ function cc2_lower_arrays_(index, token, next, after, record, end)
     CC2_INPUT_TOKEN_COUNT = cc1_layer_token_count();
     while (lt(index, CC2_INPUT_TOKEN_COUNT)) {
         token = cc2_token_at(index);
+        if (eq(cc2_token_kind(token), 123)) {
+            brace_depth = add(brace_depth, 1);
+        } else if (eq(cc2_token_kind(token), 125)) {
+            brace_depth = sub(brace_depth, 1);
+        }
         next = token;
         after = token;
         if (lt(add(index, 1), CC2_INPUT_TOKEN_COUNT)) {
@@ -845,22 +860,25 @@ function cc2_lower_arrays_(index, token, next, after, record, end)
         if (lt(add(index, 2), CC2_INPUT_TOKEN_COUNT)) {
             after = cc2_token_at(add(index, 2));
         }
-        if (lt(add(index, 5), CC2_INPUT_TOKEN_COUNT)) {
-            if (eq(cc2_token_kind(token), 2)) {
-                if (eq(cc2_token_kind(next), 2)) {
-                    if (eq(cc2_token_kind(after), 91)) {
-                        if (eq(cc2_token_kind(cc2_token_at(add(index, 3))),
-                            3)) {
-                            if (eq(cc2_token_kind(cc2_token_at(add(index, 4))),
-                                93)) {
+        if (not(eq(brace_depth, 0))) {
+            if (lt(add(index, 5), CC2_INPUT_TOKEN_COUNT)) {
+                if (eq(cc2_token_kind(token), 2)) {
+                    if (eq(cc2_token_kind(next), 2)) {
+                        if (eq(cc2_token_kind(after), 91)) {
+                            if (eq(cc2_token_kind(cc2_token_at(add(index, 3))),
+                                3)) {
                                 if (eq(cc2_token_kind(cc2_token_at(add(index,
-                                    5))), 59)) {
-                                    if (cc2_emit_array_declaration(token, next,
-                                        cc2_token_at(add(index, 3)))) {
-                                        return 1;
+                                    4))), 93)) {
+                                    if (eq(cc2_token_kind(cc2_token_at(add(
+                                        index, 5))), 59)) {
+                                        if (cc2_emit_array_declaration(token,
+                                            next, cc2_token_at(add(index,
+                                            3)))) {
+                                            return 1;
+                                        }
+                                        index = add(index, 6);
+                                        token = 0;
                                     }
-                                    index = add(index, 6);
-                                    token = 0;
                                 }
                             }
                         }
@@ -898,7 +916,7 @@ function cc2_lower_arrays_(index, token, next, after, record, end)
 
 function cc2_lower_arrays()
 {
-    return cc2_lower_arrays_(0, 0, 0, 0, 0, 0);
+    return cc2_lower_arrays_(0, 0, 0, 0, 0, 0, 0);
 }
 
 function cc2_init()

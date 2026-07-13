@@ -1261,8 +1261,8 @@ extern Sym *local_stack;
 extern Sym *local_label_stack;
 extern Sym *global_label_stack;
 extern Sym *define_stack;
-ST_DATA CType char_pointer_type, func_old_type, int_type, size_type;
-ST_DATA SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE];
+extern CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
+extern SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE];
 extern SValue *vtop, *pvtop;
 #define vstack  (__vstack + 1)
 extern int rsym, anon_sym, ind, loc;
