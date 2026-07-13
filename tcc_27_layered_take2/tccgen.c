@@ -36,7 +36,6 @@ ST_DATA CType func_vt; /* current function return type (used by return instructi
 
 static void gen_cast(CType *type);
 static void gen_cast_s(int t);
-static int is_compatible_types(CType *type1, CType *type2);
 static int parse_btype(CType *type, AttributeDef *ad);
 static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
 static void parse_expr_type(CType *type);
@@ -48,7 +47,6 @@ static void decl(int l);
 static int decl0(int l, int is_for_loop_init, Sym *);
 static void expr_eq(void);
 static void vla_runtime_type_size(CType *type, int *a);
-static int is_compatible_unqualified_types(CType *type1, CType *type2);
 static inline int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
 static int gvtst(int inv, int t);
@@ -2206,91 +2204,6 @@ ST_FUNC void vla_runtime_type_size(CType *type, int *a)
     } else {
         vpushi(type_size(type, a));
     }
-}
-
-/* compare function types. OLD functions match any new functions */
-static int is_compatible_func(CType *type1, CType *type2)
-{
-    Sym *s1, *s2;
-
-    s1 = type1->ref;
-    s2 = type2->ref;
-    if (!is_compatible_types(&s1->type, &s2->type))
-        return 0;
-    /* check func_call */
-    if (s1->f.func_call != s2->f.func_call)
-        return 0;
-    /* XXX: not complete */
-    if (s1->f.func_type == FUNC_OLD || s2->f.func_type == FUNC_OLD)
-        return 1;
-    if (s1->f.func_type != s2->f.func_type)
-        return 0;
-    while (s1 != NULL) {
-        if (s2 == NULL)
-            return 0;
-        if (!is_compatible_unqualified_types(&s1->type, &s2->type))
-            return 0;
-        s1 = s1->next;
-        s2 = s2->next;
-    }
-    if (s2)
-        return 0;
-    return 1;
-}
-
-/* return true if type1 and type2 are the same.  If unqualified is
-   true, qualifiers on the types are ignored.
-
-   - enums are not checked as gcc __builtin_types_compatible_p () 
- */
-static int compare_types(CType *type1, CType *type2, int unqualified)
-{
-    int bt1, t1, t2;
-
-    t1 = type1->t & VT_TYPE;
-    t2 = type2->t & VT_TYPE;
-    if (unqualified) {
-        /* strip qualifiers before comparing */
-        t1 &= ~(VT_CONSTANT | VT_VOLATILE);
-        t2 &= ~(VT_CONSTANT | VT_VOLATILE);
-    }
-
-    /* Default Vs explicit signedness only matters for char */
-    if ((t1 & VT_BTYPE) != VT_BYTE) {
-        t1 &= ~VT_DEFSIGN;
-        t2 &= ~VT_DEFSIGN;
-    }
-    /* XXX: bitfields ? */
-    if (t1 != t2)
-        return 0;
-    /* test more complicated cases */
-    bt1 = t1 & VT_BTYPE;
-    if (bt1 == VT_PTR) {
-        type1 = pointed_type(type1);
-        type2 = pointed_type(type2);
-        return is_compatible_types(type1, type2);
-    } else if (bt1 == VT_STRUCT) {
-        return (type1->ref == type2->ref);
-    } else if (bt1 == VT_FUNC) {
-        return is_compatible_func(type1, type2);
-    } else {
-        return 1;
-    }
-}
-
-/* return true if type1 and type2 are exactly the same (including
-   qualifiers). 
-*/
-static int is_compatible_types(CType *type1, CType *type2)
-{
-    return compare_types(type1,type2,0);
-}
-
-/* return true if type1 and type2 are the same (ignoring qualifiers).
-*/
-static int is_compatible_unqualified_types(CType *type1, CType *type2)
-{
-    return compare_types(type1,type2,1);
 }
 
 /* print a type. If 'varstr' is not NULL, then the variable is also

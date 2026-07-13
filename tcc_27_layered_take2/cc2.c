@@ -89,6 +89,14 @@ var CC2_I386_ECX_CLASS = 17;
 var CC2_I386_EDX_CLASS = 33;
 var CC2_I386_EBX_CLASS = 0;
 var CC2_I386_ST0_CLASS = 10;
+var CC2_TCC_TYPE_MASK = 986943;
+var CC2_TCC_DEFAULT_SIGN = 32;
+var CC2_TCC_CONST_QUALIFIER = 256;
+var CC2_TCC_VOLATILE_QUALIFIER = 512;
+var CC2_TCC_STRUCT_TYPE = 7;
+var CC2_TCC_FUNCTION_TYPE = 6;
+var CC2_TCC_OLD_FUNCTION = 2;
+var CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET = 12;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -761,6 +769,95 @@ function get_reg_(required_class, reg, entry, registers)
 function get_reg(required_class)
 {
     return get_reg_(required_class, 0, 0, 0);
+}
+
+function is_compatible_func_(type1, type2, symbol1, symbol2,
+    attributes1, attributes2)
+{
+    symbol1 = ri32(add(type1, 4));
+    symbol2 = ri32(add(type2, 4));
+    if (eq(is_compatible_types(add(symbol1, CC2_SYM_TYPE_OFFSET),
+        add(symbol2, CC2_SYM_TYPE_OFFSET)), 0)) {
+        return 0;
+    }
+    attributes1 = ri32(add(symbol1, CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET));
+    attributes2 = ri32(add(symbol2, CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET));
+    if (not(eq(and(attributes1, 7), and(attributes2, 7)))) {
+        return 0;
+    }
+    if (or(eq(and(ushr(attributes1, 3), 3), CC2_TCC_OLD_FUNCTION),
+        eq(and(ushr(attributes2, 3), 3), CC2_TCC_OLD_FUNCTION))) {
+        return 1;
+    }
+    if (not(eq(and(ushr(attributes1, 3), 3),
+        and(ushr(attributes2, 3), 3)))) {
+        return 0;
+    }
+    while (not(eq(symbol1, 0))) {
+        if (eq(symbol2, 0)) {
+            return 0;
+        }
+        if (eq(is_compatible_unqualified_types(
+            add(symbol1, CC2_SYM_TYPE_OFFSET),
+            add(symbol2, CC2_SYM_TYPE_OFFSET)), 0)) {
+            return 0;
+        }
+        symbol1 = ri32(add(symbol1, CC2_SYM_NEXT_OFFSET));
+        symbol2 = ri32(add(symbol2, CC2_SYM_NEXT_OFFSET));
+    }
+    return eq(symbol2, 0);
+}
+
+function is_compatible_func(type1, type2)
+{
+    return is_compatible_func_(type1, type2, 0, 0, 0, 0);
+}
+
+function compare_types_(type1, type2, unqualified, value1, value2,
+    basic_type)
+{
+    value1 = and(ri32(type1), CC2_TCC_TYPE_MASK);
+    value2 = and(ri32(type2), CC2_TCC_TYPE_MASK);
+    if (not(eq(unqualified, 0))) {
+        value1 = and(value1, bnot(or(CC2_TCC_CONST_QUALIFIER,
+            CC2_TCC_VOLATILE_QUALIFIER)));
+        value2 = and(value2, bnot(or(CC2_TCC_CONST_QUALIFIER,
+            CC2_TCC_VOLATILE_QUALIFIER)));
+    }
+    if (not(eq(and(value1, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_BYTE_TYPE))) {
+        value1 = and(value1, bnot(CC2_TCC_DEFAULT_SIGN));
+        value2 = and(value2, bnot(CC2_TCC_DEFAULT_SIGN));
+    }
+    if (not(eq(value1, value2))) {
+        return 0;
+    }
+    basic_type = and(value1, CC2_TCC_BASIC_TYPE_MASK);
+    if (eq(basic_type, CC2_TCC_POINTER_TYPE)) {
+        return is_compatible_types(pointed_type(type1), pointed_type(type2));
+    }
+    if (eq(basic_type, CC2_TCC_STRUCT_TYPE)) {
+        return eq(ri32(add(type1, 4)), ri32(add(type2, 4)));
+    }
+    if (eq(basic_type, CC2_TCC_FUNCTION_TYPE)) {
+        return is_compatible_func(type1, type2);
+    }
+    return 1;
+}
+
+function compare_types(type1, type2, unqualified)
+{
+    return compare_types_(type1, type2, unqualified, 0, 0, 0);
+}
+
+function is_compatible_types(type1, type2)
+{
+    return compare_types(type1, type2, 0);
+}
+
+function is_compatible_unqualified_types(type1, type2)
+{
+    return compare_types(type1, type2, 1);
 }
 
 function vpushv_(value, limit)

@@ -1341,6 +1341,8 @@ ST_FUNC void gen_op(int op);
 ST_FUNC int type_size(CType *type, int *a);
 extern CType *pointed_type(CType *type);
 extern void mk_pointer(CType *type);
+extern int is_compatible_types(CType *type1, CType *type2);
+extern int is_compatible_unqualified_types(CType *type1, CType *type2);
 ST_FUNC void vstore(void);
 ST_FUNC void inc(int post, int c);
 ST_FUNC void parse_mult_str (CString *astr, const char *msg);
