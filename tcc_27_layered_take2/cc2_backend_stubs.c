@@ -92,11 +92,6 @@ function gv(register_class)
     return 0;
 }
 
-function tok_str_add_tok(stream)
-{
-    return 0;
-}
-
 function expr_const64_words(words)
 {
     wi32(words, 0);

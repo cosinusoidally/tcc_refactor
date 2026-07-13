@@ -382,6 +382,20 @@ var CC2_TOKEN_STRING_PREVIOUS_POINTER_OFFSET = 28;
 var CC2_TOKEN_STRING_ALLOC_OFFSET = 32;
 var CC2_TOKEN_STRING_BYTES = 36;
 var CC2_TOKEN_STRING_INITIAL_CAPACITY = 16;
+var CC2_TOKEN_CHARACTER = 179;
+var CC2_TOKEN_WIDE_CHARACTER = 180;
+var CC2_TOKEN_INTEGER_CONSTANT = 181;
+var CC2_TOKEN_UNSIGNED_INTEGER_CONSTANT = 182;
+var CC2_TOKEN_LONG_LONG_CONSTANT = 183;
+var CC2_TOKEN_UNSIGNED_LONG_LONG_CONSTANT = 184;
+var CC2_TOKEN_FLOAT_CONSTANT = 187;
+var CC2_TOKEN_DOUBLE_CONSTANT = 188;
+var CC2_TOKEN_LONG_DOUBLE_CONSTANT = 189;
+var CC2_TOKEN_PREPROCESSOR_NUMBER = 190;
+var CC2_TOKEN_PREPROCESSOR_STRING = 191;
+var CC2_TOKEN_LINE_NUMBER = 192;
+var CC2_TOKEN_LONG_CONSTANT = 206;
+var CC2_TOKEN_UNSIGNED_LONG_CONSTANT = 207;
 var CC2_ATTRIBUTE_ALIGNED_MASK = 31;
 var CC2_ATTRIBUTE_PACKED = 32;
 var CC2_ATTRIBUTE_WEAK = 64;
@@ -693,6 +707,106 @@ function tok_str_add(stream, token)
     }
     wi32(add(data, mul(length, CC2_I386_WORD_BYTES)), token);
     wi32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET), add(length, 1));
+    return 0;
+}
+
+function cc2_token_has_one_word(token)
+{
+    return or(or(or(or(eq(token, CC2_TOKEN_INTEGER_CONSTANT),
+        eq(token, CC2_TOKEN_UNSIGNED_INTEGER_CONSTANT)), or(
+        eq(token, CC2_TOKEN_CHARACTER),
+        eq(token, CC2_TOKEN_WIDE_CHARACTER))), or(
+        eq(token, CC2_TOKEN_FLOAT_CONSTANT),
+        eq(token, CC2_TOKEN_LINE_NUMBER))), or(
+        eq(token, CC2_TOKEN_LONG_CONSTANT),
+        eq(token, CC2_TOKEN_UNSIGNED_LONG_CONSTANT)));
+}
+
+function cc2_token_has_two_words(token)
+{
+    return or(or(eq(token, CC2_TOKEN_DOUBLE_CONSTANT),
+        eq(token, CC2_TOKEN_LONG_LONG_CONSTANT)),
+        eq(token, CC2_TOKEN_UNSIGNED_LONG_LONG_CONSTANT));
+}
+
+function cc2_token_has_string(token)
+{
+    return or(or(eq(token, CC2_TOKEN_PREPROCESSOR_NUMBER),
+        eq(token, CC2_TOKEN_PREPROCESSOR_STRING)), or(
+        eq(token, CC2_TOKEN_STRING),
+        eq(token, CC2_TOKEN_WIDE_STRING)));
+}
+
+function tok_str_add2(stream, token, value)
+{
+    var length;
+    var payload_words;
+    var string_size;
+    var needed;
+    var data;
+    length = ri32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET));
+    wi32(add(stream, CC2_TOKEN_STRING_LAST_LENGTH_OFFSET), length);
+    payload_words = 0;
+    if (cc2_token_has_one_word(token)) {
+        payload_words = 1;
+    } else if (cc2_token_has_two_words(token)) {
+        payload_words = 2;
+    } else if (eq(token, CC2_TOKEN_LONG_DOUBLE_CONSTANT)) {
+        payload_words = 3;
+    } else if (cc2_token_has_string(token)) {
+        string_size = ri32(value);
+        payload_words = add(1, sdiv(add(string_size, 3), 4));
+    }
+    needed = add(add(length, 1), payload_words);
+    if (lt(ri32(add(stream, CC2_TOKEN_STRING_CAPACITY_OFFSET)), needed)) {
+        data = tok_str_realloc(stream, add(needed, 1));
+    } else {
+        data = ri32(add(stream, CC2_TOKEN_STRING_DATA_OFFSET));
+    }
+    wi32(add(data, mul(length, CC2_I386_WORD_BYTES)), token);
+    length = add(length, 1);
+    if (cc2_token_has_one_word(token)) {
+        wi32(add(data, mul(length, CC2_I386_WORD_BYTES)), ri32(value));
+        length = add(length, 1);
+    } else if (cc2_token_has_two_words(token)) {
+        wi32(add(data, mul(length, CC2_I386_WORD_BYTES)), ri32(value));
+        wi32(add(data, mul(add(length, 1), CC2_I386_WORD_BYTES)),
+            ri32(add(value, 4)));
+        length = add(length, 2);
+    } else if (eq(token, CC2_TOKEN_LONG_DOUBLE_CONSTANT)) {
+        wi32(add(data, mul(length, CC2_I386_WORD_BYTES)), ri32(value));
+        wi32(add(data, mul(add(length, 1), CC2_I386_WORD_BYTES)),
+            ri32(add(value, 4)));
+        wi32(add(data, mul(add(length, 2), CC2_I386_WORD_BYTES)),
+            ri32(add(value, 8)));
+        length = add(length, 3);
+    } else if (cc2_token_has_string(token)) {
+        wi32(add(data, mul(length, CC2_I386_WORD_BYTES)), string_size);
+        memcpy(add(data, mul(add(length, 1), CC2_I386_WORD_BYTES)),
+            ri32(add(value, 4)), string_size);
+        length = add(length, payload_words);
+    }
+    wi32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET), length);
+    return 0;
+}
+
+function tok_str_add_tok(stream)
+{
+    var source_file;
+    var line;
+    var value;
+    source_file = ri32(file_address);
+    line = ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET));
+    if (not(eq(line,
+        ri32(add(stream, CC2_TOKEN_STRING_LAST_LINE_OFFSET))))) {
+        wi32(add(stream, CC2_TOKEN_STRING_LAST_LINE_OFFSET), line);
+        value = malloc(12);
+        cc2_zero_bytes(value, 12);
+        wi32(value, line);
+        tok_str_add2(stream, CC2_TOKEN_LINE_NUMBER, value);
+        free(value);
+    }
+    tok_str_add2(stream, ri32(tok_address), tokc_address);
     return 0;
 }
 
