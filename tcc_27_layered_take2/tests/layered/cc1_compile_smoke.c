@@ -15,7 +15,9 @@ int record(int value)
 #ifdef RESULT
 int main()
 {
-    record(identity(RESULT + 1));
+    int temporary;
+    temporary = identity(RESULT + 1);
+    record(temporary);
     while (global_result < 2) {
         global_result = global_result + 1;
     }
