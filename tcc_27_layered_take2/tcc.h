@@ -1205,6 +1205,7 @@ void tok_str_free_str(int *str);
 void tok_str_add(TokenString *s, int t);
 void tok_str_add2(TokenString *s, int t, CValue *cv);
 void tok_str_add_tok(TokenString *s);
+void tok_get(int *t, const int **pp, CValue *cv);
 ST_INLN void define_push(int v, int macro_type, int *str, Sym *first_arg);
 ST_FUNC void define_undef(Sym *s);
 ST_INLN Sym *define_find(int v);

@@ -937,71 +937,6 @@ static inline int tok_size(const int *p)
 }
 #endif
 
-/* get a token from an integer array and increment pointer
-   accordingly. we code it as a macro to avoid pointer aliasing. */
-static inline void TOK_GET(int *t, const int **pp, CValue *cv)
-{
-    const int *p = *pp;
-    int n, *tab;
-
-    tab = cv->tab;
-    switch(*t = *p++) {
-#if LONG_SIZE == 4
-    case TOK_CLONG:
-#endif
-    case TOK_CINT:
-    case TOK_CCHAR:
-    case TOK_LCHAR:
-    case TOK_LINENUM:
-        cv->i = *p++;
-        break;
-#if LONG_SIZE == 4
-    case TOK_CULONG:
-#endif
-    case TOK_CUINT:
-        cv->i = (unsigned)*p++;
-        break;
-    case TOK_CFLOAT:
-	tab[0] = *p++;
-	break;
-    case TOK_STR:
-    case TOK_LSTR:
-    case TOK_PPNUM:
-    case TOK_PPSTR:
-        cv->str.size = *p++;
-        cv->str.data = p;
-        p += (cv->str.size + sizeof(int) - 1) / sizeof(int);
-        break;
-    case TOK_CDOUBLE:
-    case TOK_CLLONG:
-    case TOK_CULLONG:
-#if LONG_SIZE == 8
-    case TOK_CLONG:
-    case TOK_CULONG:
-#endif
-        n = 2;
-        goto copy;
-    case TOK_CLDOUBLE:
-#if LDOUBLE_SIZE == 16
-        n = 4;
-#elif LDOUBLE_SIZE == 12
-        n = 3;
-#elif LDOUBLE_SIZE == 8
-        n = 2;
-#else
-# error add long double size support
-#endif
-    copy:
-        do
-            *tab++ = *p++;
-        while (--n);
-        break;
-    default:
-        break;
-    }
-    *pp = p;
-}
-
 static int macro_is_equal(const int *a, const int *b)
 {
     CValue cv;
@@ -1013,9 +948,9 @@ static int macro_is_equal(const int *a, const int *b)
     while (*a && *b) {
         /* first time preallocate macro_equal_buf, next time only reset position to start */
         cstr_reset(&macro_equal_buf);
-        TOK_GET(&t, &a, &cv);
+        tok_get(&t, &a, &cv);
         cstr_cat(&macro_equal_buf, get_tok_str(t, &cv), 0);
-        TOK_GET(&t, &b, &cv);
+        tok_get(&t, &b, &cv);
         if (strcmp(macro_equal_buf.data, get_tok_str(t, &cv)))
             return 0;
     }
@@ -2680,7 +2615,7 @@ static void next_nomacro_spc(void)
     redo:
         tok = *macro_ptr;
         if (tok) {
-            TOK_GET(&tok, &macro_ptr, &tokc);
+            tok_get(&tok, &macro_ptr, &tokc);
             if (tok == TOK_LINENUM) {
                 file->line_num = tokc.i;
                 goto redo;
@@ -2720,12 +2655,12 @@ static int *macro_arg_subst(Sym **nested_list, const int *macro_str, Sym *args)
     tok_str_new(&str);
     t0 = t1 = 0;
     while(1) {
-        TOK_GET(&t, &macro_str, &cval);
+        tok_get(&t, &macro_str, &cval);
         if (!t)
             break;
         if (t == '#') {
             /* stringize */
-            TOK_GET(&t, &macro_str, &cval);
+            tok_get(&t, &macro_str, &cval);
             if (!t)
                 goto bad_stringy;
             s = sym_find2(args, t);
@@ -2735,7 +2670,7 @@ static int *macro_arg_subst(Sym **nested_list, const int *macro_str, Sym *args)
                 st = s->d;
                 spc = 0;
                 while (*st >= 0) {
-                    TOK_GET(&t, &st, &cval);
+                    tok_get(&t, &st, &cval);
                     if (t != TOK_PLCHLDR
                      && t != TOK_NOSUBST
                      && 0 == cc0_check_space((int)isidnum_table, t,
@@ -2802,7 +2737,7 @@ static int *macro_arg_subst(Sym **nested_list, const int *macro_str, Sym *args)
                 }
                 for(;;) {
                     int t2;
-                    TOK_GET(&t2, &st, &cval);
+                    tok_get(&t2, &st, &cval);
                     if (t2 <= 0)
                         break;
                     tok_str_add2(&str, t2, &cval);
@@ -2872,7 +2807,7 @@ static inline int *macro_twosharps(const int *ptr0)
 
     /* we search the first '##' */
     for (ptr = ptr0;;) {
-        TOK_GET(&t, &ptr, &cval);
+        tok_get(&t, &ptr, &cval);
         if (t == TOK_PPJOIN)
             break;
         if (t == 0)
@@ -2883,7 +2818,7 @@ static inline int *macro_twosharps(const int *ptr0)
 
     //tok_print(" $$$", ptr0);
     for (ptr = ptr0;;) {
-        TOK_GET(&t, &ptr, &cval);
+        tok_get(&t, &ptr, &cval);
         if (t == 0)
             break;
         if (t == TOK_PPJOIN)
@@ -2897,7 +2832,7 @@ static inline int *macro_twosharps(const int *ptr0)
             while ((t1 = *++ptr) == TOK_NOSUBST)
                 ;
             if (t1 && t1 != TOK_PPJOIN) {
-                TOK_GET(&t1, &ptr, &cv1);
+                tok_get(&t1, &ptr, &cv1);
                 if (t != TOK_PLCHLDR || t1 != TOK_PLCHLDR) {
                     if (paste_tokens(t, &cval, t1, &cv1)) {
                         t = tok, cval = tokc;
@@ -3176,7 +3111,7 @@ static void macro_subst(
     spc = nosubst = 0;
 
     while (1) {
-        TOK_GET(&t, &macro_str, &cval);
+        tok_get(&t, &macro_str, &cval);
         if (t <= 0)
             break;
 
@@ -3450,7 +3385,7 @@ static void tok_print(const char *msg, const int *str)
     fp = tcc_state->ppfp;
     fprintf(fp, "%s", msg);
     while (str) {
-	TOK_GET(&t, &str, &cval);
+	tok_get(&t, &str, &cval);
 	if (!t)
 	    break;
 	fprintf(fp, " %s" + s, get_tok_str(t, &cval)), s = 1;

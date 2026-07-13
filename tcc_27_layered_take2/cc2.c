@@ -722,6 +722,21 @@ function cc2_token_has_one_word(token)
         eq(token, CC2_TOKEN_UNSIGNED_LONG_CONSTANT)));
 }
 
+function cc2_token_has_signed_word(token)
+{
+    return or(or(or(eq(token, CC2_TOKEN_INTEGER_CONSTANT),
+        eq(token, CC2_TOKEN_CHARACTER)), or(
+        eq(token, CC2_TOKEN_WIDE_CHARACTER),
+        eq(token, CC2_TOKEN_LINE_NUMBER))),
+        eq(token, CC2_TOKEN_LONG_CONSTANT));
+}
+
+function cc2_token_has_unsigned_word(token)
+{
+    return or(eq(token, CC2_TOKEN_UNSIGNED_INTEGER_CONSTANT),
+        eq(token, CC2_TOKEN_UNSIGNED_LONG_CONSTANT));
+}
+
 function cc2_token_has_two_words(token)
 {
     return or(or(eq(token, CC2_TOKEN_DOUBLE_CONSTANT),
@@ -735,6 +750,54 @@ function cc2_token_has_string(token)
         eq(token, CC2_TOKEN_PREPROCESSOR_STRING)), or(
         eq(token, CC2_TOKEN_STRING),
         eq(token, CC2_TOKEN_WIDE_STRING)));
+}
+
+/* Decode the target-independent token stream layout used by TCC.  The
+   compiler target is i386, so scalar values and pointers occupy one word. */
+function tok_get(token_pointer, stream_pointer, value)
+{
+    var stream;
+    var token;
+    var words;
+    var string_size;
+    stream = ri32(stream_pointer);
+    token = ri32(stream);
+    wi32(token_pointer, token);
+    stream = add(stream, CC2_I386_WORD_BYTES);
+    if (cc2_token_has_signed_word(token)) {
+        wi32(value, ri32(stream));
+        wi32(add(value, CC2_I386_WORD_BYTES),
+            sub(0, lt(ri32(stream), 0)));
+        stream = add(stream, CC2_I386_WORD_BYTES);
+    } else if (cc2_token_has_unsigned_word(token)) {
+        wi32(value, ri32(stream));
+        wi32(add(value, CC2_I386_WORD_BYTES), 0);
+        stream = add(stream, CC2_I386_WORD_BYTES);
+    } else if (eq(token, CC2_TOKEN_FLOAT_CONSTANT)) {
+        wi32(value, ri32(stream));
+        stream = add(stream, CC2_I386_WORD_BYTES);
+    } else if (cc2_token_has_two_words(token)) {
+        wi32(value, ri32(stream));
+        wi32(add(value, CC2_I386_WORD_BYTES),
+            ri32(add(stream, CC2_I386_WORD_BYTES)));
+        stream = add(stream, mul(2, CC2_I386_WORD_BYTES));
+    } else if (eq(token, CC2_TOKEN_LONG_DOUBLE_CONSTANT)) {
+        wi32(value, ri32(stream));
+        wi32(add(value, CC2_I386_WORD_BYTES),
+            ri32(add(stream, CC2_I386_WORD_BYTES)));
+        wi32(add(value, mul(2, CC2_I386_WORD_BYTES)),
+            ri32(add(stream, mul(2, CC2_I386_WORD_BYTES))));
+        stream = add(stream, mul(3, CC2_I386_WORD_BYTES));
+    } else if (cc2_token_has_string(token)) {
+        string_size = ri32(stream);
+        wi32(value, string_size);
+        wi32(add(value, CC2_I386_WORD_BYTES),
+            add(stream, CC2_I386_WORD_BYTES));
+        words = sdiv(add(string_size, 3), 4);
+        stream = add(stream, mul(add(words, 1), CC2_I386_WORD_BYTES));
+    }
+    wi32(stream_pointer, stream);
+    return 0;
 }
 
 function tok_str_add2(stream, token, value)
