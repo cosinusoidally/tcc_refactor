@@ -432,6 +432,7 @@ var CC2_TOKEN_VARIADIC_ARGUMENTS;
 var CC2_TOKEN_TWO_SHARPS;
 var CC2_TOKEN_PREPROCESSOR_JOIN;
 var CC2_TOKEN_PLACEHOLDER;
+var CC2_TOKEN_NO_SUBSTITUTION;
 var CC2_PARSE_FLAG_SPACES;
 var CC2_PARSE_FLAG_LINE_FEED;
 var CC2_PARSE_FLAG_PREPROCESS;
@@ -2320,6 +2321,101 @@ function paste_tokens(first_token, first_value, second_token, second_value)
     cstr_free(string);
     free(string);
     return result;
+}
+
+function macro_twosharps_(original, pointer, stream_pointer, token_pointer,
+    value, next_value, output, no_substitution_start, token, next_token,
+    result)
+{
+    stream_pointer = malloc(CC2_I386_WORD_BYTES);
+    token_pointer = malloc(CC2_I386_WORD_BYTES);
+    value = malloc(CC2_CVALUE_BYTES);
+    next_value = malloc(CC2_CVALUE_BYTES);
+    pointer = original;
+    while (1) {
+        wi32(stream_pointer, pointer);
+        tok_get(token_pointer, stream_pointer, value);
+        pointer = ri32(stream_pointer);
+        token = ri32(token_pointer);
+        if (eq(token, CC2_TOKEN_PREPROCESSOR_JOIN)) {
+            break;
+        }
+        if (eq(token, 0)) {
+            free(next_value);
+            free(value);
+            free(token_pointer);
+            free(stream_pointer);
+            return 0;
+        }
+    }
+    output = malloc(CC2_TOKEN_STRING_BYTES);
+    tok_str_new(output);
+    no_substitution_start = sub(0, 1);
+    pointer = original;
+    while (1) {
+        wi32(stream_pointer, pointer);
+        tok_get(token_pointer, stream_pointer, value);
+        pointer = ri32(stream_pointer);
+        token = ri32(token_pointer);
+        if (eq(token, 0)) {
+            break;
+        }
+        if (eq(token, CC2_TOKEN_PREPROCESSOR_JOIN)) {
+            continue;
+        }
+        while (eq(ri32(pointer), CC2_TOKEN_PREPROCESSOR_JOIN)) {
+            if (not(lt(no_substitution_start, 0))) {
+                wi32(add(output, CC2_TOKEN_STRING_LENGTH_OFFSET),
+                    no_substitution_start);
+            }
+            pointer = add(pointer, CC2_I386_WORD_BYTES);
+            next_token = ri32(pointer);
+            while (eq(next_token, CC2_TOKEN_NO_SUBSTITUTION)) {
+                pointer = add(pointer, CC2_I386_WORD_BYTES);
+                next_token = ri32(pointer);
+            }
+            if (and(not(eq(next_token, 0)), not(eq(next_token,
+                CC2_TOKEN_PREPROCESSOR_JOIN)))) {
+                wi32(stream_pointer, pointer);
+                tok_get(token_pointer, stream_pointer, next_value);
+                pointer = ri32(stream_pointer);
+                next_token = ri32(token_pointer);
+                if (not(and(eq(token, CC2_TOKEN_PLACEHOLDER),
+                    eq(next_token, CC2_TOKEN_PLACEHOLDER)))) {
+                    if (paste_tokens(token, value, next_token, next_value)) {
+                        token = ri32(tok_address);
+                        memcpy(value, tokc_address, CC2_CVALUE_BYTES);
+                    } else {
+                        tok_str_add2(output, token, value);
+                        token = next_token;
+                        memcpy(value, next_value, CC2_CVALUE_BYTES);
+                    }
+                }
+            }
+        }
+        if (eq(token, CC2_TOKEN_NO_SUBSTITUTION)) {
+            if (lt(no_substitution_start, 0)) {
+                no_substitution_start = ri32(add(output,
+                    CC2_TOKEN_STRING_LENGTH_OFFSET));
+            }
+        } else {
+            no_substitution_start = sub(0, 1);
+        }
+        tok_str_add2(output, token, value);
+    }
+    tok_str_add(output, 0);
+    result = ri32(add(output, CC2_TOKEN_STRING_DATA_OFFSET));
+    free(output);
+    free(next_value);
+    free(value);
+    free(token_pointer);
+    free(stream_pointer);
+    return result;
+}
+
+function macro_twosharps(original)
+{
+    return macro_twosharps_(original, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 /* Keep preprocessor output tokens textually separate where concatenation
@@ -15791,6 +15887,7 @@ function cc2_init_constants()
     CC2_TOKEN_TWO_SHARPS = 202;
     CC2_TOKEN_PREPROCESSOR_JOIN = 205;
     CC2_TOKEN_PLACEHOLDER = 203;
+    CC2_TOKEN_NO_SUBSTITUTION = 204;
     CC2_PARSE_FLAG_SPACES = 16;
     CC2_PARSE_FLAG_LINE_FEED = 4;
     CC2_PARSE_FLAG_PREPROCESS = 1;

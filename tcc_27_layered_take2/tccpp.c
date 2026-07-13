@@ -509,67 +509,6 @@ static char const ab_month_name[12][4] =
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 };
 
-/* handle the '##' operator. Return NULL if no '##' seen. Otherwise
-   return the resulting string (which must be freed). */
-static inline int *macro_twosharps(const int *ptr0)
-{
-    int t;
-    CValue cval;
-    TokenString macro_str1;
-    int start_of_nosubsts = -1;
-    const int *ptr;
-
-    /* we search the first '##' */
-    for (ptr = ptr0;;) {
-        tok_get(&t, &ptr, &cval);
-        if (t == TOK_PPJOIN)
-            break;
-        if (t == 0)
-            return NULL;
-    }
-
-    tok_str_new(&macro_str1);
-
-    //tok_print(" $$$", ptr0);
-    for (ptr = ptr0;;) {
-        tok_get(&t, &ptr, &cval);
-        if (t == 0)
-            break;
-        if (t == TOK_PPJOIN)
-            continue;
-        while (*ptr == TOK_PPJOIN) {
-            int t1; CValue cv1;
-            /* given 'a##b', remove nosubsts preceding 'a' */
-            if (start_of_nosubsts >= 0)
-                macro_str1.len = start_of_nosubsts;
-            /* given 'a##b', remove nosubsts preceding 'b' */
-            while ((t1 = *++ptr) == TOK_NOSUBST)
-                ;
-            if (t1 && t1 != TOK_PPJOIN) {
-                tok_get(&t1, &ptr, &cv1);
-                if (t != TOK_PLCHLDR || t1 != TOK_PLCHLDR) {
-                    if (paste_tokens(t, &cval, t1, &cv1)) {
-                        t = tok, cval = tokc;
-                    } else {
-                        tok_str_add2(&macro_str1, t, &cval);
-                        t = t1, cval = cv1;
-                    }
-                }
-            }
-        }
-        if (t == TOK_NOSUBST) {
-            if (start_of_nosubsts < 0)
-                start_of_nosubsts = macro_str1.len;
-        } else {
-            start_of_nosubsts = -1;
-        }
-        tok_str_add2(&macro_str1, t, &cval);
-    }
-    tok_str_add(&macro_str1, 0);
-    //tok_print(" ###", macro_str1.str);
-    return macro_str1.str;
-}
-
 /* peek or read [ws_str == NULL] next token from function macro call,
    walking up macro levels up to the file if necessary */
 /* do macro substitution of current token with macro 's' and add
