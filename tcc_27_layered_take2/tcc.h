@@ -1215,7 +1215,7 @@ Sym *label_push(Sym **ptop, int v, int flags);
 void label_pop(Sym **ptop, Sym *slast, int keep);
 ST_FUNC void parse_define(void);
 ST_FUNC void preprocess(int is_bof);
-ST_FUNC void next_nomacro(void);
+void next_nomacro(void);
 extern void next(void);
 extern void unget_tok(int last_tok);
 ST_FUNC void preprocess_start(TCCState *s1, int is_asm);
@@ -1534,6 +1534,7 @@ int handle_stray1(uint8_t *p);
 uint8_t *parse_line_comment(uint8_t *p);
 void skip_spaces(void);
 uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str);
+void preprocess_skip(void);
 #endif
 
 /* ------------ xxx-link.c ------------ */

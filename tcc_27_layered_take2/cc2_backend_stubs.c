@@ -192,6 +192,11 @@ function next()
     return 0;
 }
 
+function next_nomacro()
+{
+    return 0;
+}
+
 function gvtst(inverted, jump_chain)
 {
     return jump_chain;

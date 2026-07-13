@@ -397,6 +397,15 @@ var CC2_CHARACTER_END_OF_FILE;
 var CC2_CHARACTER_LINE_FEED;
 var CC2_CHARACTER_CARRIAGE_RETURN;
 var CC2_PARSE_FLAG_ACCEPT_STRAYS;
+var CC2_PARSE_FLAG_ASM_FILE;
+var CC2_TOKEN_IF;
+var CC2_TOKEN_ELSE;
+var CC2_TOKEN_IFDEF;
+var CC2_TOKEN_IFNDEF;
+var CC2_TOKEN_ELIF;
+var CC2_TOKEN_ENDIF;
+var CC2_TOKEN_ERROR;
+var CC2_TOKEN_WARNING;
 var CC2_TOKEN_CHARACTER;
 var CC2_TOKEN_WIDE_CHARACTER;
 var CC2_TOKEN_INTEGER_CONSTANT;
@@ -1058,6 +1067,114 @@ function parse_pp_string_(pointer, separator, string, source_file, character)
 function parse_pp_string(pointer, separator, string)
 {
     return parse_pp_string_(pointer, separator, string, 0, 0);
+}
+
+function preprocess_skip_(source_file, pointer, depth, start_of_line,
+    in_warning, character, token, done)
+{
+    source_file = ri32(file_address);
+    pointer = ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET));
+    depth = 0;
+    start_of_line = 1;
+    in_warning = 0;
+    done = 0;
+    while (eq(done, 0)) {
+        character = ri8(pointer);
+        if (cc0_is_space(character)) {
+            pointer = add(pointer, 1);
+        } else if (eq(character, CC2_CHARACTER_LINE_FEED)) {
+            wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), add(
+                ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+            pointer = add(pointer, 1);
+            start_of_line = 1;
+            in_warning = 0;
+        } else if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
+            wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
+            character = handle_eob();
+            if (eq(character, CC2_CHARACTER_END_OF_FILE)) {
+                expect(mks("#endif"));
+            } else if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
+                ch = ri8(ri32(add(source_file,
+                    CC2_BUFFERED_FILE_POINTER_OFFSET)));
+                handle_stray_noerror();
+            }
+            pointer = ri32(add(source_file,
+                CC2_BUFFERED_FILE_POINTER_OFFSET));
+        } else if (or(eq(character, 34), eq(character, 39))) {
+            if (eq(in_warning, 0)) {
+                pointer = parse_pp_string(pointer, character, 0);
+            } else {
+                pointer = add(pointer, 1);
+            }
+            start_of_line = 0;
+        } else if (eq(character, CC2_ASCII_SLASH)) {
+            if (eq(in_warning, 0)) {
+                wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET),
+                    pointer);
+                ch = character;
+                minp();
+                pointer = ri32(add(source_file,
+                    CC2_BUFFERED_FILE_POINTER_OFFSET));
+                if (eq(ch, CC2_ASCII_ASTERISK)) {
+                    pointer = parse_comment(pointer);
+                } else if (eq(ch, CC2_ASCII_SLASH)) {
+                    pointer = parse_line_comment(pointer);
+                }
+            } else {
+                pointer = add(pointer, 1);
+            }
+            start_of_line = 0;
+        } else if (eq(character, 35)) {
+            pointer = add(pointer, 1);
+            if (start_of_line) {
+                wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET),
+                    pointer);
+                next_nomacro();
+                pointer = ri32(add(source_file,
+                    CC2_BUFFERED_FILE_POINTER_OFFSET));
+                token = ri32(tok_address);
+                if (and(eq(depth, 0), or(or(eq(token, CC2_TOKEN_ELSE),
+                    eq(token, CC2_TOKEN_ELIF)),
+                    eq(token, CC2_TOKEN_ENDIF)))) {
+                    done = 1;
+                } else if (or(or(eq(token, CC2_TOKEN_IF),
+                    eq(token, CC2_TOKEN_IFDEF)),
+                    eq(token, CC2_TOKEN_IFNDEF))) {
+                    depth = add(depth, 1);
+                } else if (eq(token, CC2_TOKEN_ENDIF)) {
+                    depth = sub(depth, 1);
+                } else if (or(eq(token, CC2_TOKEN_ERROR),
+                    eq(token, CC2_TOKEN_WARNING))) {
+                    in_warning = 1;
+                } else if (eq(token, CC2_CHARACTER_LINE_FEED)) {
+                    start_of_line = 1;
+                    in_warning = 0;
+                } else if (not(eq(and(ri32(parse_flags_address),
+                    CC2_PARSE_FLAG_ASM_FILE), 0))) {
+                    pointer = parse_line_comment(sub(pointer, 1));
+                }
+            } else if (not(eq(and(ri32(parse_flags_address),
+                CC2_PARSE_FLAG_ASM_FILE), 0))) {
+                pointer = parse_line_comment(sub(pointer, 1));
+            }
+            if (eq(done, 0)) {
+                if (not(eq(ri32(tok_address),
+                    CC2_CHARACTER_LINE_FEED))) {
+                    start_of_line = 0;
+                }
+            }
+        } else {
+            pointer = add(pointer, 1);
+            start_of_line = 0;
+        }
+    }
+    wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
+    return 0;
+}
+
+function preprocess_skip()
+{
+    return preprocess_skip_(0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function tok_str_new(stream)
@@ -12755,6 +12872,15 @@ function cc2_init_constants()
     CC2_CHARACTER_LINE_FEED = 10;
     CC2_CHARACTER_CARRIAGE_RETURN = 13;
     CC2_PARSE_FLAG_ACCEPT_STRAYS = 32;
+    CC2_PARSE_FLAG_ASM_FILE = 8;
+    CC2_TOKEN_IF = 259;
+    CC2_TOKEN_ELSE = 260;
+    CC2_TOKEN_IFDEF = 317;
+    CC2_TOKEN_IFNDEF = 318;
+    CC2_TOKEN_ELIF = 319;
+    CC2_TOKEN_ENDIF = 320;
+    CC2_TOKEN_ERROR = 323;
+    CC2_TOKEN_WARNING = 324;
     return 0;
 }
 
