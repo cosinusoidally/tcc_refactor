@@ -34,6 +34,8 @@ var CC1_MACRO_FIRST_TOKEN_OFFSET;
 var CC1_MACRO_TOKEN_COUNT_OFFSET;
 var CC1_MACRO_DEFINED_OFFSET;
 var CC1_MACRO_EXPANDING_OFFSET;
+var CC1_MACRO_PARAMETER_FIRST_OFFSET;
+var CC1_MACRO_PARAMETER_COUNT_OFFSET;
 var CC1_MACROS;
 var CC1_MACRO_CAPACITY;
 var CC1_MACRO_COUNT;
@@ -238,6 +240,8 @@ function cc1_token_stream_reset(source, length, file)
     CC1_MACRO_TOKEN_COUNT_OFFSET = 12;
     CC1_MACRO_DEFINED_OFFSET = 16;
     CC1_MACRO_EXPANDING_OFFSET = 20;
+    CC1_MACRO_PARAMETER_FIRST_OFFSET = 24;
+    CC1_MACRO_PARAMETER_COUNT_OFFSET = 28;
     CC1_CONDITION_RECORD_SHIFT = 4;
     CC1_CONDITION_PARENT_OFFSET = 0;
     CC1_CONDITION_ACTIVE_OFFSET = 4;
@@ -403,7 +407,8 @@ function cc1_macro_find(name, length)
     return cc1_macro_find_(name, length, 0, 0);
 }
 
-function cc1_macro_define_(name, length, first_token, token_count, macro)
+function cc1_macro_define_(name, length, first_token, token_count,
+    parameter_first, parameter_count, macro)
 {
     macro = cc1_macro_find(name, length);
     if (eq(macro, 0)) {
@@ -419,12 +424,16 @@ function cc1_macro_define_(name, length, first_token, token_count, macro)
     wi32(add(macro, CC1_MACRO_TOKEN_COUNT_OFFSET), token_count);
     wi32(add(macro, CC1_MACRO_DEFINED_OFFSET), 1);
     wi32(add(macro, CC1_MACRO_EXPANDING_OFFSET), 0);
+    wi32(add(macro, CC1_MACRO_PARAMETER_FIRST_OFFSET), parameter_first);
+    wi32(add(macro, CC1_MACRO_PARAMETER_COUNT_OFFSET), parameter_count);
     return 0;
 }
 
-function cc1_macro_define(name, length, first_token, token_count)
+function cc1_macro_define(name, length, first_token, token_count,
+    parameter_first, parameter_count)
 {
-    return cc1_macro_define_(name, length, first_token, token_count, 0);
+    return cc1_macro_define_(name, length, first_token, token_count,
+        parameter_first, parameter_count, 0);
 }
 
 function cc1_macro_undefine_(name, length, macro)
@@ -662,7 +671,199 @@ function cc1_macro_expand_token(token)
     return cc1_macro_expand_token_(token, 0, 0, 0, 0);
 }
 
-function cc1_preprocess_define_(index, line, name_token, first, count)
+function cc1_macro_parameter_index_(macro, token, first, count, index,
+    parameter)
+{
+    first = ri32(add(macro, CC1_MACRO_PARAMETER_FIRST_OFFSET));
+    count = ri32(add(macro, CC1_MACRO_PARAMETER_COUNT_OFFSET));
+    index = 0;
+    while (lt(index, count)) {
+        parameter = cc1_token_record(add(first, shl(index, 1)));
+        if (eq(ri32(add(parameter, CC1_TOKEN_LENGTH_OFFSET)),
+            ri32(add(token, CC1_TOKEN_LENGTH_OFFSET)))) {
+            if (cc1_slice_equal(ri32(add(parameter, CC1_TOKEN_TEXT_OFFSET)),
+                ri32(add(token, CC1_TOKEN_TEXT_OFFSET)),
+                ri32(add(token, CC1_TOKEN_LENGTH_OFFSET)))) {
+                return index;
+            }
+        }
+        index = add(index, 1);
+    }
+    return sub(0, 1);
+}
+
+function cc1_macro_parameter_index(macro, token)
+{
+    return cc1_macro_parameter_index_(macro, token, 0, 0, 0, 0);
+}
+
+/* Each actual argument is represented by its first raw token and token count. */
+function cc1_macro_parse_arguments_(index, parameter_count, arguments,
+    argument_index, start, cursor, depth, token, kind)
+{
+    if (eq(parameter_count, 0)) {
+        if (not(eq(ri32(add(cc1_token_record(add(index, 2)),
+            CC1_TOKEN_KIND_OFFSET)), 41))) {
+            return sub(0, 1);
+        }
+        return add(index, 3);
+    }
+    arguments = malloc(shl(add(parameter_count, 1), 3));
+    if (eq(arguments, 0)) {
+        return sub(0, 1);
+    }
+    argument_index = 0;
+    cursor = add(index, 2);
+    while (lt(argument_index, parameter_count)) {
+        start = cursor;
+        depth = 0;
+        while (lt(cursor, CC1_TOKEN_COUNT)) {
+            token = cc1_token_record(cursor);
+            kind = ri32(add(token, CC1_TOKEN_KIND_OFFSET));
+            if (eq(kind, 40)) {
+                depth = add(depth, 1);
+            } else if (eq(kind, 41)) {
+                if (eq(depth, 0)) {
+                    break;
+                }
+                depth = sub(depth, 1);
+            } else if (eq(kind, 44)) {
+                if (eq(depth, 0)) {
+                    break;
+                }
+            }
+            cursor = add(cursor, 1);
+        }
+        wi32(add(arguments, shl(argument_index, 3)), start);
+        wi32(add(arguments, add(shl(argument_index, 3), 4)),
+            sub(cursor, start));
+        argument_index = add(argument_index, 1);
+        kind = ri32(add(cc1_token_record(cursor), CC1_TOKEN_KIND_OFFSET));
+        if (lt(argument_index, parameter_count)) {
+            if (not(eq(kind, 44))) {
+                return sub(0, 1);
+            }
+            cursor = add(cursor, 1);
+        } else if (not(eq(kind, 41))) {
+            return sub(0, 1);
+        }
+    }
+    wi32(add(arguments, shl(parameter_count, 3)), cursor);
+    return arguments;
+}
+
+function cc1_macro_parse_arguments(index, parameter_count)
+{
+    return cc1_macro_parse_arguments_(index, parameter_count, 0, 0, 0,
+        0, 0, 0, 0);
+}
+
+function cc1_macro_expand_function_(index, macro, parameter_count,
+    arguments, cursor, first, count, replacement_index, token,
+    parameter_index, argument_start, argument_count, argument_token_index,
+    next_index)
+{
+    parameter_count = ri32(add(macro, CC1_MACRO_PARAMETER_COUNT_OFFSET));
+    arguments = cc1_macro_parse_arguments(index, parameter_count);
+    if (lt(arguments, 0)) {
+        return sub(0, 1);
+    }
+    if (eq(parameter_count, 0)) {
+        next_index = arguments;
+    } else {
+        cursor = ri32(add(arguments, shl(parameter_count, 3)));
+        next_index = add(cursor, 1);
+    }
+    if (ri32(add(macro, CC1_MACRO_EXPANDING_OFFSET))) {
+        if (cc1_preprocessed_append(cc1_token_record(index))) {
+            return sub(0, 1);
+        }
+        return next_index;
+    }
+    wi32(add(macro, CC1_MACRO_EXPANDING_OFFSET), 1);
+    first = ri32(add(macro, CC1_MACRO_FIRST_TOKEN_OFFSET));
+    count = ri32(add(macro, CC1_MACRO_TOKEN_COUNT_OFFSET));
+    replacement_index = 0;
+    while (lt(replacement_index, count)) {
+        token = cc1_token_record(add(first, replacement_index));
+        parameter_index = cc1_macro_parameter_index(macro, token);
+        if (lt(parameter_index, 0)) {
+            if (cc1_macro_expand_token(token)) {
+                wi32(add(macro, CC1_MACRO_EXPANDING_OFFSET), 0);
+                return sub(0, 1);
+            }
+        } else {
+            argument_start = ri32(add(arguments,
+                shl(parameter_index, 3)));
+            argument_count = ri32(add(arguments,
+                add(shl(parameter_index, 3), 4)));
+            argument_token_index = 0;
+            while (lt(argument_token_index, argument_count)) {
+                if (cc1_macro_expand_token(cc1_token_record(add(
+                    argument_start, argument_token_index)))) {
+                    wi32(add(macro, CC1_MACRO_EXPANDING_OFFSET), 0);
+                    return sub(0, 1);
+                }
+                argument_token_index = add(argument_token_index, 1);
+            }
+        }
+        replacement_index = add(replacement_index, 1);
+    }
+    wi32(add(macro, CC1_MACRO_EXPANDING_OFFSET), 0);
+    return next_index;
+}
+
+function cc1_macro_expand_function(index, macro)
+{
+    return cc1_macro_expand_function_(index, macro, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0);
+}
+
+function cc1_macro_expand_at_(index, token, macro, parameter_count,
+    next_token)
+{
+    token = cc1_token_record(index);
+    macro = cc1_macro_find(ri32(add(token, CC1_TOKEN_TEXT_OFFSET)),
+        ri32(add(token, CC1_TOKEN_LENGTH_OFFSET)));
+    if (eq(macro, 0)) {
+        if (cc1_preprocessed_append(token)) {
+            return sub(0, 1);
+        }
+        return add(index, 1);
+    }
+    if (not(ri32(add(macro, CC1_MACRO_DEFINED_OFFSET)))) {
+        if (cc1_preprocessed_append(token)) {
+            return sub(0, 1);
+        }
+        return add(index, 1);
+    }
+    parameter_count = ri32(add(macro, CC1_MACRO_PARAMETER_COUNT_OFFSET));
+    if (lt(parameter_count, 0)) {
+        if (cc1_macro_expand_token(token)) {
+            return sub(0, 1);
+        }
+        return add(index, 1);
+    }
+    if (not(lt(add(index, 1), CC1_TOKEN_COUNT))) {
+        return sub(0, 1);
+    }
+    next_token = cc1_token_record(add(index, 1));
+    if (not(eq(ri32(add(next_token, CC1_TOKEN_KIND_OFFSET)), 40))) {
+        if (cc1_preprocessed_append(token)) {
+            return sub(0, 1);
+        }
+        return add(index, 1);
+    }
+    return cc1_macro_expand_function(index, macro);
+}
+
+function cc1_macro_expand_at(index)
+{
+    return cc1_macro_expand_at_(index, 0, 0, 0, 0);
+}
+
+function cc1_preprocess_define_(index, line, name_token, first, count,
+    next_token, parameter_first, parameter_count, kind)
 {
     index = add(index, 2);
     if (not(lt(index, CC1_TOKEN_COUNT))) {
@@ -672,7 +873,41 @@ function cc1_preprocess_define_(index, line, name_token, first, count)
     if (not(eq(ri32(add(name_token, CC1_TOKEN_LINE_OFFSET)), line))) {
         return sub(0, 1);
     }
+    parameter_first = 0;
+    parameter_count = sub(0, 1);
     first = add(index, 1);
+    if (lt(first, CC1_TOKEN_COUNT)) {
+        next_token = cc1_token_record(first);
+        if (eq(ri32(add(next_token, CC1_TOKEN_KIND_OFFSET)), 40)) {
+            if (eq(ri32(add(next_token, CC1_TOKEN_SOURCE_OFFSET)),
+                add(ri32(add(name_token, CC1_TOKEN_SOURCE_OFFSET)),
+                ri32(add(name_token, CC1_TOKEN_LENGTH_OFFSET))))) {
+                parameter_first = add(first, 1);
+                parameter_count = 0;
+                index = parameter_first;
+                while (lt(index, CC1_TOKEN_COUNT)) {
+                    next_token = cc1_token_record(index);
+                    kind = ri32(add(next_token, CC1_TOKEN_KIND_OFFSET));
+                    if (eq(kind, 41)) {
+                        first = add(index, 1);
+                        break;
+                    }
+                    if (not(eq(kind, 2))) {
+                        return sub(0, 1);
+                    }
+                    parameter_count = add(parameter_count, 1);
+                    index = add(index, 1);
+                    next_token = cc1_token_record(index);
+                    kind = ri32(add(next_token, CC1_TOKEN_KIND_OFFSET));
+                    if (eq(kind, 44)) {
+                        index = add(index, 1);
+                    } else if (not(eq(kind, 41))) {
+                        return sub(0, 1);
+                    }
+                }
+            }
+        }
+    }
     index = first;
     while (lt(index, CC1_TOKEN_COUNT)) {
         if (not(eq(ri32(add(cc1_token_record(index),
@@ -683,7 +918,8 @@ function cc1_preprocess_define_(index, line, name_token, first, count)
     }
     count = sub(index, first);
     if (cc1_macro_define(ri32(add(name_token, CC1_TOKEN_TEXT_OFFSET)),
-        ri32(add(name_token, CC1_TOKEN_LENGTH_OFFSET)), first, count)) {
+        ri32(add(name_token, CC1_TOKEN_LENGTH_OFFSET)), first, count,
+        parameter_first, parameter_count)) {
         return sub(0, 1);
     }
     return index;
@@ -691,7 +927,7 @@ function cc1_preprocess_define_(index, line, name_token, first, count)
 
 function cc1_preprocess_define(index, line)
 {
-    return cc1_preprocess_define_(index, line, 0, 0, 0);
+    return cc1_preprocess_define_(index, line, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function cc1_preprocess_undef_(index, line, name_token)
@@ -949,24 +1185,29 @@ function cc1_preprocess_tokens_(index, previous_line, token, line,
                 previous_line = line;
                 index = next_index;
             } else {
-                if (cc1_macro_expand_token(token)) {
+                next_index = cc1_macro_expand_at(index);
+                if (lt(next_index, 0)) {
                     return 1;
                 }
                 previous_line = line;
-                index = add(index, 1);
+                index = next_index;
             }
         } else {
             if (active) {
-                if (cc1_macro_expand_token(token)) {
+                next_index = cc1_macro_expand_at(index);
+                if (lt(next_index, 0)) {
                     return 1;
                 }
+                index = next_index;
             } else if (eq(kind, CC1_TOKEN_EOF)) {
                 if (cc1_preprocessed_append(token)) {
                     return 1;
                 }
+                index = add(index, 1);
+            } else {
+                index = add(index, 1);
             }
             previous_line = line;
-            index = add(index, 1);
         }
     }
     return not(eq(CC1_CONDITION_DEPTH, 0));

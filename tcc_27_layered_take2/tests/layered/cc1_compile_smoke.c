@@ -1,5 +1,6 @@
 #define RESULT 0
 #define ENABLED 1
+#define COMBINE(left, right) ((left) + (right))
 int global_result;
 
 int identity(int value)
@@ -17,7 +18,7 @@ int record(int value)
 #if ENABLED
 int main()
 {
-    int temporary = identity((RESULT + 6 / 3 + 5 % 3 - 2) * 1);
+    int temporary = identity(COMBINE(RESULT, (6 / 3 + 5 % 3 - 2)) * 1);
     temporary = (temporary << 1) >> 1;
     temporary = (temporary | 8) ^ 8;
     temporary = temporary & ~0;
