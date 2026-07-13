@@ -1335,7 +1335,7 @@ ST_FUNC void free_defines(Sym *b)
 }
 
 /* label lookup */
-ST_FUNC Sym *label_find(int v)
+Sym *label_find(int v)
 {
     v -= TOK_IDENT;
     if ((unsigned)v >= (unsigned)(tok_ident - TOK_IDENT))
@@ -1343,7 +1343,7 @@ ST_FUNC Sym *label_find(int v)
     return table_ident[v]->sym_label;
 }
 
-ST_FUNC Sym *label_push(Sym **ptop, int v, int flags)
+Sym *label_push(Sym **ptop, int v, int flags)
 {
     Sym *s, **ps;
     s = sym_push2(ptop, v, 0, 0);
@@ -3561,6 +3561,7 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
     func_old_type_address = &func_old_type;
     func_vt_address = &func_vt;
     local_stack_address = &local_stack;
+    global_label_stack_address = &global_label_stack;
     ptrdiff_type_address = &ptrdiff_type;
     tok_address = &tok;
     gnu_ext_address = &gnu_ext;

@@ -1201,8 +1201,8 @@ ST_INLN void define_push(int v, int macro_type, int *str, Sym *first_arg);
 ST_FUNC void define_undef(Sym *s);
 ST_INLN Sym *define_find(int v);
 ST_FUNC void free_defines(Sym *b);
-ST_FUNC Sym *label_find(int v);
-ST_FUNC Sym *label_push(Sym **ptop, int v, int flags);
+Sym *label_find(int v);
+Sym *label_push(Sym **ptop, int v, int flags);
 ST_FUNC void label_pop(Sym **ptop, Sym *slast, int keep);
 ST_FUNC void parse_define(void);
 ST_FUNC void preprocess(int is_bof);
@@ -1265,6 +1265,7 @@ extern Sym *local_stack;
 extern Sym **local_stack_address;
 extern Sym *local_label_stack;
 extern Sym *global_label_stack;
+extern Sym **global_label_stack_address;
 extern Sym *define_stack;
 extern CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
 extern CType *int_type_address, *size_type_address, *func_old_type_address;
@@ -1560,7 +1561,7 @@ ST_FUNC void gen_opi(int op);
 ST_FUNC void gen_opf(int op);
 void gen_cvt_ftoi(int t);
 void gen_cvt_ftof(int t);
-ST_FUNC void ggoto(void);
+void ggoto(void);
 #ifndef TCC_TARGET_C67
 extern void o(unsigned int c);
 #endif

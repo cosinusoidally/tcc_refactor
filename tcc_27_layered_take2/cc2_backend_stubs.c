@@ -273,3 +273,18 @@ function dynarray_add(table_pointer, count_pointer, data)
 {
     return 0;
 }
+
+function label_find(token)
+{
+    return 0;
+}
+
+function label_push(stack_pointer, token, flags)
+{
+    return malloc(36);
+}
+
+function ggoto()
+{
+    return 0;
+}

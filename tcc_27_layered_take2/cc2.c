@@ -53,6 +53,7 @@ var CC2_SYM_PREV_OFFSET = 28;
 var CC2_SYM_VALUE_OFFSET = 0;
 var CC2_SYM_TYPE_OFFSET = 16;
 var CC2_SYM_CONSTANT_OFFSET = 8;
+var CC2_SYM_JUMP_NEXT_OFFSET = 12;
 var CC2_SYM_SCOPE_OFFSET = 12;
 var CC2_SYM_TYPE_REFERENCE_OFFSET = 20;
 var CC2_SYM_PREVIOUS_TOKEN_OFFSET = 32;
@@ -320,6 +321,7 @@ var local_stack;
 var local_stack_address;
 var define_stack;
 var global_label_stack;
+var global_label_stack_address;
 var local_label_stack;
 var vtop;
 var pvtop;
@@ -5083,6 +5085,44 @@ function block_default()
         tcc_error(mks("too many 'default'"), 0);
     }
     wi32(add(cur_switch, CC2_SWITCH_DEFAULT_SYMBOL_OFFSET), ind);
+    return 0;
+}
+
+function block_goto()
+{
+    var symbol;
+    var state;
+    next();
+    if (and(eq(ri32(tok_address), 42), ri32(gnu_ext_address))) {
+        next();
+        gexpr();
+        if (not(eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_POINTER_TYPE))) {
+            expect(mks("pointer"));
+        }
+        ggoto();
+    } else if (le(314, ri32(tok_address))) {
+        symbol = label_find(ri32(tok_address));
+        if (not(symbol)) {
+            symbol = label_push(global_label_stack_address,
+                ri32(tok_address), 1);
+        } else if (eq(and(ri32(add(symbol, 4)), 65535), 2)) {
+            wi32(add(symbol, 4), or(and(ri32(add(symbol, 4)),
+                bnot(65535)), 1));
+        }
+        vla_sp_restore_root();
+        state = and(ri32(add(symbol, 4)), 65535);
+        if (and(state, 1)) {
+            wi32(add(symbol, CC2_SYM_JUMP_NEXT_OFFSET),
+                gjmp(ri32(add(symbol, CC2_SYM_JUMP_NEXT_OFFSET))));
+        } else {
+            gjmp_addr(ri32(add(symbol, CC2_SYM_JUMP_NEXT_OFFSET)));
+        }
+        next();
+    } else {
+        expect(mks("label identifier"));
+    }
+    skip(59);
     return 0;
 }
 

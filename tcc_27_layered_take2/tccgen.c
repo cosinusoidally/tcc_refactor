@@ -50,6 +50,7 @@ void block_do(void);
 void block_for(void);
 void block_case(void);
 void block_default(void);
+void block_goto(void);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1823,33 +1824,7 @@ void block(int *bsym, int *csym, int is_expr)
         goto block_after_label;
     } else
     if (tok == TOK_GOTO) {
-        next();
-        if (tok == '*' && gnu_ext) {
-            /* computed goto */
-            next();
-            gexpr();
-            if ((vtop->type.t & VT_BTYPE) != VT_PTR)
-                expect("pointer");
-            ggoto();
-        } else if (tok >= TOK_UIDENT) {
-            s = label_find(tok);
-            /* put forward definition if needed */
-            if (!s) {
-                s = label_push(&global_label_stack, tok, LABEL_FORWARD);
-            } else {
-                if (s->r == LABEL_DECLARED)
-                    s->r = LABEL_FORWARD;
-            }
-            vla_sp_restore_root();
-	    if (s->r & LABEL_FORWARD)
-                s->jnext = gjmp(s->jnext);
-            else
-                gjmp_addr(s->jnext);
-            next();
-        } else {
-            expect("label identifier");
-        }
-        skip(';');
+        block_goto();
     } else if (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3) {
         asm_instr();
     } else {

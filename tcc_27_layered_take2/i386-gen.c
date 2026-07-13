@@ -1057,7 +1057,7 @@ void gen_cvt_ftof(int t)
 }
 
 /* computed goto support */
-ST_FUNC void ggoto(void)
+void ggoto(void)
 {
     gcall_or_jmp(1);
     vtop--;
