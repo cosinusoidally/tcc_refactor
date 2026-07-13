@@ -171,6 +171,16 @@ var CC2_TOKEN_FLOAT_TO_UNSIGNED_LONG_LONG = 400;
 var CC2_TOKEN_DOUBLE_TO_UNSIGNED_LONG_LONG = 401;
 var CC2_TOKEN_LONG_DOUBLE_TO_UNSIGNED_LONG_LONG = 399;
 var CC2_TOKEN_MEMMOVE = 387;
+var CC2_TOKEN_SIGNED_LONG_LONG_DIVIDE = 389;
+var CC2_TOKEN_UNSIGNED_LONG_LONG_DIVIDE = 391;
+var CC2_TOKEN_SIGNED_LONG_LONG_MODULO = 390;
+var CC2_TOKEN_UNSIGNED_LONG_LONG_MODULO = 392;
+var CC2_TOKEN_ARITHMETIC_SHIFT_RIGHT_LONG_LONG = 393;
+var CC2_TOKEN_LOGICAL_SHIFT_RIGHT_LONG_LONG = 394;
+var CC2_TOKEN_SHIFT_LEFT_LONG_LONG = 395;
+var CC2_TOKEN_UNSIGNED_MULTIPLY_LONG_LONG = 194;
+var CC2_TOKEN_ADD_CARRY_FIRST = 195;
+var CC2_TOKEN_SUBTRACT_CARRY_FIRST = 197;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -3104,6 +3114,222 @@ function gvtst(inverted, jump_chain)
         return jump_chain;
     }
     return gtst(inverted, jump_chain);
+}
+
+function cc2_swap_svalues_(first, second, temporary)
+{
+    temporary = malloc(CC2_SVALUE_BYTES);
+    cc2_copy_svalue(temporary, first);
+    cc2_copy_svalue(first, second);
+    cc2_copy_svalue(second, temporary);
+    free(temporary);
+    return 0;
+}
+
+function cc2_swap_svalues(first, second)
+{
+    return cc2_swap_svalues_(first, second, 0);
+}
+
+function gen_opl_call_helper(token)
+{
+    vpush_global_sym(func_old_type_address, token);
+    vrott(3);
+    gfunc_call(2);
+    vpushi(0);
+    cc2_set_value_register(vtop, CC2_I386_INTEGER_RETURN_REGISTER);
+    cc2_set_value_second_register(vtop,
+        CC2_I386_LONG_LONG_RETURN_REGISTER);
+    return 0;
+}
+
+function gen_opl_(operation, type, first_jump, second_jump,
+    word_operation, shift, index, helper)
+{
+    if (or(or(eq(operation, CC2_ASCII_SLASH),
+        eq(operation, CC2_TOKEN_POINTER_DIVIDE)),
+        eq(operation, CC2_TOKEN_UNSIGNED_DIVIDE))) {
+        if (eq(operation, CC2_TOKEN_UNSIGNED_DIVIDE)) {
+            helper = CC2_TOKEN_UNSIGNED_LONG_LONG_DIVIDE;
+        } else {
+            helper = CC2_TOKEN_SIGNED_LONG_LONG_DIVIDE;
+        }
+        return gen_opl_call_helper(helper);
+    }
+    if (or(eq(operation, CC2_ASCII_PERCENT),
+        eq(operation, CC2_TOKEN_UNSIGNED_MODULO))) {
+        if (eq(operation, CC2_TOKEN_UNSIGNED_MODULO)) {
+            helper = CC2_TOKEN_UNSIGNED_LONG_LONG_MODULO;
+        } else {
+            helper = CC2_TOKEN_SIGNED_LONG_LONG_MODULO;
+        }
+        return gen_opl_call_helper(helper);
+    }
+    if (or(or(or(eq(operation, CC2_ASCII_CARET),
+        eq(operation, CC2_ASCII_AMPERSAND)),
+        or(eq(operation, CC2_ASCII_VERTICAL_BAR),
+        eq(operation, CC2_ASCII_ASTERISK))),
+        or(eq(operation, CC2_ASCII_PLUS),
+        eq(operation, CC2_ASCII_MINUS)))) {
+        type = ri32(vtop);
+        vswap();
+        lexpand();
+        vrotb(3);
+        lexpand();
+        cc2_swap_svalues(vtop, sub(vtop, mul(3, CC2_SVALUE_BYTES)));
+        cc2_swap_svalues(sub(vtop, mul(2, CC2_SVALUE_BYTES)),
+            sub(vtop, mul(3, CC2_SVALUE_BYTES)));
+        vswap();
+        if (eq(operation, CC2_ASCII_ASTERISK)) {
+            vpushv(sub(vtop, CC2_SVALUE_BYTES));
+            vpushv(sub(vtop, CC2_SVALUE_BYTES));
+            gen_op(CC2_TOKEN_UNSIGNED_MULTIPLY_LONG_LONG);
+            lexpand();
+            index = 0;
+            while (lt(index, 4)) {
+                vrotb(6);
+                index = add(index, 1);
+            }
+            cc2_swap_svalues(vtop, sub(vtop, mul(2, CC2_SVALUE_BYTES)));
+            gen_op(CC2_ASCII_ASTERISK);
+            vrotb(3);
+            vrotb(3);
+            gen_op(CC2_ASCII_ASTERISK);
+            gen_op(CC2_ASCII_PLUS);
+            gen_op(CC2_ASCII_PLUS);
+        } else if (or(eq(operation, CC2_ASCII_PLUS),
+            eq(operation, CC2_ASCII_MINUS))) {
+            if (eq(operation, CC2_ASCII_PLUS)) {
+                word_operation = CC2_TOKEN_ADD_CARRY_FIRST;
+            } else {
+                word_operation = CC2_TOKEN_SUBTRACT_CARRY_FIRST;
+            }
+            gen_op(word_operation);
+            vrotb(3);
+            vrotb(3);
+            gen_op(add(word_operation, 1));
+        } else {
+            gen_op(operation);
+            vrotb(3);
+            vrotb(3);
+            gen_op(operation);
+        }
+        return lbuild(type);
+    }
+    if (or(or(eq(operation, CC2_TOKEN_SHIFT_RIGHT),
+        eq(operation, CC2_TOKEN_UNSIGNED_SHIFT_RIGHT)),
+        eq(operation, CC2_TOKEN_SHIFT_LEFT))) {
+        if (eq(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+            CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT)) {
+            type = ri32(sub(vtop, CC2_SVALUE_BYTES));
+            vswap();
+            lexpand();
+            vrotb(3);
+            shift = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
+            vpop();
+            if (not(eq(operation, CC2_TOKEN_SHIFT_LEFT))) {
+                vswap();
+            }
+            if (le(32, shift)) {
+                vpop();
+                if (lt(32, shift)) {
+                    vpushi(sub(shift, 32));
+                    gen_op(operation);
+                }
+                if (not(eq(operation, CC2_TOKEN_SHIFT_RIGHT))) {
+                    vpushi(0);
+                } else {
+                    gv_dup();
+                    vpushi(31);
+                    gen_op(CC2_TOKEN_SHIFT_RIGHT);
+                }
+                vswap();
+            } else {
+                vswap();
+                gv_dup();
+                vpushi(shift);
+                gen_op(operation);
+                vswap();
+                vpushi(sub(32, shift));
+                if (eq(operation, CC2_TOKEN_SHIFT_LEFT)) {
+                    gen_op(CC2_TOKEN_UNSIGNED_SHIFT_RIGHT);
+                } else {
+                    gen_op(CC2_TOKEN_SHIFT_LEFT);
+                }
+                vrotb(3);
+                vpushi(shift);
+                if (eq(operation, CC2_TOKEN_SHIFT_LEFT)) {
+                    gen_op(CC2_TOKEN_SHIFT_LEFT);
+                } else {
+                    gen_op(CC2_TOKEN_UNSIGNED_SHIFT_RIGHT);
+                }
+                gen_op(CC2_ASCII_VERTICAL_BAR);
+            }
+            if (not(eq(operation, CC2_TOKEN_SHIFT_LEFT))) {
+                vswap();
+            }
+            return lbuild(type);
+        }
+        if (eq(operation, CC2_TOKEN_SHIFT_RIGHT)) {
+            helper = CC2_TOKEN_ARITHMETIC_SHIFT_RIGHT_LONG_LONG;
+        } else if (eq(operation, CC2_TOKEN_UNSIGNED_SHIFT_RIGHT)) {
+            helper = CC2_TOKEN_LOGICAL_SHIFT_RIGHT_LONG_LONG;
+        } else {
+            helper = CC2_TOKEN_SHIFT_LEFT_LONG_LONG;
+        }
+        return gen_opl_call_helper(helper);
+    }
+
+    type = ri32(vtop);
+    vswap();
+    lexpand();
+    vrotb(3);
+    lexpand();
+    cc2_swap_svalues(sub(vtop, CC2_SVALUE_BYTES),
+        sub(vtop, mul(2, CC2_SVALUE_BYTES)));
+    word_operation = operation;
+    if (eq(word_operation, CC2_TOKEN_SIGNED_LESS)) {
+        word_operation = CC2_TOKEN_SIGNED_LESS_EQUAL;
+    } else if (eq(word_operation, CC2_TOKEN_SIGNED_GREATER)) {
+        word_operation = CC2_TOKEN_SIGNED_GREATER_EQUAL;
+    } else if (eq(word_operation, CC2_TOKEN_UNSIGNED_LESS)) {
+        word_operation = CC2_TOKEN_UNSIGNED_LESS_EQUAL;
+    } else if (eq(word_operation, CC2_TOKEN_UNSIGNED_GREATER)) {
+        word_operation = CC2_TOKEN_UNSIGNED_GREATER_EQUAL;
+    }
+    first_jump = 0;
+    second_jump = 0;
+    gen_op(word_operation);
+    if (eq(operation, CC2_TOKEN_NOT_EQUAL)) {
+        second_jump = gvtst(0, 0);
+    } else {
+        first_jump = gvtst(1, 0);
+        if (not(eq(operation, CC2_TOKEN_EQUAL))) {
+            vpushi(CC2_TOKEN_NOT_EQUAL);
+            cc2_set_value_register(vtop, CC2_VALUE_COMPARISON);
+            second_jump = gvtst(0, 0);
+        }
+    }
+    word_operation = operation;
+    if (eq(word_operation, CC2_TOKEN_SIGNED_LESS)) {
+        word_operation = CC2_TOKEN_UNSIGNED_LESS;
+    } else if (eq(word_operation, CC2_TOKEN_SIGNED_LESS_EQUAL)) {
+        word_operation = CC2_TOKEN_UNSIGNED_LESS_EQUAL;
+    } else if (eq(word_operation, CC2_TOKEN_SIGNED_GREATER)) {
+        word_operation = CC2_TOKEN_UNSIGNED_GREATER;
+    } else if (eq(word_operation, CC2_TOKEN_SIGNED_GREATER_EQUAL)) {
+        word_operation = CC2_TOKEN_UNSIGNED_GREATER_EQUAL;
+    }
+    gen_op(word_operation);
+    first_jump = gvtst(1, first_jump);
+    gsym(second_jump);
+    vseti(CC2_VALUE_JUMP_FALSE, first_jump);
+    return 0;
+}
+
+function gen_opl(operation)
+{
+    return gen_opl_(operation, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function vstore_(destination_type, source_basic, destination_basic,
