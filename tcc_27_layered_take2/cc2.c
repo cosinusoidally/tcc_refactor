@@ -448,6 +448,8 @@ var CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET;
 var CC2_BUFFERED_FILE_IFNDEF_MACRO_SAVED_OFFSET;
 var CC2_TOKEN_FLAG_ENDIF;
 var CC2_TOKEN_LINE_DIRECTIVE;
+var CC2_TOKEN_DEFINE_DIRECTIVE;
+var CC2_TOKEN_UNDEF_DIRECTIVE;
 var CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET;
 var CC2_BUFFERED_FILE_FILENAME_CAPACITY;
 var CC2_STABS_INCLUDE_TYPE;
@@ -1993,6 +1995,23 @@ function preprocess_line_directive(state, directive)
     if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
         cc2_put_stabs(add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET),
             CC2_STABS_INCLUDE_TYPE, 0, 0, 0);
+    }
+    return 0;
+}
+
+function preprocess_macro_directive(directive)
+{
+    var symbol;
+    wi32(pp_debug_tok_address, directive);
+    next_nomacro();
+    wi32(pp_debug_symv_address, ri32(tok_address));
+    if (eq(directive, CC2_TOKEN_DEFINE_DIRECTIVE)) {
+        parse_define();
+    } else {
+        symbol = define_find(ri32(tok_address));
+        if (symbol) {
+            define_undef(symbol);
+        }
     }
     return 0;
 }
@@ -13576,6 +13595,8 @@ function cc2_init_constants()
     CC2_BUFFERED_FILE_IFNDEF_MACRO_SAVED_OFFSET = 28;
     CC2_TOKEN_FLAG_ENDIF = 4;
     CC2_TOKEN_LINE_DIRECTIVE = 325;
+    CC2_TOKEN_DEFINE_DIRECTIVE = 314;
+    CC2_TOKEN_UNDEF_DIRECTIVE = 322;
     CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET = 1064;
     CC2_BUFFERED_FILE_FILENAME_CAPACITY = 1024;
     CC2_STABS_INCLUDE_TYPE = 130;

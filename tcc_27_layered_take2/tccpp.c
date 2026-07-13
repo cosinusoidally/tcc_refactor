@@ -518,8 +518,6 @@ ST_FUNC void preprocess(int is_bof)
     TCCState *s1 = tcc_state;
     int i, c, n, saved_parse_flags;
     char buf[1024], *q;
-    Sym *s;
-
     saved_parse_flags = parse_flags;
     parse_flags = PARSE_FLAG_PREPROCESS
         | PARSE_FLAG_TOK_NUM
@@ -532,19 +530,8 @@ ST_FUNC void preprocess(int is_bof)
  redo:
     switch(tok) {
     case TOK_DEFINE:
-        pp_debug_tok = tok;
-        next_nomacro();
-        pp_debug_symv = tok;
-        parse_define();
-        break;
     case TOK_UNDEF:
-        pp_debug_tok = tok;
-        next_nomacro();
-        pp_debug_symv = tok;
-        s = define_find(tok);
-        /* undefine symbol by putting an invalid name */
-        if (s)
-            define_undef(s);
+        preprocess_macro_directive(tok);
         break;
     case TOK_INCLUDE:
     case TOK_INCLUDE_NEXT:
