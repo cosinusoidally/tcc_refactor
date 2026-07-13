@@ -412,6 +412,8 @@ var CC2_TOKEN_TWO_SHARPS;
 var CC2_TOKEN_PREPROCESSOR_JOIN;
 var CC2_PARSE_FLAG_SPACES;
 var CC2_PARSE_FLAG_LINE_FEED;
+var CC2_CHARACTER_EOF;
+var CC2_CHARACTER_CLASS_SPACE;
 var CC2_TOKEN_CHARACTER;
 var CC2_TOKEN_WIDE_CHARACTER;
 var CC2_TOKEN_INTEGER_CONSTANT;
@@ -1513,6 +1515,56 @@ function tok_get(token_pointer, stream_pointer, value)
         stream = add(stream, mul(add(words, 1), CC2_I386_WORD_BYTES));
     }
     wi32(stream_pointer, stream);
+    return 0;
+}
+
+/* Select tokens from a saved macro stream before falling back to the source
+   lexer.  Keeping this policy here makes macro replay part of cc2 itself. */
+function next_nomacro_spc()
+{
+    var stream_pointer;
+    var token;
+    var source_file;
+    if (macro_ptr) {
+        stream_pointer = calloc(1, CC2_I386_WORD_BYTES);
+        wi32(stream_pointer, macro_ptr);
+        token = ri32(macro_ptr);
+        while (token) {
+            tok_get(tok_address, stream_pointer, tokc_address);
+            macro_ptr = ri32(stream_pointer);
+            token = ri32(tok_address);
+            if (not(eq(token, CC2_TOKEN_LINE_NUMBER))) {
+                free(stream_pointer);
+                return 0;
+            }
+            source_file = ri32(file_address);
+            wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET),
+                ri32(tokc_address));
+            token = ri32(macro_ptr);
+        }
+        wi32(tok_address, 0);
+        free(stream_pointer);
+    } else {
+        next_nomacro1();
+    }
+    return 0;
+}
+
+function next_nomacro()
+{
+    var token;
+    var character_class;
+    next_nomacro_spc();
+    token = ri32(tok_address);
+    while (lt(token, 256)) {
+        character_class = ri8(add(isidnum_table_address,
+            sub(token, CC2_CHARACTER_EOF)));
+        if (not(and(character_class, CC2_CHARACTER_CLASS_SPACE))) {
+            return 0;
+        }
+        next_nomacro_spc();
+        token = ri32(tok_address);
+    }
     return 0;
 }
 
@@ -13059,6 +13111,8 @@ function cc2_init_constants()
     CC2_TOKEN_PREPROCESSOR_JOIN = 205;
     CC2_PARSE_FLAG_SPACES = 16;
     CC2_PARSE_FLAG_LINE_FEED = 4;
+    CC2_CHARACTER_EOF = sub(0, 1);
+    CC2_CHARACTER_CLASS_SPACE = 1;
     return 0;
 }
 

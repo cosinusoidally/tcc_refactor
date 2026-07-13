@@ -192,12 +192,7 @@ function next()
     return 0;
 }
 
-function next_nomacro()
-{
-    return 0;
-}
-
-function next_nomacro_spc()
+function next_nomacro1()
 {
     return 0;
 }

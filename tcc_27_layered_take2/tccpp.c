@@ -1538,7 +1538,7 @@ static void parse_number(const char *p)
         break;
 
 /* return next token without macro substitution */
-static inline void next_nomacro1(void)
+void next_nomacro1(void)
 {
     int t, c, is_long, len;
     TokenSym *ts;
@@ -1944,34 +1944,6 @@ keep_tok_flags:
     printf("token = %d %s\n", tok, get_tok_str(tok, &tokc));
 #endif
 }
-
-/* return next token without macro substitution. Can read input from
-   macro_ptr buffer */
-void next_nomacro_spc(void)
-{
-    if (macro_ptr) {
-    redo:
-        tok = *macro_ptr;
-        if (tok) {
-            tok_get(&tok, &macro_ptr, &tokc);
-            if (tok == TOK_LINENUM) {
-                file->line_num = tokc.i;
-                goto redo;
-            }
-        }
-    } else {
-        next_nomacro1();
-    }
-    //printf("token = %s\n", get_tok_str(tok, &tokc));
-}
-
-void next_nomacro(void)
-{
-    do {
-        next_nomacro_spc();
-    } while (tok < 256 && (isidnum_table[tok - CH_EOF] & IS_SPC));
-}
- 
 
 static void macro_subst(
     TokenString *tok_str,

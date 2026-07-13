@@ -1219,6 +1219,7 @@ void label_pop(Sym **ptop, Sym *slast, int keep);
 void parse_define(void);
 ST_FUNC void preprocess(int is_bof);
 void next_nomacro(void);
+void next_nomacro1(void);
 extern void next(void);
 extern void unget_tok(int last_tok);
 ST_FUNC void preprocess_start(TCCState *s1, int is_asm);
