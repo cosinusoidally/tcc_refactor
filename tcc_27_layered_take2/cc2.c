@@ -51,6 +51,7 @@ var CC2_SYM_POOL_BYTES = 8192;
 var CC2_SYM_NEXT_OFFSET = 24;
 var CC2_SYM_PREV_OFFSET = 28;
 var CC2_SYM_VALUE_OFFSET = 0;
+var CC2_SYM_REGISTER_OFFSET = 4;
 var CC2_SYM_TYPE_OFFSET = 16;
 var CC2_SYM_CONSTANT_OFFSET = 8;
 var CC2_SYM_JUMP_NEXT_OFFSET = 12;
@@ -60,6 +61,7 @@ var CC2_SYM_PREVIOUS_TOKEN_OFFSET = 32;
 var CC2_TOKEN_SYMBOL_STRUCT_OFFSET = 12;
 var CC2_TOKEN_SYMBOL_IDENTIFIER_OFFSET = 16;
 var CC2_TOKEN_SYMBOL_DEFINE_OFFSET = 4;
+var CC2_TOKEN_SYMBOL_LABEL_OFFSET = 8;
 var CC2_TOKEN_IDENTIFIER_BASE = 256;
 var CC2_SYMBOL_STRUCT_FLAG = 1073741824;
 var CC2_SYMBOL_FIELD_FLAG = 536870912;
@@ -398,6 +400,10 @@ var CC2_TOKEN_PREPROCESSOR_STRING = 191;
 var CC2_TOKEN_LINE_NUMBER = 192;
 var CC2_TOKEN_LONG_CONSTANT = 206;
 var CC2_TOKEN_UNSIGNED_LONG_CONSTANT = 207;
+var CC2_LABEL_DEFINED = 0;
+var CC2_LABEL_FORWARD = 1;
+var CC2_LABEL_DECLARED = 2;
+var CC2_UNSIGNED_SHORT_MASK = 65535;
 var CC2_ATTRIBUTE_ALIGNED_MASK = 31;
 var CC2_ATTRIBUTE_PACKED = 32;
 var CC2_ATTRIBUTE_WEAK = 64;
@@ -1206,6 +1212,80 @@ function free_defines_(boundary, symbol, value, token_symbol)
 function free_defines(boundary)
 {
     return free_defines_(boundary, 0, 0, 0);
+}
+
+function label_find_(value, token_symbol)
+{
+    token_symbol = cc2_token_symbol(value);
+    if (eq(token_symbol, 0)) {
+        return 0;
+    }
+    return ri32(add(token_symbol, CC2_TOKEN_SYMBOL_LABEL_OFFSET));
+}
+
+function label_find(value)
+{
+    return label_find_(value, 0);
+}
+
+function label_push_(stack_pointer, value, flags, symbol, token_symbol,
+    slot)
+{
+    symbol = sym_push2(stack_pointer, value, 0, 0);
+    wi32(add(symbol, CC2_SYM_REGISTER_OFFSET), flags);
+    token_symbol = cc2_token_symbol(value);
+    slot = add(token_symbol, CC2_TOKEN_SYMBOL_LABEL_OFFSET);
+    if (eq(stack_pointer, global_label_stack_address)) {
+        while (not(eq(ri32(slot), 0))) {
+            slot = add(ri32(slot), CC2_SYM_PREVIOUS_TOKEN_OFFSET);
+        }
+    }
+    wi32(add(symbol, CC2_SYM_PREVIOUS_TOKEN_OFFSET), ri32(slot));
+    wi32(slot, symbol);
+    return symbol;
+}
+
+function label_push(stack_pointer, value, flags)
+{
+    return label_push_(stack_pointer, value, flags, 0, 0, 0);
+}
+
+function label_pop_(stack_pointer, boundary, keep, symbol, next_symbol,
+    flags, token_symbol)
+{
+    symbol = ri32(stack_pointer);
+    while (not(eq(symbol, boundary))) {
+        next_symbol = ri32(add(symbol, CC2_SYM_PREV_OFFSET));
+        flags = and(ri32(add(symbol, CC2_SYM_REGISTER_OFFSET)),
+            CC2_UNSIGNED_SHORT_MASK);
+        if (eq(flags, CC2_LABEL_DECLARED)) {
+            tcc_warning(mks("label '%s' declared but not used"),
+                get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0));
+        } else if (eq(flags, CC2_LABEL_FORWARD)) {
+            tcc_error(mks("label '%s' used but not defined"),
+                get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0));
+        } else if (not(eq(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), 0))) {
+            put_extern_sym(symbol, ri32(cur_text_section_address),
+                ri32(add(symbol, CC2_SYM_JUMP_NEXT_OFFSET)), 1);
+        }
+        token_symbol = cc2_token_symbol(
+            ri32(add(symbol, CC2_SYM_VALUE_OFFSET)));
+        wi32(add(token_symbol, CC2_TOKEN_SYMBOL_LABEL_OFFSET),
+            ri32(add(symbol, CC2_SYM_PREVIOUS_TOKEN_OFFSET)));
+        if (eq(keep, 0)) {
+            sym_free(symbol);
+        }
+        symbol = next_symbol;
+    }
+    if (eq(keep, 0)) {
+        wi32(stack_pointer, boundary);
+    }
+    return 0;
+}
+
+function label_pop(stack_pointer, boundary, keep)
+{
+    return label_pop_(stack_pointer, boundary, keep, 0, 0, 0, 0);
 }
 
 function struct_find_(value, token_symbol)

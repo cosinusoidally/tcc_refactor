@@ -282,21 +282,6 @@ function decl0(scope, is_for_initializer, function_symbol)
     return 0;
 }
 
-function label_find(token)
-{
-    return 0;
-}
-
-function label_push(stack_pointer, token, flags)
-{
-    return malloc(36);
-}
-
-function label_pop(stack_pointer, boundary, keep)
-{
-    return 0;
-}
-
 function tcc_debug_funcstart(state, symbol)
 {
     return 0;
