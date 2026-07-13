@@ -1483,7 +1483,8 @@ ST_DATA const int reg_classes[NB_REGS];
 
 ST_FUNC void gsym_addr(int t, int a);
 extern void gsym(int t);
-ST_FUNC void load(int r, SValue *sv);
+extern void load(int r, SValue *sv);
+extern void move_reg(int destination, int source, int type);
 extern void store(int r, SValue *v);
 ST_FUNC int gfunc_sret(CType *vt, int variadic, CType *ret, int *align, int *regsize);
 ST_FUNC void gfunc_call(int nb_args);

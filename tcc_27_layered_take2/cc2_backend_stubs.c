@@ -43,3 +43,8 @@ function store(reg, value)
 {
     return 0;
 }
+
+function load(reg, value)
+{
+    return 0;
+}

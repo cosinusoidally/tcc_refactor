@@ -1081,6 +1081,26 @@ function save_reg_upstack(reg, count)
     return save_reg_upstack_(reg, count, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
+function move_reg_(destination, source, type, value)
+{
+    if (not(eq(destination, source))) {
+        save_reg(destination);
+        value = cc2_svalue_temporary();
+        cc2_zero_bytes(value, CC2_SVALUE_BYTES);
+        wi32(value, type);
+        wi32(add(value, CC2_SVALUE_REGISTER_OFFSET), source);
+        cc2_write_signed_constant(add(value,
+            CC2_SVALUE_CONSTANT_OFFSET), 0);
+        load(destination, value);
+    }
+    return 0;
+}
+
+function move_reg(destination, source, type)
+{
+    return move_reg_(destination, source, type, 0);
+}
+
 function vpushv_(value, limit)
 {
     limit = vstack_limit;

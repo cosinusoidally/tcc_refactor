@@ -199,7 +199,7 @@ static void gen_modrm(int op_reg, int r, Sym *sym, int c)
 }
 
 /* load 'r' from value 'sv' */
-ST_FUNC void load(int r, SValue *sv)
+void load(int r, SValue *sv)
 {
     int v, t, ft, fc, fr;
     SValue v1;

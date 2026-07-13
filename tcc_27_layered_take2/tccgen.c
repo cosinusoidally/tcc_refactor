@@ -545,20 +545,6 @@ ST_FUNC int get_reg_ex(int rc, int rc2)
 
 /* move register 's' (of type 't') to 'r', and flush previous value of r to memory
    if needed */
-static void move_reg(int r, int s, int t)
-{
-    SValue sv;
-
-    if (r != s) {
-        save_reg(r);
-        sv.type.t = t;
-        sv.type.ref = NULL;
-        sv.r = s;
-        sv.c.i = 0;
-        load(r, &sv);
-    }
-}
-
 #ifdef CONFIG_TCC_BCHECK
 /* generate lvalue bound code */
 static void gbound(void)
