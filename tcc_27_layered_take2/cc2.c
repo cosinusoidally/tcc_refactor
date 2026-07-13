@@ -6126,6 +6126,72 @@ function unary_generic()
     return 0;
 }
 
+function unary()
+{
+    var token;
+    var sizeof_caller;
+    sizeof_caller = in_sizeof;
+    in_sizeof = 0;
+    token = ri32(tok_address);
+    while (eq(token, CC2_TOKEN_EXTENSION)) {
+        next();
+        token = ri32(tok_address);
+    }
+    if (or(or(or(or(or(eq(token, 179), eq(token, 180)), eq(token, 181)),
+        or(eq(token, 182), eq(token, 183))), or(eq(token, 184),
+        eq(token, 187))), or(or(eq(token, 188), eq(token, 189)),
+        or(eq(token, 206), eq(token, 207))))) {
+        unary_literal(token);
+    } else if (or(eq(token, CC2_TOKEN_FUNCTION_NAME_GNU),
+        eq(token, CC2_TOKEN_FUNCTION_NAME_STANDARD))) {
+        unary_function_name(token);
+    } else if (or(eq(token, CC2_TOKEN_STRING),
+        eq(token, CC2_TOKEN_WIDE_STRING))) {
+        unary_string(token);
+    } else if (eq(token, 40)) {
+        if (unary_parenthesized(sizeof_caller)) {
+            return 0;
+        }
+    } else if (or(or(or(eq(token, 42), eq(token, 38)),
+        or(eq(token, 33), eq(token, 126))), or(eq(token, CC2_ASCII_PLUS),
+        or(eq(token, 164), eq(token, 162))))) {
+        unary_prefix(token);
+    } else if (or(eq(token, 302), or(eq(token, 305), eq(token, 306)))) {
+        unary_sizeof(token);
+    } else if (or(or(eq(token, 378), eq(token, 373)),
+        or(eq(token, 374), eq(token, 375)))) {
+        unary_builtin_expression(token);
+    } else if (or(eq(token, 376), eq(token, 377))) {
+        unary_builtin_frame(token);
+    } else if (eq(token, CC2_ASCII_MINUS)) {
+        unary_minus();
+    } else if (eq(token, 160)) {
+        unary_label_address(token);
+    } else if (eq(token, CC2_TOKEN_GENERIC)) {
+        unary_generic();
+    } else if (or(eq(token, CC2_TOKEN_NAN),
+        or(eq(token, CC2_TOKEN_SIGNALING_NAN),
+        eq(token, CC2_TOKEN_INFINITY)))) {
+        unary_ieee_constant(token);
+    } else {
+        unary_identifier(token);
+    }
+    while (1) {
+        token = ri32(tok_address);
+        if (or(eq(token, 164), eq(token, 162))) {
+            unary_postfix_increment(token);
+        } else if (or(eq(token, 46), or(eq(token, 199), eq(token, 188)))) {
+            unary_postfix_field(token);
+        } else if (eq(token, 91)) {
+            unary_postfix_index();
+        } else if (eq(token, 40)) {
+            unary_postfix_call();
+        } else {
+            return 0;
+        }
+    }
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {

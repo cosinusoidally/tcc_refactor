@@ -200,11 +200,6 @@ function next()
     return 0;
 }
 
-function unary()
-{
-    return 0;
-}
-
 function gvtst(inverted, jump_chain)
 {
     return jump_chain;
