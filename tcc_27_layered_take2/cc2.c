@@ -1101,6 +1101,75 @@ function move_reg(destination, source, type)
     return move_reg_(destination, source, type, 0);
 }
 
+function struct_add_offset_(symbol, offset, value, type_value)
+{
+    symbol = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
+    while (not(eq(symbol, 0))) {
+        value = ri32(add(symbol, CC2_SYM_VALUE_OFFSET));
+        type_value = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
+        if (not(eq(and(value, CC2_SYMBOL_FIELD_FLAG), 0))) {
+            if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+                CC2_TCC_STRUCT_TYPE)) {
+                if (le(CC2_FIRST_ANONYMOUS_SYMBOL,
+                    and(value, bnot(CC2_SYMBOL_FIELD_FLAG)))) {
+                    struct_add_offset(ri32(add(symbol,
+                        CC2_SYM_TYPE_REFERENCE_OFFSET)), offset);
+                    symbol = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
+                    continue;
+                }
+            }
+        }
+        wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET),
+            add(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), offset));
+        symbol = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
+    }
+    return 0;
+}
+
+function struct_add_offset(symbol, offset)
+{
+    return struct_add_offset_(symbol, offset, 0, 0);
+}
+
+function parse_btype_qualify_(type, qualifiers, type_value, symbol)
+{
+    type_value = ri32(type);
+    while (not(eq(and(type_value, CC2_TCC_ARRAY_TYPE), 0))) {
+        symbol = ri32(add(type, 4));
+        symbol = sym_push(CC2_SYMBOL_FIELD_FLAG,
+            add(symbol, CC2_SYM_TYPE_OFFSET), 0,
+            ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)));
+        wi32(add(type, 4), symbol);
+        type = add(symbol, CC2_SYM_TYPE_OFFSET);
+        type_value = ri32(type);
+    }
+    wi32(type, or(type_value, qualifiers));
+    return 0;
+}
+
+function parse_btype_qualify(type, qualifiers)
+{
+    return parse_btype_qualify_(type, qualifiers, 0, 0);
+}
+
+function convert_parameter_type_(type, type_value)
+{
+    type_value = and(ri32(type), bnot(or(CC2_TCC_CONST_QUALIFIER,
+        CC2_TCC_VOLATILE_QUALIFIER)));
+    type_value = and(type_value, bnot(CC2_TCC_ARRAY_TYPE));
+    wi32(type, type_value);
+    if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_FUNCTION_TYPE)) {
+        mk_pointer(type);
+    }
+    return 0;
+}
+
+function convert_parameter_type(type)
+{
+    return convert_parameter_type_(type, 0);
+}
+
 function vpushv_(value, limit)
 {
     limit = vstack_limit;

@@ -2635,18 +2635,6 @@ static Sym * find_field (CType *type, int v)
     return s;
 }
 
-static void struct_add_offset (Sym *s, int offset)
-{
-    while ((s = s->next) != NULL) {
-	if ((s->v & SYM_FIELD) &&
-	    (s->type.t & VT_BTYPE) == VT_STRUCT &&
-	    (s->v & ~SYM_FIELD) >= SYM_FIRST_ANOM) {
-	    struct_add_offset(s->type.ref, offset);
-	} else
-	  s->c += offset;
-    }
-}
-
 static void struct_layout(CType *type, AttributeDef *ad)
 {
     int size, align, maxalign, offset, c, bit_pos, bit_size;
@@ -3147,15 +3135,6 @@ static void sym_to_attr(AttributeDef *ad, Sym *s)
 
 /* Add type qualifiers to a type. If the type is an array then the qualifiers
    are added to the element type, copied because it could be a typedef. */
-static void parse_btype_qualify(CType *type, int qualifiers)
-{
-    while (type->t & VT_ARRAY) {
-        type->ref = sym_push(SYM_FIELD, &type->ref->type, 0, type->ref->c);
-        type = &type->ref->type;
-    }
-    type->t |= qualifiers;
-}
-
 /* return 0 if no type declaration. otherwise, return the basic type
    and skip it. 
  */
@@ -3378,18 +3357,6 @@ the_end:
 
 /* convert a function parameter type (array to pointer and function to
    function pointer) */
-static inline void convert_parameter_type(CType *pt)
-{
-    /* remove const and volatile qualifiers (XXX: const could be used
-       to indicate a const function parameter */
-    pt->t &= ~(VT_CONSTANT | VT_VOLATILE);
-    /* array must be transformed to pointer according to ANSI C */
-    pt->t &= ~VT_ARRAY;
-    if ((pt->t & VT_BTYPE) == VT_FUNC) {
-        mk_pointer(pt);
-    }
-}
-
 ST_FUNC void parse_asm_str(CString *astr)
 {
     skip('(');
