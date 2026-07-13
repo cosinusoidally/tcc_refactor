@@ -1277,6 +1277,17 @@ extern int g_debug;
 extern int local_scope, in_sizeof, section_sym;
 extern int vlas_in_scope, vla_sp_root_loc, vla_sp_loc;
 
+struct case_t {
+    int64_t v1, v2;
+    int sym;
+};
+struct switch_t {
+    struct case_t **p;
+    int n;
+    int def_sym;
+};
+extern struct switch_t *cur_switch;
+
 ST_FUNC void tcc_debug_start(TCCState *s1);
 ST_FUNC void tcc_debug_end(TCCState *s1);
 ST_FUNC void tcc_debug_funcstart(TCCState *s1, Sym *sym);

@@ -36,14 +36,6 @@ ST_DATA CType func_vt; /* current function return type (used by return instructi
 
 ST_DATA CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
 
-ST_DATA struct switch_t {
-    struct case_t {
-        int64_t v1, v2;
-	int sym;
-    } **p; int n; /* list of case ranges */
-    int def_sym; /* default symbol */
-} *cur_switch; /* current switch */
-
 /* ------------------------------------------------------------------------- */
 
 static void gen_cast(CType *type);

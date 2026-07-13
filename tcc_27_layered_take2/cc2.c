@@ -74,6 +74,7 @@ var local_label_stack;
 var vtop;
 var pvtop;
 var funcname;
+var cur_switch;
 
 function cc2_copy_bytes_(destination, source, length, index)
 {
