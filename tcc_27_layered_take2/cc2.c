@@ -450,6 +450,9 @@ var CC2_TOKEN_FLAG_ENDIF;
 var CC2_TOKEN_LINE_DIRECTIVE;
 var CC2_TOKEN_DEFINE_DIRECTIVE;
 var CC2_TOKEN_UNDEF_DIRECTIVE;
+var CC2_TOKEN_ERROR_DIRECTIVE;
+var CC2_TOKEN_WARNING_DIRECTIVE;
+var CC2_PREPROCESS_DIRECTIVE_BUFFER_BYTES;
 var CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET;
 var CC2_BUFFERED_FILE_FILENAME_CAPACITY;
 var CC2_STABS_INCLUDE_TYPE;
@@ -2013,6 +2016,40 @@ function preprocess_macro_directive(directive)
             define_undef(symbol);
         }
     }
+    return 0;
+}
+
+function preprocess_diagnostic_directive(directive)
+{
+    var buffer;
+    var length;
+    var source_file;
+    source_file = ri32(file_address);
+    ch = ri8(ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET)));
+    skip_spaces();
+    buffer = malloc(CC2_PREPROCESS_DIRECTIVE_BUFFER_BYTES);
+    length = 0;
+    while (and(not(eq(ch, 10)), not(eq(ch,
+        CC2_CHARACTER_END_OF_FILE)))) {
+        if (lt(length, sub(CC2_PREPROCESS_DIRECTIVE_BUFFER_BYTES, 1))) {
+            wi8(add(buffer, length), ch);
+            length = add(length, 1);
+        }
+        if (eq(ch, 92)) {
+            if (eq(handle_stray_noerror(), 0)) {
+                length = sub(length, 1);
+            }
+        } else {
+            inp();
+        }
+    }
+    wi8(add(buffer, length), 0);
+    if (eq(directive, CC2_TOKEN_ERROR_DIRECTIVE)) {
+        tcc_error(mks("#error %s"), buffer);
+    } else {
+        tcc_warning(mks("#warning %s"), buffer);
+    }
+    free(buffer);
     return 0;
 }
 
@@ -13597,6 +13634,9 @@ function cc2_init_constants()
     CC2_TOKEN_LINE_DIRECTIVE = 325;
     CC2_TOKEN_DEFINE_DIRECTIVE = 314;
     CC2_TOKEN_UNDEF_DIRECTIVE = 322;
+    CC2_TOKEN_ERROR_DIRECTIVE = 323;
+    CC2_TOKEN_WARNING_DIRECTIVE = 324;
+    CC2_PREPROCESS_DIRECTIVE_BUFFER_BYTES = 1024;
     CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET = 1064;
     CC2_BUFFERED_FILE_FILENAME_CAPACITY = 1024;
     CC2_STABS_INCLUDE_TYPE = 130;

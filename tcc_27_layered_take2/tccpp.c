@@ -696,24 +696,7 @@ include_done:
         break;
     case TOK_ERROR:
     case TOK_WARNING:
-        c = tok;
-        ch = file->buf_ptr[0];
-        skip_spaces();
-        q = buf;
-        while (ch != '\n' && ch != CH_EOF) {
-            if ((q - buf) < sizeof(buf) - 1)
-                *q++ = ch;
-            if (ch == '\\') {
-                if (handle_stray_noerror() == 0)
-                    --q;
-            } else
-                inp();
-        }
-        *q = '\0';
-        if (c == TOK_ERROR)
-            tcc_error("#error %s", buf);
-        else
-            tcc_warning("#warning %s", buf);
+        preprocess_diagnostic_directive(tok);
         break;
     case TOK_PRAGMA:
         pragma_parse(s1);

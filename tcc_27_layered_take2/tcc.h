@@ -1559,6 +1559,7 @@ int preprocess_conditional_else(TCCState *state, int is_elif);
 int preprocess_conditional_endif(TCCState *state);
 void preprocess_line_directive(TCCState *state, int directive);
 void preprocess_macro_directive(int directive);
+void preprocess_diagnostic_directive(int directive);
 #endif
 
 /* ------------ xxx-link.c ------------ */
