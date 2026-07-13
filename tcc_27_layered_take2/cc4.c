@@ -8,6 +8,5 @@ ST_DATA const int reg_classes[NB_REGS] = {
     (RC_INT | RC_EBX) * USE_EBX,
     RC_FLOAT | RC_ST0,
 };
-#include "i386-link.c"
 #include "i386-asm.c"
 #include "tccasm.c"

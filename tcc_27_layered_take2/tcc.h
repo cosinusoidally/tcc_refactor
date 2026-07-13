@@ -297,7 +297,6 @@ extern long double strtold (const char *__nptr, char **__endptr);
 #define TARGET_DEFS_ONLY
 #ifdef TCC_TARGET_I386
 # include "cc2_i386_target.h"
-# include "i386-link.c"
 #endif
 #undef TARGET_DEFS_ONLY
 

@@ -331,8 +331,13 @@ var CC2_TCC_STATE_SECTIONS_OFFSET = 956;
 var CC2_TCC_STATE_OUTPUT_TYPE_OFFSET = 48;
 var CC2_TCC_STATE_GOT_OFFSET = 972;
 var CC2_TCC_STATE_PLT_OFFSET = 976;
+var CC2_TCC_STATE_SYMBOL_ATTRIBUTES_OFFSET = 992;
 var CC2_TCC_OUTPUT_DLL = 3;
+var CC2_TCC_OUTPUT_FORMAT_BINARY = 1;
 var CC2_SECTION_ADDRESS_OFFSET = 44;
+var CC2_SYMBOL_ATTRIBUTE_BYTES = 16;
+var CC2_SYMBOL_ATTRIBUTE_GOT_OFFSET = 0;
+var CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET = 12;
 var CC2_ELF_RELOCATION_BYTES = 8;
 var CC2_ELF_RELOCATION_OFFSET_OFFSET = 0;
 var CC2_ELF_RELOCATION_INFO_OFFSET = 4;
@@ -412,6 +417,7 @@ var func_vc;
 /* Saved frame patch state remains in cc2 across a function body. */
 var CC2_FUNCTION_SUB_SP_OFFSET;
 var CC2_FUNCTION_RETURN_POP_BYTES;
+var CC2_NEXT_RELOCATION;
 var last_line_num;
 var last_ind;
 var func_ind;
@@ -6356,6 +6362,129 @@ function relocate_plt(state)
             pointer = add(pointer, 16);
         }
     }
+    return 0;
+}
+
+function relocate_init(relocation_section)
+{
+    CC2_NEXT_RELOCATION = ri32(add(relocation_section,
+        CC2_SECTION_DATA_POINTER_OFFSET));
+    return 0;
+}
+
+function cc2_write_dynamic_relocation(relocation, symbol_index, type)
+{
+    wi32(CC2_NEXT_RELOCATION,
+        ri32(add(relocation, CC2_ELF_RELOCATION_OFFSET_OFFSET)));
+    wi32(add(CC2_NEXT_RELOCATION, CC2_ELF_RELOCATION_INFO_OFFSET),
+        or(shl(symbol_index, CC2_ELF_RELOCATION_SYMBOL_SHIFT), type));
+    CC2_NEXT_RELOCATION = add(CC2_NEXT_RELOCATION,
+        CC2_ELF_RELOCATION_BYTES);
+    return 0;
+}
+
+function cc2_read_u16(address)
+{
+    return or(ri8(address), shl(ri8(add(address, 1)), 8));
+}
+
+function cc2_write_u16(address, value)
+{
+    wi8(address, value);
+    wi8(add(address, 1), ushr(value, 8));
+    return 0;
+}
+
+function relocate(state, relocation, type, pointer, address, value)
+{
+    var information;
+    var symbol_index;
+    var attributes;
+    var dynamic_index;
+    var got;
+    information = ri32(add(relocation, CC2_ELF_RELOCATION_INFO_OFFSET));
+    symbol_index = ushr(information, CC2_ELF_RELOCATION_SYMBOL_SHIFT);
+    attributes = add(ri32(add(state,
+        CC2_TCC_STATE_SYMBOL_ATTRIBUTES_OFFSET)),
+        mul(symbol_index, CC2_SYMBOL_ATTRIBUTE_BYTES));
+    if (eq(type, CC2_I386_DATA_POINTER_RELOCATION)) {
+        if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+            CC2_TCC_OUTPUT_DLL)) {
+            dynamic_index = ri32(add(attributes,
+                CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET));
+            if (dynamic_index) {
+                cc2_write_dynamic_relocation(relocation, dynamic_index,
+                    CC2_I386_DATA_POINTER_RELOCATION);
+                return 0;
+            }
+            cc2_write_dynamic_relocation(relocation, 0,
+                CC2_I386_RELATIVE_RELOCATION);
+        }
+        wi32(pointer, add(ri32(pointer), value));
+        return 0;
+    }
+    if (eq(type, CC2_I386_PC_RELATIVE_RELOCATION)) {
+        if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+            CC2_TCC_OUTPUT_DLL)) {
+            dynamic_index = ri32(add(attributes,
+                CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET));
+            if (dynamic_index) {
+                cc2_write_dynamic_relocation(relocation, dynamic_index,
+                    CC2_I386_PC_RELATIVE_RELOCATION);
+                return 0;
+            }
+        }
+        wi32(pointer, add(ri32(pointer), sub(value, address)));
+        return 0;
+    }
+    if (eq(type, CC2_I386_PLT_RELOCATION)) {
+        wi32(pointer, add(ri32(pointer), sub(value, address)));
+        return 0;
+    }
+    if (or(eq(type, CC2_I386_GLOBAL_DATA_RELOCATION),
+        eq(type, CC2_I386_JUMP_SLOT_RELOCATION))) {
+        wi32(pointer, value);
+        return 0;
+    }
+    got = ri32(add(state, CC2_TCC_STATE_GOT_OFFSET));
+    if (eq(type, CC2_I386_GOT_PC_RELOCATION)) {
+        wi32(pointer, add(ri32(pointer), sub(ri32(add(got,
+            CC2_SECTION_ADDRESS_OFFSET)), address)));
+        return 0;
+    }
+    if (eq(type, CC2_I386_GOT_OFFSET_RELOCATION)) {
+        wi32(pointer, add(ri32(pointer), sub(value, ri32(add(got,
+            CC2_SECTION_ADDRESS_OFFSET)))));
+        return 0;
+    }
+    if (or(eq(type, CC2_I386_GOT_RELOCATION),
+        eq(type, CC2_I386_RELAXABLE_GOT_RELOCATION))) {
+        wi32(pointer, add(ri32(pointer), ri32(add(attributes,
+            CC2_SYMBOL_ATTRIBUTE_GOT_OFFSET))));
+        return 0;
+    }
+    if (eq(type, CC2_I386_DATA_16_RELOCATION)) {
+        if (not(eq(ri32(add(state, add(CC2_TCC_STATE_OUTPUT_TYPE_OFFSET,
+            4))), CC2_TCC_OUTPUT_FORMAT_BINARY))) {
+            tcc_error(mks("can only produce 16-bit binary files"), 0);
+        }
+        cc2_write_u16(pointer, add(cc2_read_u16(pointer), value));
+        return 0;
+    }
+    if (eq(type, CC2_I386_PC_16_RELOCATION)) {
+        if (not(eq(ri32(add(state, add(CC2_TCC_STATE_OUTPUT_TYPE_OFFSET,
+            4))), CC2_TCC_OUTPUT_FORMAT_BINARY))) {
+            tcc_error(mks("can only produce 16-bit binary files"), 0);
+        }
+        cc2_write_u16(pointer,
+            add(cc2_read_u16(pointer), sub(value, address)));
+        return 0;
+    }
+    if (or(eq(type, CC2_I386_RELATIVE_RELOCATION),
+        eq(type, CC2_I386_COPY_RELOCATION))) {
+        return 0;
+    }
+    tcc_warning(mks("unhandled i386 relocation type %d"), type);
     return 0;
 }
 
