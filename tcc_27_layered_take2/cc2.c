@@ -89,6 +89,7 @@ var CC2_VALUE_LOCAL = 50;
 var CC2_VALUE_LVALUE_TYPE_MASK = 28672;
 var CC2_I386_REGISTER_COUNT = 5;
 var CC2_I386_EAX_CLASS = 5;
+var CC2_I386_INTEGER_RETURN_CLASS = 4;
 var CC2_I386_ECX_CLASS = 17;
 var CC2_I386_EDX_CLASS = 33;
 var CC2_I386_EBX_CLASS = 0;
@@ -2899,6 +2900,90 @@ function store_packed_bf_(bit_position, bit_size, bits, count, offset,
 function store_packed_bf(bit_position, bit_size)
 {
     return store_packed_bf_(bit_position, bit_size, 0, 0, 0, 0, 0);
+}
+
+function gfunc_return_(function_type, value_type, return_type, alignment,
+    register_size, return_registers, return_alignment, size, address,
+    register_class)
+{
+    if (eq(and(ri32(function_type), CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_STRUCT_TYPE)) {
+        value_type = malloc(8);
+        return_type = malloc(8);
+        alignment = malloc(4);
+        register_size = malloc(4);
+        return_registers = gfunc_sret(function_type, func_var, return_type,
+            alignment, register_size);
+        return_alignment = ri32(alignment);
+        if (eq(return_registers, 0)) {
+            wi32(value_type, ri32(function_type));
+            wi32(add(value_type, 4), ri32(add(function_type, 4)));
+            mk_pointer(value_type);
+            vset(value_type, or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE),
+                func_vc);
+            indir();
+            vswap();
+            vstore();
+        } else {
+            size = type_size(function_type, alignment);
+            if (and(or(not(eq(and(ri32(add(vtop,
+                CC2_SVALUE_REGISTER_OFFSET)), 65535),
+                or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE))),
+                not(eq(and(ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET)),
+                sub(return_alignment, 1)), 0))), not(eq(and(ri32(alignment),
+                sub(return_alignment, 1)), 0)))) {
+                loc = and(sub(loc, size), sub(0, return_alignment));
+                address = loc;
+                wi32(value_type, ri32(function_type));
+                wi32(add(value_type, 4), ri32(add(function_type, 4)));
+                vset(value_type, or(CC2_VALUE_LOCAL,
+                    CC2_TCC_LVALUE), address);
+                vswap();
+                vstore();
+                vpop();
+                vset(return_type, or(CC2_VALUE_LOCAL,
+                    CC2_TCC_LVALUE), address);
+            }
+            wi32(vtop, ri32(return_type));
+            wi32(add(vtop, 4), ri32(add(return_type, 4)));
+            if (is_float(ri32(return_type))) {
+                register_class = rc_fret(ri32(return_type));
+            } else {
+                register_class = CC2_I386_INTEGER_RETURN_CLASS;
+            }
+            if (eq(return_registers, 1)) {
+                gv(register_class);
+            } else {
+                while (return_registers) {
+                    vdup();
+                    gv(register_class);
+                    vpop();
+                    return_registers = sub(return_registers, 1);
+                    if (return_registers) {
+                        register_class = shl(register_class, 1);
+                        wi32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET), add(ri32(
+                            add(vtop, CC2_SVALUE_CONSTANT_OFFSET)),
+                            ri32(register_size)));
+                    }
+                }
+            }
+        }
+        free(value_type);
+        free(return_type);
+        free(alignment);
+        free(register_size);
+    } else if (is_float(ri32(function_type))) {
+        gv(rc_fret(ri32(function_type)));
+    } else {
+        gv(CC2_I386_INTEGER_RETURN_CLASS);
+    }
+    vtop = sub(vtop, CC2_SVALUE_BYTES);
+    return 0;
+}
+
+function gfunc_return(function_type)
+{
+    return gfunc_return_(function_type, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function is_label_(identifier_floor, saved_token)

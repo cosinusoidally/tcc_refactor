@@ -1530,7 +1530,7 @@ extern void parse_btype_qualify(CType *type, int qualifiers);
 extern void convert_parameter_type(CType *type);
 extern void sym_to_attr(AttributeDef *attributes, Sym *symbol);
 extern void store(int r, SValue *v);
-ST_FUNC int gfunc_sret(CType *vt, int variadic, CType *ret, int *align, int *regsize);
+int gfunc_sret(CType *vt, int variadic, CType *ret, int *align, int *regsize);
 void gfunc_call(int nb_args);
 ST_FUNC void gfunc_prolog(CType *func_type);
 ST_FUNC void gfunc_epilog(void);

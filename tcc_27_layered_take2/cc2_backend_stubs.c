@@ -119,6 +119,11 @@ function gfunc_call(argument_count)
     return 0;
 }
 
+function gfunc_sret(type, variadic, return_type, alignment, register_size)
+{
+    return 0;
+}
+
 function expr_cond()
 {
     return 0;
