@@ -150,3 +150,9 @@ function cc1_link(argc, argv)
 {
     return cc1_link_(argc, argv, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
+
+/* cc0.exe selects the base frontend until cc1.c replaces this object. */
+function cc1_compile(source, length)
+{
+    return cc0_compile(source, length);
+}

@@ -845,6 +845,12 @@ function cc1_preprocessed_consume()
     return cc1_preprocessed_consume_(0);
 }
 
+/* This is the permanent frontend dispatch point replaced by cc1_stubs in cc0. */
+function cc1_compile(source, length)
+{
+    return cc0_compile(source, length);
+}
+
 function cc1_product_(left, right, result, index)
 {
     result = 0;
