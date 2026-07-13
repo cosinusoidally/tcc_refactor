@@ -101,6 +101,7 @@ var CC2_TCC_CONST_QUALIFIER = 256;
 var CC2_TCC_VOLATILE_QUALIFIER = 512;
 var CC2_TCC_STRUCT_TYPE = 7;
 var CC2_TCC_FUNCTION_TYPE = 6;
+var CC2_TCC_NEW_FUNCTION = 1;
 var CC2_TCC_OLD_FUNCTION = 2;
 var CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET = 12;
 var CC2_TCC_ARRAY_TYPE = 64;
@@ -199,6 +200,11 @@ var CC2_TOKEN_RESTRICT_SECOND = 289;
 var CC2_TOKEN_RESTRICT_THIRD = 290;
 var CC2_TYPE_ABSTRACT = 1;
 var CC2_TYPE_DIRECT = 2;
+var CC2_TOKEN_DOTS = 200;
+var CC2_FUNCTION_TYPE_SHIFT = 3;
+var CC2_FUNCTION_TYPE_MASK = 24;
+var CC2_FUNCTION_ARGUMENT_SHIFT = 5;
+var CC2_FUNCTION_ARGUMENT_MASK = 8160;
 var CC2_TOKEN_SECTION_FIRST = 338;
 var CC2_TOKEN_SECTION_SECOND = 339;
 var CC2_TOKEN_ALIAS_FIRST = 346;
@@ -3816,6 +3822,196 @@ function type_decl(type, attributes, identifier, mode)
     post_type(post, attributes, storage, 0);
     parse_attribute(attributes);
     wi32(type, or(ri32(type), storage));
+    return result;
+}
+
+function post_type_(type, attributes, storage, mode, parameter_type,
+    parameter_attributes, identifier, alignment)
+{
+    var kind;
+    var argument_size;
+    var first;
+    var last;
+    var symbol;
+    var size;
+    var array_kind;
+    var saved_no_code;
+    if (eq(ri32(tok_address), 40)) {
+        next();
+        if (mode) {
+            if (not(and(mode, CC2_TYPE_ABSTRACT))) {
+                return 0;
+            }
+        }
+        if (eq(ri32(tok_address), 41)) {
+            kind = 0;
+        } else if (parse_btype(parameter_type, parameter_attributes)) {
+            kind = CC2_TCC_NEW_FUNCTION;
+        } else if (mode) {
+            return 0;
+        } else {
+            kind = CC2_TCC_OLD_FUNCTION;
+        }
+        argument_size = 0;
+        first = 0;
+        last = 0;
+        if (kind) {
+            while (1) {
+                if (not(eq(kind, CC2_TCC_OLD_FUNCTION))) {
+                    if (and(eq(and(ri32(parameter_type),
+                        CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_VOID_TYPE),
+                        eq(ri32(tok_address), 41))) {
+                        break;
+                    }
+                    type_decl(parameter_type, parameter_attributes,
+                        identifier, or(CC2_TYPE_DIRECT, CC2_TYPE_ABSTRACT));
+                    if (eq(and(ri32(parameter_type),
+                        CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_VOID_TYPE)) {
+                        tcc_error(mks("parameter declared as void"), 0);
+                    }
+                    size = type_size(parameter_type, alignment);
+                    argument_size = add(argument_size,
+                        sdiv(add(size, sub(CC2_I386_WORD_BYTES, 1)),
+                        CC2_I386_WORD_BYTES));
+                } else {
+                    wi32(identifier, ri32(tok_address));
+                    if (lt(ri32(identifier), CC2_TOKEN_UNNAMED_IDENTIFIER)) {
+                        expect(mks("identifier"));
+                    }
+                    wi32(parameter_type, CC2_TCC_VOID_TYPE);
+                    wi32(add(parameter_type, 4), 0);
+                    next();
+                }
+                convert_parameter_type(parameter_type);
+                symbol = sym_push(or(ri32(identifier),
+                    CC2_SYMBOL_FIELD_FLAG), parameter_type, 0, 0);
+                if (not(first)) {
+                    first = symbol;
+                } else {
+                    wi32(add(last, CC2_SYM_NEXT_OFFSET), symbol);
+                }
+                last = symbol;
+                if (eq(ri32(tok_address), 41)) {
+                    break;
+                }
+                skip(CC2_ASCII_COMMA);
+                if (and(eq(kind, CC2_TCC_NEW_FUNCTION),
+                    eq(ri32(tok_address), CC2_TOKEN_DOTS))) {
+                    kind = CC2_TCC_ELLIPSIS_FUNCTION;
+                    next();
+                    break;
+                }
+                if (eq(kind, CC2_TCC_NEW_FUNCTION)) {
+                    if (not(parse_btype(parameter_type,
+                        parameter_attributes))) {
+                        tcc_error(mks("invalid type"), 0);
+                    }
+                }
+            }
+        } else {
+            kind = CC2_TCC_OLD_FUNCTION;
+        }
+        skip(41);
+        wi32(type, and(ri32(type), bnot(CC2_TCC_CONST_QUALIFIER)));
+        if (eq(ri32(tok_address), 91)) {
+            next();
+            skip(93);
+            mk_pointer(type);
+        }
+        size = ri32(add(attributes, 4));
+        size = or(and(size, bnot(CC2_FUNCTION_ARGUMENT_MASK)),
+            shl(and(argument_size, 255), CC2_FUNCTION_ARGUMENT_SHIFT));
+        size = or(and(size, bnot(CC2_FUNCTION_TYPE_MASK)),
+            shl(and(kind, 3), CC2_FUNCTION_TYPE_SHIFT));
+        wi32(add(attributes, 4), size);
+        symbol = sym_push(CC2_SYMBOL_FIELD_FLAG, type, 0, 0);
+        wi32(add(symbol, 4), or(and(ri32(add(symbol, 4)), 65535),
+            shl(and(ri32(attributes), 65535), 16)));
+        wi32(add(symbol, CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET),
+            ri32(add(attributes, 4)));
+        wi32(add(symbol, CC2_SYM_NEXT_OFFSET), first);
+        wi32(type, CC2_TCC_FUNCTION_TYPE);
+        wi32(add(type, 4), symbol);
+    } else if (eq(ri32(tok_address), 91)) {
+        saved_no_code = nocode_wanted;
+        next();
+        if (eq(ri32(tok_address), CC2_TOKEN_RESTRICT_FIRST)) {
+            next();
+        }
+        size = sub(0, 1);
+        array_kind = 0;
+        if (not(eq(ri32(tok_address), 93))) {
+            if (or(not(local_stack),
+                and(storage, CC2_TCC_STATIC_STORAGE))) {
+                vpushi(expr_const());
+            } else {
+                nocode_wanted = 0;
+                gexpr();
+            }
+            if (eq(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+                CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT)) {
+                size = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
+                if (lt(size, 0)) {
+                    tcc_error(mks("invalid array size"), 0);
+                }
+            } else {
+                if (not(is_integer_btype(and(ri32(vtop),
+                    CC2_TCC_BASIC_TYPE_MASK)))) {
+                    tcc_error(mks("size of variable length array should be an integer"), 0);
+                }
+                array_kind = CC2_TCC_VLA_TYPE;
+            }
+        }
+        skip(93);
+        post_type(type, attributes, storage, 0);
+        if (eq(ri32(type), CC2_TCC_FUNCTION_TYPE)) {
+            tcc_error(mks("declaration of an array of functions"), 0);
+        }
+        array_kind = or(array_kind,
+            and(ri32(type), CC2_TCC_VLA_TYPE));
+        if (array_kind) {
+            loc = sub(loc, type_size(int_type_address, alignment));
+            loc = and(loc, sub(0, ri32(alignment)));
+            size = loc;
+            vla_runtime_type_size(type, alignment);
+            gen_op(CC2_ASCII_ASTERISK);
+            vset(int_type_address, or(CC2_VALUE_LOCAL,
+                CC2_TCC_LVALUE), size);
+            vswap();
+            vstore();
+        }
+        if (not(eq(size, sub(0, 1)))) {
+            vpop();
+        }
+        nocode_wanted = saved_no_code;
+        symbol = sym_push(CC2_SYMBOL_FIELD_FLAG, type, 0, size);
+        if (array_kind) {
+            wi32(type, or(CC2_TCC_VLA_TYPE, CC2_TCC_POINTER_TYPE));
+        } else {
+            wi32(type, or(CC2_TCC_ARRAY_TYPE, CC2_TCC_POINTER_TYPE));
+        }
+        wi32(add(type, 4), symbol);
+    }
+    return 1;
+}
+
+function post_type(type, attributes, storage, mode)
+{
+    var parameter_type;
+    var parameter_attributes;
+    var identifier;
+    var alignment;
+    var result;
+    parameter_type = malloc(8);
+    parameter_attributes = malloc(CC2_ATTRIBUTE_BYTES);
+    identifier = malloc(4);
+    alignment = malloc(4);
+    result = post_type_(type, attributes, storage, mode, parameter_type,
+        parameter_attributes, identifier, alignment);
+    free(parameter_type);
+    free(parameter_attributes);
+    free(identifier);
+    free(alignment);
     return result;
 }
 

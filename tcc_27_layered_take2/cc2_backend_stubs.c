@@ -49,11 +49,6 @@ function parse_btype(type, attributes)
     return 0;
 }
 
-function post_type(type, attributes, storage, mode)
-{
-    return 1;
-}
-
 function expr_const64_words(words)
 {
     wi32(words, 0);
