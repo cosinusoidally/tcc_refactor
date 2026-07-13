@@ -516,8 +516,7 @@ const char *get_tok_str(int v, CValue *cv)
 ST_FUNC void preprocess(int is_bof)
 {
     TCCState *s1 = tcc_state;
-    int i, c, n, saved_parse_flags;
-    char buf[1024], *q;
+    int saved_parse_flags;
     saved_parse_flags = parse_flags;
     parse_flags = PARSE_FLAG_PREPROCESS
         | PARSE_FLAG_TOK_NUM
@@ -535,123 +534,9 @@ ST_FUNC void preprocess(int is_bof)
         break;
     case TOK_INCLUDE:
     case TOK_INCLUDE_NEXT:
-        ch = file->buf_ptr[0];
-        /* XXX: incorrect if comments : use next_nomacro with a special mode */
-        skip_spaces();
-        if (ch == '<') {
-            c = '>';
-            goto read_name;
-        } else if (ch == '\"') {
-            c = ch;
-        read_name:
-            inp();
-            q = buf;
-            while (ch != c && ch != '\n' && ch != CH_EOF) {
-                if ((q - buf) < sizeof(buf) - 1)
-                    *q++ = ch;
-                if (ch == '\\') {
-                    if (handle_stray_noerror() == 0)
-                        --q;
-                } else
-                    inp();
-            }
-            *q = '\0';
-            minp();
-#if 0
-            /* eat all spaces and comments after include */
-            /* XXX: slightly incorrect */
-            while (ch1 != '\n' && ch1 != CH_EOF)
-                inp();
-#endif
-        } else {
-	    int len;
-            /* computed #include : concatenate everything up to linefeed,
-	       the result must be one of the two accepted forms.
-	       Don't convert pp-tokens to tokens here.  */
-	    parse_flags = (PARSE_FLAG_PREPROCESS
-			   | PARSE_FLAG_LINEFEED
-			   | (parse_flags & PARSE_FLAG_ASM_FILE));
-            next();
-            buf[0] = '\0';
-	    while (tok != TOK_LINEFEED) {
-		pstrcat(buf, sizeof(buf), get_tok_str(tok, &tokc));
-		next();
-	    }
-	    len = strlen(buf);
-	    /* check syntax and remove '<>|""' */
-	    if ((len < 2 || ((buf[0] != '"' || buf[len-1] != '"') &&
-			     (buf[0] != '<' || buf[len-1] != '>'))))
-	        tcc_error("'#include' expects \"FILENAME\" or <FILENAME>");
-	    c = buf[len-1];
-	    memmove(buf, buf + 1, len - 2);
-	    buf[len - 2] = '\0';
-        }
-
-        if (s1->include_stack_ptr >= s1->include_stack + INCLUDE_STACK_SIZE)
-            tcc_error("#include recursion too deep");
-        /* store current file in stack, but increment stack later below */
-        *s1->include_stack_ptr = file;
-        i = tok == TOK_INCLUDE_NEXT ? file->include_next_index : 0;
-        n = 2 + s1->nb_include_paths + s1->nb_sysinclude_paths;
-        for (; i < n; ++i) {
-            char buf1[sizeof file->filename];
-            CachedInclude *e;
-            const char *path;
-
-            if (i == 0) {
-                /* check absolute include path */
-                if (!IS_ABSPATH(buf))
-                    continue;
-                buf1[0] = 0;
-
-            } else if (i == 1) {
-                /* search in file's dir if "header.h" */
-                if (c != '\"')
-                    continue;
-                /* https://savannah.nongnu.org/bugs/index.php?50847 */
-                path = file->true_filename;
-                pstrncpy(buf1, path, tcc_basename(path) - path);
-
-            } else {
-                /* search in all the include paths */
-                int j = i - 2, k = j - s1->nb_include_paths;
-                path = k < 0 ? s1->include_paths[j] : s1->sysinclude_paths[k];
-                pstrcpy(buf1, sizeof(buf1), path);
-                pstrcat(buf1, sizeof(buf1), "/");
-            }
-
-            pstrcat(buf1, sizeof(buf1), buf);
-            e = search_cached_include(s1, buf1, 0);
-            if (e && (define_find(e->ifndef_macro) || e->once == pp_once)) {
-                /* no need to parse the include because the 'ifndef macro'
-                   is defined (or had #pragma once) */
-#ifdef INC_DEBUG
-                printf("%s: skipping cached %s\n", file->filename, buf1);
-#endif
-                goto include_done;
-            }
-
-            if (tcc_open(s1, buf1) < 0)
-                continue;
-
-            file->include_next_index = i + 1;
-#ifdef INC_DEBUG
-            printf("%s: including %s\n", file->prev->filename, file->filename);
-#endif
-            /* update target deps */
-            dynarray_add(&s1->target_deps, &s1->nb_target_deps,
-                    tcc_strdup(buf1));
-            /* push current file in stack */
-            ++s1->include_stack_ptr;
-            /* add include file debug info */
-            if (s1->do_debug)
-                put_stabs(file->filename, N_BINCL, 0, 0, 0);
-            tok_flags |= TOK_FLAG_BOF | TOK_FLAG_BOL;
-            ch = file->buf_ptr[0];
+        if (preprocess_include(s1, tok)) {
             goto the_end;
         }
-        tcc_error("include file '%s' not found", buf);
-include_done:
         break;
     case TOK_IFNDEF:
         if (preprocess_conditional_if(s1, is_bof, 1, 0)) {

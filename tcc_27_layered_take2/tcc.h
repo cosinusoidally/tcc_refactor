@@ -1418,6 +1418,7 @@ void decl_record_inline(Sym *sym);
 void cc2_pstrcpy(char *destination, int capacity, const char *source);
 void cc2_put_stabs(const char *text, int type, int other, int description,
                    unsigned long value);
+int cc2_tcc_open(TCCState *state, const char *filename);
 extern void indir(void);
 extern void lexpand(void);
 extern void lbuild(int type);
@@ -1560,6 +1561,7 @@ int preprocess_conditional_endif(TCCState *state);
 void preprocess_line_directive(TCCState *state, int directive);
 void preprocess_macro_directive(int directive);
 void preprocess_diagnostic_directive(int directive);
+int preprocess_include(TCCState *state, int directive);
 #endif
 
 /* ------------ xxx-link.c ------------ */

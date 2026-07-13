@@ -412,6 +412,7 @@ var CC2_TOKEN_TWO_SHARPS;
 var CC2_TOKEN_PREPROCESSOR_JOIN;
 var CC2_PARSE_FLAG_SPACES;
 var CC2_PARSE_FLAG_LINE_FEED;
+var CC2_PARSE_FLAG_PREPROCESS;
 var CC2_CHARACTER_EOF;
 var CC2_CHARACTER_CLASS_SPACE;
 var CC2_INCLUDE_HASH_INITIAL;
@@ -453,6 +454,20 @@ var CC2_TOKEN_UNDEF_DIRECTIVE;
 var CC2_TOKEN_ERROR_DIRECTIVE;
 var CC2_TOKEN_WARNING_DIRECTIVE;
 var CC2_PREPROCESS_DIRECTIVE_BUFFER_BYTES;
+var CC2_TOKEN_INCLUDE_DIRECTIVE;
+var CC2_TOKEN_INCLUDE_NEXT_DIRECTIVE;
+var CC2_TCC_STATE_INCLUDE_PATHS_OFFSET;
+var CC2_TCC_STATE_INCLUDE_PATH_COUNT_OFFSET;
+var CC2_TCC_STATE_SYSTEM_INCLUDE_PATHS_OFFSET;
+var CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET;
+var CC2_TCC_STATE_INCLUDE_STACK_OFFSET;
+var CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET;
+var CC2_INCLUDE_STACK_ENTRIES;
+var CC2_TCC_STATE_TARGET_DEPENDENCIES_OFFSET;
+var CC2_TCC_STATE_TARGET_DEPENDENCY_COUNT_OFFSET;
+var CC2_BUFFERED_FILE_INCLUDE_NEXT_INDEX_OFFSET;
+var CC2_TOKEN_FLAG_BEGINNING_OF_FILE;
+var CC2_TOKEN_FLAG_BEGINNING_OF_LINE;
 var CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET;
 var CC2_BUFFERED_FILE_FILENAME_CAPACITY;
 var CC2_STABS_INCLUDE_TYPE;
@@ -1935,16 +1950,18 @@ function preprocess_conditional_endif(state)
     stack_pointer = sub(stack_pointer, CC2_I386_WORD_BYTES);
     wi32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET), stack_pointer);
     guard = ri32(add(source_file, CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET));
-    if (and(guard, eq(stack_pointer, file_stack_pointer))) {
-        wi32(add(source_file, CC2_BUFFERED_FILE_IFNDEF_MACRO_SAVED_OFFSET),
-            guard);
-        wi32(add(source_file, CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET), 0);
-        while (not(eq(ri32(tok_address), CC2_TOKEN_LINE_FEED))) {
-            next_nomacro();
+    if (guard) {
+        if (eq(stack_pointer, file_stack_pointer)) {
+            wi32(add(source_file,
+                CC2_BUFFERED_FILE_IFNDEF_MACRO_SAVED_OFFSET), guard);
+            wi32(add(source_file, CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET), 0);
+            while (not(eq(ri32(tok_address), CC2_TOKEN_LINE_FEED))) {
+                next_nomacro();
+            }
+            wi32(tok_flags_address, or(ri32(tok_flags_address),
+                CC2_TOKEN_FLAG_ENDIF));
+            return 1;
         }
-        wi32(tok_flags_address, or(ri32(tok_flags_address),
-            CC2_TOKEN_FLAG_ENDIF));
-        return 1;
     }
     return 0;
 }
@@ -2050,6 +2067,224 @@ function preprocess_diagnostic_directive(directive)
         tcc_warning(mks("#warning %s"), buffer);
     }
     free(buffer);
+    return 0;
+}
+
+function cc2_bounded_copy(destination, capacity, source)
+{
+    var index;
+    var character;
+    index = 0;
+    character = ri8(source);
+    while (character) {
+        if (not(lt(index, sub(capacity, 1)))) {
+            break;
+        }
+        wi8(add(destination, index), character);
+        index = add(index, 1);
+        character = ri8(add(source, index));
+    }
+    if (lt(0, capacity)) {
+        wi8(add(destination, index), 0);
+    }
+    return destination;
+}
+
+function cc2_bounded_append(destination, capacity, source)
+{
+    return cc2_bounded_copy(add(destination, strlen(destination)),
+        sub(capacity, strlen(destination)), source);
+}
+
+function cc2_copy_directory(destination, capacity, source)
+{
+    var index;
+    var count;
+    var character;
+    index = 0;
+    count = 0;
+    character = ri8(source);
+    while (character) {
+        index = add(index, 1);
+        if (eq(character, 47)) {
+            count = index;
+        }
+        character = ri8(add(source, index));
+    }
+    index = 0;
+    while (and(lt(index, count), lt(index, sub(capacity, 1)))) {
+        wi8(add(destination, index), ri8(add(source, index)));
+        index = add(index, 1);
+    }
+    wi8(add(destination, index), 0);
+    return destination;
+}
+
+/* Parse and open one include using TCC's original search order.  Return one
+   after opening a new file, or zero when a cached include was skipped. */
+function preprocess_include(state, directive)
+{
+    var name;
+    var candidate;
+    var length;
+    var separator;
+    var index;
+    var search_count;
+    var path_index;
+    var system_index;
+    var path;
+    var entry;
+    var source_file;
+    var include_pointer;
+    var character;
+    name = malloc(CC2_BUFFERED_FILE_FILENAME_CAPACITY);
+    candidate = malloc(CC2_BUFFERED_FILE_FILENAME_CAPACITY);
+    source_file = ri32(file_address);
+    ch = ri8(ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET)));
+    skip_spaces();
+    if (or(eq(ch, 60), eq(ch, 34))) {
+        if (eq(ch, 60)) {
+            separator = 62;
+        } else {
+            separator = ch;
+        }
+        inp();
+        length = 0;
+        while (and(and(not(eq(ch, separator)), not(eq(ch, 10))),
+            not(eq(ch, CC2_CHARACTER_END_OF_FILE)))) {
+            if (lt(length, sub(CC2_BUFFERED_FILE_FILENAME_CAPACITY, 1))) {
+                wi8(add(name, length), ch);
+                length = add(length, 1);
+            }
+            if (eq(ch, 92)) {
+                if (eq(handle_stray_noerror(), 0)) {
+                    length = sub(length, 1);
+                }
+            } else {
+                inp();
+            }
+        }
+        wi8(add(name, length), 0);
+        minp();
+    } else {
+        wi32(parse_flags_address, or(CC2_PARSE_FLAG_PREPROCESS,
+            or(CC2_PARSE_FLAG_LINE_FEED, and(ri32(parse_flags_address),
+            CC2_PARSE_FLAG_ASM_FILE))));
+        next();
+        wi8(name, 0);
+        while (not(eq(ri32(tok_address), CC2_TOKEN_LINE_FEED))) {
+            cc2_bounded_append(name, CC2_BUFFERED_FILE_FILENAME_CAPACITY,
+                get_tok_str(ri32(tok_address), tokc_address));
+            next();
+        }
+        length = strlen(name);
+        if (lt(length, 2)) {
+            tcc_error(mks("'#include' expects \"FILENAME\" or <FILENAME>"),
+                0);
+        }
+        if (and(or(not(eq(ri8(name), 34)), not(eq(ri8(add(name,
+            sub(length, 1))), 34))), or(not(eq(ri8(name), 60)),
+            not(eq(ri8(add(name, sub(length, 1))), 62))))) {
+            tcc_error(mks("'#include' expects \"FILENAME\" or <FILENAME>"),
+                0);
+        }
+        separator = ri8(add(name, sub(length, 1)));
+        index = 0;
+        while (lt(index, sub(length, 2))) {
+            wi8(add(name, index), ri8(add(name, add(index, 1))));
+            index = add(index, 1);
+        }
+        wi8(add(name, sub(length, 2)), 0);
+    }
+    include_pointer = ri32(add(state,
+        CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET));
+    if (not(lt(include_pointer, add(state, add(
+        CC2_TCC_STATE_INCLUDE_STACK_OFFSET, mul(CC2_INCLUDE_STACK_ENTRIES,
+        CC2_I386_WORD_BYTES)))))) {
+        tcc_error(mks("#include recursion too deep"), 0);
+    }
+    wi32(include_pointer, source_file);
+    if (eq(directive, CC2_TOKEN_INCLUDE_NEXT_DIRECTIVE)) {
+        index = ri32(add(source_file,
+            CC2_BUFFERED_FILE_INCLUDE_NEXT_INDEX_OFFSET));
+    } else {
+        index = 0;
+    }
+    search_count = add(2, add(ri32(add(state,
+        CC2_TCC_STATE_INCLUDE_PATH_COUNT_OFFSET)), ri32(add(state,
+        CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET))));
+    while (lt(index, search_count)) {
+        if (eq(index, 0)) {
+            if (not(eq(ri8(name), 47))) {
+                index = add(index, 1);
+                continue;
+            }
+            wi8(candidate, 0);
+        } else if (eq(index, 1)) {
+            if (not(eq(separator, 34))) {
+                index = add(index, 1);
+                continue;
+            }
+            cc2_copy_directory(candidate,
+                CC2_BUFFERED_FILE_FILENAME_CAPACITY, ri32(add(source_file,
+                CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET)));
+        } else {
+            path_index = sub(index, 2);
+            system_index = sub(path_index, ri32(add(state,
+                CC2_TCC_STATE_INCLUDE_PATH_COUNT_OFFSET)));
+            if (lt(system_index, 0)) {
+                path = ri32(add(ri32(add(state,
+                    CC2_TCC_STATE_INCLUDE_PATHS_OFFSET)), mul(path_index,
+                    CC2_I386_WORD_BYTES)));
+            } else {
+                path = ri32(add(ri32(add(state,
+                    CC2_TCC_STATE_SYSTEM_INCLUDE_PATHS_OFFSET)),
+                    mul(system_index, CC2_I386_WORD_BYTES)));
+            }
+            cc2_bounded_copy(candidate,
+                CC2_BUFFERED_FILE_FILENAME_CAPACITY, path);
+            cc2_bounded_append(candidate,
+                CC2_BUFFERED_FILE_FILENAME_CAPACITY, mks("/"));
+        }
+        cc2_bounded_append(candidate, CC2_BUFFERED_FILE_FILENAME_CAPACITY,
+            name);
+        entry = search_cached_include(state, candidate, 0);
+        if (entry) {
+            if (or(not(eq(define_find(ri32(add(entry,
+                CC2_CACHED_INCLUDE_IFNDEF_OFFSET))), 0)), eq(ri32(add(entry,
+                CC2_CACHED_INCLUDE_ONCE_OFFSET)), ri32(pp_once_address)))) {
+                free(candidate);
+                free(name);
+                return 0;
+            }
+        }
+        if (not(lt(cc2_tcc_open(state, candidate), 0))) {
+            source_file = ri32(file_address);
+            wi32(add(source_file, CC2_BUFFERED_FILE_INCLUDE_NEXT_INDEX_OFFSET),
+                add(index, 1));
+            path = malloc(add(strlen(candidate), 1));
+            strcpy(path, candidate);
+            dynarray_add(add(state, CC2_TCC_STATE_TARGET_DEPENDENCIES_OFFSET),
+                add(state, CC2_TCC_STATE_TARGET_DEPENDENCY_COUNT_OFFSET), path);
+            wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
+                add(include_pointer, CC2_I386_WORD_BYTES));
+            if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
+                cc2_put_stabs(add(source_file,
+                    CC2_BUFFERED_FILE_FILENAME_OFFSET),
+                    CC2_STABS_INCLUDE_TYPE, 0, 0, 0);
+            }
+            wi32(tok_flags_address, or(ri32(tok_flags_address), or(
+                CC2_TOKEN_FLAG_BEGINNING_OF_FILE,
+                CC2_TOKEN_FLAG_BEGINNING_OF_LINE)));
+            ch = ri8(ri32(add(source_file,
+                CC2_BUFFERED_FILE_POINTER_OFFSET)));
+            free(candidate);
+            free(name);
+            return 1;
+        }
+        index = add(index, 1);
+    }
+    tcc_error(mks("include file '%s' not found"), name);
     return 0;
 }
 
@@ -13596,6 +13831,7 @@ function cc2_init_constants()
     CC2_TOKEN_PREPROCESSOR_JOIN = 205;
     CC2_PARSE_FLAG_SPACES = 16;
     CC2_PARSE_FLAG_LINE_FEED = 4;
+    CC2_PARSE_FLAG_PREPROCESS = 1;
     CC2_CHARACTER_EOF = sub(0, 1);
     CC2_CHARACTER_CLASS_SPACE = 1;
     CC2_INCLUDE_HASH_INITIAL = 1;
@@ -13637,6 +13873,20 @@ function cc2_init_constants()
     CC2_TOKEN_ERROR_DIRECTIVE = 323;
     CC2_TOKEN_WARNING_DIRECTIVE = 324;
     CC2_PREPROCESS_DIRECTIVE_BUFFER_BYTES = 1024;
+    CC2_TOKEN_INCLUDE_DIRECTIVE = 315;
+    CC2_TOKEN_INCLUDE_NEXT_DIRECTIVE = 316;
+    CC2_TCC_STATE_INCLUDE_PATHS_OFFSET = 144;
+    CC2_TCC_STATE_INCLUDE_PATH_COUNT_OFFSET = 148;
+    CC2_TCC_STATE_SYSTEM_INCLUDE_PATHS_OFFSET = 152;
+    CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET = 156;
+    CC2_TCC_STATE_INCLUDE_STACK_OFFSET = 376;
+    CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET = 504;
+    CC2_INCLUDE_STACK_ENTRIES = 32;
+    CC2_TCC_STATE_TARGET_DEPENDENCIES_OFFSET = 368;
+    CC2_TCC_STATE_TARGET_DEPENDENCY_COUNT_OFFSET = 372;
+    CC2_BUFFERED_FILE_INCLUDE_NEXT_INDEX_OFFSET = 36;
+    CC2_TOKEN_FLAG_BEGINNING_OF_FILE = 2;
+    CC2_TOKEN_FLAG_BEGINNING_OF_LINE = 1;
     CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET = 1064;
     CC2_BUFFERED_FILE_FILENAME_CAPACITY = 1024;
     CC2_STABS_INCLUDE_TYPE = 130;
