@@ -1287,6 +1287,49 @@ function cc2_lex_should_restart()
     return CC2_LEX_RESTART;
 }
 
+function cc2_lex_hash_(pointer, character, source_file, flags)
+{
+    CC2_LEX_RESTART = 0;
+    pointer = cc2_lex_peek(pointer);
+    character = ri8(pointer);
+    flags = ri32(tok_flags_address);
+    if (and(not(eq(and(flags, CC2_TOKEN_FLAG_BEGINNING_OF_LINE), 0)),
+        not(eq(and(ri32(parse_flags_address),
+        CC2_PARSE_FLAG_PREPROCESS), 0)))) {
+        source_file = ri32(file_address);
+        wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
+        preprocess(not(eq(and(flags,
+            CC2_TOKEN_FLAG_BEGINNING_OF_FILE), 0)));
+        source_file = ri32(file_address);
+        pointer = ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET));
+        if (eq(and(ri32(parse_flags_address),
+            CC2_PARSE_FLAG_LINE_FEED), 0)) {
+            CC2_LEX_RESTART = 1;
+        } else {
+            wi32(tok_address, CC2_TOKEN_LINE_FEED);
+        }
+        return pointer;
+    }
+    if (eq(character, mkC("#"))) {
+        pointer = add(pointer, 1);
+        wi32(tok_address, CC2_TOKEN_TWO_SHARPS);
+    } else if (not(eq(and(ri32(parse_flags_address),
+        CC2_PARSE_FLAG_ASM_FILE), 0))) {
+        pointer = parse_line_comment(sub(pointer, 1));
+        CC2_LEX_RESTART = 1;
+        return pointer;
+    } else {
+        wi32(tok_address, mkC("#"));
+    }
+    wi32(tok_flags_address, 0);
+    return pointer;
+}
+
+function cc2_lex_hash(pointer)
+{
+    return cc2_lex_hash_(pointer, 0, 0, 0);
+}
+
 function skip_spaces()
 {
     while (cc0_is_space(ch)) {

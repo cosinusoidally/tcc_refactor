@@ -704,28 +704,11 @@ maybe_newline:
         goto keep_tok_flags;
 
     case '#':
-        /* XXX: simplify */
-        PEEKC(c, p);
-        if ((tok_flags & TOK_FLAG_BOL) && 
-            (parse_flags & PARSE_FLAG_PREPROCESS)) {
-            file->buf_ptr = p;
-            preprocess(tok_flags & TOK_FLAG_BOF);
-            p = file->buf_ptr;
-            goto maybe_newline;
-        } else {
-            if (c == '#') {
-                p++;
-                tok = TOK_TWOSHARPS;
-            } else {
-                if (parse_flags & PARSE_FLAG_ASM_FILE) {
-                    p = parse_line_comment(p - 1);
-                    goto redo_no_start;
-                } else {
-                    tok = '#';
-                }
-            }
+        p = (uint8_t *)cc2_lex_hash((int)p);
+        if (cc2_lex_should_restart()) {
+            goto redo_no_start;
         }
-        break;
+        goto keep_tok_flags;
     
     /* dollar is allowed to start identifiers when not parsing asm */
     case '$':
