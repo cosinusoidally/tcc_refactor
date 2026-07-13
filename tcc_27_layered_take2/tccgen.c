@@ -51,6 +51,7 @@ void block_for(void);
 void block_case(void);
 void block_default(void);
 void block_goto(void);
+void block_expression(int is_expression);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1854,17 +1855,7 @@ void block(int *bsym, int *csym, int is_expr)
                 block(bsym, csym, is_expr);
             }
         } else {
-            /* expression case */
-            if (tok != ';') {
-                if (is_expr) {
-                    vpop();
-                    gexpr();
-                } else {
-                    gexpr();
-                    vpop();
-                }
-            }
-            skip(';');
+            block_expression(is_expr);
         }
     }
 }

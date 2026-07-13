@@ -5126,6 +5126,21 @@ function block_goto()
     return 0;
 }
 
+function block_expression(is_expression)
+{
+    if (not(eq(ri32(tok_address), 59))) {
+        if (is_expression) {
+            vpop();
+            gexpr();
+        } else {
+            gexpr();
+            vpop();
+        }
+    }
+    skip(59);
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {
