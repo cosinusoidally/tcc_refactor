@@ -1344,6 +1344,9 @@ extern int gvtst(int inverted, int jump_chain);
 extern void gen_cast_s(int type);
 extern void gen_cast(CType *type);
 extern void gen_assign_cast(CType *type);
+extern void type_to_str(char *buffer, int buffer_size, CType *type,
+                        const char *variable);
+extern void tcc_error_type_pair(CType *source_type, CType *destination_type);
 extern int type_size(CType *type, int *a);
 extern void vla_runtime_type_size(CType *type, int *a);
 extern int pointed_size(CType *type);

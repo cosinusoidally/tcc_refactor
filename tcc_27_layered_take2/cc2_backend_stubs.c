@@ -94,11 +94,6 @@ function gen_cast(type)
     return 0;
 }
 
-function gen_assign_cast(type)
-{
-    return 0;
-}
-
 function expr_cond()
 {
     return 0;
@@ -115,6 +110,16 @@ function expect(message)
 }
 
 function gv2(first_class, second_class)
+{
+    return 0;
+}
+
+function type_to_str(buffer, buffer_size, type, variable)
+{
+    return 0;
+}
+
+function tcc_error_type_pair(source_type, destination_type)
 {
     return 0;
 }

@@ -2161,6 +2161,117 @@ function check_comparison_pointer_types(first_value, second_value, operation)
         operation, 0, 0, 0, 0, 0, 0);
 }
 
+function cc2_is_enum_type(type_value)
+{
+    return eq(and(ushr(type_value, CC2_TCC_BITFIELD_POSITION_SHIFT),
+        4095), 2);
+}
+
+function cc2_assignment_cast_error(source_type, destination_type, buffers)
+{
+    tcc_error_type_pair(source_type, destination_type);
+    return 0;
+}
+
+function gen_assign_cast_(destination_type, source_type, destination_basic,
+    source_basic, first_target, second_target, first_value, second_value)
+{
+    source_type = vtop;
+    destination_basic = and(ri32(destination_type),
+        CC2_TCC_BASIC_TYPE_MASK);
+    source_basic = and(ri32(source_type), CC2_TCC_BASIC_TYPE_MASK);
+    if (or(eq(source_basic, CC2_TCC_VOID_TYPE),
+        eq(destination_basic, CC2_TCC_VOID_TYPE))) {
+        if (not(and(eq(source_basic, CC2_TCC_VOID_TYPE),
+            eq(destination_basic, CC2_TCC_VOID_TYPE)))) {
+            tcc_error(mks("cannot cast from/to void"), 0);
+        }
+    }
+    if (not(eq(and(ri32(destination_type),
+        CC2_TCC_CONST_QUALIFIER), 0))) {
+        tcc_warning(mks("assignment of read-only location"), 0);
+    }
+    if (eq(destination_basic, CC2_TCC_POINTER_TYPE)) {
+        if (is_null_pointer(vtop)) {
+            gen_cast(destination_type);
+            return 0;
+        }
+        if (is_integer_btype(source_basic)) {
+            tcc_warning(mks("assignment makes pointer from integer without a cast"),
+                0);
+            gen_cast(destination_type);
+            return 0;
+        }
+        first_target = pointed_type(destination_type);
+        if (eq(source_basic, CC2_TCC_FUNCTION_TYPE)) {
+            if (and(not(eq(and(ri32(first_target),
+                CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_VOID_TYPE)),
+                eq(is_compatible_types(first_target, source_type), 0))) {
+                tcc_warning(mks("assignment from incompatible pointer type"),
+                    0);
+            }
+            gen_cast(destination_type);
+            return 0;
+        }
+        if (not(eq(source_basic, CC2_TCC_POINTER_TYPE))) {
+            cc2_assignment_cast_error(source_type, destination_type, 0);
+            return 0;
+        }
+        second_target = pointed_type(source_type);
+        if (and(not(eq(and(ri32(first_target), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_VOID_TYPE)),
+            not(eq(and(ri32(second_target), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_VOID_TYPE)))) {
+            if (eq(is_compatible_unqualified_types(first_target,
+                second_target), 0)) {
+                first_value = ri32(first_target);
+                second_value = ri32(second_target);
+                if (or(not(eq(and(first_value, 2063),
+                    and(second_value, 2063))),
+                    or(cc2_is_enum_type(first_value),
+                    cc2_is_enum_type(second_value)))) {
+                    tcc_warning(mks("assignment from incompatible pointer type"),
+                        0);
+                }
+            }
+        }
+        first_value = ri32(first_target);
+        second_value = ri32(second_target);
+        if (or(and(eq(and(first_value, CC2_TCC_CONST_QUALIFIER), 0),
+            not(eq(and(second_value, CC2_TCC_CONST_QUALIFIER), 0))),
+            and(eq(and(first_value, CC2_TCC_VOLATILE_QUALIFIER), 0),
+            not(eq(and(second_value, CC2_TCC_VOLATILE_QUALIFIER), 0))))) {
+            tcc_warning(mks("assignment discards qualifiers from pointer target type"),
+                0);
+        }
+    } else if (or(or(eq(destination_basic, CC2_TCC_BYTE_TYPE),
+        eq(destination_basic, CC2_TCC_SHORT_TYPE)),
+        or(eq(destination_basic, CC2_TCC_INT_TYPE),
+        eq(destination_basic, CC2_TCC_LONG_LONG_TYPE)))) {
+        if (or(eq(source_basic, CC2_TCC_POINTER_TYPE),
+            eq(source_basic, CC2_TCC_FUNCTION_TYPE))) {
+            tcc_warning(mks("assignment makes integer from pointer without a cast"),
+                0);
+        } else if (eq(source_basic, CC2_TCC_STRUCT_TYPE)) {
+            cc2_assignment_cast_error(source_type, destination_type, 0);
+            return 0;
+        }
+    } else if (eq(destination_basic, CC2_TCC_STRUCT_TYPE)) {
+        if (eq(is_compatible_unqualified_types(destination_type,
+            source_type), 0)) {
+            cc2_assignment_cast_error(source_type, destination_type, 0);
+            return 0;
+        }
+    }
+    gen_cast(destination_type);
+    return 0;
+}
+
+function gen_assign_cast(destination_type)
+{
+    return gen_assign_cast_(destination_type, 0, 0, 0, 0, 0, 0, 0);
+}
+
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)
 {
     type_value = ri32(type);
