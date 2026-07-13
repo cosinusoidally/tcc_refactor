@@ -278,7 +278,7 @@ ST_FUNC void load(int r, SValue *sv)
 }
 
 /* store register 'r' in lvalue 'v' */
-ST_FUNC void store(int r, SValue *v)
+void store(int r, SValue *v)
 {
     int fr, bt, ft, fc;
 

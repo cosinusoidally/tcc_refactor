@@ -39,7 +39,7 @@ function update_storage(symbol)
     return 0;
 }
 
-function save_reg_upstack(reg, count)
+function store(reg, value)
 {
     return 0;
 }

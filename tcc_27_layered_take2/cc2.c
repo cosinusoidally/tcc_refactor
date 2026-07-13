@@ -104,6 +104,7 @@ var CC2_I386_LONG_DOUBLE_BYTES = 12;
 var CC2_I386_WORD_BYTES = 4;
 var CC2_TCC_VLA_TYPE = 1024;
 var CC2_TYPE_ALIGNMENT_TEMPORARY;
+var CC2_VALUE_BOUNDED = 32768;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -992,6 +993,92 @@ function is_null_pointer_(value, registers, basic_type)
 function is_null_pointer(value)
 {
     return is_null_pointer_(value, 0, 0);
+}
+
+function cc2_write_signed_constant(constant, value)
+{
+    wi32(constant, value);
+    wi32(add(constant, 4), 0);
+    if (lt(value, 0)) {
+        wi32(add(constant, 4), sub(0, 1));
+    }
+    return 0;
+}
+
+function save_reg_upstack_(reg, count, entry, last, saved, stack_location,
+    registers, type, size, alignment, spill, new_register)
+{
+    reg = and(reg, CC2_VALUE_LOCATION_MASK);
+    if (not(lt(reg, CC2_VALUE_CONSTANT))) {
+        return 0;
+    }
+    if (not(eq(nocode_wanted, 0))) {
+        return 0;
+    }
+    entry = vstack_base;
+    last = sub(vtop, mul(count, CC2_SVALUE_BYTES));
+    saved = 0;
+    stack_location = 0;
+    while (le(entry, last)) {
+        registers = ri32(add(entry, CC2_SVALUE_REGISTER_OFFSET));
+        if (or(eq(and(registers, CC2_VALUE_LOCATION_MASK), reg),
+            and(eq(and(ri32(entry), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_LONG_LONG_TYPE), eq(and(ushr(registers, 16),
+            CC2_VALUE_LOCATION_MASK), reg)))) {
+            if (eq(saved, 0)) {
+                reg = and(registers, CC2_VALUE_LOCATION_MASK);
+                type = entry;
+                if (or(not(eq(and(registers, CC2_TCC_LVALUE), 0)),
+                    and(eq(is_float(ri32(type)), 0),
+                    not(eq(and(ri32(type), CC2_TCC_BASIC_TYPE_MASK),
+                    CC2_TCC_LONG_LONG_TYPE))))) {
+                    type = int_type_address;
+                }
+                alignment = cc2_type_alignment_temporary();
+                size = type_size(type, alignment);
+                loc = and(sub(loc, size), sub(0, ri32(alignment)));
+                spill = cc2_svalue_temporary();
+                cc2_zero_bytes(spill, CC2_SVALUE_BYTES);
+                wi32(spill, ri32(type));
+                wi32(add(spill, CC2_SVALUE_REGISTER_OFFSET),
+                    or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE));
+                cc2_write_signed_constant(add(spill,
+                    CC2_SVALUE_CONSTANT_OFFSET), loc);
+                store(reg, spill);
+                if (eq(reg, CC2_I386_FLOAT_RETURN_REGISTER)) {
+                    o(CC2_I386_POP_FLOAT_STACK);
+                }
+                if (eq(and(ri32(type), CC2_TCC_BASIC_TYPE_MASK),
+                    CC2_TCC_LONG_LONG_TYPE)) {
+                    cc2_write_signed_constant(add(spill,
+                        CC2_SVALUE_CONSTANT_OFFSET),
+                        add(ri32(add(spill, CC2_SVALUE_CONSTANT_OFFSET)), 4));
+                    store(and(ushr(registers, 16), 65535), spill);
+                }
+                stack_location = loc;
+                saved = 1;
+            }
+            if (not(eq(and(registers, CC2_TCC_LVALUE), 0))) {
+                new_register = or(and(registers,
+                    bnot(or(CC2_VALUE_LOCATION_MASK, CC2_VALUE_BOUNDED))),
+                    CC2_VALUE_LOCAL_LVALUE);
+            } else {
+                new_register = or(lvalue_type(ri32(entry)), CC2_VALUE_LOCAL);
+            }
+            new_register = or(and(new_register, 65535),
+                shl(CC2_VALUE_CONSTANT, 16));
+            wi32(add(entry, CC2_SVALUE_REGISTER_OFFSET), new_register);
+            cc2_write_signed_constant(add(entry,
+                CC2_SVALUE_CONSTANT_OFFSET), stack_location);
+        }
+        entry = add(entry, CC2_SVALUE_BYTES);
+    }
+    return 0;
+}
+
+function save_reg_upstack(reg, count)
+{
+    return save_reg_upstack_(reg, count, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function vpushv_(value, limit)
