@@ -947,6 +947,119 @@ function parse_comment(pointer)
     return parse_comment_(pointer, 0, 0);
 }
 
+function skip_spaces()
+{
+    while (cc0_is_space(ch)) {
+        minp();
+    }
+    return 0;
+}
+
+function parse_pp_string_(pointer, separator, string, source_file, character)
+{
+    source_file = ri32(file_address);
+    pointer = add(pointer, 1);
+    while (1) {
+        character = ri8(pointer);
+        if (eq(character, separator)) {
+            return add(pointer, 1);
+        } else if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
+            wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
+            character = handle_eob();
+            pointer = ri32(add(source_file,
+                CC2_BUFFERED_FILE_POINTER_OFFSET));
+            if (eq(character, CC2_CHARACTER_END_OF_FILE)) {
+                tcc_error(mks("missing terminating %c character"), separator);
+                return pointer;
+            } else if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
+                pointer = add(pointer, 1);
+                character = ri8(pointer);
+                if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
+                    wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET),
+                        pointer);
+                    character = handle_eob();
+                    pointer = ri32(add(source_file,
+                        CC2_BUFFERED_FILE_POINTER_OFFSET));
+                }
+                if (eq(character, CC2_CHARACTER_LINE_FEED)) {
+                    wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), add(
+                        ri32(add(source_file,
+                            CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+                    pointer = add(pointer, 1);
+                } else if (eq(character,
+                    CC2_CHARACTER_CARRIAGE_RETURN)) {
+                    pointer = add(pointer, 1);
+                    character = ri8(pointer);
+                    if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
+                        wi32(add(source_file,
+                            CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
+                        character = handle_eob();
+                        pointer = ri32(add(source_file,
+                            CC2_BUFFERED_FILE_POINTER_OFFSET));
+                    }
+                    if (not(eq(character, CC2_CHARACTER_LINE_FEED))) {
+                        expect(mks("'\n' after '\r'"));
+                    }
+                    wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), add(
+                        ri32(add(source_file,
+                            CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+                    pointer = add(pointer, 1);
+                } else if (eq(character, CC2_CHARACTER_END_OF_FILE)) {
+                    tcc_error(mks("missing terminating %c character"),
+                        separator);
+                    return pointer;
+                } else {
+                    if (not(eq(string, 0))) {
+                        cstr_ccat(string, CC2_CHARACTER_END_OF_BUFFER);
+                        cstr_ccat(string, character);
+                    }
+                    pointer = add(pointer, 1);
+                }
+            }
+        } else if (eq(character, CC2_CHARACTER_LINE_FEED)) {
+            wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), add(
+                ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+            if (not(eq(string, 0))) {
+                cstr_ccat(string, character);
+            }
+            pointer = add(pointer, 1);
+        } else if (eq(character, CC2_CHARACTER_CARRIAGE_RETURN)) {
+            pointer = add(pointer, 1);
+            character = ri8(pointer);
+            if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
+                wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET),
+                    pointer);
+                character = handle_eob();
+                pointer = ri32(add(source_file,
+                    CC2_BUFFERED_FILE_POINTER_OFFSET));
+            }
+            if (not(eq(character, CC2_CHARACTER_LINE_FEED))) {
+                if (not(eq(string, 0))) {
+                    cstr_ccat(string, CC2_CHARACTER_CARRIAGE_RETURN);
+                }
+            } else {
+                wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), add(
+                    ri32(add(source_file,
+                        CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+                if (not(eq(string, 0))) {
+                    cstr_ccat(string, character);
+                }
+                pointer = add(pointer, 1);
+            }
+        } else {
+            if (not(eq(string, 0))) {
+                cstr_ccat(string, character);
+            }
+            pointer = add(pointer, 1);
+        }
+    }
+}
+
+function parse_pp_string(pointer, separator, string)
+{
+    return parse_pp_string_(pointer, separator, string, 0, 0);
+}
+
 function tok_str_new(stream)
 {
     cc2_zero_bytes(stream, CC2_TOKEN_STRING_BYTES);

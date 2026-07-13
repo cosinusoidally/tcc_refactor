@@ -1532,6 +1532,8 @@ int handle_eob(void);
 int handle_stray_noerror(void);
 int handle_stray1(uint8_t *p);
 uint8_t *parse_line_comment(uint8_t *p);
+void skip_spaces(void);
+uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str);
 #endif
 
 /* ------------ xxx-link.c ------------ */
