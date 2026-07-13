@@ -152,6 +152,11 @@ var CC0_X86_LOAD_EBX_STACK;
 var CC0_X86_STORE_EBX_STACK;
 var CC0_X86_STORE_EAX_STACK;
 var CC0_PARAMETER_FIRST_OFFSET;
+var CC0_LOOP_STACK;
+var CC0_LOOP_DEPTH;
+var CC0_NEXT_LOOP_ID;
+var CC0_BREAK_RECORDS;
+var CC0_BREAK_COUNT;
 
 function cc0_init()
 {
@@ -291,6 +296,11 @@ function cc0_init()
     CC0_X86_STORE_EBX_STACK = 156;
     CC0_X86_STORE_EAX_STACK = 132;
     CC0_PARAMETER_FIRST_OFFSET = 8;
+    CC0_LOOP_STACK = 0;
+    CC0_LOOP_DEPTH = 0;
+    CC0_NEXT_LOOP_ID = 0;
+    CC0_BREAK_RECORDS = 0;
+    CC0_BREAK_COUNT = 0;
     return CC0_FALSE;
 }
 
@@ -802,11 +812,16 @@ function cc0_compiler_prepare_code()
         CC0_DATA = alloc(CC0_DATA_CAPACITY);
         CC0_CALL_RECORDS = alloc(CC0_SYMBOL_TABLE_BYTES);
         CC0_RELOCATION_RECORDS = alloc(CC0_SYMBOL_TABLE_BYTES);
+        CC0_LOOP_STACK = alloc(CC0_SYMBOL_TABLE_BYTES);
+        CC0_BREAK_RECORDS = alloc(CC0_SYMBOL_TABLE_BYTES);
     }
     CC0_CODE_LENGTH = 0;
     CC0_DATA_LENGTH = 0;
     CC0_CALL_COUNT = 0;
     CC0_RELOCATION_COUNT = 0;
+    CC0_LOOP_DEPTH = 0;
+    CC0_NEXT_LOOP_ID = 0;
+    CC0_BREAK_COUNT = 0;
     if (eq(CC0_CODE, 0)) {
         return cc0_compiler_fail();
     }
@@ -817,6 +832,12 @@ function cc0_compiler_prepare_code()
         return cc0_compiler_fail();
     }
     if (eq(CC0_RELOCATION_RECORDS, 0)) {
+        return cc0_compiler_fail();
+    }
+    if (eq(CC0_LOOP_STACK, 0)) {
+        return cc0_compiler_fail();
+    }
+    if (eq(CC0_BREAK_RECORDS, 0)) {
         return cc0_compiler_fail();
     }
     return CC0_FALSE;
@@ -1071,6 +1092,73 @@ function cc0_compiler_patch_calls_(index, call_entry, function_index, function_e
 function cc0_compiler_patch_calls()
 {
     return cc0_compiler_patch_calls_(0, 0, 0, 0, 0, 0);
+}
+
+function cc0_compiler_push_loop_(loop_id)
+{
+    if (not(lt(CC0_LOOP_DEPTH, CC0_SYMBOL_CAPACITY))) {
+        return cc0_compiler_fail();
+    }
+    loop_id = add(CC0_NEXT_LOOP_ID, 1);
+    CC0_NEXT_LOOP_ID = loop_id;
+    wi32(add(CC0_LOOP_STACK,
+        shl(CC0_LOOP_DEPTH, CC0_WORD_ADDRESS_SHIFT)), loop_id);
+    CC0_LOOP_DEPTH = add(CC0_LOOP_DEPTH, 1);
+    return loop_id;
+}
+
+function cc0_compiler_push_loop()
+{
+    return cc0_compiler_push_loop_(0);
+}
+
+function cc0_compiler_current_loop()
+{
+    if (lt(CC0_LOOP_DEPTH, 1)) {
+        return sub(0, 1);
+    }
+    return ri32(add(CC0_LOOP_STACK, shl(sub(CC0_LOOP_DEPTH, 1),
+        CC0_WORD_ADDRESS_SHIFT)));
+}
+
+function cc0_compiler_pop_loop()
+{
+    if (lt(CC0_LOOP_DEPTH, 1)) {
+        return cc0_compiler_fail();
+    }
+    CC0_LOOP_DEPTH = sub(CC0_LOOP_DEPTH, 1);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_record_break(loop_id, position)
+{
+    if (cc0_compiler_add_symbol(CC0_BREAK_RECORDS, CC0_BREAK_COUNT,
+        0, 0, loop_id)) {
+        return CC0_TRUE;
+    }
+    wi32(add(cc0_compiler_symbol_entry(CC0_BREAK_RECORDS,
+        CC0_BREAK_COUNT), CC0_SYMBOL_CODE_OFFSET), position);
+    CC0_BREAK_COUNT = add(CC0_BREAK_COUNT, 1);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_patch_breaks_(loop_id, target, index, entry)
+{
+    index = 0;
+    while (lt(index, CC0_BREAK_COUNT)) {
+        entry = cc0_compiler_symbol_entry(CC0_BREAK_RECORDS, index);
+        if (eq(ri32(add(entry, CC0_SYMBOL_VALUE_OFFSET)), loop_id)) {
+            cc0_compiler_patch_relative(
+                ri32(add(entry, CC0_SYMBOL_CODE_OFFSET)), target);
+        }
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_patch_breaks(loop_id, target)
+{
+    return cc0_compiler_patch_breaks_(loop_id, target, 0, 0);
 }
 
 function cc0_compiler_emit_drop_arguments(argument_bytes)
@@ -1623,7 +1711,7 @@ function cc0_compiler_parse_if()
     return cc0_compiler_parse_if_(0, 0);
 }
 
-function cc0_compiler_parse_while_(loop_start, exit_position)
+function cc0_compiler_parse_while_(loop_start, exit_position, loop_id)
 {
     cc0_compiler_next_token();
     if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
@@ -1641,21 +1729,48 @@ function cc0_compiler_parse_while_(loop_start, exit_position)
     if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
         cc0_compiler_emit_test_result();
         exit_position = cc0_compiler_emit_zero_jump();
+        loop_id = cc0_compiler_push_loop();
+    } else {
+        CC0_LOOP_DEPTH = add(CC0_LOOP_DEPTH, 1);
     }
     if (cc0_compiler_parse_statement()) {
         return CC0_TRUE;
     }
     if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
         cc0_compiler_emit_jump_to(loop_start);
-        return cc0_compiler_patch_relative(exit_position,
-            CC0_CODE_LENGTH);
+        cc0_compiler_patch_relative(exit_position, CC0_CODE_LENGTH);
+        cc0_compiler_patch_breaks(loop_id, CC0_CODE_LENGTH);
+        return cc0_compiler_pop_loop();
     }
+    CC0_LOOP_DEPTH = sub(CC0_LOOP_DEPTH, 1);
     return CC0_FALSE;
 }
 
 function cc0_compiler_parse_while()
 {
-    return cc0_compiler_parse_while_(0, 0);
+    return cc0_compiler_parse_while_(0, 0, 0);
+}
+
+function cc0_compiler_parse_break_(position, loop_id)
+{
+    if (lt(CC0_LOOP_DEPTH, 1)) {
+        return cc0_compiler_fail();
+    }
+    cc0_compiler_next_token();
+    if (cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON)) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        loop_id = cc0_compiler_current_loop();
+        position = cc0_compiler_emit_jump();
+        return cc0_compiler_record_break(loop_id, position);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_parse_break()
+{
+    return cc0_compiler_parse_break_(0, 0);
 }
 
 function cc0_compiler_parse_statement()
@@ -1686,8 +1801,7 @@ function cc0_compiler_parse_statement()
         return cc0_compiler_parse_while();
     }
     if (eq(CC0_TOKEN, CC0_TOKEN_BREAK)) {
-        cc0_compiler_next_token();
-        return cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON);
+        return cc0_compiler_parse_break();
     }
     if (cc0_compiler_parse_expression()) {
         return CC0_TRUE;
@@ -1792,6 +1906,8 @@ function cc0_compiler_parse_program_(source, length, phase)
 {
     CC0_COMPILER_ERROR = CC0_FALSE;
     CC0_COMPILER_PHASE = phase;
+    CC0_LOOP_DEPTH = 0;
+    CC0_NEXT_LOOP_ID = 0;
     cc0_compiler_set_source(source, length);
     cc0_compiler_next_token();
     while (not(eq(CC0_TOKEN, CC0_TOKEN_EOF))) {
