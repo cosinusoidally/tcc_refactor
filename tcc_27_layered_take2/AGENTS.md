@@ -66,6 +66,9 @@
 
 ## Verification
 
+- Do not embed source files in `mk_tcc_27_layered_take2` with here-documents or
+  generated strings. Put take2-specific fixtures in `tests/layered/` and have
+  the build script compile or execute those checked-in files.
 - Run the repository-level `./mk_tcc_27_layered_take2` after changes affecting
   the compiler or build.
 - Verify `cc0.c` with GCC, the self-hosted compiler, the `cc0` dialect path, and
