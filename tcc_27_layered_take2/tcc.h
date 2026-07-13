@@ -1541,6 +1541,8 @@ uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str);
 void preprocess_skip(void);
 int expr_preprocess(void);
 void next_nomacro_spc(void);
+CachedInclude *search_cached_include(TCCState *state, const char *filename,
+                                     int create);
 #endif
 
 /* ------------ xxx-link.c ------------ */

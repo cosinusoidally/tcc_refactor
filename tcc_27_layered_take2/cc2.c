@@ -414,6 +414,16 @@ var CC2_PARSE_FLAG_SPACES;
 var CC2_PARSE_FLAG_LINE_FEED;
 var CC2_CHARACTER_EOF;
 var CC2_CHARACTER_CLASS_SPACE;
+var CC2_INCLUDE_HASH_INITIAL;
+var CC2_INCLUDE_HASH_BUCKETS;
+var CC2_TCC_STATE_INCLUDE_HASH_OFFSET;
+var CC2_TCC_STATE_INCLUDES_OFFSET;
+var CC2_TCC_STATE_INCLUDE_COUNT_OFFSET;
+var CC2_CACHED_INCLUDE_IFNDEF_OFFSET;
+var CC2_CACHED_INCLUDE_ONCE_OFFSET;
+var CC2_CACHED_INCLUDE_HASH_NEXT_OFFSET;
+var CC2_CACHED_INCLUDE_FILENAME_OFFSET;
+var CC2_CACHED_INCLUDE_BYTES;
 var CC2_TOKEN_CHARACTER;
 var CC2_TOKEN_WIDE_CHARACTER;
 var CC2_TOKEN_INTEGER_CONSTANT;
@@ -1566,6 +1576,50 @@ function next_nomacro()
         token = ri32(tok_address);
     }
     return 0;
+}
+
+/* Find or create an include-cache record.  The chained hash table and dynamic
+   pointer array retain TCC's original unbounded growth behavior. */
+function search_cached_include(state, filename, create)
+{
+    var hash;
+    var character;
+    var index;
+    var entry;
+    var bucket;
+    hash = CC2_INCLUDE_HASH_INITIAL;
+    index = 0;
+    character = ri8(filename);
+    while (character) {
+        hash = add(hash, add(shl(hash, 5), add(ushr(hash, 27), character)));
+        index = add(index, 1);
+        character = ri8(add(filename, index));
+    }
+    hash = and(hash, sub(CC2_INCLUDE_HASH_BUCKETS, 1));
+    bucket = add(state, add(CC2_TCC_STATE_INCLUDE_HASH_OFFSET,
+        mul(hash, CC2_I386_WORD_BYTES)));
+    index = ri32(bucket);
+    while (index) {
+        entry = ri32(add(ri32(add(state, CC2_TCC_STATE_INCLUDES_OFFSET)),
+            mul(sub(index, 1), CC2_I386_WORD_BYTES)));
+        if (eq(strcmp(add(entry, CC2_CACHED_INCLUDE_FILENAME_OFFSET),
+            filename), 0)) {
+            return entry;
+        }
+        index = ri32(add(entry, CC2_CACHED_INCLUDE_HASH_NEXT_OFFSET));
+    }
+    if (not(create)) {
+        return 0;
+    }
+    entry = malloc(add(CC2_CACHED_INCLUDE_BYTES, strlen(filename)));
+    strcpy(add(entry, CC2_CACHED_INCLUDE_FILENAME_OFFSET), filename);
+    wi32(add(entry, CC2_CACHED_INCLUDE_IFNDEF_OFFSET), 0);
+    wi32(add(entry, CC2_CACHED_INCLUDE_ONCE_OFFSET), 0);
+    dynarray_add(add(state, CC2_TCC_STATE_INCLUDES_OFFSET),
+        add(state, CC2_TCC_STATE_INCLUDE_COUNT_OFFSET), entry);
+    wi32(add(entry, CC2_CACHED_INCLUDE_HASH_NEXT_OFFSET), ri32(bucket));
+    wi32(bucket, ri32(add(state, CC2_TCC_STATE_INCLUDE_COUNT_OFFSET)));
+    return entry;
 }
 
 function tok_str_add2(stream, token, value)
@@ -13113,6 +13167,16 @@ function cc2_init_constants()
     CC2_PARSE_FLAG_LINE_FEED = 4;
     CC2_CHARACTER_EOF = sub(0, 1);
     CC2_CHARACTER_CLASS_SPACE = 1;
+    CC2_INCLUDE_HASH_INITIAL = 1;
+    CC2_INCLUDE_HASH_BUCKETS = 32;
+    CC2_TCC_STATE_INCLUDE_HASH_OFFSET = 768;
+    CC2_TCC_STATE_INCLUDES_OFFSET = 896;
+    CC2_TCC_STATE_INCLUDE_COUNT_OFFSET = 900;
+    CC2_CACHED_INCLUDE_IFNDEF_OFFSET = 0;
+    CC2_CACHED_INCLUDE_ONCE_OFFSET = 4;
+    CC2_CACHED_INCLUDE_HASH_NEXT_OFFSET = 8;
+    CC2_CACHED_INCLUDE_FILENAME_OFFSET = 12;
+    CC2_CACHED_INCLUDE_BYTES = 16;
     return 0;
 }
 

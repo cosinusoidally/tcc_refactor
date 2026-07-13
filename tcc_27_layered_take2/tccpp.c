@@ -554,50 +554,6 @@ static inline int tok_size(const int *p)
 }
 #endif
 
-static CachedInclude *search_cached_include(TCCState *s1, const char *filename, int add)
-{
-    const unsigned char *s;
-    unsigned int h;
-    CachedInclude *e;
-    int i;
-
-    h = TOK_HASH_INIT;
-    s = (unsigned char *) filename;
-    while (*s) {
-#ifdef _WIN32
-        h = TOK_HASH_FUNC(h, toup(*s));
-#else
-        h = TOK_HASH_FUNC(h, *s);
-#endif
-        s++;
-    }
-    h &= (CACHED_INCLUDES_HASH_SIZE - 1);
-
-    i = s1->cached_includes_hash[h];
-    for(;;) {
-        if (i == 0)
-            break;
-        e = s1->cached_includes[i - 1];
-        if (0 == PATHCMP(e->filename, filename))
-            return e;
-        i = e->hash_next;
-    }
-    if (!add)
-        return NULL;
-
-    e = tcc_malloc(sizeof(CachedInclude) + strlen(filename));
-    strcpy(e->filename, filename);
-    e->ifndef_macro = e->once = 0;
-    dynarray_add(&s1->cached_includes, &s1->nb_cached_includes, e);
-    /* add in hash table */
-    e->hash_next = s1->cached_includes_hash[h];
-    s1->cached_includes_hash[h] = s1->nb_cached_includes;
-#ifdef INC_DEBUG
-    printf("adding cached '%s'\n", filename);
-#endif
-    return e;
-}
-
 static void pragma_parse(TCCState *s1)
 {
     next_nomacro();
