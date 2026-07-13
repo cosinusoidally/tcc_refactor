@@ -1267,6 +1267,7 @@ extern Sym *global_label_stack;
 extern Sym *define_stack;
 extern CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
 extern CType *int_type_address, *size_type_address, *func_old_type_address;
+extern CType *func_vt_address;
 extern CType *ptrdiff_type_address;
 extern Section **data_section_address;
 extern TCCState *tcc_state_address;
@@ -1279,7 +1280,7 @@ extern int rsym, anon_sym, ind, loc;
 extern int const_wanted; /* true if constant wanted */
 extern int nocode_wanted; /* true if no code generation wanted for an expression */
 extern int global_expr;  /* true if compound literals must be allocated globally (used during initializers parsing */
-ST_DATA CType func_vt; /* current function return type (used by return instruction) */
+extern CType func_vt; /* current function return type (used by return instruction) */
 extern int func_var; /* true if current function is variadic */
 extern int func_vc;
 extern int last_line_num, last_ind, func_ind; /* debug last line number and pc */

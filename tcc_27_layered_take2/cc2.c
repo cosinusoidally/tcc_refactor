@@ -340,6 +340,7 @@ var CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET = 56;
 var CC2_CASE_SECOND_VALUE_OFFSET = 8;
 var CC2_CASE_SYMBOL_OFFSET = 16;
 var CC2_SWITCH_DEFAULT_SYMBOL_OFFSET = 8;
+var CC2_TOKEN_MEMSET = 388;
 var table_ident;
 /* CType is two i386 words. */
 var char_pointer_type[2];
@@ -350,6 +351,7 @@ var ptrdiff_type[2];
 var int_type_address;
 var size_type_address;
 var func_old_type_address;
+var func_vt_address;
 var ptrdiff_type_address;
 /* TCC's 257-entry value stack, with seven i386 words per SValue. */
 var __vstack[1799];
@@ -4823,6 +4825,63 @@ function parse_init_elem(expression_type)
     } else if (eq(expression_type, 2)) {
         expr_eq();
     }
+    return 0;
+}
+
+function init_putz(section, offset, size)
+{
+    if (not(section)) {
+        vpush_global_sym(func_old_type_address, CC2_TOKEN_MEMSET);
+        vseti(CC2_VALUE_LOCAL, offset);
+        vpushi(0);
+        vpushs(size);
+        gfunc_call(3);
+    }
+    return 0;
+}
+
+function block_return()
+{
+    next();
+    if (not(eq(ri32(tok_address), 59))) {
+        gexpr();
+        gen_assign_cast(func_vt_address);
+        if (eq(and(ri32(func_vt_address), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_VOID_TYPE)) {
+            vtop = sub(vtop, CC2_SVALUE_BYTES);
+        } else {
+            gfunc_return(func_vt_address);
+        }
+    }
+    skip(59);
+    if (or(not(eq(ri32(tok_address), 125)), not(eq(local_scope, 1)))) {
+        rsym = gjmp(rsym);
+    }
+    nocode_wanted = or(nocode_wanted, 536870912);
+    return 0;
+}
+
+function block_break(break_symbol)
+{
+    if (not(break_symbol)) {
+        tcc_error(mks("cannot break"), 0);
+    }
+    wi32(break_symbol, gjmp(ri32(break_symbol)));
+    next();
+    skip(59);
+    nocode_wanted = or(nocode_wanted, 536870912);
+    return 0;
+}
+
+function block_continue(continue_symbol)
+{
+    if (not(continue_symbol)) {
+        tcc_error(mks("cannot continue"), 0);
+    }
+    vla_sp_restore_root();
+    wi32(continue_symbol, gjmp(ri32(continue_symbol)));
+    next();
+    skip(59);
     return 0;
 }
 

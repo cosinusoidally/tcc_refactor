@@ -30,7 +30,7 @@
 */
 #define NODATA_WANTED (nocode_wanted > 0) /* no static data output wanted either */
 #define STATIC_DATA_WANTED (nocode_wanted & 0xC0000000) /* only static data output */
-ST_DATA CType func_vt; /* current function return type (used by return instruction) */
+CType func_vt; /* current function return type (used by return instruction) */
 
 /* ------------------------------------------------------------------------- */
 
@@ -40,6 +40,10 @@ int parse_btype(CType *type, AttributeDef *ad);
 CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
 void parse_expr_type(CType *type);
 void parse_init_elem(int expr_type);
+void init_putz(Section *sec, unsigned long c, int size);
+void block_return(void);
+void block_break(int *break_symbol);
+void block_continue(int *continue_symbol);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1798,36 +1802,11 @@ static void block(int *bsym, int *csym, int is_expr)
         
         next();
     } else if (tok == TOK_RETURN) {
-        next();
-        if (tok != ';') {
-            gexpr();
-            gen_assign_cast(&func_vt);
-            if ((func_vt.t & VT_BTYPE) == VT_VOID)
-                vtop--;
-            else
-                gfunc_return(&func_vt);
-        }
-        skip(';');
-        /* jump unless last stmt in top-level block */
-        if (tok != '}' || local_scope != 1)
-            rsym = gjmp(rsym);
-	nocode_wanted |= 0x20000000;
+        block_return();
     } else if (tok == TOK_BREAK) {
-        /* compute jump */
-        if (!bsym)
-            tcc_error("cannot break");
-        *bsym = gjmp(*bsym);
-        next();
-        skip(';');
-	nocode_wanted |= 0x20000000;
+        block_break(bsym);
     } else if (tok == TOK_CONTINUE) {
-        /* compute jump */
-        if (!csym)
-            tcc_error("cannot continue");
-        vla_sp_restore_root();
-        *csym = gjmp(*csym);
-        next();
-        skip(';');
+        block_continue(csym);
     } else if (tok == TOK_FOR) {
         int e;
 	int saved_nocode_wanted;
@@ -2044,24 +2023,6 @@ static void block(int *bsym, int *csym, int is_expr)
 #define EXPR_ANY   2
 
 /* put zeros for variable based init */
-static void init_putz(Section *sec, unsigned long c, int size)
-{
-    if (sec) {
-        /* nothing to do because globals are already set to zero */
-    } else {
-        vpush_global_sym(&func_old_type, TOK_memset);
-        vseti(VT_LOCAL, c);
-#ifdef TCC_TARGET_ARM
-        vpushs(size);
-        vpushi(0);
-#else
-        vpushi(0);
-        vpushs(size);
-#endif
-        gfunc_call(3);
-    }
-}
-
 /* t is the array or struct type. c is the array or struct
    address. cur_field is the pointer to the current
    field, for arrays the 'c' member contains the current start
