@@ -1340,6 +1340,8 @@ extern int gv(int rc);
 ST_FUNC void gv2(int rc1, int rc2);
 extern void vpop(void);
 extern void gen_op(int op);
+extern int gvtst(int inverted, int jump_chain);
+extern void gen_cast_s(int type);
 extern int type_size(CType *type, int *a);
 extern void vla_runtime_type_size(CType *type, int *a);
 extern int pointed_size(CType *type);
@@ -1369,6 +1371,8 @@ extern void expr_cmpeq(void);
 extern void expr_and(void);
 extern void expr_xor(void);
 extern void expr_or(void);
+extern void expr_land(void);
+extern void expr_lor(void);
 ST_FUNC void gexpr(void);
 ST_FUNC int expr_const(void);
 #if defined CONFIG_TCC_BCHECK || defined TCC_TARGET_C67

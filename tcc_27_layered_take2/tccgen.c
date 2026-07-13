@@ -35,7 +35,7 @@ ST_DATA CType func_vt; /* current function return type (used by return instructi
 /* ------------------------------------------------------------------------- */
 
 static void gen_cast(CType *type);
-static void gen_cast_s(int t);
+void gen_cast_s(int t);
 static int parse_btype(CType *type, AttributeDef *ad);
 static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
 static void parse_expr_type(CType *type);
@@ -48,7 +48,7 @@ static int decl0(int l, int is_for_loop_init, Sym *);
 static void expr_eq(void);
 static inline int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
-static int gvtst(int inv, int t);
+int gvtst(int inv, int t);
 static void gen_inline_functions(TCCState *s);
 static void skip_or_save_block(TokenString **str);
 static void gv_dup(void);
@@ -898,7 +898,7 @@ static void gv_dup(void)
 /* Generate value test
  *
  * Generate a test for any value (jump, comparison and integers) */
-ST_FUNC int gvtst(int inv, int t)
+int gvtst(int inv, int t)
 {
     int v = vtop->r & VT_VALMASK;
     if (v != VT_CMP && v != VT_JMP && v != VT_JMPI) {
@@ -1716,7 +1716,7 @@ static void force_charshort_cast(int t)
 }
 
 /* cast 'vtop' to 'type'. Casting to bitfields is forbidden. */
-static void gen_cast_s(int t)
+void gen_cast_s(int t)
 {
     CType type;
     type.t = t;
@@ -4261,88 +4261,6 @@ void unary(void)
         } else {
             break;
         }
-    }
-}
-
-static void expr_land(void)
-{
-    expr_or();
-    if (tok == TOK_LAND) {
-	int t = 0;
-	for(;;) {
-	    if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST) {
-                gen_cast_s(VT_BOOL);
-		if (vtop->c.i) {
-		    vpop();
-		} else {
-		    nocode_wanted++;
-		    while (tok == TOK_LAND) {
-			next();
-			expr_or();
-			vpop();
-		    }
-		    nocode_wanted--;
-		    if (t)
-		      gsym(t);
-		    gen_cast_s(VT_INT);
-		    break;
-		}
-	    } else {
-		if (!t)
-		  save_regs(1);
-		t = gvtst(1, t);
-	    }
-	    if (tok != TOK_LAND) {
-		if (t)
-		  vseti(VT_JMPI, t);
-		else
-		  vpushi(1);
-		break;
-	    }
-	    next();
-	    expr_or();
-	}
-    }
-}
-
-static void expr_lor(void)
-{
-    expr_land();
-    if (tok == TOK_LOR) {
-	int t = 0;
-	for(;;) {
-	    if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST) {
-                gen_cast_s(VT_BOOL);
-		if (!vtop->c.i) {
-		    vpop();
-		} else {
-		    nocode_wanted++;
-		    while (tok == TOK_LOR) {
-			next();
-			expr_land();
-			vpop();
-		    }
-		    nocode_wanted--;
-		    if (t)
-		      gsym(t);
-		    gen_cast_s(VT_INT);
-		    break;
-		}
-	    } else {
-		if (!t)
-		  save_regs(1);
-		t = gvtst(0, t);
-	    }
-	    if (tok != TOK_LOR) {
-		if (t)
-		  vseti(VT_JMP, t);
-		else
-		  vpushi(0);
-		break;
-	    }
-	    next();
-	    expr_land();
-	}
     }
 }
 

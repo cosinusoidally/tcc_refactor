@@ -1143,6 +1143,12 @@ function cc0_elf_external_symbol(name, length)
     if (cc0_compiler_slice_equal(name, length, mks("gen_op"), 6)) {
         return cc0_elf_put_undefined_function(name, length);
     }
+    if (cc0_compiler_slice_equal(name, length, mks("gen_cast_s"), 10)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("gvtst"), 5)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
     if (cc0_compiler_slice_equal(name, length, mks("open"), 4)) {
         if (eq(CC0_ELF_OPEN_SYMBOL, 0)) {
             CC0_ELF_OPEN_SYMBOL = cc0_elf_put_undefined_function(
@@ -3529,6 +3535,12 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("gen_op"))) {
         return 1;
     }
+    if (cc0_text_equal(name, length, mks("gen_cast_s"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gvtst"))) {
+        return 2;
+    }
     return sub(0, 1);
 }
 
@@ -3668,6 +3680,12 @@ function cc0_compiler_external_arity(name, length)
     }
     if (cc0_text_equal(name, length, mks("gen_op"))) {
         return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gen_cast_s"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gvtst"))) {
+        return 2;
     }
     return sub(0, 1);
 }

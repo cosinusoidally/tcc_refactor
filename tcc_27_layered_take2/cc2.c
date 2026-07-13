@@ -125,6 +125,11 @@ var CC2_TOKEN_EQUAL = 148;
 var CC2_TOKEN_NOT_EQUAL = 149;
 var CC2_TOKEN_UNSIGNED_LESS_EQUAL = 150;
 var CC2_TOKEN_GREATER = 159;
+var CC2_TOKEN_LOGICAL_AND = 160;
+var CC2_TOKEN_LOGICAL_OR = 161;
+var CC2_VALUE_TEST_MASK = 831;
+var CC2_VALUE_JUMP_FALSE = 53;
+var CC2_TRUE = 1;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -1312,6 +1317,110 @@ function expr_or()
         gen_op(CC2_ASCII_VERTICAL_BAR);
     }
     return 0;
+}
+
+function expr_land_(jump_chain)
+{
+    expr_or();
+    if (eq(ri32(tok_address), CC2_TOKEN_LOGICAL_AND)) {
+        jump_chain = 0;
+        while (CC2_TRUE) {
+            if (eq(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+                CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT)) {
+                gen_cast_s(CC2_TCC_BOOLEAN_TYPE);
+                if (not(eq(ri32(add(vtop,
+                    CC2_SVALUE_CONSTANT_OFFSET)), 0))) {
+                    vpop();
+                } else {
+                    nocode_wanted = add(nocode_wanted, 1);
+                    while (eq(ri32(tok_address), CC2_TOKEN_LOGICAL_AND)) {
+                        next();
+                        expr_or();
+                        vpop();
+                    }
+                    nocode_wanted = sub(nocode_wanted, 1);
+                    if (not(eq(jump_chain, 0))) {
+                        gsym(jump_chain);
+                    }
+                    gen_cast_s(CC2_TCC_INT_TYPE);
+                    return 0;
+                }
+            } else {
+                if (eq(jump_chain, 0)) {
+                    save_regs(1);
+                }
+                jump_chain = gvtst(1, jump_chain);
+            }
+            if (not(eq(ri32(tok_address), CC2_TOKEN_LOGICAL_AND))) {
+                if (not(eq(jump_chain, 0))) {
+                    vseti(CC2_VALUE_JUMP_FALSE, jump_chain);
+                } else {
+                    vpushi(1);
+                }
+                return 0;
+            }
+            next();
+            expr_or();
+        }
+    }
+    return 0;
+}
+
+function expr_land()
+{
+    return expr_land_(0);
+}
+
+function expr_lor_(jump_chain)
+{
+    expr_land();
+    if (eq(ri32(tok_address), CC2_TOKEN_LOGICAL_OR)) {
+        jump_chain = 0;
+        while (CC2_TRUE) {
+            if (eq(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
+                CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT)) {
+                gen_cast_s(CC2_TCC_BOOLEAN_TYPE);
+                if (eq(ri32(add(vtop,
+                    CC2_SVALUE_CONSTANT_OFFSET)), 0)) {
+                    vpop();
+                } else {
+                    nocode_wanted = add(nocode_wanted, 1);
+                    while (eq(ri32(tok_address), CC2_TOKEN_LOGICAL_OR)) {
+                        next();
+                        expr_land();
+                        vpop();
+                    }
+                    nocode_wanted = sub(nocode_wanted, 1);
+                    if (not(eq(jump_chain, 0))) {
+                        gsym(jump_chain);
+                    }
+                    gen_cast_s(CC2_TCC_INT_TYPE);
+                    return 0;
+                }
+            } else {
+                if (eq(jump_chain, 0)) {
+                    save_regs(1);
+                }
+                jump_chain = gvtst(0, jump_chain);
+            }
+            if (not(eq(ri32(tok_address), CC2_TOKEN_LOGICAL_OR))) {
+                if (not(eq(jump_chain, 0))) {
+                    vseti(CC2_VALUE_JUMP, jump_chain);
+                } else {
+                    vpushi(0);
+                }
+                return 0;
+            }
+            next();
+            expr_land();
+        }
+    }
+    return 0;
+}
+
+function expr_lor()
+{
+    return expr_lor_(0);
 }
 
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)
