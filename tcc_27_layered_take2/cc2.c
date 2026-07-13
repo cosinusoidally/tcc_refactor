@@ -1136,6 +1136,39 @@ function struct_add_offset(symbol, offset)
     return struct_add_offset_(symbol, offset, 0, 0);
 }
 
+function find_field_(type, value, symbol, symbol_value, symbol_type, found)
+{
+    symbol = ri32(add(type, 4));
+    value = or(value, CC2_SYMBOL_FIELD_FLAG);
+    symbol = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
+    while (not(eq(symbol, 0))) {
+        symbol_value = ri32(add(symbol, CC2_SYM_VALUE_OFFSET));
+        symbol_type = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
+        if (not(eq(and(symbol_value, CC2_SYMBOL_FIELD_FLAG), 0))) {
+            if (eq(and(symbol_type, CC2_TCC_BASIC_TYPE_MASK),
+                CC2_TCC_STRUCT_TYPE)) {
+                if (le(CC2_FIRST_ANONYMOUS_SYMBOL,
+                    and(symbol_value, bnot(CC2_SYMBOL_FIELD_FLAG)))) {
+                    found = find_field(add(symbol, CC2_SYM_TYPE_OFFSET), value);
+                    if (not(eq(found, 0))) {
+                        return found;
+                    }
+                }
+            }
+        }
+        if (eq(symbol_value, value)) {
+            return symbol;
+        }
+        symbol = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
+    }
+    return 0;
+}
+
+function find_field(type, value)
+{
+    return find_field_(type, value, 0, 0, 0, 0);
+}
+
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)
 {
     type_value = ri32(type);

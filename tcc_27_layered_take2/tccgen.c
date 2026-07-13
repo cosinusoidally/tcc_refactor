@@ -2517,24 +2517,6 @@ redo:
     goto redo;
 }
 
-static Sym * find_field (CType *type, int v)
-{
-    Sym *s = type->ref;
-    v |= SYM_FIELD;
-    while ((s = s->next) != NULL) {
-	if ((s->v & SYM_FIELD) &&
-	    (s->type.t & VT_BTYPE) == VT_STRUCT &&
-	    (s->v & ~SYM_FIELD) >= SYM_FIRST_ANOM) {
-	    Sym *ret = find_field (&s->type, v);
-	    if (ret)
-	        return ret;
-	}
-	if (s->v == v)
-	  break;
-    }
-    return s;
-}
-
 static void struct_layout(CType *type, AttributeDef *ad)
 {
     int size, align, maxalign, offset, c, bit_pos, bit_size;
