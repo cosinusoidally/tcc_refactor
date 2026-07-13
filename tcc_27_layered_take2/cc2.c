@@ -6689,6 +6689,116 @@ function gen_cvt_ftoi(type)
     return 0;
 }
 
+function cc2_fastcall_register(call_kind, index)
+{
+    if (eq(call_kind, CC2_FUNCTION_FASTCALL_WINDOWS)) {
+        if (eq(index, 0)) {
+            return 1;
+        }
+        return 2;
+    }
+    if (eq(index, 0)) {
+        return 0;
+    }
+    if (eq(index, 1)) {
+        return 2;
+    }
+    return 1;
+}
+
+function gfunc_call(argument_count)
+{
+    var arguments_size;
+    var index;
+    var basic_type;
+    var size;
+    var alignment;
+    var value_reg;
+    var function_symbol;
+    var call_kind;
+    var register_count;
+    arguments_size = 0;
+    alignment = malloc(4);
+    index = 0;
+    while (lt(index, argument_count)) {
+        basic_type = and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK);
+        if (eq(basic_type, CC2_TCC_STRUCT_TYPE)) {
+            size = type_size(vtop, alignment);
+            size = and(add(size, 3), bnot(3));
+            oad(60545, size);
+            value_reg = get_reg(CC2_INTEGER_REGISTER_CLASS);
+            o(137);
+            o(add(224, value_reg));
+            vset(vtop, or(value_reg, CC2_TCC_LVALUE), 0);
+            vswap();
+            vstore();
+            arguments_size = add(arguments_size, size);
+        } else if (and(le(CC2_TCC_FLOAT_TYPE, basic_type),
+            le(basic_type, CC2_TCC_LONG_DOUBLE_TYPE))) {
+            gv(CC2_I386_FLOAT_REGISTER_CLASS);
+            if (eq(basic_type, CC2_TCC_FLOAT_TYPE)) {
+                size = 4;
+            } else if (eq(basic_type, CC2_TCC_DOUBLE_TYPE)) {
+                size = 8;
+            } else {
+                size = 12;
+            }
+            oad(60545, size);
+            if (eq(size, 12)) {
+                o(31963);
+            } else {
+                o(add(23769, sub(size, 4)));
+            }
+            g(36);
+            g(0);
+            arguments_size = add(arguments_size, size);
+        } else {
+            value_reg = gv(CC2_INTEGER_REGISTER_CLASS);
+            if (eq(basic_type, CC2_TCC_LONG_LONG_TYPE)) {
+                size = 8;
+                o(add(80, ri8(add(vtop, 10))));
+            } else {
+                size = 4;
+            }
+            o(add(80, value_reg));
+            arguments_size = add(arguments_size, size);
+        }
+        vtop = sub(vtop, CC2_SVALUE_BYTES);
+        index = add(index, 1);
+    }
+    free(alignment);
+    save_regs(0);
+    function_symbol = ri32(add(vtop, 4));
+    call_kind = and(ri32(add(function_symbol,
+        CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET)), CC2_FUNCTION_CALL_MASK);
+    if (or(and(le(CC2_FUNCTION_FASTCALL_FIRST, call_kind),
+        lt(call_kind, CC2_FUNCTION_FASTCALL_WINDOWS)),
+        eq(call_kind, CC2_FUNCTION_FASTCALL_WINDOWS))) {
+        if (eq(call_kind, CC2_FUNCTION_FASTCALL_WINDOWS)) {
+            register_count = 2;
+        } else {
+            register_count = sub(call_kind, 1);
+        }
+        index = 0;
+        while (and(lt(index, register_count), lt(0, arguments_size))) {
+            o(add(88, cc2_fastcall_register(call_kind, index)));
+            arguments_size = sub(arguments_size, 4);
+            index = add(index, 1);
+        }
+    } else if (eq(and(ri32(add(function_symbol, CC2_SYM_TYPE_OFFSET)),
+        CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_STRUCT_TYPE)) {
+        arguments_size = sub(arguments_size, 4);
+    }
+    gcall_or_jmp(0);
+    if (and(not(eq(arguments_size, 0)), and(not(eq(call_kind,
+        CC2_FUNCTION_STDCALL)), not(eq(call_kind,
+        CC2_FUNCTION_FASTCALL_WINDOWS))))) {
+        gadd_sp(arguments_size);
+    }
+    vtop = sub(vtop, CC2_SVALUE_BYTES);
+    return 0;
+}
+
 function ggoto()
 {
     gcall_or_jmp(1);
