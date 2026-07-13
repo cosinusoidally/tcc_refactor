@@ -2,6 +2,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <string.h>
 #include <unistd.h>
 
 extern int CC0_ELF_OUTPUT;
@@ -28,14 +29,23 @@ int main(int argc, char **argv)
 {
     struct stat status;
     unsigned char *source;
+    const char *input_name;
+    const char *output_name;
     int input;
     int output;
     int result;
 
-    if (argc != 3) {
+    if (argc == 3) {
+        input_name = argv[1];
+        output_name = argv[2];
+    } else if (argc == 5 && strcmp(argv[1], "-c") == 0 &&
+        strcmp(argv[3], "-o") == 0) {
+        input_name = argv[2];
+        output_name = argv[4];
+    } else {
         return 2;
     }
-    input = open(argv[1], O_RDONLY);
+    input = open(input_name, O_RDONLY);
     if (input < 0 || fstat(input, &status) != 0 || status.st_size <= 0) {
         return 3;
     }
@@ -50,7 +60,7 @@ int main(int argc, char **argv)
         munmap(source, status.st_size);
         return 5;
     }
-    output = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    output = open(output_name, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (output < 0) {
         munmap(source, status.st_size);
         return 6;
