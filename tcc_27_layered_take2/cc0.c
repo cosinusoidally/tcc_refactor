@@ -60,6 +60,10 @@ var CC0_TOKEN_ELSE;
 var CC0_TOKEN_WHILE;
 var CC0_TOKEN_BREAK;
 var CC0_COMPILER_ERROR;
+var CC0_LEXER_FIELD_KIND;
+var CC0_LEXER_FIELD_TEXT;
+var CC0_LEXER_FIELD_LENGTH;
+var CC0_LEXER_FIELD_NUMBER;
 var CC0_COMPILER_ERROR_POSITION;
 var CC0_DECIMAL_MAX_PLACE;
 var CC0_PUNCTUATION_LEFT_PARENTHESIS;
@@ -232,6 +236,9 @@ var CC0_ELF_CLOSE_SYMBOL;
 var CC0_ELF_SYSTEM_SYMBOL;
 var CC0_ELF_CC1_LINK_SYMBOL;
 var CC0_ELF_CHMOD_SYMBOL;
+var CC0_ELF_LEXER_START_SYMBOL;
+var CC0_ELF_LEXER_ADVANCE_SYMBOL;
+var CC0_ELF_LEXER_FIELD_SYMBOL;
 var CC0_FILE_READ_ONLY;
 var CC0_FILE_WRITE_FLAGS;
 var CC0_FILE_CREATE_MODE;
@@ -298,6 +305,10 @@ function cc0_init()
     CC0_TOKEN_WHILE = 10;
     CC0_TOKEN_BREAK = 11;
     CC0_COMPILER_ERROR = CC0_FALSE;
+    CC0_LEXER_FIELD_KIND = 0;
+    CC0_LEXER_FIELD_TEXT = 1;
+    CC0_LEXER_FIELD_LENGTH = 2;
+    CC0_LEXER_FIELD_NUMBER = 3;
     CC0_COMPILER_ERROR_POSITION = sub(0, 1);
     CC0_DECIMAL_MAX_PLACE = 1000000000;
     CC0_PUNCTUATION_LEFT_PARENTHESIS = 40;
@@ -470,6 +481,9 @@ function cc0_init()
     CC0_ELF_SYSTEM_SYMBOL = 0;
     CC0_ELF_CC1_LINK_SYMBOL = 0;
     CC0_ELF_CHMOD_SYMBOL = 0;
+    CC0_ELF_LEXER_START_SYMBOL = 0;
+    CC0_ELF_LEXER_ADVANCE_SYMBOL = 0;
+    CC0_ELF_LEXER_FIELD_SYMBOL = 0;
     CC0_FILE_READ_ONLY = 0;
     CC0_FILE_WRITE_FLAGS = 577;
     CC0_FILE_CREATE_MODE = 438;
@@ -902,7 +916,13 @@ function cc0_elf_emit_external_symbols()
     CC0_ELF_CC1_LINK_SYMBOL = cc0_elf_put_undefined_function(
         mks("cc1_link"), 8);
     CC0_ELF_CHMOD_SYMBOL = cc0_elf_put_undefined_function(mks("chmod"), 5);
-    if (lt(CC0_ELF_CHMOD_SYMBOL, 0)) {
+    CC0_ELF_LEXER_START_SYMBOL = cc0_elf_put_undefined_function(
+        mks("cc0_lexer_start"), 15);
+    CC0_ELF_LEXER_ADVANCE_SYMBOL = cc0_elf_put_undefined_function(
+        mks("cc0_lexer_advance"), 17);
+    CC0_ELF_LEXER_FIELD_SYMBOL = cc0_elf_put_undefined_function(
+        mks("cc0_lexer_field"), 15);
+    if (lt(CC0_ELF_LEXER_FIELD_SYMBOL, 0)) {
         return cc0_compiler_fail();
     }
     return CC0_FALSE;
@@ -936,6 +956,16 @@ function cc0_elf_external_symbol(name, length)
     }
     if (cc0_compiler_slice_equal(name, length, mks("chmod"), 5)) {
         return CC0_ELF_CHMOD_SYMBOL;
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("cc0_lexer_start"), 15)) {
+        return CC0_ELF_LEXER_START_SYMBOL;
+    }
+    if (cc0_compiler_slice_equal(name, length,
+        mks("cc0_lexer_advance"), 17)) {
+        return CC0_ELF_LEXER_ADVANCE_SYMBOL;
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("cc0_lexer_field"), 15)) {
+        return CC0_ELF_LEXER_FIELD_SYMBOL;
     }
     return sub(0, 1);
 }
@@ -1650,6 +1680,35 @@ function cc0_compiler_next_token_(character)
 function cc0_compiler_next_token()
 {
     return cc0_compiler_next_token_(0);
+}
+
+/* cc1 buffers tokens without sharing or duplicating the cc0 lexer state. */
+function cc0_lexer_start(source, length)
+{
+    cc0_compiler_set_source(source, length);
+    return cc0_compiler_next_token();
+}
+
+function cc0_lexer_advance()
+{
+    return cc0_compiler_next_token();
+}
+
+function cc0_lexer_field(field)
+{
+    if (eq(field, CC0_LEXER_FIELD_KIND)) {
+        return CC0_TOKEN;
+    }
+    if (eq(field, CC0_LEXER_FIELD_TEXT)) {
+        return CC0_TOKEN_START;
+    }
+    if (eq(field, CC0_LEXER_FIELD_LENGTH)) {
+        return CC0_TOKEN_LENGTH;
+    }
+    if (eq(field, CC0_LEXER_FIELD_NUMBER)) {
+        return CC0_TOKEN_NUMBER;
+    }
+    return 0;
 }
 
 function cc0_compiler_fail()
@@ -2579,6 +2638,12 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("system"))) {
         return 1;
     }
+    if (cc0_text_equal(name, length, mks("cc0_lexer_field"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("cc0_lexer_advance"))) {
+        return 0;
+    }
     if (cc0_text_equal(name, length, mks("not"))) {
         return 1;
     }
@@ -2639,6 +2704,9 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("chmod"))) {
         return 2;
     }
+    if (cc0_text_equal(name, length, mks("cc0_lexer_start"))) {
+        return 2;
+    }
     return sub(0, 1);
 }
 
@@ -2656,6 +2724,12 @@ function cc0_compiler_external_arity(name, length)
     if (cc0_text_equal(name, length, mks("system"))) {
         return 1;
     }
+    if (cc0_text_equal(name, length, mks("cc0_lexer_field"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("cc0_lexer_advance"))) {
+        return 0;
+    }
     if (cc0_text_equal(name, length, mks("open"))) {
         return 3;
     }
@@ -2672,6 +2746,9 @@ function cc0_compiler_external_arity(name, length)
         return 2;
     }
     if (cc0_text_equal(name, length, mks("chmod"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("cc0_lexer_start"))) {
         return 2;
     }
     return sub(0, 1);

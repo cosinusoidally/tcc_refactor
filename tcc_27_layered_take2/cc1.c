@@ -2,6 +2,215 @@
  * Layer one currently supplies the TCC-backed link service. The reduced linker
  * will migrate here from tccelf.c while cc0 remains unchanged.
  */
+var CC1_TOKEN_RECORD_SHIFT;
+var CC1_TOKEN_KIND_OFFSET;
+var CC1_TOKEN_TEXT_OFFSET;
+var CC1_TOKEN_LENGTH_OFFSET;
+var CC1_TOKEN_NUMBER_OFFSET;
+var CC1_TOKEN_SOURCE_OFFSET;
+var CC1_TOKEN_FILE_OFFSET;
+var CC1_TOKEN_LINE_OFFSET;
+var CC1_TOKEN_COLUMN_OFFSET;
+var CC1_LEXER_FIELD_KIND;
+var CC1_LEXER_FIELD_TEXT;
+var CC1_LEXER_FIELD_LENGTH;
+var CC1_LEXER_FIELD_NUMBER;
+var CC1_TOKEN_EOF;
+var CC1_TOKEN_ERROR;
+var CC1_TOKEN_SOURCE;
+var CC1_TOKEN_SOURCE_LENGTH;
+var CC1_TOKEN_FILE;
+var CC1_TOKEN_RECORDS;
+var CC1_TOKEN_CAPACITY;
+var CC1_TOKEN_COUNT;
+var CC1_TOKEN_CURSOR;
+var CC1_LOCATION_OFFSET;
+var CC1_LOCATION_LINE;
+var CC1_LOCATION_COLUMN;
+
+function cc1_token_record(index)
+{
+    return add(CC1_TOKEN_RECORDS, shl(index, CC1_TOKEN_RECORD_SHIFT));
+}
+
+function cc1_token_copy_bytes_(destination, source, count, index)
+{
+    index = 0;
+    while (lt(index, count)) {
+        wi8(add(destination, index), ri8(add(source, index)));
+        index = add(index, 1);
+    }
+    return destination;
+}
+
+function cc1_token_copy_bytes(destination, source, count)
+{
+    return cc1_token_copy_bytes_(destination, source, count, 0);
+}
+
+function cc1_token_reserve_(needed, capacity, records, used)
+{
+    needed = shl(add(CC1_TOKEN_COUNT, 1), CC1_TOKEN_RECORD_SHIFT);
+    if (le(needed, CC1_TOKEN_CAPACITY)) {
+        return 0;
+    }
+    capacity = CC1_TOKEN_CAPACITY;
+    if (eq(capacity, 0)) {
+        capacity = 256;
+    }
+    while (lt(capacity, needed)) {
+        capacity = shl(capacity, 1);
+    }
+    records = malloc(capacity);
+    if (eq(records, 0)) {
+        return 1;
+    }
+    used = shl(CC1_TOKEN_COUNT, CC1_TOKEN_RECORD_SHIFT);
+    if (not(eq(CC1_TOKEN_RECORDS, 0))) {
+        cc1_token_copy_bytes(records, CC1_TOKEN_RECORDS, used);
+    }
+    CC1_TOKEN_RECORDS = records;
+    CC1_TOKEN_CAPACITY = capacity;
+    return 0;
+}
+
+function cc1_token_reserve()
+{
+    return cc1_token_reserve_(0, 0, 0, 0);
+}
+
+function cc1_token_update_location_(source_offset, character)
+{
+    while (lt(CC1_LOCATION_OFFSET, source_offset)) {
+        character = ri8(add(CC1_TOKEN_SOURCE, CC1_LOCATION_OFFSET));
+        if (eq(character, 10)) {
+            CC1_LOCATION_LINE = add(CC1_LOCATION_LINE, 1);
+            CC1_LOCATION_COLUMN = 1;
+        } else {
+            CC1_LOCATION_COLUMN = add(CC1_LOCATION_COLUMN, 1);
+        }
+        CC1_LOCATION_OFFSET = add(CC1_LOCATION_OFFSET, 1);
+    }
+    return 0;
+}
+
+function cc1_token_update_location(source_offset)
+{
+    return cc1_token_update_location_(source_offset, 0);
+}
+
+function cc1_token_append_(kind, text, length, number, source_offset, record)
+{
+    if (cc1_token_reserve()) {
+        return 1;
+    }
+    source_offset = sub(text, CC1_TOKEN_SOURCE);
+    cc1_token_update_location(source_offset);
+    record = cc1_token_record(CC1_TOKEN_COUNT);
+    wi32(add(record, CC1_TOKEN_KIND_OFFSET), kind);
+    wi32(add(record, CC1_TOKEN_TEXT_OFFSET), text);
+    wi32(add(record, CC1_TOKEN_LENGTH_OFFSET), length);
+    wi32(add(record, CC1_TOKEN_NUMBER_OFFSET), number);
+    wi32(add(record, CC1_TOKEN_SOURCE_OFFSET), source_offset);
+    wi32(add(record, CC1_TOKEN_FILE_OFFSET), CC1_TOKEN_FILE);
+    wi32(add(record, CC1_TOKEN_LINE_OFFSET), CC1_LOCATION_LINE);
+    wi32(add(record, CC1_TOKEN_COLUMN_OFFSET), CC1_LOCATION_COLUMN);
+    CC1_TOKEN_COUNT = add(CC1_TOKEN_COUNT, 1);
+    return 0;
+}
+
+function cc1_token_append(kind, text, length, number)
+{
+    return cc1_token_append_(kind, text, length, number, 0, 0);
+}
+
+function cc1_token_stream_reset(source, length, file)
+{
+    CC1_TOKEN_RECORD_SHIFT = 5;
+    CC1_TOKEN_KIND_OFFSET = 0;
+    CC1_TOKEN_TEXT_OFFSET = 4;
+    CC1_TOKEN_LENGTH_OFFSET = 8;
+    CC1_TOKEN_NUMBER_OFFSET = 12;
+    CC1_TOKEN_SOURCE_OFFSET = 16;
+    CC1_TOKEN_FILE_OFFSET = 20;
+    CC1_TOKEN_LINE_OFFSET = 24;
+    CC1_TOKEN_COLUMN_OFFSET = 28;
+    CC1_LEXER_FIELD_KIND = 0;
+    CC1_LEXER_FIELD_TEXT = 1;
+    CC1_LEXER_FIELD_LENGTH = 2;
+    CC1_LEXER_FIELD_NUMBER = 3;
+    CC1_TOKEN_EOF = 0;
+    CC1_TOKEN_ERROR = 1;
+    CC1_TOKEN_SOURCE = source;
+    CC1_TOKEN_SOURCE_LENGTH = length;
+    CC1_TOKEN_FILE = file;
+    CC1_TOKEN_COUNT = 0;
+    CC1_TOKEN_CURSOR = 0;
+    CC1_LOCATION_OFFSET = 0;
+    CC1_LOCATION_LINE = 1;
+    CC1_LOCATION_COLUMN = 1;
+    return 0;
+}
+
+function cc1_tokenize_(source, length, file, kind, text, token_length,
+    number)
+{
+    cc1_token_stream_reset(source, length, file);
+    cc0_lexer_start(source, length);
+    while (1) {
+        kind = cc0_lexer_field(CC1_LEXER_FIELD_KIND);
+        text = cc0_lexer_field(CC1_LEXER_FIELD_TEXT);
+        token_length = cc0_lexer_field(CC1_LEXER_FIELD_LENGTH);
+        number = cc0_lexer_field(CC1_LEXER_FIELD_NUMBER);
+        if (cc1_token_append(kind, text, token_length, number)) {
+            return 1;
+        }
+        if (eq(kind, CC1_TOKEN_ERROR)) {
+            return 1;
+        }
+        if (eq(kind, CC1_TOKEN_EOF)) {
+            return 0;
+        }
+        cc0_lexer_advance();
+    }
+}
+
+function cc1_tokenize(source, length, file)
+{
+    return cc1_tokenize_(source, length, file, 0, 0, 0, 0);
+}
+
+function cc1_token_peek_(distance, index)
+{
+    if (lt(distance, 0)) {
+        return 0;
+    }
+    index = add(CC1_TOKEN_CURSOR, distance);
+    if (not(lt(index, CC1_TOKEN_COUNT))) {
+        return 0;
+    }
+    return cc1_token_record(index);
+}
+
+function cc1_token_peek(distance)
+{
+    return cc1_token_peek_(distance, 0);
+}
+
+function cc1_token_consume_(token)
+{
+    token = cc1_token_peek(0);
+    if (not(eq(token, 0))) {
+        CC1_TOKEN_CURSOR = add(CC1_TOKEN_CURSOR, 1);
+    }
+    return token;
+}
+
+function cc1_token_consume()
+{
+    return cc1_token_consume_(0);
+}
+
 function cc1_c_string_length_(value, length)
 {
     length = 0;
