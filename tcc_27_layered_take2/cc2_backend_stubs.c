@@ -262,11 +262,6 @@ function gen_cast_constant(type)
     return 0;
 }
 
-function gen_cvt_ftof(type)
-{
-    return 0;
-}
-
 function gen_cvt_itof1(type)
 {
     return 0;
@@ -288,11 +283,6 @@ function gen_cvt_ftoi(type)
 }
 
 function gfunc_call(argument_count)
-{
-    return 0;
-}
-
-function gfunc_sret(type, variadic, return_type, alignment, register_size)
 {
     return 0;
 }
@@ -428,11 +418,6 @@ function gfunc_prolog(type)
 }
 
 function gfunc_epilog()
-{
-    return 0;
-}
-
-function ggoto()
 {
     return 0;
 }

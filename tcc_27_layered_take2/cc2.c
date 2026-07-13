@@ -6617,6 +6617,25 @@ function gen_vla_alloc(type, alignment)
     return 0;
 }
 
+function gfunc_sret(type, variadic, return_type, alignment, register_size)
+{
+    wi32(alignment, 1);
+    return 0;
+}
+
+function gen_cvt_ftof(type)
+{
+    gv(CC2_I386_FLOAT_REGISTER_CLASS);
+    return 0;
+}
+
+function ggoto()
+{
+    gcall_or_jmp(1);
+    vtop = sub(vtop, CC2_SVALUE_BYTES);
+    return 0;
+}
+
 function init_putv(type, section, offset)
 {
     var destination_type;

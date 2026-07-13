@@ -111,33 +111,6 @@ static void gen_static_call(int v)
 static uint8_t fastcall_regs[3] = { TREG_EAX, TREG_EDX, TREG_ECX };
 static uint8_t fastcallw_regs[2] = { TREG_ECX, TREG_EDX };
 
-/* Return the number of registers needed to return the struct, or 0 if
-   returning via struct pointer. */
-int gfunc_sret(CType *vt, int variadic, CType *ret, int *ret_align, int *regsize)
-{
-#ifdef TCC_TARGET_PE
-    int size, align;
-    *ret_align = 1; // Never have to re-align return values for x86
-    *regsize = 4;
-    size = type_size(vt, &align);
-    if (size > 8 || (size & (size - 1)))
-        return 0;
-    if (size == 8)
-        ret->t = VT_LLONG;
-    else if (size == 4)
-        ret->t = VT_INT;
-    else if (size == 2)
-        ret->t = VT_SHORT;
-    else
-        ret->t = VT_BYTE;
-    ret->ref = NULL;
-    return 1;
-#else
-    *ret_align = 1; // Never have to re-align return values for x86
-    return 0;
-#endif
-}
-
 /* Generate function call. The function address is pushed first, then
    all the parameters in call order. This functions pops all the
    parameters and the function address. */
@@ -696,20 +669,6 @@ void gen_cvt_ftoi(int t)
     vpushi(0);
     vtop->r = REG_IRET;
     vtop->r2 = REG_LRET;
-}
-
-/* convert from one floating point type to another */
-void gen_cvt_ftof(int t)
-{
-    /* all we have to do on i386 is to put the float in a register */
-    gv(RC_FLOAT);
-}
-
-/* computed goto support */
-void ggoto(void)
-{
-    gcall_or_jmp(1);
-    vtop--;
 }
 
 /* bound check support functions */
