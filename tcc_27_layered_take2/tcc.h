@@ -1262,6 +1262,7 @@ extern int nb_sym_pools;
 
 extern Sym *global_stack;
 extern Sym *local_stack;
+extern Sym **local_stack_address;
 extern Sym *local_label_stack;
 extern Sym *global_label_stack;
 extern Sym *define_stack;

@@ -317,6 +317,7 @@ var sym_free_first;
 var sym_pools;
 var global_stack;
 var local_stack;
+var local_stack_address;
 var define_stack;
 var global_label_stack;
 var local_label_stack;
@@ -4980,6 +4981,59 @@ function block_do()
     skip(41);
     gsym(ri32(symbols));
     skip(59);
+    free(symbols);
+    return 0;
+}
+
+function block_for()
+{
+    var symbols;
+    var saved_symbols;
+    var loop_address;
+    var continue_address;
+    var body_jump;
+    var saved_nocode;
+    nocode_wanted = and(nocode_wanted, bnot(536870912));
+    next();
+    skip(40);
+    saved_symbols = local_stack;
+    local_scope = add(local_scope, 1);
+    if (not(eq(ri32(tok_address), 59))) {
+        if (eq(decl0(CC2_VALUE_LOCAL, 1, 0), 0)) {
+            gexpr();
+            vpop();
+        }
+    }
+    skip(59);
+    loop_address = ind;
+    continue_address = ind;
+    vla_sp_restore();
+    symbols = malloc(8);
+    wi32(symbols, 0);
+    wi32(add(symbols, 4), 0);
+    if (not(eq(ri32(tok_address), 59))) {
+        gexpr();
+        wi32(symbols, gvtst(1, 0));
+    }
+    skip(59);
+    if (not(eq(ri32(tok_address), 41))) {
+        body_jump = gjmp(0);
+        continue_address = ind;
+        vla_sp_restore();
+        gexpr();
+        vpop();
+        gjmp_addr(loop_address);
+        gsym(body_jump);
+    }
+    skip(41);
+    saved_nocode = nocode_wanted;
+    block(symbols, add(symbols, 4), 0);
+    nocode_wanted = saved_nocode;
+    gjmp_addr(continue_address);
+    gsym(ri32(symbols));
+    gsym_addr(ri32(add(symbols, 4)), continue_address);
+    local_scope = sub(local_scope, 1);
+    sym_pop(local_stack_address, saved_symbols, 0);
     free(symbols);
     return 0;
 }

@@ -47,6 +47,7 @@ void block_continue(int *continue_symbol);
 void block_if(int *break_symbol, int *continue_symbol);
 void block_while(void);
 void block_do(void);
+void block_for(void);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -55,7 +56,7 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c, int fir
 void block(int *bsym, int *csym, int is_expr);
 static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
 static void decl(int l);
-static int decl0(int l, int is_for_loop_init, Sym *);
+int decl0(int l, int is_for_loop_init, Sym *);
 void expr_eq(void);
 static inline int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
@@ -1766,50 +1767,7 @@ void block(int *bsym, int *csym, int is_expr)
     } else if (tok == TOK_CONTINUE) {
         block_continue(csym);
     } else if (tok == TOK_FOR) {
-        int e;
-	int saved_nocode_wanted;
-	nocode_wanted &= ~0x20000000;
-        next();
-        skip('(');
-        s = local_stack;
-        ++local_scope;
-        if (tok != ';') {
-            /* c99 for-loop init decl? */
-            if (!decl0(VT_LOCAL, 1, NULL)) {
-                /* no, regular for-loop init expr */
-                gexpr();
-                vpop();
-            }
-        }
-        skip(';');
-        d = ind;
-        c = ind;
-        vla_sp_restore();
-        a = 0;
-        b = 0;
-        if (tok != ';') {
-            gexpr();
-            a = gvtst(1, 0);
-        }
-        skip(';');
-        if (tok != ')') {
-            e = gjmp(0);
-            c = ind;
-            vla_sp_restore();
-            gexpr();
-            vpop();
-            gjmp_addr(d);
-            gsym(e);
-        }
-        skip(')');
-	saved_nocode_wanted = nocode_wanted;
-        block(&a, &b, 0);
-	nocode_wanted = saved_nocode_wanted;
-        gjmp_addr(c);
-        gsym(a);
-        gsym_addr(b, c);
-        --local_scope;
-        sym_pop(&local_stack, s, 0);
+        block_for();
 
     } else 
     if (tok == TOK_DO) {
@@ -2784,7 +2742,7 @@ ST_FUNC void free_inline_functions(TCCState *s)
 
 /* 'l' is VT_LOCAL or VT_CONST to define default storage type, or VT_CMP
    if parsing old style parameter decl list (and FUNC_SYM is set then) */
-static int decl0(int l, int is_for_loop_init, Sym *func_sym)
+int decl0(int l, int is_for_loop_init, Sym *func_sym)
 {
     int v, has_init, r;
     CType type, btype;

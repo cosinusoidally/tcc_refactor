@@ -263,3 +263,8 @@ function block(break_symbol, continue_symbol, is_expression)
 {
     return 0;
 }
+
+function decl0(scope, is_for_initializer, function_symbol)
+{
+    return 0;
+}
