@@ -50,6 +50,8 @@ int main()
         loop = loop + 1;
     } while (loop < 2);
     temporary = temporary + (loop - 2);
+    temporary = (scalar_value = 1, temporary);
+    temporary = temporary + (scalar_value - 1);
     scalar_value = temporary;
     temporary = (temporary << 1) >> 1;
     temporary = (temporary | 8) ^ 8;

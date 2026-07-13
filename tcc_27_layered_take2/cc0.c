@@ -3057,6 +3057,9 @@ function cc0_compiler_emit_write_byte()
 
 function cc0_compiler_emit_builtin(name, length)
 {
+    if (cc0_text_equal(name, length, mks("comma"))) {
+        return CC0_FALSE;
+    }
     if (cc0_text_equal(name, length, mks("not"))) {
         return cc0_compiler_emit_not();
     }
@@ -3225,6 +3228,9 @@ function cc0_compiler_builtin_arity(name, length)
         return 2;
     }
     if (cc0_text_equal(name, length, mks("wi32"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("comma"))) {
         return 2;
     }
     if (cc0_text_equal(name, length, mks("open"))) {

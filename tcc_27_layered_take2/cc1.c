@@ -122,6 +122,7 @@ var CC1_EXPRESSION_LOGICAL_AND_KIND;
 var CC1_EXPRESSION_LOGICAL_OR_KIND;
 var CC1_EXPRESSION_CONDITIONAL_KIND;
 var CC1_EXPRESSION_CONSTANT_KIND;
+var CC1_EXPRESSION_COMMA_KIND;
 var CC1_EXPRESSIONS;
 var CC1_EXPRESSION_CAPACITY;
 var CC1_EXPRESSION_COUNT;
@@ -1427,6 +1428,7 @@ function cc1_expression_init()
     CC1_EXPRESSION_LOGICAL_OR_KIND = 24;
     CC1_EXPRESSION_CONDITIONAL_KIND = 25;
     CC1_EXPRESSION_CONSTANT_KIND = 26;
+    CC1_EXPRESSION_COMMA_KIND = 27;
     CC1_EXPRESSION_COUNT = 0;
     CC1_EXPRESSION_ERROR = 0;
     return 0;
@@ -1457,7 +1459,7 @@ function cc1_expression_accept(kind)
 
 function cc1_expression_parse_equality()
 {
-    return cc1_expression_parse_assignment();
+    return cc1_expression_parse_comma();
 }
 
 function cc1_expression_parse_primary_(token, kind, expression, first,
@@ -1511,7 +1513,7 @@ function cc1_expression_parse_primary_(token, kind, expression, first,
             last = 0;
             if (not(eq(cc1_expression_token_kind(), 41))) {
                 while (1) {
-                    expression = cc1_expression_parse_equality();
+                    expression = cc1_expression_parse_assignment();
                     argument = cc1_expression_new(
                         CC1_EXPRESSION_ARGUMENT_KIND, token, expression, 0);
                     if (eq(first, 0)) {
@@ -1961,6 +1963,23 @@ function cc1_expression_parse_assignment()
     return cc1_expression_parse_assignment_(0, 0, 0);
 }
 
+function cc1_expression_parse_comma_(left, token, right)
+{
+    left = cc1_expression_parse_assignment();
+    while (eq(cc1_expression_token_kind(), 44)) {
+        token = cc1_preprocessed_consume();
+        right = cc1_expression_parse_assignment();
+        left = cc1_expression_new(CC1_EXPRESSION_COMMA_KIND, token,
+            left, right);
+    }
+    return left;
+}
+
+function cc1_expression_parse_comma()
+{
+    return cc1_expression_parse_comma_(0, 0, 0);
+}
+
 function cc1_expression_emit_token_(token, kind, text, length, origin)
 {
     kind = ri32(add(token, CC1_TOKEN_KIND_OFFSET));
@@ -2189,6 +2208,9 @@ function cc1_expression_emit_(expression, kind, token, argument, origin)
     }
     if (eq(kind, CC1_EXPRESSION_LOGICAL_OR_KIND)) {
         return cc1_expression_emit_binary(expression, mks("lor"));
+    }
+    if (eq(kind, CC1_EXPRESSION_COMMA_KIND)) {
+        return cc1_expression_emit_binary(expression, mks("comma"));
     }
     if (eq(kind, CC1_EXPRESSION_EQUAL_KIND)) {
         return cc1_expression_emit_binary(expression, mks("eq"));
