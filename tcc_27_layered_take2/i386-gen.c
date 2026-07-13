@@ -624,23 +624,6 @@ void gen_opf(int op)
     }
 }
 
-/* convert fp to int 't' type */
-void gen_cvt_ftoi(int t)
-{
-    int bt = vtop->type.t & VT_BTYPE;
-    if (bt == VT_FLOAT)
-        vpush_global_sym(&func_old_type, TOK___fixsfdi);
-    else if (bt == VT_LDOUBLE)
-        vpush_global_sym(&func_old_type, TOK___fixxfdi);
-    else
-        vpush_global_sym(&func_old_type, TOK___fixdfdi);
-    vswap();
-    gfunc_call(1);
-    vpushi(0);
-    vtop->r = REG_IRET;
-    vtop->r2 = REG_LRET;
-}
-
 /* bound check support functions */
 #ifdef CONFIG_TCC_BCHECK
 

@@ -272,11 +272,6 @@ function gen_cvt_ftoi1(type)
     return 0;
 }
 
-function gen_cvt_ftoi(type)
-{
-    return 0;
-}
-
 function gfunc_call(argument_count)
 {
     return 0;
