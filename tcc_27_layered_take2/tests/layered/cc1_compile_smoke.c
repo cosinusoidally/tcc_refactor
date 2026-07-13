@@ -2,6 +2,7 @@
 #define ENABLED 1
 #define COMBINE(left, right) ((left) + (right))
 int global_result;
+static unsigned long scalar_value;
 
 int identity(int value)
 {
@@ -21,8 +22,11 @@ int main()
     int temporary = identity(COMBINE(RESULT, (6 / 3 + 5 % 3 - 2)) * 1);
     int pointed_value = 3;
     int *pointer = &pointed_value;
+    char character = 'A';
     *pointer = 5;
     temporary = temporary + (*pointer - 5);
+    temporary = temporary + (character - 'A');
+    scalar_value = temporary;
     temporary = (temporary << 1) >> 1;
     temporary = (temporary | 8) ^ 8;
     temporary = temporary & ~0;

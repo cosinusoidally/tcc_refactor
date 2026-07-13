@@ -2038,6 +2038,49 @@ function cc1_expression_emit(expression)
     return cc1_expression_emit_(expression, 0, 0, 0, 0);
 }
 
+function cc1_declaration_type_word(text, length)
+{
+    if (cc1_text_equal(text, length, mks("void"))) {
+        return 1;
+    }
+    if (cc1_text_equal(text, length, mks("char"))) {
+        return 1;
+    }
+    if (cc1_text_equal(text, length, mks("short"))) {
+        return 1;
+    }
+    if (cc1_text_equal(text, length, mks("int"))) {
+        return 1;
+    }
+    if (cc1_text_equal(text, length, mks("long"))) {
+        return 1;
+    }
+    if (cc1_text_equal(text, length, mks("signed"))) {
+        return 1;
+    }
+    return cc1_text_equal(text, length, mks("unsigned"));
+}
+
+function cc1_declaration_qualifier(text, length)
+{
+    if (cc1_text_equal(text, length, mks("static"))) {
+        return 1;
+    }
+    if (cc1_text_equal(text, length, mks("extern"))) {
+        return 1;
+    }
+    if (cc1_text_equal(text, length, mks("const"))) {
+        return 1;
+    }
+    if (cc1_text_equal(text, length, mks("volatile"))) {
+        return 1;
+    }
+    if (cc1_text_equal(text, length, mks("register"))) {
+        return 1;
+    }
+    return cc1_text_equal(text, length, mks("inline"));
+}
+
 function cc1_normalize_tokens_(index, token, kind, text, length, origin,
     header, next_token, following_token, skip, expression, declaration,
     declarator_index, declarator_token)
@@ -2156,7 +2199,11 @@ function cc1_normalize_tokens_(index, token, kind, text, length, origin,
             }
         } else if (eq(kind, 2)) {
             if (declaration) {
-                declaration = 0;
+                if (not(cc1_declaration_type_word(text, length))) {
+                    if (not(cc1_declaration_qualifier(text, length))) {
+                        declaration = 0;
+                    }
+                }
             }
             if (lt(add(index, 1), CC1_PREPROCESSED_COUNT)) {
                 next_token = ri32(add(CC1_PREPROCESSED_TOKENS,
@@ -2205,39 +2252,51 @@ function cc1_normalize_tokens_(index, token, kind, text, length, origin,
             }
         }
         if (skip) {
-        } else if (cc1_text_equal(text, length, mks("int"))) {
-            declaration = 1;
-            if (header) {
+        } else if (cc1_declaration_qualifier(text, length)) {
+            skip = 1;
+        } else if (cc1_declaration_type_word(text, length)) {
+            if (declaration) {
                 skip = 1;
             } else {
-                declarator_index = add(index, 1);
-                while (lt(declarator_index, CC1_PREPROCESSED_COUNT)) {
-                    declarator_token = ri32(add(CC1_PREPROCESSED_TOKENS,
-                        shl(declarator_index, 2)));
-                    if (not(eq(ri32(add(declarator_token,
-                        CC1_TOKEN_KIND_OFFSET)), 42))) {
-                        break;
-                    }
-                    declarator_index = add(declarator_index, 1);
-                }
-                following_token = 0;
-                if (lt(add(declarator_index, 1),
-                    CC1_PREPROCESSED_COUNT)) {
-                    following_token = ri32(add(CC1_PREPROCESSED_TOKENS,
-                        shl(add(declarator_index, 1), 2)));
-                }
-                if (not(eq(following_token, 0))) {
-                    if (eq(ri32(add(following_token,
-                        CC1_TOKEN_KIND_OFFSET)), 40)) {
-                        text = mks("function");
-                        length = 8;
-                        header = 1;
-                    } else {
-                        text = mks("var");
-                        length = 3;
-                    }
+                declaration = 1;
+                if (header) {
+                    skip = 1;
                 } else {
-                    return 1;
+                    declarator_index = add(index, 1);
+                    while (lt(declarator_index, CC1_PREPROCESSED_COUNT)) {
+                        declarator_token = ri32(add(CC1_PREPROCESSED_TOKENS,
+                            shl(declarator_index, 2)));
+                        if (eq(ri32(add(declarator_token,
+                            CC1_TOKEN_KIND_OFFSET)), 42)) {
+                            declarator_index = add(declarator_index, 1);
+                        } else if (cc1_declaration_type_word(ri32(add(
+                            declarator_token, CC1_TOKEN_TEXT_OFFSET)),
+                            ri32(add(declarator_token,
+                            CC1_TOKEN_LENGTH_OFFSET)))) {
+                            declarator_index = add(declarator_index, 1);
+                        } else {
+                            break;
+                        }
+                    }
+                    following_token = 0;
+                    if (lt(add(declarator_index, 1),
+                        CC1_PREPROCESSED_COUNT)) {
+                        following_token = ri32(add(CC1_PREPROCESSED_TOKENS,
+                            shl(add(declarator_index, 1), 2)));
+                    }
+                    if (not(eq(following_token, 0))) {
+                        if (eq(ri32(add(following_token,
+                            CC1_TOKEN_KIND_OFFSET)), 40)) {
+                            text = mks("function");
+                            length = 8;
+                            header = 1;
+                        } else {
+                            text = mks("var");
+                            length = 3;
+                        }
+                    } else {
+                        return 1;
+                    }
                 }
             }
         } else if (declaration) {
