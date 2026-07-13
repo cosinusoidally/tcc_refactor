@@ -70,6 +70,7 @@ void unary_builtin_frame(int token);
 void unary_label_address(int token);
 void unary_sizeof(int token);
 void unary_minus(void);
+void unary_ieee_constant(int token);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -389,6 +390,15 @@ ST_FUNC void vpush64(int ty, unsigned long long v)
     ctype.ref = NULL;
     cval.i = v;
     vsetc(&ctype, VT_CONST, &cval);
+}
+
+/* cc2 represents i386 constants as explicit little-endian 32-bit words. */
+void vpush64_words(int type, unsigned int low_word, unsigned int high_word)
+{
+    unsigned long long value;
+
+    value = low_word | ((unsigned long long)high_word << 32);
+    vpush64(type, value);
 }
 
 /* cc2 selects unary negation; this primitive writes the target CValue union. */
@@ -1271,16 +1281,9 @@ void unary(void)
     }
     // special qnan , snan and infinity values
     case TOK___NAN__:
-        vpush64(VT_DOUBLE, 0x7ff8000000000000ULL);
-        next();
-        break;
     case TOK___SNAN__:
-        vpush64(VT_DOUBLE, 0x7ff0000000000001ULL);
-        next();
-        break;
     case TOK___INF__:
-        vpush64(VT_DOUBLE, 0x7ff0000000000000ULL);
-        next();
+        unary_ieee_constant(tok);
         break;
 
     default:

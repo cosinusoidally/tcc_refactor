@@ -9,6 +9,11 @@ function neg_zero(basic_type)
     return 0;
 }
 
+function vpush64_words(type, low_word, high_word)
+{
+    return 0;
+}
+
 function sym_redeclaration_error(value)
 {
     return 0;

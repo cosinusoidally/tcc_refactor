@@ -348,6 +348,11 @@ var CC2_CASE_SECOND_VALUE_OFFSET = 8;
 var CC2_CASE_SYMBOL_OFFSET = 16;
 var CC2_SWITCH_DEFAULT_SYMBOL_OFFSET = 8;
 var CC2_TOKEN_MEMSET = 388;
+var CC2_TOKEN_NAN = 335;
+var CC2_TOKEN_SIGNALING_NAN = 336;
+var CC2_TOKEN_INFINITY = 337;
+var CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;
+var CC2_IEEE_DOUBLE_INFINITY_HIGH_WORD = 2146435072;
 var table_ident;
 /* CType is two i386 words. */
 var char_pointer_type[2];
@@ -5750,6 +5755,22 @@ function unary_minus()
     }
     vswap();
     gen_op(CC2_ASCII_MINUS);
+    return 0;
+}
+
+function unary_ieee_constant(token)
+{
+    var low_word;
+    var high_word;
+    low_word = 0;
+    high_word = CC2_IEEE_DOUBLE_INFINITY_HIGH_WORD;
+    if (eq(token, CC2_TOKEN_NAN)) {
+        high_word = CC2_IEEE_DOUBLE_NAN_HIGH_WORD;
+    } else if (eq(token, CC2_TOKEN_SIGNALING_NAN)) {
+        low_word = 1;
+    }
+    vpush64_words(CC2_TCC_DOUBLE_TYPE, low_word, high_word);
+    next();
     return 0;
 }
 
