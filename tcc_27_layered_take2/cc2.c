@@ -3427,6 +3427,30 @@ function parse_builtin_params(no_code, arguments)
     return parse_builtin_params_(no_code, arguments, 0, 0, 0);
 }
 
+function expr_const_(words, low_word, high_word, signed_high_word)
+{
+    words = malloc(8);
+    expr_const64_words(words);
+    low_word = ri32(words);
+    high_word = ri32(add(words, 4));
+    if (lt(low_word, 0)) {
+        signed_high_word = sub(0, 1);
+    } else {
+        signed_high_word = 0;
+    }
+    if (and(not(eq(high_word, signed_high_word)),
+        not(eq(high_word, 0)))) {
+        tcc_error(mks("constant exceeds 32 bit"), 0);
+    }
+    free(words);
+    return low_word;
+}
+
+function expr_const()
+{
+    return expr_const_(0, 0, 0, 0);
+}
+
 function vstore_(destination_type, source_basic, destination_basic,
     delayed_cast, size, alignment, bit_position, bit_size, result_register,
     adjusted_access, register_class, address_register, temporary_value,

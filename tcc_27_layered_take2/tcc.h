@@ -1395,7 +1395,7 @@ extern void gexpr(void);
 extern void expr_eq(void);
 extern void expr_const1(void);
 extern void expr_cond(void);
-ST_FUNC int expr_const(void);
+int expr_const(void);
 #if defined CONFIG_TCC_BCHECK || defined TCC_TARGET_C67
 extern Sym *get_sym_ref(CType *type, Section *sec, unsigned long offset, unsigned long size);
 #endif

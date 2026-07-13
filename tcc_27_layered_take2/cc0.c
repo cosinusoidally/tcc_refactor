@@ -1126,6 +1126,10 @@ function cc0_elf_external_symbol(name, length)
         return cc0_elf_put_undefined_function(name, length);
     }
     if (cc0_compiler_slice_equal(name, length,
+        mks("expr_const64_words"), 18)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length,
         mks("put_extern_sym"), 14)) {
         return cc0_elf_put_undefined_function(name, length);
     }
@@ -3614,6 +3618,9 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("type_decl"))) {
         return 4;
     }
+    if (cc0_text_equal(name, length, mks("expr_const64_words"))) {
+        return 1;
+    }
     if (cc0_text_equal(name, length, mks("put_extern_sym"))) {
         return 4;
     }
@@ -3849,6 +3856,9 @@ function cc0_compiler_external_arity(name, length)
     }
     if (cc0_text_equal(name, length, mks("type_decl"))) {
         return 4;
+    }
+    if (cc0_text_equal(name, length, mks("expr_const64_words"))) {
+        return 1;
     }
     if (cc0_text_equal(name, length, mks("put_extern_sym"))) {
         return 4;

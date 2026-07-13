@@ -54,6 +54,13 @@ function type_decl(type, attributes, identifier, mode)
     return type;
 }
 
+function expr_const64_words(words)
+{
+    wi32(words, 0);
+    wi32(add(words, 4), 0);
+    return 0;
+}
+
 function put_extern_sym(symbol, section, offset, size)
 {
     return 0;

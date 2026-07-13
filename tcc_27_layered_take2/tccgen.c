@@ -2673,16 +2673,12 @@ static inline int64_t expr_const64(void)
     return c;
 }
 
-/* parse an integer constant and return its value.
-   Complain if it doesn't fit 32bit (signed or unsigned).  */
-ST_FUNC int expr_const(void)
+/* Expose the representation only; cc2 owns the 32-bit range policy. */
+void expr_const64_words(int *words)
 {
-    int c;
     int64_t wc = expr_const64();
-    c = wc;
-    if (c != wc && (unsigned)c != wc)
-        tcc_error("constant exceeds 32 bit");
-    return c;
+    words[0] = wc;
+    words[1] = wc >> 32;
 }
 
 /* return the label token if current token is a label, otherwise
