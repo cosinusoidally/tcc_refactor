@@ -3,3 +3,8 @@ function gen_vla_sp_restore(address)
 {
     return 0;
 }
+
+function sym_redeclaration_error(value)
+{
+    return 0;
+}

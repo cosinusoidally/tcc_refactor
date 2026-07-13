@@ -1099,11 +1099,12 @@ ST_FUNC void cstr_reset(CString *cstr);
 extern void sym_free(Sym *sym);
 extern Sym *sym_push2(Sym **ps, int v, int t, int c);
 extern Sym *sym_find2(Sym *s, int v);
-ST_FUNC Sym *sym_push(int v, CType *type, int r, int c);
-ST_FUNC void sym_pop(Sym **ptop, Sym *b, int keep);
-ST_INLN Sym *struct_find(int v);
-ST_INLN Sym *sym_find(int v);
-ST_FUNC Sym *global_identifier_push(int v, int t, int c);
+extern Sym *sym_push(int v, CType *type, int r, int c);
+extern void sym_pop(Sym **ptop, Sym *b, int keep);
+extern Sym *struct_find(int v);
+extern Sym *sym_find(int v);
+extern Sym *global_identifier_push(int v, int t, int c);
+extern void sym_redeclaration_error(int v);
 
 ST_FUNC void tcc_open_bf(TCCState *s1, const char *filename, int initlen);
 ST_FUNC int tcc_open(TCCState *s1, const char *filename);
@@ -1160,8 +1161,8 @@ ST_DATA CString tokcstr; /* current parsed string, if any */
 /* display benchmark infos */
 ST_DATA int total_lines;
 ST_DATA int total_bytes;
-ST_DATA int tok_ident;
-ST_DATA TokenSym **table_ident;
+extern int tok_ident;
+extern TokenSym **table_ident;
 
 #define TOK_FLAG_BOL   0x0001 /* beginning of line before */
 #define TOK_FLAG_BOF   0x0002 /* beginning of file before */

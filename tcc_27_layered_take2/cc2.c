@@ -49,6 +49,15 @@ var CC2_SYM_PREV_OFFSET = 28;
 var CC2_SYM_VALUE_OFFSET = 0;
 var CC2_SYM_TYPE_OFFSET = 16;
 var CC2_SYM_CONSTANT_OFFSET = 8;
+var CC2_SYM_SCOPE_OFFSET = 12;
+var CC2_SYM_TYPE_REFERENCE_OFFSET = 20;
+var CC2_SYM_PREVIOUS_TOKEN_OFFSET = 32;
+var CC2_TOKEN_SYMBOL_STRUCT_OFFSET = 12;
+var CC2_TOKEN_SYMBOL_IDENTIFIER_OFFSET = 16;
+var CC2_TOKEN_IDENTIFIER_BASE = 256;
+var CC2_SYMBOL_STRUCT_FLAG = 1073741824;
+var CC2_SYMBOL_FIELD_FLAG = 536870912;
+var CC2_FIRST_ANONYMOUS_SYMBOL = 268435456;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -83,6 +92,8 @@ var vtop;
 var pvtop;
 var funcname;
 var cur_switch;
+var tok_ident;
+var table_ident;
 /* CType is two i386 words. */
 var char_pointer_type[2];
 var func_old_type[2];
@@ -203,6 +214,174 @@ function sym_find2(symbol, value)
         symbol = ri32(add(symbol, CC2_SYM_PREV_OFFSET));
     }
     return 0;
+}
+
+function cc2_token_symbol_(value, index)
+{
+    index = sub(value, CC2_TOKEN_IDENTIFIER_BASE);
+    if (lt(index, 0)) {
+        return 0;
+    }
+    if (not(lt(index, sub(tok_ident, CC2_TOKEN_IDENTIFIER_BASE)))) {
+        return 0;
+    }
+    return ri32(add(table_ident, mul(index, 4)));
+}
+
+function cc2_token_symbol(value)
+{
+    return cc2_token_symbol_(value, 0);
+}
+
+function struct_find_(value, token_symbol)
+{
+    token_symbol = cc2_token_symbol(value);
+    if (eq(token_symbol, 0)) {
+        return 0;
+    }
+    return ri32(add(token_symbol, CC2_TOKEN_SYMBOL_STRUCT_OFFSET));
+}
+
+function struct_find(value)
+{
+    return struct_find_(value, 0);
+}
+
+function sym_find_(value, token_symbol)
+{
+    token_symbol = cc2_token_symbol(value);
+    if (eq(token_symbol, 0)) {
+        return 0;
+    }
+    return ri32(add(token_symbol, CC2_TOKEN_SYMBOL_IDENTIFIER_OFFSET));
+}
+
+function sym_find(value)
+{
+    return sym_find_(value, 0);
+}
+
+function cc2_push_selected_stack_(value, type, constant, symbol)
+{
+    symbol = sym_malloc();
+    cc2_zero_bytes(symbol, CC2_SYM_BYTES);
+    wi32(add(symbol, CC2_SYM_VALUE_OFFSET), value);
+    wi32(add(symbol, CC2_SYM_TYPE_OFFSET), type);
+    wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET), constant);
+    if (not(eq(local_stack, 0))) {
+        wi32(add(symbol, CC2_SYM_PREV_OFFSET), local_stack);
+        local_stack = symbol;
+    } else {
+        wi32(add(symbol, CC2_SYM_PREV_OFFSET), global_stack);
+        global_stack = symbol;
+    }
+    return symbol;
+}
+
+function cc2_push_selected_stack(value, type, constant)
+{
+    return cc2_push_selected_stack_(value, type, constant, 0);
+}
+
+function sym_push_(value, type, reg, constant, symbol, plain_value,
+    token_symbol, slot, previous)
+{
+    symbol = cc2_push_selected_stack(value, ri32(type), constant);
+    wi32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET), ri32(add(type, 4)));
+    wi32(add(symbol, 4), reg);
+    plain_value = and(value, bnot(CC2_SYMBOL_STRUCT_FLAG));
+    if (eq(and(value, CC2_SYMBOL_FIELD_FLAG), 0)) {
+        if (lt(plain_value, CC2_FIRST_ANONYMOUS_SYMBOL)) {
+            token_symbol = cc2_token_symbol(plain_value);
+            slot = add(token_symbol, CC2_TOKEN_SYMBOL_IDENTIFIER_OFFSET);
+            if (not(eq(and(value, CC2_SYMBOL_STRUCT_FLAG), 0))) {
+                slot = add(token_symbol, CC2_TOKEN_SYMBOL_STRUCT_OFFSET);
+            }
+            previous = ri32(slot);
+            wi32(add(symbol, CC2_SYM_PREVIOUS_TOKEN_OFFSET), previous);
+            wi32(slot, symbol);
+            wi32(add(symbol, CC2_SYM_SCOPE_OFFSET), local_scope);
+            if (not(eq(previous, 0))) {
+                if (eq(ri32(add(previous, CC2_SYM_SCOPE_OFFSET)),
+                    local_scope)) {
+                    sym_redeclaration_error(plain_value);
+                }
+            }
+        }
+    }
+    return symbol;
+}
+
+function sym_push(value, type, reg, constant)
+{
+    return sym_push_(value, type, reg, constant, 0, 0, 0, 0, 0);
+}
+
+function global_identifier_push_(value, type, constant, symbol,
+    token_symbol, slot, current)
+{
+    symbol = sym_malloc();
+    cc2_zero_bytes(symbol, CC2_SYM_BYTES);
+    wi32(add(symbol, CC2_SYM_VALUE_OFFSET), value);
+    wi32(add(symbol, CC2_SYM_TYPE_OFFSET), type);
+    wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET), constant);
+    wi32(add(symbol, CC2_SYM_PREV_OFFSET), global_stack);
+    global_stack = symbol;
+    if (lt(value, CC2_FIRST_ANONYMOUS_SYMBOL)) {
+        token_symbol = cc2_token_symbol(value);
+        slot = add(token_symbol, CC2_TOKEN_SYMBOL_IDENTIFIER_OFFSET);
+        current = ri32(slot);
+        while (not(eq(current, 0))) {
+            if (eq(ri32(add(current, CC2_SYM_SCOPE_OFFSET)), 0)) {
+                break;
+            }
+            slot = add(current, CC2_SYM_PREVIOUS_TOKEN_OFFSET);
+            current = ri32(slot);
+        }
+        wi32(add(symbol, CC2_SYM_PREVIOUS_TOKEN_OFFSET), current);
+        wi32(slot, symbol);
+    }
+    return symbol;
+}
+
+function global_identifier_push(value, type, constant)
+{
+    return global_identifier_push_(value, type, constant, 0, 0, 0, 0);
+}
+
+function sym_pop_(stack_pointer, boundary, keep, symbol, next, value,
+    plain_value, token_symbol, slot)
+{
+    symbol = ri32(stack_pointer);
+    while (not(eq(symbol, boundary))) {
+        next = ri32(add(symbol, CC2_SYM_PREV_OFFSET));
+        value = ri32(add(symbol, CC2_SYM_VALUE_OFFSET));
+        plain_value = and(value, bnot(CC2_SYMBOL_STRUCT_FLAG));
+        if (eq(and(value, CC2_SYMBOL_FIELD_FLAG), 0)) {
+            if (lt(plain_value, CC2_FIRST_ANONYMOUS_SYMBOL)) {
+                token_symbol = cc2_token_symbol(plain_value);
+                slot = add(token_symbol, CC2_TOKEN_SYMBOL_IDENTIFIER_OFFSET);
+                if (not(eq(and(value, CC2_SYMBOL_STRUCT_FLAG), 0))) {
+                    slot = add(token_symbol, CC2_TOKEN_SYMBOL_STRUCT_OFFSET);
+                }
+                wi32(slot, ri32(add(symbol,
+                    CC2_SYM_PREVIOUS_TOKEN_OFFSET)));
+            }
+        }
+        if (eq(keep, 0)) {
+            sym_free(symbol);
+        }
+        symbol = next;
+    }
+    if (eq(keep, 0)) {
+        wi32(stack_pointer, boundary);
+    }
+    return 0;
+}
+
+function sym_pop(stack_pointer, boundary, keep)
+{
+    return sym_pop_(stack_pointer, boundary, keep, 0, 0, 0, 0, 0, 0);
 }
 
 function cc2_copy_bytes_(destination, source, length, index)

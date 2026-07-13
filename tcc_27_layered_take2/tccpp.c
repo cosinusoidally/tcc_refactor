@@ -35,8 +35,11 @@ ST_DATA CString tokcstr; /* current parsed string, if any */
 /* display benchmark infos */
 ST_DATA int total_lines;
 ST_DATA int total_bytes;
-ST_DATA int tok_ident;
-ST_DATA TokenSym **table_ident;
+
+PUB_FUNC void sym_redeclaration_error(int v)
+{
+    tcc_error("redeclaration of '%s'", get_tok_str(v, NULL));
+}
 
 /* ------------------------------------------------------------------------- */
 
