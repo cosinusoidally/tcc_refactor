@@ -205,6 +205,7 @@ var CC2_FUNCTION_TYPE_SHIFT = 3;
 var CC2_FUNCTION_TYPE_MASK = 24;
 var CC2_FUNCTION_ARGUMENT_SHIFT = 5;
 var CC2_FUNCTION_ARGUMENT_MASK = 8160;
+var CC2_TCC_ENUM_VALUE = 3145728;
 var CC2_TOKEN_SECTION_FIRST = 338;
 var CC2_TOKEN_SECTION_SECOND = 339;
 var CC2_TOKEN_ALIAS_FIRST = 346;
@@ -3755,6 +3756,143 @@ function asm_label_instr()
     cstr_free(string);
     free(string);
     return token;
+}
+
+/* Compare unsigned words by biasing both into the signed ordering. */
+function cc2_unsigned_word_less(left, right)
+{
+    return lt(xor(left, sub(0, 2147483648)),
+        xor(right, sub(0, 2147483648)));
+}
+
+function cc2_signed_wide_less(left_low, left_high, right_low, right_high)
+{
+    if (not(eq(left_high, right_high))) {
+        return lt(left_high, right_high);
+    }
+    return cc2_unsigned_word_less(left_low, right_low);
+}
+
+function cc2_wide_fits_signed_word(low, high)
+{
+    if (eq(high, 0)) {
+        return not(lt(low, 0));
+    }
+    if (eq(high, sub(0, 1))) {
+        return lt(low, 0);
+    }
+    return 0;
+}
+
+/* Parse enum members and select the same i386 representation as TCC. */
+function struct_decl_enum_(type, symbol, words, member_type, member,
+    last_member, name, low, high, minimum_low, minimum_high, maximum_low,
+    maximum_high, basic_type)
+{
+    low = 0;
+    high = 0;
+    minimum_low = 0;
+    minimum_high = 0;
+    maximum_low = 0;
+    maximum_high = 0;
+    wi32(member_type, or(or(CC2_TCC_INT_TYPE,
+        CC2_TCC_STATIC_STORAGE), CC2_TCC_ENUM_VALUE));
+    wi32(add(member_type, 4), symbol);
+    last_member = 0;
+    while (1) {
+        name = ri32(tok_address);
+        if (lt(name, CC2_TOKEN_UNNAMED_IDENTIFIER)) {
+            expect(mks("identifier"));
+        }
+        member = sym_find(name);
+        if (and(member, not(local_stack))) {
+            tcc_error(mks("redefinition of enumerator '%s'"),
+                get_tok_str(name, 0));
+        }
+        next();
+        if (eq(ri32(tok_address), CC2_ASCII_ASSIGN)) {
+            next();
+            expr_const64_words(words);
+            low = ri32(words);
+            high = ri32(add(words, 4));
+        }
+        member = sym_push(name, member_type, CC2_VALUE_CONSTANT, 0);
+        wi32(add(member, CC2_SYM_CONSTANT_OFFSET), low);
+        wi32(add(member, CC2_SYM_SCOPE_OFFSET), high);
+        if (not(last_member)) {
+            wi32(add(symbol, CC2_SYM_NEXT_OFFSET), member);
+        } else {
+            wi32(add(last_member, CC2_SYM_NEXT_OFFSET), member);
+        }
+        last_member = member;
+        if (cc2_signed_wide_less(low, high,
+            minimum_low, minimum_high)) {
+            minimum_low = low;
+            minimum_high = high;
+        }
+        if (cc2_signed_wide_less(maximum_low, maximum_high, low, high)) {
+            maximum_low = low;
+            maximum_high = high;
+        }
+        if (not(eq(ri32(tok_address), CC2_ASCII_COMMA))) {
+            break;
+        }
+        next();
+        low = add(low, 1);
+        if (eq(low, 0)) {
+            high = add(high, 1);
+        }
+        if (eq(ri32(tok_address), 125)) {
+            break;
+        }
+    }
+    skip(125);
+    basic_type = CC2_TCC_INT_TYPE;
+    if (not(lt(minimum_high, 0))) {
+        if (not(eq(maximum_high, 0))) {
+            basic_type = CC2_TCC_LONG_LONG_TYPE;
+        }
+        basic_type = or(basic_type, CC2_TCC_UNSIGNED_TYPE);
+    } else if (or(not(cc2_wide_fits_signed_word(maximum_low,
+        maximum_high)), not(cc2_wide_fits_signed_word(minimum_low,
+        minimum_high)))) {
+        basic_type = CC2_TCC_LONG_LONG_TYPE;
+    }
+    wi32(add(symbol, CC2_SYM_TYPE_OFFSET),
+        or(basic_type, CC2_TCC_ENUM_TYPE));
+    wi32(type, or(basic_type, CC2_TCC_ENUM_TYPE));
+    wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET), 0);
+    member = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
+    while (member) {
+        low = ri32(add(member, CC2_SYM_CONSTANT_OFFSET));
+        high = ri32(add(member, CC2_SYM_SCOPE_OFFSET));
+        if (not(cc2_wide_fits_signed_word(low, high))) {
+            if (and(basic_type, CC2_TCC_UNSIGNED_TYPE)) {
+                wi32(add(member, CC2_SYM_TYPE_OFFSET), or(ri32(add(member,
+                    CC2_SYM_TYPE_OFFSET)), CC2_TCC_UNSIGNED_TYPE));
+                if (eq(high, 0)) {
+                    member = ri32(add(member, CC2_SYM_NEXT_OFFSET));
+                    continue;
+                }
+            }
+            wi32(add(member, CC2_SYM_TYPE_OFFSET), or(and(ri32(add(member,
+                CC2_SYM_TYPE_OFFSET)), bnot(CC2_TCC_BASIC_TYPE_MASK)),
+                CC2_TCC_LONG_LONG_TYPE));
+        }
+        member = ri32(add(member, CC2_SYM_NEXT_OFFSET));
+    }
+    return 0;
+}
+
+function struct_decl_enum(type, symbol)
+{
+    var scratch;
+    var result;
+    scratch = malloc(16);
+    result = struct_decl_enum_(type, symbol, scratch, add(scratch, 8),
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    free(scratch);
+    return result;
 }
 
 /* Parse the pointer and nested-declarator portion of a C declaration. */

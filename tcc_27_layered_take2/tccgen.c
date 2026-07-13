@@ -994,63 +994,7 @@ do_decl:
         /* non empty enums are not allowed */
         ps = &s->next;
         if (u == VT_ENUM) {
-            long long ll = 0, pl = 0, nl = 0;
-	    CType t;
-            t.ref = s;
-            /* enum symbols have static storage */
-            t.t = VT_INT|VT_STATIC|VT_ENUM_VAL;
-            for(;;) {
-                v = tok;
-                if (v < TOK_UIDENT)
-                    expect("identifier");
-                ss = sym_find(v);
-                if (ss && !local_stack)
-                    tcc_error("redefinition of enumerator '%s'",
-                              get_tok_str(v, NULL));
-                next();
-                if (tok == '=') {
-                    next();
-		    ll = expr_const64();
-                }
-                ss = sym_push(v, &t, VT_CONST, 0);
-                ss->enum_val = ll;
-                *ps = ss, ps = &ss->next;
-                if (ll < nl)
-                    nl = ll;
-                if (ll > pl)
-                    pl = ll;
-                if (tok != ',')
-                    break;
-                next();
-                ll++;
-                /* NOTE: we accept a trailing comma */
-                if (tok == '}')
-                    break;
-            }
-            skip('}');
-            /* set integral type of the enum */
-            t.t = VT_INT;
-            if (nl >= 0) {
-                if (pl != (unsigned)pl)
-                    t.t = (LONG_SIZE==8 ? VT_LLONG|VT_LONG : VT_LLONG);
-                t.t |= VT_UNSIGNED;
-            } else if (pl != (int)pl || nl != (int)nl)
-                t.t = (LONG_SIZE==8 ? VT_LLONG|VT_LONG : VT_LLONG);
-            s->type.t = type->t = t.t | VT_ENUM;
-            s->c = 0;
-            /* set type for enum members */
-            for (ss = s->next; ss; ss = ss->next) {
-                ll = ss->enum_val;
-                if (ll == (int)ll) /* default is int if it fits */
-                    continue;
-                if (t.t & VT_UNSIGNED) {
-                    ss->type.t |= VT_UNSIGNED;
-                    if (ll == (unsigned)ll)
-                        continue;
-                }
-                ss->type.t = (ss->type.t & ~VT_BTYPE)
-                    | (LONG_SIZE==8 ? VT_LLONG|VT_LONG : VT_LLONG);
-            }
+            struct_decl_enum(type, s);
         } else {
             c = 0;
             flexible = 0;
