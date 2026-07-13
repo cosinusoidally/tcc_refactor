@@ -37,7 +37,11 @@ static int nb_states;
 /********************************************************/
 
 #if ONE_SOURCE
+#define function int
+#define var int
 #include "cc0.c"
+#undef var
+#undef function
 #include "cc1.c"
 #include "cc2.c"
 #include "cc3.c"
@@ -1760,8 +1764,12 @@ reparse:
             s->static_link = 1;
             break;
         case TCC_OPTION_std:
-    	    /* silently ignore, a current purpose:
-    	       allow to use a tcc as a reference compiler for "make test" */
+            /* cc0 source uses only these two shared declaration words. */
+            if (!strcmp(optarg, "=cc0")) {
+                tcc_define_symbol(s, "function", "int");
+                tcc_define_symbol(s, "var", "int");
+            }
+            /* Other dialect names remain accepted for GCC compatibility. */
             break;
         case TCC_OPTION_shared:
             x = TCC_OUTPUT_DLL;

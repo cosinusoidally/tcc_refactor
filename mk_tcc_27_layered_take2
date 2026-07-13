@@ -27,8 +27,7 @@ gcc -m32 tcc_27_layered_take2_2.o libtcc1_layered_take2_2.o -o tcc_27_layered_ta
 diff -u -s tcc_27_layered_take2.o tcc_27_layered_take2_2.o
 diff -u -s libtcc1_layered_take2.o libtcc1_layered_take2_2.o
 
-# build the full compiler through the cc0 dialect entry, without macro-mapping
-# function/var in the lower-layer includes
+# build the full compiler through the cc0 dialect entry
 ./tcc_27_layered_take2 -std=cc0 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ -c ../tcc_27_layered_take2/tcc_unified_cc0.c -U__linux__ -o tcc_27_layered_take2_cc0.o
 gcc -m32 tcc_27_layered_take2_cc0.o libtcc1_layered_take2_2.o -o tcc_27_layered_take2_cc0 -ldl
 ./tcc_27_layered_take2_cc0 -dumpversion >/dev/null
@@ -45,10 +44,57 @@ EOF
 ./tcc_27_layered_take2 -nostdinc -c nostdinc_smoke.c -o nostdinc_smoke.o
 
 # cc0.c is kept in a deliberate C/JS intersection
-gcc -m32 -std=gnu89 -c ../tcc_27_layered_take2/cc0.c -o cc0_gcc.o
-./tcc_27_layered_take2 -c ../tcc_27_layered_take2/cc0.c -o cc0_tcc.o
+gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int -c ../tcc_27_layered_take2/cc0.c -o cc0_gcc.o
+./tcc_27_layered_take2 -Dfunction=int -Dvar=int -c ../tcc_27_layered_take2/cc0.c -o cc0_tcc.o
 ./tcc_27_layered_take2 -std=cc0 -c ../tcc_27_layered_take2/cc0.c -o cc0_tcc_dialect.o
-js ../tcc_27_layered_take2/cc0.c
+diff -u -s cc0_tcc.o cc0_tcc_dialect.o
+
+cat > cc0_c_smoke.c <<'EOF'
+int CC0_ADD();
+int CC0_SUB();
+int CC0_NOT();
+int cc0_is_decimal_digit();
+int cc0_is_name_start();
+int cc0_is_name_continue();
+int cc0_is_space();
+
+int main()
+{
+    if (CC0_ADD(20, 22) != 42 || CC0_SUB(50, 8) != 42)
+        return 1;
+    if (CC0_NOT(0) != 1 || CC0_NOT(7) != 0)
+        return 2;
+    if (!cc0_is_decimal_digit(48) || cc0_is_decimal_digit(65))
+        return 3;
+    if (!cc0_is_name_start(95) || cc0_is_name_start(45))
+        return 4;
+    if (!cc0_is_name_continue(57) || cc0_is_name_continue(45))
+        return 5;
+    if (!cc0_is_space(32) || !cc0_is_space(10) || cc0_is_space(65))
+        return 6;
+    return 0;
+}
+EOF
+gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int ../tcc_27_layered_take2/cc0.c cc0_c_smoke.c -o cc0_c_smoke
+./cc0_c_smoke
+
+cat > cc0_js_smoke.js <<'EOF'
+load("../tcc_27_layered_take2/cc0.c");
+
+if (CC0_ADD(20, 22) !== 42 || CC0_SUB(50, 8) !== 42)
+    throw new Error("cc0 arithmetic primitives failed");
+if (CC0_NOT(0) !== 1 || CC0_NOT(7) !== 0)
+    throw new Error("cc0 boolean primitive failed");
+if (!cc0_is_decimal_digit(48) || cc0_is_decimal_digit(65))
+    throw new Error("cc0 decimal classification failed");
+if (!cc0_is_name_start(95) || cc0_is_name_start(45))
+    throw new Error("cc0 name-start classification failed");
+if (!cc0_is_name_continue(57) || cc0_is_name_continue(45))
+    throw new Error("cc0 name classification failed");
+if (!cc0_is_space(32) || !cc0_is_space(10) || cc0_is_space(65))
+    throw new Error("cc0 space classification failed");
+EOF
+js cc0_js_smoke.js
 
 # build some test files
 
