@@ -1,9 +1,3 @@
-/* Standalone cc2 has no code-generating VLA consumer yet. */
-function gen_vla_sp_restore(address)
-{
-    return 0;
-}
-
 function asm_global_instr()
 {
     return 0;
@@ -221,16 +215,6 @@ function initializer_rewind(stream)
 function asm_parse_regvar(label)
 {
     return sub(0, 1);
-}
-
-function gen_vla_sp_save(address)
-{
-    return 0;
-}
-
-function gen_vla_alloc(type, alignment)
-{
-    return 0;
 }
 
 function squeeze_multi_relocs(section, old_offset)

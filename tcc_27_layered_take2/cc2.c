@@ -6592,6 +6592,31 @@ function gtst(inverted, jump_chain)
     return jump_chain;
 }
 
+function gen_vla_sp_save(address)
+{
+    o(137);
+    gen_modrm(4, CC2_VALUE_LOCAL, 0, address);
+    return 0;
+}
+
+function gen_vla_sp_restore(address)
+{
+    o(139);
+    gen_modrm(4, CC2_VALUE_LOCAL, 0, address);
+    return 0;
+}
+
+function gen_vla_alloc(type, alignment)
+{
+    var size_reg;
+    size_reg = gv(CC2_INTEGER_REGISTER_CLASS);
+    o(43);
+    o(or(224, size_reg));
+    o(15787139);
+    vpop();
+    return 0;
+}
+
 function init_putv(type, section, offset)
 {
     var destination_type;

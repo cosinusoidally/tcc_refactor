@@ -774,39 +774,6 @@ ST_FUNC void gen_bounded_ptr_deref(void)
 }
 #endif
 
-/* Save the stack pointer onto the stack */
-void gen_vla_sp_save(int addr) {
-    /* mov %esp,addr(%ebp)*/
-    o(0x89);
-    gen_modrm(TREG_ESP, VT_LOCAL, NULL, addr);
-}
-
-/* Restore the SP from a location on the stack */
-void gen_vla_sp_restore(int addr) {
-    o(0x8b);
-    gen_modrm(TREG_ESP, VT_LOCAL, NULL, addr);
-}
-
-/* Subtract from the stack pointer, and push the resulting value onto the stack */
-void gen_vla_alloc(CType *type, int align) {
-#ifdef TCC_TARGET_PE
-    /* alloca does more than just adjust %rsp on Windows */
-    vpush_global_sym(&func_old_type, TOK_alloca);
-    vswap(); /* Move alloca ref past allocation size */
-    gfunc_call(1);
-#else
-    int r;
-    r = gv(RC_INT); /* allocation size */
-    /* sub r,%rsp */
-    o(0x2b);
-    o(0xe0 | r);
-    /* We align to 16 bytes rather than align */
-    /* and ~15, %esp */
-    o(0xf0e483);
-    vpop();
-#endif
-}
-
 /* end of X86 code generator */
 /*************************************************************/
 #endif
