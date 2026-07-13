@@ -44,6 +44,16 @@ function elfsym(symbol)
     return 0;
 }
 
+function section_add(section, size, alignment)
+{
+    return 0;
+}
+
+function init_putv(type, section, offset)
+{
+    return 0;
+}
+
 function store(reg, value)
 {
     return 0;

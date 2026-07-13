@@ -272,7 +272,7 @@ ST_FUNC void section_realloc(Section *sec, unsigned long new_size)
 
 /* reserve at least 'size' bytes aligned per 'align' in section
    'sec' from current offset, and return the aligned offset */
-ST_FUNC size_t section_add(Section *sec, addr_t size, int align)
+size_t section_add(Section *sec, addr_t size, int align)
 {
     size_t offset, offset1;
 

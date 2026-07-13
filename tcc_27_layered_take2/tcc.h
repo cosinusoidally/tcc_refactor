@@ -1267,6 +1267,7 @@ extern Sym *define_stack;
 extern CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
 extern CType *int_type_address, *size_type_address, *func_old_type_address;
 extern CType *ptrdiff_type_address;
+extern Section **data_section_address;
 extern SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE];
 extern SValue *vtop, *pvtop;
 extern SValue *vstack_base, *vstack_limit;
@@ -1443,7 +1444,7 @@ ST_FUNC void tccelf_end_file(TCCState *s1);
 
 ST_FUNC Section *new_section(TCCState *s1, const char *name, int sh_type, int sh_flags);
 ST_FUNC void section_realloc(Section *sec, unsigned long new_size);
-ST_FUNC size_t section_add(Section *sec, addr_t size, int align);
+size_t section_add(Section *sec, addr_t size, int align);
 ST_FUNC void *section_ptr_add(Section *sec, addr_t size);
 ST_FUNC void section_reserve(Section *sec, unsigned long size);
 ST_FUNC Section *find_section(TCCState *s1, const char *name);

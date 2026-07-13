@@ -43,6 +43,7 @@ var CC2_I386_FLOAT_RETURN_CLASS = 8;
 var CC2_I386_FLOAT_RETURN_REGISTER = 4;
 var CC2_I386_INTEGER_RETURN_REGISTER = 0;
 var CC2_I386_LONG_LONG_RETURN_REGISTER = 2;
+var CC2_I386_LONG_LONG_RETURN_CLASS = 32;
 var CC2_I386_FLOAT_REGISTER_CLASS = 2;
 /* TCC's i386 Sym layout and its existing 8192-byte allocation policy. */
 var CC2_SYM_BYTES = 36;
@@ -207,6 +208,7 @@ var funcname;
 var cur_switch;
 var tok_ident;
 var tok_address;
+var data_section_address;
 var table_ident;
 /* CType is two i386 words. */
 var char_pointer_type[2];
@@ -2900,6 +2902,152 @@ function store_packed_bf_(bit_position, bit_size, bits, count, offset,
 function store_packed_bf(bit_position, bit_size)
 {
     return store_packed_bf_(bit_position, bit_size, 0, 0, 0, 0, 0);
+}
+
+function gv_(required_class, result_register, bit_position, bit_size,
+    adjusted_type, bits, type, alignment, size, section, offset,
+    second_class, registers, second_register, original_type, memory_type)
+{
+    type = ri32(vtop);
+    if (not(eq(and(type, CC2_TCC_BITFIELD), 0))) {
+        bit_position = and(ushr(type, CC2_TCC_BITFIELD_POSITION_SHIFT), 63);
+        bit_size = and(ushr(type, CC2_TCC_BITFIELD_SIZE_SHIFT), 63);
+        /* VT_STRUCT_MASK occupies the bitfield flag and bits 20..31. */
+        wi32(vtop, and(type, 1048447));
+        adjusted_type = malloc(8);
+        wi32(add(adjusted_type, 4), 0);
+        wi32(adjusted_type, and(ri32(vtop), CC2_TCC_UNSIGNED_TYPE));
+        if (eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_BOOLEAN_TYPE)) {
+            wi32(adjusted_type, or(ri32(adjusted_type),
+                CC2_TCC_UNSIGNED_TYPE));
+        }
+        result_register = adjust_bf(vtop, bit_position, bit_size);
+        if (eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_LONG_LONG_TYPE)) {
+            wi32(adjusted_type, or(ri32(adjusted_type),
+                CC2_TCC_LONG_LONG_TYPE));
+            bits = 64;
+        } else {
+            wi32(adjusted_type, or(ri32(adjusted_type), CC2_TCC_INT_TYPE));
+            bits = 32;
+        }
+        if (eq(result_register, CC2_TCC_STRUCT_TYPE)) {
+            load_packed_bf(adjusted_type, bit_position, bit_size);
+        } else {
+            gen_cast(adjusted_type);
+            vpushi(sub(bits, add(bit_position, bit_size)));
+            gen_op(CC2_TOKEN_SHIFT_LEFT);
+            vpushi(sub(bits, bit_size));
+            gen_op(CC2_TOKEN_SHIFT_RIGHT);
+        }
+        free(adjusted_type);
+        return gv(required_class);
+    }
+
+    registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+    if (and(is_float(type), eq(and(registers,
+        or(CC2_VALUE_LOCATION_MASK, CC2_TCC_LVALUE)),
+        CC2_VALUE_CONSTANT))) {
+        alignment = malloc(4);
+        size = type_size(vtop, alignment);
+        if (lt(0, nocode_wanted)) {
+            size = 0;
+            wi32(alignment, 1);
+        }
+        section = ri32(data_section_address);
+        offset = section_add(section, size, ri32(alignment));
+        vpush_ref(vtop, section, offset, size);
+        vswap();
+        init_putv(vtop, section, offset);
+        cc2_set_value_register(vtop, or(ri32(add(vtop,
+            CC2_SVALUE_REGISTER_OFFSET)), CC2_TCC_LVALUE));
+        free(alignment);
+    }
+
+    registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+    result_register = and(registers, CC2_VALUE_LOCATION_MASK);
+    if (not(eq(and(required_class, CC2_I386_FLOAT_REGISTER_CLASS), 0))) {
+        second_class = CC2_I386_FLOAT_REGISTER_CLASS;
+    } else {
+        second_class = CC2_INTEGER_REGISTER_CLASS;
+    }
+    if (eq(required_class, CC2_I386_INTEGER_RETURN_CLASS)) {
+        second_class = CC2_I386_LONG_LONG_RETURN_CLASS;
+    }
+    if (or(or(or(le(CC2_VALUE_CONSTANT, result_register),
+        not(eq(and(registers, CC2_TCC_LVALUE), 0))),
+        eq(and(cc2_i386_register_class(result_register), required_class), 0)),
+        and(eq(and(type, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE), eq(and(cc2_i386_register_class(and(ushr(
+        registers, 16), CC2_VALUE_LOCATION_MASK)), second_class), 0)))) {
+        result_register = get_reg(required_class);
+        /* Allocation can spill the current value, so reload its state. */
+        registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+        type = ri32(vtop);
+        if (eq(and(type, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_LONG_LONG_TYPE)) {
+            original_type = type;
+            if (eq(and(registers, or(CC2_VALUE_LOCATION_MASK,
+                CC2_TCC_LVALUE)), CC2_VALUE_CONSTANT)) {
+                memory_type = ri32(add(vtop,
+                    add(CC2_SVALUE_CONSTANT_OFFSET, 4)));
+                load(result_register, vtop);
+                cc2_set_value_register(vtop, result_register);
+                vpushi(memory_type);
+            } else if (not(eq(and(registers, CC2_TCC_LVALUE), 0))) {
+                save_reg_upstack(and(registers, 65535), 1);
+                wi32(vtop, CC2_TCC_INT_TYPE);
+                load(result_register, vtop);
+                vdup();
+                cc2_set_value_register(sub(vtop, CC2_SVALUE_BYTES),
+                    result_register);
+                wi32(vtop, CC2_TCC_INT_TYPE);
+                gaddrof();
+                vpushi(4);
+                gen_op(CC2_ASCII_PLUS);
+                cc2_set_value_register(vtop, or(ri32(add(vtop,
+                    CC2_SVALUE_REGISTER_OFFSET)), CC2_TCC_LVALUE));
+                wi32(vtop, CC2_TCC_INT_TYPE);
+            } else {
+                load(result_register, vtop);
+                vdup();
+                cc2_set_value_register(sub(vtop, CC2_SVALUE_BYTES),
+                    result_register);
+                cc2_set_value_register(vtop, and(ushr(registers, 16),
+                    65535));
+            }
+            second_register = get_reg(second_class);
+            load(second_register, vtop);
+            vpop();
+            cc2_set_value_second_register(vtop, second_register);
+            wi32(vtop, original_type);
+        } else if (and(not(eq(and(registers, CC2_TCC_LVALUE), 0)),
+            eq(is_float(type), 0))) {
+            memory_type = type;
+            if (not(eq(and(registers, CC2_TCC_LVALUE_BYTE), 0))) {
+                memory_type = CC2_TCC_BYTE_TYPE;
+            } else if (not(eq(and(registers, CC2_TCC_LVALUE_SHORT), 0))) {
+                memory_type = CC2_TCC_SHORT_TYPE;
+            }
+            if (not(eq(and(registers, CC2_TCC_LVALUE_UNSIGNED), 0))) {
+                memory_type = or(memory_type, CC2_TCC_UNSIGNED_TYPE);
+            }
+            wi32(vtop, memory_type);
+            load(result_register, vtop);
+            wi32(vtop, type);
+        } else {
+            load(result_register, vtop);
+        }
+    }
+    cc2_set_value_register(vtop, result_register);
+    return result_register;
+}
+
+function gv(required_class)
+{
+    return gv_(required_class, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0);
 }
 
 function gfunc_return_(function_type, value_type, return_type, alignment,
