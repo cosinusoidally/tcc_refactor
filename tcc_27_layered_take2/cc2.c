@@ -2509,6 +2509,57 @@ function gen_op(operation)
     return gen_op_(operation, 0, 0, 0, 0, 0, 0, sub(0, 1), 0, 0, 0);
 }
 
+function force_charshort_cast_(type, bits, basic_type, mask)
+{
+    if (not(eq(and(ushr(nocode_wanted, 30), 3), 0))) {
+        return 0;
+    }
+    basic_type = and(type, CC2_TCC_BASIC_TYPE_MASK);
+    if (eq(basic_type, CC2_TCC_BYTE_TYPE)) {
+        bits = 8;
+    } else {
+        bits = 16;
+    }
+    if (not(eq(and(type, CC2_TCC_UNSIGNED_TYPE), 0))) {
+        mask = sub(shl(1, bits), 1);
+        vpushi(mask);
+        gen_op(CC2_ASCII_AMPERSAND);
+    } else {
+        if (eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_LONG_LONG_TYPE)) {
+            bits = sub(64, bits);
+        } else {
+            bits = sub(32, bits);
+        }
+        vpushi(bits);
+        gen_op(CC2_TOKEN_SHIFT_LEFT);
+        wi32(vtop, and(ri32(vtop), bnot(CC2_TCC_UNSIGNED_TYPE)));
+        vpushi(bits);
+        gen_op(CC2_TOKEN_SHIFT_RIGHT);
+    }
+    return 0;
+}
+
+function force_charshort_cast(type)
+{
+    return force_charshort_cast_(type, 0, 0, 0);
+}
+
+function gen_cast_s_(type_value, type)
+{
+    type = malloc(8);
+    wi32(type, type_value);
+    wi32(add(type, 4), 0);
+    gen_cast(type);
+    free(type);
+    return 0;
+}
+
+function gen_cast_s(type_value)
+{
+    return gen_cast_s_(type_value, 0);
+}
+
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)
 {
     type_value = ri32(type);

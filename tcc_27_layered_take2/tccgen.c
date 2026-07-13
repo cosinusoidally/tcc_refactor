@@ -1344,47 +1344,8 @@ static void gen_cvt_ftoi1(int t)
 }
 
 /* force char or short cast */
-static void force_charshort_cast(int t)
-{
-    int bits, dbt;
-
-    /* cannot cast static initializers */
-    if (STATIC_DATA_WANTED)
-	return;
-
-    dbt = t & VT_BTYPE;
-    /* XXX: add optimization if lvalue : just change type and offset */
-    if (dbt == VT_BYTE)
-        bits = 8;
-    else
-        bits = 16;
-    if (t & VT_UNSIGNED) {
-        vpushi((1 << bits) - 1);
-        gen_op('&');
-    } else {
-        if ((vtop->type.t & VT_BTYPE) == VT_LLONG)
-            bits = 64 - bits;
-        else
-            bits = 32 - bits;
-        vpushi(bits);
-        gen_op(TOK_SHL);
-        /* result must be signed or the SAR is converted to an SHL
-           This was not the case when "t" was a signed short
-           and the last value on the stack was an unsigned int */
-        vtop->type.t &= ~VT_UNSIGNED;
-        vpushi(bits);
-        gen_op(TOK_SAR);
-    }
-}
 
 /* cast 'vtop' to 'type'. Casting to bitfields is forbidden. */
-void gen_cast_s(int t)
-{
-    CType type;
-    type.t = t;
-    type.ref = NULL;
-    gen_cast(&type);
-}
 
 void gen_cast(CType *type)
 {

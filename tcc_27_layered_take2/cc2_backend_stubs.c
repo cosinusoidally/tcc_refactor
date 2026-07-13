@@ -74,11 +74,6 @@ function unary()
     return 0;
 }
 
-function gen_cast_s(type)
-{
-    return 0;
-}
-
 function gvtst(inverted, jump_chain)
 {
     return jump_chain;

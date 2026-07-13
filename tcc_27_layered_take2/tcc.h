@@ -1345,6 +1345,7 @@ extern void gen_opic(int operation);
 extern void gen_opif(int operation);
 extern int gvtst(int inverted, int jump_chain);
 extern void gen_cast_s(int type);
+extern void force_charshort_cast(int type);
 extern void gen_cast(CType *type);
 extern void gen_assign_cast(CType *type);
 extern void type_to_str(char *buffer, int buffer_size, CType *type,
