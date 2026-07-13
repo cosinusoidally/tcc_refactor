@@ -959,18 +959,24 @@ function cc0_elf_emit_function_symbols()
     return cc0_elf_emit_function_symbols_(0, 0, 0, 0, 0, 0);
 }
 
-function cc0_elf_emit_global_symbols_(index, entry, symbol, offset)
+function cc0_elf_emit_global_symbols_(index, entry, symbol, offset, section)
 {
     index = 0;
     while (lt(index, CC0_GLOBAL_COUNT)) {
         entry = cc0_compiler_symbol_entry(CC0_GLOBAL_SYMBOLS, index);
-        offset = shl(index, CC0_WORD_ADDRESS_SHIFT);
+        offset = ri32(add(entry, CC0_SYMBOL_CODE_OFFSET));
+        section = CC0_ELF_DATA_SECTION;
+        if (lt(offset, 0)) {
+            /* Negative offsets encode -(bss offset + 1). */
+            offset = sub(sub(0, offset), 1);
+            section = CC0_ELF_BSS_SECTION;
+        }
         symbol = cc0_elf_put_symbol(CC0_ELF_SYMTAB_SECTION,
             CC0_ELF_STRTAB_SECTION,
             ri32(add(entry, CC0_SYMBOL_NAME_OFFSET)),
             ri32(add(entry, CC0_SYMBOL_LENGTH_OFFSET)), offset,
             CC0_WORD_BYTES, CC0_ELF_SYMBOL_GLOBAL_OBJECT, 0,
-            cc0_elf_section_number(CC0_ELF_BSS_SECTION));
+            cc0_elf_section_number(section));
         if (lt(symbol, 0)) {
             return cc0_compiler_fail();
         }
@@ -983,7 +989,38 @@ function cc0_elf_emit_global_symbols_(index, entry, symbol, offset)
 
 function cc0_elf_emit_global_symbols()
 {
-    return cc0_elf_emit_global_symbols_(0, 0, 0, 0);
+    return cc0_elf_emit_global_symbols_(0, 0, 0, 0, 0);
+}
+
+/* Assign storage after strings have been emitted, so their offsets stay stable. */
+function cc0_elf_layout_globals_(index, entry, offset, bss_bytes)
+{
+    index = 0;
+    bss_bytes = 0;
+    while (lt(index, CC0_GLOBAL_COUNT)) {
+        entry = cc0_compiler_symbol_entry(CC0_GLOBAL_SYMBOLS, index);
+        if (ri32(add(entry, CC0_SYMBOL_CODE_OFFSET))) {
+            offset = CC0_DATA_LENGTH;
+            if (cc0_compiler_ensure_data(add(offset, CC0_WORD_BYTES))) {
+                return sub(0, 1);
+            }
+            wi32(add(CC0_DATA, offset),
+                ri32(add(entry, CC0_SYMBOL_VALUE_OFFSET)));
+            CC0_DATA_LENGTH = add(CC0_DATA_LENGTH, CC0_WORD_BYTES);
+            wi32(add(entry, CC0_SYMBOL_CODE_OFFSET), offset);
+        } else {
+            wi32(add(entry, CC0_SYMBOL_CODE_OFFSET),
+                sub(0, add(bss_bytes, 1)));
+            bss_bytes = add(bss_bytes, CC0_WORD_BYTES);
+        }
+        index = add(index, 1);
+    }
+    return bss_bytes;
+}
+
+function cc0_elf_layout_globals()
+{
+    return cc0_elf_layout_globals_(0, 0, 0, 0);
 }
 
 function cc0_elf_put_undefined_function(name, length)
@@ -1203,10 +1240,15 @@ function cc0_elf_emit_relocations()
 /* Turn the compiler buffers into TCC-style sections before file layout. */
 function cc0_elf_build_object_sections()
 {
+    var bss_bytes;
     if (cc0_elf_prepare_object_sections()) {
         return CC0_TRUE;
     }
     if (cc0_elf_prepare_symbol_indices()) {
+        return CC0_TRUE;
+    }
+    bss_bytes = cc0_elf_layout_globals();
+    if (lt(bss_bytes, 0)) {
         return CC0_TRUE;
     }
     if (cc0_elf_copy_section(CC0_ELF_TEXT_SECTION, CC0_CODE,
@@ -1218,7 +1260,7 @@ function cc0_elf_build_object_sections()
         return CC0_TRUE;
     }
     wi32(add(CC0_ELF_BSS_SECTION, CC0_SECTION_SIZE_OFFSET),
-        shl(CC0_GLOBAL_COUNT, CC0_WORD_ADDRESS_SHIFT));
+        bss_bytes);
     if (lt(cc0_elf_put_string(CC0_ELF_STRTAB_SECTION, mks(""), 0), 0)) {
         return CC0_TRUE;
     }
@@ -4214,13 +4256,18 @@ function cc0_compiler_parse_function()
     return cc0_compiler_parse_function_(0);
 }
 
-function cc0_compiler_parse_global_()
+function cc0_compiler_parse_global_(global_index, entry)
 {
     cc0_compiler_next_token();
     if (not(eq(CC0_TOKEN, CC0_TOKEN_IDENTIFIER))) {
         return cc0_compiler_fail();
     }
+    global_index = cc0_compiler_find_symbol(CC0_GLOBAL_SYMBOLS,
+        CC0_GLOBAL_COUNT, CC0_TOKEN_START, CC0_TOKEN_LENGTH);
     if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_COLLECT)) {
+        if (not(lt(global_index, 0))) {
+            return cc0_compiler_fail();
+        }
         if (cc0_compiler_name_exists(CC0_TOKEN_START, CC0_TOKEN_LENGTH)) {
             return cc0_compiler_fail();
         }
@@ -4228,11 +4275,33 @@ function cc0_compiler_parse_global_()
             return CC0_TRUE;
         }
         cc0_compiler_add_symbol(CC0_GLOBAL_SYMBOLS, CC0_GLOBAL_COUNT,
-            CC0_TOKEN_START, CC0_TOKEN_LENGTH, CC0_GLOBAL_COUNT);
+            CC0_TOKEN_START, CC0_TOKEN_LENGTH, 0);
+        global_index = CC0_GLOBAL_COUNT;
         CC0_GLOBAL_COUNT = add(CC0_GLOBAL_COUNT, 1);
+    } else if (lt(global_index, 0)) {
+        return cc0_compiler_fail();
     }
     cc0_compiler_next_token();
+    if (eq(CC0_TOKEN, CC0_PUNCTUATION_ASSIGN)) {
+        cc0_compiler_next_token();
+        if (not(eq(CC0_TOKEN, CC0_TOKEN_NUMBER_LITERAL))) {
+            return cc0_compiler_fail();
+        }
+        if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_COLLECT)) {
+            entry = cc0_compiler_symbol_entry(CC0_GLOBAL_SYMBOLS,
+                global_index);
+            wi32(add(entry, CC0_SYMBOL_VALUE_OFFSET), CC0_TOKEN_NUMBER);
+            /* A nonzero code field records that even a zero value is explicit. */
+            wi32(add(entry, CC0_SYMBOL_CODE_OFFSET), 1);
+        }
+        cc0_compiler_next_token();
+    }
     return cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON);
+}
+
+function cc0_compiler_parse_global()
+{
+    return cc0_compiler_parse_global_(0, 0);
 }
 
 function cc0_compiler_parse_program_(source, length, phase)
@@ -4245,7 +4314,7 @@ function cc0_compiler_parse_program_(source, length, phase)
     cc0_compiler_next_token();
     while (not(eq(CC0_TOKEN, CC0_TOKEN_EOF))) {
         if (eq(CC0_TOKEN, CC0_TOKEN_VAR)) {
-            cc0_compiler_parse_global_();
+            cc0_compiler_parse_global();
         } else if (eq(CC0_TOKEN, CC0_TOKEN_FUNCTION)) {
             cc0_compiler_parse_function();
         } else {

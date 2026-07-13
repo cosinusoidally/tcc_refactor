@@ -4,7 +4,7 @@
 #define ENABLED 1
 #define COMBINE(left, right) ((left) + (right))
 int global_result;
-static unsigned long scalar_value;
+static unsigned long scalar_value = 1;
 
 int identity(int value)
 {
@@ -39,6 +39,7 @@ int main()
     temporary = temporary + global_result;
     temporary = temporary + (sizeof(char) - 1) + (sizeof(short) - 2);
     temporary = temporary + (sizeof(int *) - 4) + (sizeof temporary - 4);
+    temporary = temporary + (scalar_value - 1);
     for (loop = 0; loop < 3; loop = loop + 1) {
         if (loop == 1) {
             continue;
