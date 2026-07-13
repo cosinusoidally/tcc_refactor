@@ -42,6 +42,11 @@ int main()
         }
     }
     temporary = temporary + (loop - 2);
+    loop = 0;
+    do {
+        loop = loop + 1;
+    } while (loop < 2);
+    temporary = temporary + (loop - 2);
     scalar_value = temporary;
     temporary = (temporary << 1) >> 1;
     temporary = (temporary | 8) ^ 8;
