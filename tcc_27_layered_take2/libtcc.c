@@ -49,7 +49,13 @@ static int nb_states;
 #undef function
 #define malloc(s) use_tcc_malloc(s)
 #include "tccpp.c"
+#define function int
+#define var int
 #include "cc2.c"
+#undef var
+#undef function
+/* Transitional legacy backend until its typed routines migrate into cc2.c. */
+#include "tccgen.c"
 #include "cc3.c"
 #include "cc4.c"
 #endif /* ONE_SOURCE */

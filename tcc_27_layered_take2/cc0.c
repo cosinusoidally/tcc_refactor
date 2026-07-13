@@ -280,6 +280,8 @@ var CC0_ELF_LEXER_ADVANCE_SYMBOL;
 var CC0_ELF_LEXER_FIELD_SYMBOL;
 var CC0_ELF_CC0_COMPILE_SYMBOL;
 var CC0_ELF_CC1_COMPILE_SYMBOL;
+var CC0_ELF_CC1_COMPILE_BASE_SYMBOL;
+var CC0_ELF_CC2_COMPILE_SYMBOL;
 var CC0_ELF_REMAP_ERROR_SYMBOL;
 var CC0_ELF_REMAP_LOCATION_SYMBOL;
 var CC0_FILE_READ_ONLY;
@@ -568,6 +570,8 @@ function cc0_init()
     CC0_ELF_LEXER_FIELD_SYMBOL = 0;
     CC0_ELF_CC0_COMPILE_SYMBOL = 0;
     CC0_ELF_CC1_COMPILE_SYMBOL = 0;
+    CC0_ELF_CC1_COMPILE_BASE_SYMBOL = 0;
+    CC0_ELF_CC2_COMPILE_SYMBOL = 0;
     CC0_ELF_REMAP_ERROR_SYMBOL = 0;
     CC0_ELF_REMAP_LOCATION_SYMBOL = 0;
     CC0_FILE_READ_ONLY = 0;
@@ -1006,6 +1010,8 @@ function cc0_elf_emit_external_symbols()
     CC0_ELF_LEXER_FIELD_SYMBOL = 0;
     CC0_ELF_CC0_COMPILE_SYMBOL = 0;
     CC0_ELF_CC1_COMPILE_SYMBOL = 0;
+    CC0_ELF_CC1_COMPILE_BASE_SYMBOL = 0;
+    CC0_ELF_CC2_COMPILE_SYMBOL = 0;
     CC0_ELF_REMAP_ERROR_SYMBOL = 0;
     CC0_ELF_REMAP_LOCATION_SYMBOL = 0;
     return CC0_FALSE;
@@ -1111,6 +1117,21 @@ function cc0_elf_external_symbol(name, length)
                 mks("cc1_compile"), 11);
         }
         return CC0_ELF_CC1_COMPILE_SYMBOL;
+    }
+    if (cc0_compiler_slice_equal(name, length,
+        mks("cc1_compile_base"), 16)) {
+        if (eq(CC0_ELF_CC1_COMPILE_BASE_SYMBOL, 0)) {
+            CC0_ELF_CC1_COMPILE_BASE_SYMBOL =
+                cc0_elf_put_undefined_function(mks("cc1_compile_base"), 16);
+        }
+        return CC0_ELF_CC1_COMPILE_BASE_SYMBOL;
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("cc2_compile"), 11)) {
+        if (eq(CC0_ELF_CC2_COMPILE_SYMBOL, 0)) {
+            CC0_ELF_CC2_COMPILE_SYMBOL = cc0_elf_put_undefined_function(
+                mks("cc2_compile"), 11);
+        }
+        return CC0_ELF_CC2_COMPILE_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length,
         mks("cc0_remap_error"), 15)) {
@@ -3290,6 +3311,12 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("cc1_compile"))) {
         return 3;
     }
+    if (cc0_text_equal(name, length, mks("cc1_compile_base"))) {
+        return 3;
+    }
+    if (cc0_text_equal(name, length, mks("cc2_compile"))) {
+        return 3;
+    }
     if (cc0_text_equal(name, length, mks("cc0_remap_error"))) {
         return 3;
     }
@@ -3344,6 +3371,12 @@ function cc0_compiler_external_arity(name, length)
         return 2;
     }
     if (cc0_text_equal(name, length, mks("cc1_compile"))) {
+        return 3;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_compile_base"))) {
+        return 3;
+    }
+    if (cc0_text_equal(name, length, mks("cc2_compile"))) {
         return 3;
     }
     if (cc0_text_equal(name, length, mks("cc0_remap_error"))) {

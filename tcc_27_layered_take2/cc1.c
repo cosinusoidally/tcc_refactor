@@ -3045,14 +3045,38 @@ function cc1_normalize_tokens()
         0, 0, 0);
 }
 
+function cc1_remap_frontend_error_(source, length, token, index)
+{
+    index = CC1_PREPROCESSED_CURSOR;
+    if (not(eq(index, 0))) {
+        index = sub(index, 1);
+    }
+    if (lt(index, CC1_PREPROCESSED_COUNT)) {
+        token = ri32(add(CC1_PREPROCESSED_TOKENS, shl(index, 2)));
+        return cc0_remap_error_location(source, length,
+            ri32(add(token, CC1_TOKEN_SOURCE_OFFSET)),
+            ri32(add(token, CC1_TOKEN_FILE_OFFSET)),
+            ri32(add(token, CC1_TOKEN_LINE_OFFSET)),
+            ri32(add(token, CC1_TOKEN_COLUMN_OFFSET)));
+    }
+    return cc0_remap_error(source, length, 0);
+}
+
+function cc1_remap_frontend_error(source, length)
+{
+    return cc1_remap_frontend_error_(source, length, 0, 0);
+}
+
 /* This is the permanent frontend dispatch point replaced by cc1_stubs in cc0. */
 function cc1_compile_(source, length, file, result, position, error_file,
     error_line, error_column, normalized_position)
 {
     if (cc1_preprocess(source, length, file)) {
+        cc1_remap_frontend_error(source, length);
         return 1;
     }
     if (cc1_normalize_tokens()) {
+        cc1_remap_frontend_error(source, length);
         return 1;
     }
     result = cc0_compile(CC1_NORMALIZED_SOURCE, CC1_NORMALIZED_LENGTH);
@@ -3079,9 +3103,15 @@ function cc1_compile_(source, length, file, result, position, error_file,
     return result;
 }
 
-function cc1_compile(source, length, file)
+function cc1_compile_base(source, length, file)
 {
     return cc1_compile_(source, length, file, 0, 0, 0, 0, 0, 0);
+}
+
+/* cc2_stubs keeps cc1 standalone; the real cc2 object replaces that service. */
+function cc1_compile(source, length, file)
+{
+    return cc2_compile(source, length, file);
 }
 
 function cc1_product_(left, right, result, index)

@@ -1,5 +1,5 @@
-/* Layer two has no services required by the cc1 bootstrap yet. */
-function cc2_unavailable()
+/* The cc1 executable selects its own frontend through the cc2 service slot. */
+function cc2_compile(source, length, file)
 {
-    return 1;
+    return cc1_compile_base(source, length, file);
 }

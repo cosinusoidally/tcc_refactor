@@ -81,7 +81,10 @@ gcc -m32 ../tcc_27_layered_take2/prims.c cc0_smoke.o cc1_stubs_smoke.o \
 
 gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
     -c ../tcc_27_layered_take2/cc1.c -o cc1_token_smoke.o
+gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take2/cc2_stubs.c -o cc2_stubs_smoke.o
 gcc -m32 ../tcc_27_layered_take2/prims.c cc0_smoke.o cc1_token_smoke.o \
+    cc2_stubs_smoke.o \
     ../tcc_27_layered_take2/tests/layered/cc1_token_smoke.c \
     -o cc1_token_smoke
 ./cc1_token_smoke
@@ -116,11 +119,23 @@ diff -u -s cc1_stubs.o cc1_stubs_self.o
 ./cc1.exe cc1_compile_smoke.o -o cc1_compile_smoke.exe
 ./cc1_compile_smoke.exe
 
+# cc1 builds the real layer-two service, which then reproduces itself.
+./cc1.exe -c ../tcc_27_layered_take2/cc2.c -o cc2.o
+./cc1.exe cc0.o cc1.o cc2.o -o cc2.exe
+./cc2.exe -c ../tcc_27_layered_take2/cc2.c -o cc2_self.o
+diff -u -s cc2.o cc2_self.o
+./cc2.exe -c ../tcc_27_layered_take2/tests/layered/cc1_compile_smoke.c \
+    -o cc2_compile_smoke.o
+./cc2.exe cc2_compile_smoke.o -o cc2_compile_smoke.exe
+./cc2_compile_smoke.exe
+
 # Both front ends expose help and source locations without host-side parsing.
 ./cc0.exe --help >cc0_help.txt
 ./cc1.exe --help >cc1_help.txt
+./cc2.exe --help >cc2_help.txt
 test -s cc0_help.txt
 test -s cc1_help.txt
+test -s cc2_help.txt
 if ./cc0.exe -c ../tcc_27_layered_take2/tests/layered/cc0_invalid.c \
     -o cc0_invalid.o 2>cc0_invalid.txt; then
     exit 1
