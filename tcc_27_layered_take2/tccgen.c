@@ -215,7 +215,7 @@ ST_FUNC int tccgen_compile(TCCState *s1)
 }
 
 /* ------------------------------------------------------------------------- */
-ST_FUNC ElfSym *elfsym(Sym *s)
+ElfSym *elfsym(Sym *s)
 {
   if (!s || !s->c)
     return NULL;
@@ -223,47 +223,6 @@ ST_FUNC ElfSym *elfsym(Sym *s)
 }
 
 /* apply storage attributes to Elf symbol */
-void update_storage(Sym *sym)
-{
-    ElfSym *esym;
-    int sym_bind, old_sym_bind;
-
-    esym = elfsym(sym);
-    if (!esym)
-        return;
-
-    if (sym->a.visibility)
-        esym->st_other = (esym->st_other & ~ELFW(ST_VISIBILITY)(-1))
-            | sym->a.visibility;
-
-    if (sym->type.t & VT_STATIC)
-        sym_bind = STB_LOCAL;
-    else if (sym->a.weak)
-        sym_bind = STB_WEAK;
-    else
-        sym_bind = STB_GLOBAL;
-    old_sym_bind = ELFW(ST_BIND)(esym->st_info);
-    if (sym_bind != old_sym_bind) {
-        esym->st_info = ELFW(ST_INFO)(sym_bind, ELFW(ST_TYPE)(esym->st_info));
-    }
-
-#ifdef TCC_TARGET_PE
-    if (sym->a.dllimport)
-        esym->st_other |= ST_PE_IMPORT;
-    if (sym->a.dllexport)
-        esym->st_other |= ST_PE_EXPORT;
-#endif
-
-#if 0
-    printf("storage %s: bind=%c vis=%d exp=%d imp=%d\n",
-        get_tok_str(sym->v, NULL),
-        sym_bind == STB_WEAK ? 'w' : sym_bind == STB_LOCAL ? 'l' : 'g',
-        sym->a.visibility,
-        sym->a.dllexport,
-        sym->a.dllimport
-        );
-#endif
-}
 
 /* ------------------------------------------------------------------------- */
 /* update sym->c so that it points to an external symbol in section

@@ -39,6 +39,11 @@ function update_storage(symbol)
     return 0;
 }
 
+function elfsym(symbol)
+{
+    return 0;
+}
+
 function store(reg, value)
 {
     return 0;

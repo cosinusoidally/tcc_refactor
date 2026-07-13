@@ -1118,6 +1118,9 @@ function cc0_elf_external_symbol(name, length)
         mks("update_storage"), 14)) {
         return cc0_elf_put_undefined_function(name, length);
     }
+    if (cc0_compiler_slice_equal(name, length, mks("elfsym"), 6)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
     if (cc0_compiler_slice_equal(name, length,
         mks("save_reg_upstack"), 16)) {
         return cc0_elf_put_undefined_function(name, length);
@@ -3577,6 +3580,9 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("update_storage"))) {
         return 1;
     }
+    if (cc0_text_equal(name, length, mks("elfsym"))) {
+        return 1;
+    }
     if (cc0_text_equal(name, length, mks("save_reg_upstack"))) {
         return 2;
     }
@@ -3784,6 +3790,9 @@ function cc0_compiler_external_arity(name, length)
         return 4;
     }
     if (cc0_text_equal(name, length, mks("update_storage"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("elfsym"))) {
         return 1;
     }
     if (cc0_text_equal(name, length, mks("save_reg_upstack"))) {

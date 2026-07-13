@@ -2986,6 +2986,41 @@ function gfunc_return(function_type)
     return gfunc_return_(function_type, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
+/* Apply C storage and visibility attributes to TCC's ELF32 symbol. */
+function update_storage_(symbol, elf_symbol, attributes, visibility,
+    binding, previous_binding, info)
+{
+    elf_symbol = elfsym(symbol);
+    if (eq(elf_symbol, 0)) {
+        return 0;
+    }
+    attributes = ushr(ri32(add(symbol, 4)), 16);
+    visibility = and(ushr(attributes, 7), 3);
+    if (visibility) {
+        wi8(add(elf_symbol, 13), or(and(ri8(add(elf_symbol, 13)),
+            bnot(3)), visibility));
+    }
+    if (not(eq(and(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)),
+        CC2_TCC_STATIC_STORAGE), 0))) {
+        binding = 0;
+    } else if (not(eq(and(attributes, 64), 0))) {
+        binding = 2;
+    } else {
+        binding = 1;
+    }
+    info = ri8(add(elf_symbol, 12));
+    previous_binding = ushr(info, 4);
+    if (not(eq(binding, previous_binding))) {
+        wi8(add(elf_symbol, 12), or(shl(binding, 4), and(info, 15)));
+    }
+    return 0;
+}
+
+function update_storage(symbol)
+{
+    return update_storage_(symbol, 0, 0, 0, 0, 0, 0);
+}
+
 function is_label_(identifier_floor, saved_token)
 {
     if (lt(ri32(tok_address), identifier_floor)) {

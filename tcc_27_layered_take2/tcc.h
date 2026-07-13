@@ -1312,7 +1312,7 @@ extern void test_lvalue(void);
 extern void vpushi(int v);
 extern void vpushs(addr_t v);
 extern void vseti(int r, int v);
-ST_FUNC ElfSym *elfsym(Sym *);
+ElfSym *elfsym(Sym *);
 extern void update_storage(Sym *sym);
 extern Sym *external_global_sym(int v, CType *type, int r);
 extern void vsetc(CType *type, int r, CValue *vc);
