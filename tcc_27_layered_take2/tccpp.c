@@ -3561,6 +3561,7 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
     func_old_type_address = &func_old_type;
     ptrdiff_type_address = &ptrdiff_type;
     tok_address = &tok;
+    gnu_ext_address = &gnu_ext;
     data_section_address = &data_section;
     tcc_state_address = tcc_state;
     s1->pack_stack[0] = 0;

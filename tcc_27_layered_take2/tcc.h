@@ -1154,6 +1154,7 @@ ST_DATA struct BufferedFile *file;
 ST_DATA int ch;
 extern int tok;
 extern int *tok_address;
+extern int *gnu_ext_address;
 ST_DATA CValue tokc;
 ST_DATA const int *macro_ptr;
 ST_DATA int parse_flags;

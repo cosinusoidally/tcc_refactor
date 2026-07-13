@@ -330,6 +330,7 @@ var tok_ident;
 var tok_address;
 var data_section_address;
 var tcc_state_address;
+var gnu_ext_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET = 80;
 var CC2_TCC_STATE_MS_EXTENSIONS_OFFSET = 64;
@@ -4427,6 +4428,216 @@ function parse_btype(type, attributes)
     result = parse_btype_(type, attributes, temporary_type,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     free(temporary_type);
+    return result;
+}
+
+function expr_cond_(saved_value, result_type, first_type, second_type)
+{
+    var condition;
+    var gnu_short;
+    var jump_false;
+    var jump_end;
+    var first_value;
+    var second_register;
+    var register_class;
+    var first_basic;
+    var second_basic;
+    var first_value_type;
+    var second_value_type;
+    var structure_lvalue;
+    expr_lor();
+    if (not(eq(ri32(tok_address), 63))) {
+        return 0;
+    }
+    next();
+    condition = condition_3way();
+    gnu_short = and(eq(ri32(tok_address), 58), ri32(gnu_ext_address));
+    if (lt(condition, 0)) {
+        register_class = CC2_INTEGER_REGISTER_CLASS;
+        if (is_float(ri32(vtop))) {
+            register_class = CC2_I386_FLOAT_REGISTER_CLASS;
+        }
+        gv(register_class);
+        save_regs(1);
+        if (gnu_short) {
+            gv_dup();
+        }
+        jump_false = gvtst(1, 0);
+    } else {
+        if (not(gnu_short)) {
+            vpop();
+        }
+        jump_false = 0;
+    }
+    if (eq(condition, 0)) {
+        nocode_wanted = add(nocode_wanted, 1);
+    }
+    if (not(gnu_short)) {
+        gexpr();
+    }
+    cc2_copy_type(first_type, vtop);
+    cc2_copy_svalue(saved_value, vtop);
+    vtop = sub(vtop, CC2_SVALUE_BYTES);
+    skip(58);
+    jump_end = 0;
+    if (lt(condition, 0)) {
+        jump_end = gjmp(0);
+    }
+    gsym(jump_false);
+    if (eq(condition, 0)) {
+        nocode_wanted = sub(nocode_wanted, 1);
+    }
+    if (eq(condition, 1)) {
+        nocode_wanted = add(nocode_wanted, 1);
+    }
+    expr_cond();
+    if (eq(condition, 1)) {
+        nocode_wanted = sub(nocode_wanted, 1);
+    }
+    cc2_copy_type(second_type, vtop);
+    first_value_type = ri32(first_type);
+    first_basic = and(first_value_type, CC2_TCC_BASIC_TYPE_MASK);
+    second_value_type = ri32(second_type);
+    second_basic = and(second_value_type, CC2_TCC_BASIC_TYPE_MASK);
+    wi32(add(result_type, 4), 0);
+    if (or(is_float(first_basic), is_float(second_basic))) {
+        if (or(eq(first_basic, CC2_TCC_LONG_DOUBLE_TYPE),
+            eq(second_basic, CC2_TCC_LONG_DOUBLE_TYPE))) {
+            wi32(result_type, CC2_TCC_LONG_DOUBLE_TYPE);
+        } else if (or(eq(first_basic, CC2_TCC_DOUBLE_TYPE),
+            eq(second_basic, CC2_TCC_DOUBLE_TYPE))) {
+            wi32(result_type, CC2_TCC_DOUBLE_TYPE);
+        } else {
+            wi32(result_type, CC2_TCC_FLOAT_TYPE);
+        }
+    } else if (or(eq(first_basic, CC2_TCC_LONG_LONG_TYPE),
+        eq(second_basic, CC2_TCC_LONG_LONG_TYPE))) {
+        wi32(result_type, or(CC2_TCC_LONG_LONG_TYPE,
+            CC2_TCC_LONG_MODIFIER));
+        if (eq(first_basic, CC2_TCC_LONG_LONG_TYPE)) {
+            wi32(result_type, and(ri32(result_type), first_value_type));
+        }
+        if (eq(second_basic, CC2_TCC_LONG_LONG_TYPE)) {
+            wi32(result_type, and(ri32(result_type), second_value_type));
+        }
+        if (or(eq(and(first_value_type, 159),
+            or(CC2_TCC_LONG_LONG_TYPE, CC2_TCC_UNSIGNED_TYPE)),
+            eq(and(second_value_type, 159),
+            or(CC2_TCC_LONG_LONG_TYPE, CC2_TCC_UNSIGNED_TYPE)))) {
+            wi32(result_type, or(ri32(result_type),
+                CC2_TCC_UNSIGNED_TYPE));
+        }
+    } else if (or(eq(first_basic, CC2_TCC_POINTER_TYPE),
+        eq(second_basic, CC2_TCC_POINTER_TYPE))) {
+        if (is_null_pointer(vtop)) {
+            cc2_copy_type(result_type, first_type);
+        } else if (is_null_pointer(saved_value)) {
+            cc2_copy_type(result_type, second_type);
+        } else {
+            cc2_copy_type(result_type, first_type);
+        }
+    } else if (or(eq(first_basic, CC2_TCC_FUNCTION_TYPE),
+        eq(second_basic, CC2_TCC_FUNCTION_TYPE))) {
+        if (eq(first_basic, CC2_TCC_FUNCTION_TYPE)) {
+            cc2_copy_type(result_type, first_type);
+        } else {
+            cc2_copy_type(result_type, second_type);
+        }
+    } else if (or(eq(first_basic, CC2_TCC_STRUCT_TYPE),
+        eq(second_basic, CC2_TCC_STRUCT_TYPE))) {
+        if (eq(first_basic, CC2_TCC_STRUCT_TYPE)) {
+            cc2_copy_type(result_type, first_type);
+        } else {
+            cc2_copy_type(result_type, second_type);
+        }
+    } else if (or(eq(first_basic, CC2_TCC_VOID_TYPE),
+        eq(second_basic, CC2_TCC_VOID_TYPE))) {
+        wi32(result_type, CC2_TCC_VOID_TYPE);
+    } else {
+        wi32(result_type, or(CC2_TCC_INT_TYPE, and(CC2_TCC_LONG_MODIFIER,
+            or(first_value_type, second_value_type))));
+        if (or(eq(and(first_value_type, 159),
+            or(CC2_TCC_INT_TYPE, CC2_TCC_UNSIGNED_TYPE)),
+            eq(and(second_value_type, 159),
+            or(CC2_TCC_INT_TYPE, CC2_TCC_UNSIGNED_TYPE)))) {
+            wi32(result_type, or(ri32(result_type),
+                CC2_TCC_UNSIGNED_TYPE));
+        }
+    }
+    structure_lvalue = and(and(not(not(and(ri32(add(vtop,
+        CC2_SVALUE_REGISTER_OFFSET)), CC2_TCC_LVALUE))), not(not(and(ri32(add(
+        saved_value, CC2_SVALUE_REGISTER_OFFSET)), CC2_TCC_LVALUE)))),
+        eq(and(ri32(result_type), CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_STRUCT_TYPE));
+    structure_lvalue = and(structure_lvalue, lt(condition, 0));
+    if (not(lt(condition, 0))) {
+        if (eq(condition, 1)) {
+            cc2_copy_svalue(vtop, saved_value);
+        }
+        gen_cast(result_type);
+        if (eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_STRUCT_TYPE)) {
+            gaddrof();
+        }
+        return 0;
+    }
+    if (not(eq(condition, 1))) {
+        gen_cast(result_type);
+        if (structure_lvalue) {
+            mk_pointer(vtop);
+            gaddrof();
+        } else if (eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_STRUCT_TYPE)) {
+            gaddrof();
+        }
+    }
+    register_class = CC2_INTEGER_REGISTER_CLASS;
+    if (is_float(ri32(result_type))) {
+        register_class = CC2_I386_FLOAT_REGISTER_CLASS;
+    } else if (eq(and(ri32(result_type), CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE)) {
+        register_class = CC2_I386_INTEGER_RETURN_CLASS;
+    }
+    jump_false = 0;
+    second_register = 0;
+    if (lt(condition, 0)) {
+        second_register = gv(register_class);
+        jump_false = gjmp(0);
+    }
+    gsym(jump_end);
+    if (not(eq(condition, 0))) {
+        cc2_copy_svalue(vtop, saved_value);
+        gen_cast(result_type);
+        if (structure_lvalue) {
+            mk_pointer(vtop);
+            gaddrof();
+        } else if (eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_STRUCT_TYPE)) {
+            gaddrof();
+        }
+    }
+    if (lt(condition, 0)) {
+        first_value = gv(register_class);
+        move_reg(second_register, first_value, ri32(result_type));
+        wi32(add(vtop, CC2_SVALUE_REGISTER_OFFSET), or(and(ri32(add(vtop,
+            CC2_SVALUE_REGISTER_OFFSET)), 0xffff0000),
+            and(second_register, 65535)));
+        gsym(jump_false);
+        if (structure_lvalue) {
+            indir();
+        }
+    }
+    return 0;
+}
+
+function expr_cond()
+{
+    var scratch;
+    var result;
+    scratch = malloc(52);
+    result = expr_cond_(scratch, add(scratch, 28), add(scratch, 36),
+        add(scratch, 44));
+    free(scratch);
     return result;
 }
 

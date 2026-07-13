@@ -189,11 +189,6 @@ function gfunc_sret(type, variadic, return_type, alignment, register_size)
     return 0;
 }
 
-function expr_cond()
-{
-    return 0;
-}
-
 function vstore()
 {
     return 0;
