@@ -229,6 +229,19 @@ var CC0_ELF_SYMBOL_LOCAL_SECTION;
 var CC0_ELF_SYMBOL_GLOBAL_OBJECT;
 var CC0_ELF_SYMBOL_GLOBAL_FUNCTION;
 var CC0_ELF_RELOCATION_ABSOLUTE;
+var CC0_ELF_OUTPUT;
+var CC0_ELF_OUTPUT_LENGTH;
+var CC0_ELF_HEADER_BYTES;
+var CC0_ELF_SECTION_HEADER_BYTES;
+var CC0_ELF_TYPE_RELOCATABLE;
+var CC0_ELF_MACHINE_I386;
+var CC0_ELF_CURRENT_VERSION;
+var CC0_ELF_MAGIC_DELETE;
+var CC0_ELF_MAGIC_E;
+var CC0_ELF_MAGIC_L;
+var CC0_ELF_MAGIC_F;
+var CC0_ELF_CLASS_32;
+var CC0_ELF_DATA_LITTLE_ENDIAN;
 
 function cc0_init()
 {
@@ -445,6 +458,19 @@ function cc0_init()
     CC0_ELF_SYMBOL_GLOBAL_OBJECT = 17;
     CC0_ELF_SYMBOL_GLOBAL_FUNCTION = 18;
     CC0_ELF_RELOCATION_ABSOLUTE = 1;
+    CC0_ELF_OUTPUT = 0;
+    CC0_ELF_OUTPUT_LENGTH = 0;
+    CC0_ELF_HEADER_BYTES = 52;
+    CC0_ELF_SECTION_HEADER_BYTES = 40;
+    CC0_ELF_TYPE_RELOCATABLE = 1;
+    CC0_ELF_MACHINE_I386 = 3;
+    CC0_ELF_CURRENT_VERSION = 1;
+    CC0_ELF_MAGIC_DELETE = 127;
+    CC0_ELF_MAGIC_E = 69;
+    CC0_ELF_MAGIC_L = 76;
+    CC0_ELF_MAGIC_F = 70;
+    CC0_ELF_CLASS_32 = 1;
+    CC0_ELF_DATA_LITTLE_ENDIAN = 1;
     return CC0_FALSE;
 }
 
@@ -924,6 +950,203 @@ function cc0_elf_build_object_sections()
         return CC0_TRUE;
     }
     return cc0_elf_emit_relocations();
+}
+
+function cc0_compiler_product_(left, right, result, index)
+{
+    result = 0;
+    index = 0;
+    while (lt(index, right)) {
+        result = add(result, left);
+        index = add(index, 1);
+    }
+    return result;
+}
+
+function cc0_compiler_product(left, right)
+{
+    return cc0_compiler_product_(left, right, 0, 0);
+}
+
+function cc0_elf_align(value, alignment)
+{
+    return and(add(value, sub(alignment, 1)), sub(0, alignment));
+}
+
+function cc0_elf_write_half(address, value)
+{
+    wi8(address, and(value, 255));
+    wi8(add(address, 1), ushr(value, 8));
+    return value;
+}
+
+function cc0_compiler_clear_bytes_(memory, length, index)
+{
+    index = 0;
+    while (lt(index, length)) {
+        wi8(add(memory, index), 0);
+        index = add(index, 1);
+    }
+    return memory;
+}
+
+function cc0_compiler_clear_bytes(memory, length)
+{
+    return cc0_compiler_clear_bytes_(memory, length, 0);
+}
+
+/* TCC stores each emitted section name in the final .shstrtab section. */
+function cc0_elf_add_section_names_(index, section, name, length, offset)
+{
+    CC0_ELF_SHSTRTAB_SECTION = cc0_elf_new_section(mks(".shstrtab"), 9,
+        CC0_ELF_SECTION_STRTAB, 0);
+    if (eq(CC0_ELF_SHSTRTAB_SECTION, 0)) {
+        return cc0_compiler_fail();
+    }
+    if (lt(cc0_elf_put_string(CC0_ELF_SHSTRTAB_SECTION, mks(""), 0), 0)) {
+        return CC0_TRUE;
+    }
+    index = 1;
+    while (lt(index, CC0_SECTION_COUNT)) {
+        section = cc0_elf_section_entry(index);
+        name = ri32(add(section, CC0_SECTION_NAME_OFFSET));
+        length = ri32(add(section, CC0_SECTION_NAME_LENGTH_OFFSET));
+        offset = cc0_elf_put_string(CC0_ELF_SHSTRTAB_SECTION, name, length);
+        if (lt(offset, 0)) {
+            return CC0_TRUE;
+        }
+        wi32(add(section, CC0_SECTION_NAME_OFFSET), offset);
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_elf_add_section_names()
+{
+    return cc0_elf_add_section_names_(0, 0, 0, 0, 0);
+}
+
+/* This is layout_sections for TCC_OUTPUT_OBJ, where phnum is zero. */
+function cc0_elf_layout_sections_(index, section, file_offset, alignment,
+    section_bytes)
+{
+    file_offset = CC0_ELF_HEADER_BYTES;
+    index = 1;
+    while (lt(index, CC0_SECTION_COUNT)) {
+        section = cc0_elf_section_entry(index);
+        alignment = ri32(add(section, CC0_SECTION_ALIGNMENT_OFFSET));
+        file_offset = cc0_elf_align(file_offset, alignment);
+        wi32(add(section, CC0_SECTION_FILE_OFFSET), file_offset);
+        if (not(eq(ri32(add(section, CC0_SECTION_TYPE_OFFSET)),
+            CC0_ELF_SECTION_NOBITS))) {
+            file_offset = add(file_offset,
+                ri32(add(section, CC0_SECTION_SIZE_OFFSET)));
+        }
+        index = add(index, 1);
+    }
+    file_offset = cc0_elf_align(file_offset, CC0_WORD_BYTES);
+    section_bytes = cc0_compiler_product(CC0_SECTION_COUNT,
+        CC0_ELF_SECTION_HEADER_BYTES);
+    CC0_ELF_OUTPUT_LENGTH = add(file_offset, section_bytes);
+    return file_offset;
+}
+
+function cc0_elf_layout_sections()
+{
+    return cc0_elf_layout_sections_(0, 0, 0, 0, 0);
+}
+
+function cc0_elf_write_header_(section_header_offset, header)
+{
+    header = CC0_ELF_OUTPUT;
+    wi8(header, CC0_ELF_MAGIC_DELETE);
+    wi8(add(header, 1), CC0_ELF_MAGIC_E);
+    wi8(add(header, 2), CC0_ELF_MAGIC_L);
+    wi8(add(header, 3), CC0_ELF_MAGIC_F);
+    wi8(add(header, 4), CC0_ELF_CLASS_32);
+    wi8(add(header, 5), CC0_ELF_DATA_LITTLE_ENDIAN);
+    wi8(add(header, 6), CC0_ELF_CURRENT_VERSION);
+    cc0_elf_write_half(add(header, 16), CC0_ELF_TYPE_RELOCATABLE);
+    cc0_elf_write_half(add(header, 18), CC0_ELF_MACHINE_I386);
+    wi32(add(header, 20), CC0_ELF_CURRENT_VERSION);
+    wi32(add(header, 32), section_header_offset);
+    cc0_elf_write_half(add(header, 40), CC0_ELF_HEADER_BYTES);
+    cc0_elf_write_half(add(header, 46), CC0_ELF_SECTION_HEADER_BYTES);
+    cc0_elf_write_half(add(header, 48), CC0_SECTION_COUNT);
+    cc0_elf_write_half(add(header, 50), sub(CC0_SECTION_COUNT, 1));
+    return CC0_FALSE;
+}
+
+function cc0_elf_write_header(section_header_offset)
+{
+    return cc0_elf_write_header_(section_header_offset, 0);
+}
+
+function cc0_elf_write_section_header_(section, output, link)
+{
+    wi32(output, ri32(add(section, CC0_SECTION_NAME_OFFSET)));
+    wi32(add(output, 4), ri32(add(section, CC0_SECTION_TYPE_OFFSET)));
+    wi32(add(output, 8), ri32(add(section, CC0_SECTION_FLAGS_OFFSET)));
+    wi32(add(output, 16), ri32(add(section, CC0_SECTION_FILE_OFFSET)));
+    wi32(add(output, 20), ri32(add(section, CC0_SECTION_SIZE_OFFSET)));
+    link = ri32(add(section, CC0_SECTION_LINK_OFFSET));
+    wi32(add(output, 24), link);
+    wi32(add(output, 28), ri32(add(section, CC0_SECTION_INFO_OFFSET)));
+    wi32(add(output, 32), ri32(add(section, CC0_SECTION_ALIGNMENT_OFFSET)));
+    wi32(add(output, 36), ri32(add(section,
+        CC0_SECTION_ENTRY_SIZE_OFFSET)));
+    return CC0_FALSE;
+}
+
+function cc0_elf_write_section_header(section, output)
+{
+    return cc0_elf_write_section_header_(section, output, 0);
+}
+
+function cc0_elf_serialize_object_(section_header_offset, index, section,
+    output, data, size)
+{
+    CC0_ELF_OUTPUT = alloc(CC0_ELF_OUTPUT_LENGTH);
+    if (eq(CC0_ELF_OUTPUT, 0)) {
+        return cc0_compiler_fail();
+    }
+    cc0_compiler_clear_bytes(CC0_ELF_OUTPUT, CC0_ELF_OUTPUT_LENGTH);
+    cc0_elf_write_header(section_header_offset);
+    index = 1;
+    while (lt(index, CC0_SECTION_COUNT)) {
+        section = cc0_elf_section_entry(index);
+        if (not(eq(ri32(add(section, CC0_SECTION_TYPE_OFFSET)),
+            CC0_ELF_SECTION_NOBITS))) {
+            data = ri32(add(section, CC0_SECTION_DATA_OFFSET));
+            size = ri32(add(section, CC0_SECTION_SIZE_OFFSET));
+            cc0_compiler_copy_bytes(add(CC0_ELF_OUTPUT,
+                ri32(add(section, CC0_SECTION_FILE_OFFSET))), data, size);
+        }
+        output = add(CC0_ELF_OUTPUT, add(section_header_offset,
+            cc0_compiler_product(index, CC0_ELF_SECTION_HEADER_BYTES)));
+        cc0_elf_write_section_header(section, output);
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_elf_serialize_object(section_header_offset)
+{
+    return cc0_elf_serialize_object_(section_header_offset, 0, 0, 0, 0, 0);
+}
+
+function cc0_compiler_build_object(source, length)
+{
+    if (cc0_compiler_compile_program(source, length)) {
+        return CC0_TRUE;
+    }
+    if (cc0_elf_build_object_sections()) {
+        return CC0_TRUE;
+    }
+    if (cc0_elf_add_section_names()) {
+        return CC0_TRUE;
+    }
+    return cc0_elf_serialize_object(cc0_elf_layout_sections());
 }
 
 function cc0_is_decimal_digit(value)
