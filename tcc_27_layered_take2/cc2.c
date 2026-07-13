@@ -1398,6 +1398,68 @@ function cc2_lex_identifier_long(pointer)
     return cc2_lex_identifier_long_(pointer, 0, 0);
 }
 
+function cc2_lex_number_tail_(pointer, previous, character,
+    character_class, accepts, exponent_sign, assembler_hex)
+{
+    cstr_reset(tokcstr_address);
+    character = ri8(pointer);
+    while (1) {
+        cstr_ccat(tokcstr_address, previous);
+        character_class = ri8(add(isidnum_table_address,
+            sub(character, CC2_CHARACTER_END_OF_FILE)));
+        accepts = not(eq(and(character_class,
+            or(CC2_CHARACTER_IDENTIFIER_CLASS,
+            CC2_CHARACTER_NUMBER_CLASS)), 0));
+        if (eq(character, mkC("."))) {
+            accepts = 1;
+        }
+        if (or(eq(character, mkC("+")), eq(character, mkC("-")))) {
+            exponent_sign = or(eq(previous, mkC("p")),
+                eq(previous, mkC("P")));
+            if (exponent_sign) {
+                accepts = 1;
+            } else if (or(eq(previous, mkC("e")),
+                eq(previous, mkC("E")))) {
+                assembler_hex = 0;
+                if (not(eq(and(ri32(parse_flags_address),
+                    CC2_PARSE_FLAG_ASM_FILE), 0))) {
+                    if (eq(ri8(ri32(add(tokcstr_address,
+                        CC2_CSTRING_DATA_OFFSET))), mkC("0"))) {
+                        if (or(eq(ri8(add(ri32(add(tokcstr_address,
+                            CC2_CSTRING_DATA_OFFSET)), 1)), mkC("x")),
+                            eq(ri8(add(ri32(add(tokcstr_address,
+                            CC2_CSTRING_DATA_OFFSET)), 1)), mkC("X")))) {
+                            assembler_hex = 1;
+                        }
+                    }
+                }
+                if (not(assembler_hex)) {
+                    accepts = 1;
+                }
+            }
+        }
+        if (not(accepts)) {
+            break;
+        }
+        previous = character;
+        pointer = cc2_lex_peek(pointer);
+        character = ri8(pointer);
+    }
+    cstr_ccat(tokcstr_address, 0);
+    wi32(add(tokc_address, CC2_CSTRING_SIZE_OFFSET),
+        ri32(add(tokcstr_address, CC2_CSTRING_SIZE_OFFSET)));
+    wi32(add(tokc_address, CC2_CSTRING_DATA_OFFSET),
+        ri32(add(tokcstr_address, CC2_CSTRING_DATA_OFFSET)));
+    wi32(tok_address, CC2_TOKEN_PREPROCESSOR_NUMBER);
+    wi32(tok_flags_address, 0);
+    return pointer;
+}
+
+function cc2_lex_number_tail(pointer, previous)
+{
+    return cc2_lex_number_tail_(pointer, previous, 0, 0, 0, 0, 0);
+}
+
 function skip_spaces()
 {
     while (cc0_is_space(ch)) {
