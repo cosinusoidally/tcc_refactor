@@ -389,31 +389,6 @@ void vpush_bitfield_mask(int basic_type, int bit_size, int bit_pos, int invert)
 }
 
 
-#ifdef TCC_TARGET_ARM
-/* find a register of class 'rc2' with at most one reference on stack.
- * If none, call get_reg(rc) */
-ST_FUNC int get_reg_ex(int rc, int rc2)
-{
-    int r;
-    SValue *p;
-    
-    for(r=0;r<NB_REGS;r++) {
-        if (reg_classes[r] & rc2) {
-            int n;
-            n=0;
-            for(p = vstack; p <= vtop; p++) {
-                if ((p->r & VT_VALMASK) == r ||
-                    (p->r2 & VT_VALMASK) == r)
-                    n++;
-            }
-            if (n <= 1)
-                return r;
-        }
-    }
-    return get_reg(rc);
-}
-#endif
-
 /* move register 's' (of type 't') to 'r', and flush previous value of r to memory
    if needed */
 #ifdef CONFIG_TCC_BCHECK
@@ -457,34 +432,6 @@ static void gbound(void)
 
 #if PTR_SIZE == 4
 /* expand 64bit on stack in two ints */
-#endif
-
-#ifdef TCC_TARGET_ARM
-/* expand long long on stack */
-ST_FUNC void lexpand_nr(void)
-{
-    int u,v;
-
-    u = vtop->type.t & (VT_DEFSIGN | VT_UNSIGNED);
-    vdup();
-    vtop->r2 = VT_CONST;
-    vtop->type.t = VT_INT | u;
-    v=vtop[-1].r & (VT_VALMASK | VT_LVAL);
-    if (v == VT_CONST) {
-      vtop[-1].c.i = vtop->c.i;
-      vtop->c.i = vtop->c.i >> 32;
-      vtop->r = VT_CONST;
-    } else if (v == (VT_LVAL|VT_CONST) || v == (VT_LVAL|VT_LOCAL)) {
-      vtop->c.i += 4;
-      vtop->r = vtop[-1].r;
-    } else if (v > VT_CONST) {
-      vtop--;
-      lexpand();
-    } else
-      vtop->r = vtop[-1].r2;
-    vtop[-1].r2 = VT_CONST;
-    vtop[-1].type.t = VT_INT | u;
-}
 #endif
 
 #if PTR_SIZE == 4
