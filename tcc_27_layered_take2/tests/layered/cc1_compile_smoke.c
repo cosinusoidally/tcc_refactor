@@ -19,6 +19,9 @@ int record(int value)
 int main()
 {
     int temporary = identity(COMBINE(RESULT, (6 / 3 + 5 % 3 - 2)) * 1);
+    int pointed_value = 3;
+    int *pointer = &pointed_value;
+    temporary = temporary + (*pointer - 3);
     temporary = (temporary << 1) >> 1;
     temporary = (temporary | 8) ^ 8;
     temporary = temporary & ~0;

@@ -115,6 +115,8 @@ var CC1_EXPRESSION_BIT_AND_KIND;
 var CC1_EXPRESSION_BIT_XOR_KIND;
 var CC1_EXPRESSION_BIT_OR_KIND;
 var CC1_EXPRESSION_COMPLEMENT_KIND;
+var CC1_EXPRESSION_DEREFERENCE_KIND;
+var CC1_EXPRESSION_ADDRESS_KIND;
 var CC1_EXPRESSIONS;
 var CC1_EXPRESSION_CAPACITY;
 var CC1_EXPRESSION_COUNT;
@@ -1413,6 +1415,8 @@ function cc1_expression_init()
     CC1_EXPRESSION_BIT_XOR_KIND = 17;
     CC1_EXPRESSION_BIT_OR_KIND = 18;
     CC1_EXPRESSION_COMPLEMENT_KIND = 19;
+    CC1_EXPRESSION_DEREFERENCE_KIND = 20;
+    CC1_EXPRESSION_ADDRESS_KIND = 21;
     CC1_EXPRESSION_COUNT = 0;
     CC1_EXPRESSION_ERROR = 0;
     return 0;
@@ -1528,6 +1532,18 @@ function cc1_expression_parse_unary_(token, kind, expression)
         cc1_preprocessed_consume();
         expression = cc1_expression_parse_unary();
         return cc1_expression_new(CC1_EXPRESSION_COMPLEMENT_KIND, token,
+            expression, 0);
+    }
+    if (eq(kind, 42)) {
+        cc1_preprocessed_consume();
+        expression = cc1_expression_parse_unary();
+        return cc1_expression_new(CC1_EXPRESSION_DEREFERENCE_KIND, token,
+            expression, 0);
+    }
+    if (eq(kind, 38)) {
+        cc1_preprocessed_consume();
+        expression = cc1_expression_parse_unary();
+        return cc1_expression_new(CC1_EXPRESSION_ADDRESS_KIND, token,
             expression, 0);
     }
     return cc1_expression_parse_primary();
@@ -1916,6 +1932,14 @@ function cc1_expression_emit_(expression, kind, token, argument, origin)
         if (cc1_expression_emit_name(mks("bnot"), token)) {
             return 1;
         }
+    } else if (eq(kind, CC1_EXPRESSION_DEREFERENCE_KIND)) {
+        if (cc1_expression_emit_name(mks("ri32"), token)) {
+            return 1;
+        }
+    } else if (eq(kind, CC1_EXPRESSION_ADDRESS_KIND)) {
+        if (cc1_expression_emit_name(mks("addr"), token)) {
+            return 1;
+        }
     } else {
         return 1;
     }
@@ -1944,12 +1968,14 @@ function cc1_expression_emit(expression)
 }
 
 function cc1_normalize_tokens_(index, token, kind, text, length, origin,
-    header, next_token, following_token, skip, expression)
+    header, next_token, following_token, skip, expression, declaration,
+    declarator_index, declarator_token)
 {
     CC1_NORMALIZED_LENGTH = 0;
     cc1_expression_init();
     index = 0;
     header = 0;
+    declaration = 0;
     while (lt(index, CC1_PREPROCESSED_COUNT)) {
         token = ri32(add(CC1_PREPROCESSED_TOKENS, shl(index, 2)));
         kind = ri32(add(token, CC1_TOKEN_KIND_OFFSET));
@@ -2093,22 +2119,45 @@ function cc1_normalize_tokens_(index, token, kind, text, length, origin,
         }
         if (skip) {
         } else if (cc1_text_equal(text, length, mks("int"))) {
+            declaration = 1;
             if (header) {
                 skip = 1;
-            } else if (lt(add(index, 2), CC1_PREPROCESSED_COUNT)) {
-                next_token = ri32(add(CC1_PREPROCESSED_TOKENS,
-                    shl(add(index, 1), 2)));
-                following_token = ri32(add(CC1_PREPROCESSED_TOKENS,
-                    shl(add(index, 2), 2)));
-                if (eq(ri32(add(following_token, CC1_TOKEN_KIND_OFFSET)),
-                    40)) {
-                    text = mks("function");
-                    length = 8;
-                    header = 1;
-                } else {
-                    text = mks("var");
-                    length = 3;
+            } else {
+                declarator_index = add(index, 1);
+                while (lt(declarator_index, CC1_PREPROCESSED_COUNT)) {
+                    declarator_token = ri32(add(CC1_PREPROCESSED_TOKENS,
+                        shl(declarator_index, 2)));
+                    if (not(eq(ri32(add(declarator_token,
+                        CC1_TOKEN_KIND_OFFSET)), 42))) {
+                        break;
+                    }
+                    declarator_index = add(declarator_index, 1);
                 }
+                following_token = 0;
+                if (lt(add(declarator_index, 1),
+                    CC1_PREPROCESSED_COUNT)) {
+                    following_token = ri32(add(CC1_PREPROCESSED_TOKENS,
+                        shl(add(declarator_index, 1), 2)));
+                }
+                if (not(eq(following_token, 0))) {
+                    if (eq(ri32(add(following_token,
+                        CC1_TOKEN_KIND_OFFSET)), 40)) {
+                        text = mks("function");
+                        length = 8;
+                        header = 1;
+                    } else {
+                        text = mks("var");
+                        length = 3;
+                    }
+                } else {
+                    return 1;
+                }
+            }
+        } else if (declaration) {
+            if (eq(kind, 42)) {
+                skip = 1;
+            } else if (eq(kind, 2)) {
+                declaration = 0;
             }
         } else if (header) {
             if (cc1_text_equal(text, length, mks("void"))) {
@@ -2140,7 +2189,8 @@ function cc1_normalize_tokens_(index, token, kind, text, length, origin,
 
 function cc1_normalize_tokens()
 {
-    return cc1_normalize_tokens_(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    return cc1_normalize_tokens_(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0);
 }
 
 /* This is the permanent frontend dispatch point replaced by cc1_stubs in cc0. */

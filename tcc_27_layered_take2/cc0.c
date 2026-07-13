@@ -133,6 +133,8 @@ var CC0_X86_STORE_REGISTER_OPCODE;
 var CC0_X86_STORE_EAX_TO_FRAME;
 var CC0_X86_LOAD_EAX_FROM_FRAME_WORD;
 var CC0_X86_STORE_EAX_TO_FRAME_WORD;
+var CC0_X86_LOAD_ADDRESS_OPCODE;
+var CC0_X86_LOAD_ADDRESS_FRAME_WORD;
 var CC0_X86_TEST_OPCODE;
 var CC0_X86_TEST_EAX_EAX;
 var CC0_X86_TWO_BYTE_OPCODE;
@@ -409,6 +411,8 @@ function cc0_init()
     CC0_X86_STORE_EAX_TO_FRAME = 69;
     CC0_X86_LOAD_EAX_FROM_FRAME_WORD = 133;
     CC0_X86_STORE_EAX_TO_FRAME_WORD = 133;
+    CC0_X86_LOAD_ADDRESS_OPCODE = 141;
+    CC0_X86_LOAD_ADDRESS_FRAME_WORD = 133;
     CC0_X86_TEST_OPCODE = 133;
     CC0_X86_TEST_EAX_EAX = 192;
     CC0_X86_TWO_BYTE_OPCODE = 15;
@@ -2459,6 +2463,13 @@ function cc0_compiler_emit_store_local(offset)
     return cc0_compiler_emit_word(offset);
 }
 
+function cc0_compiler_emit_frame_address(offset)
+{
+    cc0_compiler_emit_byte(CC0_X86_LOAD_ADDRESS_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_LOAD_ADDRESS_FRAME_WORD);
+    return cc0_compiler_emit_word(offset);
+}
+
 function cc0_compiler_emit_test_result()
 {
     cc0_compiler_emit_byte(CC0_X86_TEST_OPCODE);
@@ -2762,6 +2773,26 @@ function cc0_compiler_emit_store_variable_(name, length, offset,
 function cc0_compiler_emit_store_variable(name, length)
 {
     return cc0_compiler_emit_store_variable_(name, length, 0, 0);
+}
+
+function cc0_compiler_emit_address_variable_(name, length, offset)
+{
+    offset = cc0_compiler_local_offset(name, length);
+    if (lt(offset, sub(0, 1))) {
+        return cc0_compiler_emit_frame_address(offset);
+    }
+    offset = cc0_compiler_parameter_offset(name, length);
+    if (not(lt(offset, 0))) {
+        return cc0_compiler_emit_frame_address(offset);
+    }
+    cc0_compiler_emit_byte(CC0_X86_MOV_EAX_IMMEDIATE);
+    cc0_compiler_record_relocation(name, length, CC0_CODE_LENGTH, 0);
+    return cc0_compiler_emit_word(0);
+}
+
+function cc0_compiler_emit_address_variable(name, length)
+{
+    return cc0_compiler_emit_address_variable_(name, length, 0);
 }
 
 function cc0_compiler_emit_user_call_(name, length, argument_count, position)
@@ -3349,6 +3380,34 @@ function cc0_compiler_parse_call_(name, length, argument_count, arity,
     return CC0_FALSE;
 }
 
+function cc0_compiler_parse_address_(name, length)
+{
+    cc0_compiler_next_token();
+    if (not(eq(CC0_TOKEN, CC0_TOKEN_IDENTIFIER))) {
+        return cc0_compiler_fail();
+    }
+    name = CC0_TOKEN_START;
+    length = CC0_TOKEN_LENGTH;
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_RESOLVE)) {
+        if (not(cc0_compiler_variable_exists(name, length))) {
+            return cc0_compiler_fail();
+        }
+    }
+    cc0_compiler_next_token();
+    if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        return cc0_compiler_emit_address_variable(name, length);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_parse_address()
+{
+    return cc0_compiler_parse_address_(0, 0);
+}
+
 function cc0_compiler_parse_expression_(name, length)
 {
     if (eq(CC0_TOKEN, CC0_TOKEN_NUMBER_LITERAL)) {
@@ -3393,6 +3452,9 @@ function cc0_compiler_parse_expression_(name, length)
         return CC0_FALSE;
     }
     if (eq(CC0_TOKEN, CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
+        if (cc0_text_equal(name, length, mks("addr"))) {
+            return cc0_compiler_parse_address();
+        }
         return cc0_compiler_parse_call_(name, length, 0, 0, 0, 0);
     }
     if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_RESOLVE)) {
