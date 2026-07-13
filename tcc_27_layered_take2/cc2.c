@@ -337,6 +337,9 @@ var CC2_TCC_STATE_MS_EXTENSIONS_OFFSET = 64;
 var CC2_TCC_STATE_MS_BITFIELDS_OFFSET = 72;
 var CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET = 936;
 var CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET = 56;
+var CC2_CASE_SECOND_VALUE_OFFSET = 8;
+var CC2_CASE_SYMBOL_OFFSET = 16;
+var CC2_SWITCH_DEFAULT_SYMBOL_OFFSET = 8;
 var table_ident;
 /* CType is two i386 words. */
 var char_pointer_type[2];
@@ -4639,6 +4642,107 @@ function expr_cond()
         add(scratch, 44));
     free(scratch);
     return result;
+}
+
+function cc2_vpush_wide(low, high)
+{
+    var scratch;
+    scratch = malloc(16);
+    wi32(scratch, CC2_TCC_LONG_LONG_TYPE);
+    wi32(add(scratch, 4), 0);
+    wi32(add(scratch, 8), low);
+    wi32(add(scratch, 12), high);
+    vsetc(scratch, CC2_VALUE_CONSTANT, add(scratch, 8));
+    free(scratch);
+    return 0;
+}
+
+function case_cmp(first_pointer, second_pointer)
+{
+    var first;
+    var second;
+    first = ri32(first_pointer);
+    second = ri32(second_pointer);
+    if (cc2_signed_wide_less(ri32(first), ri32(add(first, 4)),
+        ri32(second), ri32(add(second, 4)))) {
+        return sub(0, 1);
+    }
+    if (cc2_signed_wide_less(ri32(second), ri32(add(second, 4)),
+        ri32(first), ri32(add(first, 4)))) {
+        return 1;
+    }
+    return 0;
+}
+
+function cc2_push_case_value(case_record, offset, wide)
+{
+    if (wide) {
+        cc2_vpush_wide(ri32(add(case_record, offset)),
+            ri32(add(case_record, add(offset, 4))));
+    } else {
+        vpushi(ri32(add(case_record, offset)));
+    }
+    return 0;
+}
+
+function gcase(base, length, break_symbol)
+{
+    var case_record;
+    var jump;
+    var half;
+    var wide;
+    wide = eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE);
+    gv(CC2_INTEGER_REGISTER_CLASS);
+    while (lt(4, length)) {
+        half = sdiv(length, 2);
+        case_record = ri32(add(base, mul(half, 4)));
+        vdup();
+        cc2_push_case_value(case_record, CC2_CASE_SECOND_VALUE_OFFSET,
+            wide);
+        gen_op(CC2_TOKEN_SIGNED_LESS_EQUAL);
+        jump = gtst(1, 0);
+        vdup();
+        cc2_push_case_value(case_record, 0, wide);
+        gen_op(CC2_TOKEN_SIGNED_GREATER_EQUAL);
+        gtst_addr(0, ri32(add(case_record, CC2_CASE_SYMBOL_OFFSET)));
+        gcase(base, half, break_symbol);
+        if (ri32(add(cur_switch, CC2_SWITCH_DEFAULT_SYMBOL_OFFSET))) {
+            gjmp_addr(ri32(add(cur_switch,
+                CC2_SWITCH_DEFAULT_SYMBOL_OFFSET)));
+        } else {
+            wi32(break_symbol, gjmp(ri32(break_symbol)));
+        }
+        gsym(jump);
+        half = add(half, 1);
+        base = add(base, mul(half, 4));
+        length = sub(length, half);
+    }
+    while (length) {
+        length = sub(length, 1);
+        case_record = ri32(base);
+        base = add(base, 4);
+        vdup();
+        cc2_push_case_value(case_record, CC2_CASE_SECOND_VALUE_OFFSET,
+            wide);
+        if (and(eq(ri32(case_record), ri32(add(case_record,
+            CC2_CASE_SECOND_VALUE_OFFSET))), eq(ri32(add(case_record, 4)),
+            ri32(add(case_record, add(CC2_CASE_SECOND_VALUE_OFFSET, 4)))))) {
+            gen_op(CC2_TOKEN_EQUAL);
+            gtst_addr(0, ri32(add(case_record,
+                CC2_CASE_SYMBOL_OFFSET)));
+        } else {
+            gen_op(CC2_TOKEN_SIGNED_LESS_EQUAL);
+            jump = gtst(1, 0);
+            vdup();
+            cc2_push_case_value(case_record, 0, wide);
+            gen_op(CC2_TOKEN_SIGNED_GREATER_EQUAL);
+            gtst_addr(0, ri32(add(case_record,
+                CC2_CASE_SYMBOL_OFFSET)));
+            gsym(jump);
+        }
+    }
+    return 0;
 }
 
 /* Parse the pointer and nested-declarator portion of a C declaration. */

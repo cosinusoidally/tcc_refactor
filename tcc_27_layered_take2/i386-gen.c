@@ -678,7 +678,7 @@ int gjmp(int t)
 }
 
 /* generate a jump to a fixed address */
-ST_FUNC void gjmp_addr(int a)
+void gjmp_addr(int a)
 {
     int r;
     r = a - ind - 2;
@@ -690,7 +690,7 @@ ST_FUNC void gjmp_addr(int a)
     }
 }
 
-ST_FUNC void gtst_addr(int inv, int a)
+void gtst_addr(int inv, int a)
 {
     int v = vtop->r & VT_VALMASK;
     if (v == VT_CMP) {

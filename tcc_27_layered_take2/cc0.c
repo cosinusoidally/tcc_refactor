@@ -1113,6 +1113,12 @@ function cc0_elf_external_symbol(name, length)
     if (cc0_compiler_slice_equal(name, length, mks("gjmp"), 4)) {
         return cc0_elf_put_undefined_function(name, length);
     }
+    if (cc0_compiler_slice_equal(name, length, mks("gjmp_addr"), 9)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("gtst_addr"), 9)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
     if (cc0_compiler_slice_equal(name, length, mks("gtst"), 4)) {
         return cc0_elf_put_undefined_function(name, length);
     }
@@ -3625,6 +3631,12 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("gjmp"))) {
         return 1;
     }
+    if (cc0_text_equal(name, length, mks("gjmp_addr"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gtst_addr"))) {
+        return 2;
+    }
     if (cc0_text_equal(name, length, mks("gtst"))) {
         return 2;
     }
@@ -3881,6 +3893,12 @@ function cc0_compiler_external_arity(name, length)
     }
     if (cc0_text_equal(name, length, mks("gjmp"))) {
         return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gjmp_addr"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("gtst_addr"))) {
+        return 2;
     }
     if (cc0_text_equal(name, length, mks("gtst"))) {
         return 2;

@@ -1297,6 +1297,8 @@ struct switch_t {
     int n;
     int def_sym;
 };
+int case_cmp(const void *first, const void *second);
+void gcase(struct case_t **base, int length, int *break_symbol);
 extern struct switch_t *cur_switch;
 
 ST_FUNC void tcc_debug_start(TCCState *s1);
@@ -1544,10 +1546,10 @@ void gfunc_call(int nb_args);
 ST_FUNC void gfunc_prolog(CType *func_type);
 ST_FUNC void gfunc_epilog(void);
 int gjmp(int t);
-ST_FUNC void gjmp_addr(int a);
+void gjmp_addr(int a);
 int gtst(int inv, int t);
 #if defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64
-ST_FUNC void gtst_addr(int inv, int a);
+void gtst_addr(int inv, int a);
 #else
 #define gtst_addr(inv, a) gsym_addr(gtst(inv, 0), a)
 #endif

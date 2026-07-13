@@ -39,6 +39,16 @@ function gtst(inverted, jump_chain)
     return jump_chain;
 }
 
+function gjmp_addr(address)
+{
+    return 0;
+}
+
+function gtst_addr(invert, address)
+{
+    return 0;
+}
+
 function skip(token)
 {
     return 0;
