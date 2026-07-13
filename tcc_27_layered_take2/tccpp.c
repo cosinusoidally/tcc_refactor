@@ -625,7 +625,7 @@ static void parse_number(const char *p)
 /* return next token without macro substitution */
 void next_nomacro1(void)
 {
-    int t, c, is_long;
+    int t, c;
     uint8_t *p;
 
     p = file->buf_ptr;
@@ -740,8 +740,8 @@ maybe_newline:
         } else {
             PEEKC(c, p);
             if (c == '\'' || c == '\"') {
-                is_long = 1;
-                goto str_const;
+                p = (uint8_t *)cc2_lex_string((int)p, c, 1);
+                goto keep_tok_flags;
             } else {
                 p = (uint8_t *)cc2_lex_identifier_long((int)p);
                 goto keep_tok_flags;
@@ -784,19 +784,8 @@ maybe_newline:
         break;
     case '\'':
     case '\"':
-        is_long = 0;
-    str_const:
-        cstr_reset(&tokcstr);
-        if (is_long)
-            cstr_ccat(&tokcstr, 'L');
-        cstr_ccat(&tokcstr, c);
-        p = parse_pp_string(p, c, &tokcstr);
-        cstr_ccat(&tokcstr, c);
-        cstr_ccat(&tokcstr, '\0');
-        tokc.str.size = tokcstr.size;
-        tokc.str.data = tokcstr.data;
-        tok = TOK_PPSTR;
-        break;
+        p = (uint8_t *)cc2_lex_string((int)p, c, 0);
+        goto keep_tok_flags;
 
     case '<':
     case '>':

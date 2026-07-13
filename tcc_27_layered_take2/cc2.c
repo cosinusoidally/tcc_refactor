@@ -1573,6 +1573,25 @@ function parse_pp_string(pointer, separator, string)
     return parse_pp_string_(pointer, separator, string, 0, 0);
 }
 
+function cc2_lex_string(pointer, separator, is_long)
+{
+    cstr_reset(tokcstr_address);
+    if (is_long) {
+        cstr_ccat(tokcstr_address, mkC("L"));
+    }
+    cstr_ccat(tokcstr_address, separator);
+    pointer = parse_pp_string(pointer, separator, tokcstr_address);
+    cstr_ccat(tokcstr_address, separator);
+    cstr_ccat(tokcstr_address, 0);
+    wi32(add(tokc_address, CC2_CSTRING_SIZE_OFFSET),
+        ri32(add(tokcstr_address, CC2_CSTRING_SIZE_OFFSET)));
+    wi32(add(tokc_address, CC2_CSTRING_DATA_OFFSET),
+        ri32(add(tokcstr_address, CC2_CSTRING_DATA_OFFSET)));
+    wi32(tok_address, CC2_TOKEN_PREPROCESSOR_STRING);
+    wi32(tok_flags_address, 0);
+    return pointer;
+}
+
 function preprocess_skip_(source_file, pointer, depth, start_of_line,
     in_warning, character, token, done)
 {
