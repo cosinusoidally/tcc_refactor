@@ -29,6 +29,16 @@ var CC2_ARRAY_ELEMENT_BYTES_OFFSET;
 var CC2_ARRAYS;
 var CC2_ARRAY_CAPACITY;
 var CC2_ARRAY_COUNT;
+/* Stable TCC CType basic-type encoding used at the cc2/remainder boundary. */
+var CC2_TCC_BASIC_TYPE_MASK = 15;
+var CC2_TCC_BYTE_TYPE = 1;
+var CC2_TCC_SHORT_TYPE = 2;
+var CC2_TCC_INT_TYPE = 3;
+var CC2_TCC_LONG_LONG_TYPE = 4;
+var CC2_TCC_FLOAT_TYPE = 8;
+var CC2_TCC_DOUBLE_TYPE = 9;
+var CC2_TCC_LONG_DOUBLE_TYPE = 10;
+var CC2_TCC_QUAD_FLOAT_TYPE = 14;
 
 function cc2_copy_bytes_(destination, source, length, index)
 {
@@ -918,4 +928,22 @@ function exact_log2p1(value)
         result = add(result, 1);
     }
     return result;
+}
+
+function is_float(type)
+{
+    var basic_type;
+    basic_type = and(type, CC2_TCC_BASIC_TYPE_MASK);
+    return or(or(eq(basic_type, CC2_TCC_LONG_DOUBLE_TYPE),
+        eq(basic_type, CC2_TCC_DOUBLE_TYPE)),
+        or(eq(basic_type, CC2_TCC_FLOAT_TYPE),
+        eq(basic_type, CC2_TCC_QUAD_FLOAT_TYPE)));
+}
+
+function is_integer_btype(basic_type)
+{
+    return or(or(eq(basic_type, CC2_TCC_BYTE_TYPE),
+        eq(basic_type, CC2_TCC_SHORT_TYPE)),
+        or(eq(basic_type, CC2_TCC_INT_TYPE),
+        eq(basic_type, CC2_TCC_LONG_LONG_TYPE)));
 }

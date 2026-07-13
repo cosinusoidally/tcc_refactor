@@ -1227,6 +1227,7 @@ int cc0_scan_identifier();
 int cc0_number_zero();
 int cc0_number_lshift();
 int exact_log2p1();
+int is_integer_btype();
 
 static inline int is_space(int ch) {
     return cc0_is_space(ch);
@@ -1281,7 +1282,7 @@ ST_FUNC int tccgen_compile(TCCState *s1);
 ST_FUNC void free_inline_functions(TCCState *s);
 ST_FUNC void check_vstack(void);
 
-ST_INLN int is_float(int t);
+int is_float(int t);
 ST_FUNC int ieee_finite(double d);
 ST_FUNC void test_lvalue(void);
 ST_FUNC void vpushi(int v);
