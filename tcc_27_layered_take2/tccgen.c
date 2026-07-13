@@ -74,6 +74,7 @@ void unary_ieee_constant(int token);
 int unary_parenthesized(int sizeof_caller);
 void unary_string(int token);
 void unary_function_name(int token);
+void unary_generic(void);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1146,66 +1147,8 @@ void unary(void)
         break;
 
     case TOK_GENERIC:
-    {
-	CType controlling_type;
-	int has_default = 0;
-	int has_match = 0;
-	int learn = 0;
-	TokenString *str = NULL;
-
-	next();
-	skip('(');
-	expr_type(&controlling_type, 2);
-	controlling_type.t &= ~(VT_CONSTANT | VT_VOLATILE | VT_ARRAY);
-	for (;;) {
-	    learn = 0;
-	    skip(',');
-	    if (tok == TOK_DEFAULT) {
-		if (has_default)
-		    tcc_error("too many 'default'");
-		has_default = 1;
-		if (!has_match)
-		    learn = 1;
-		next();
-	    } else {
-	        AttributeDef ad_tmp;
-		int itmp;
-	        CType cur_type;
-		parse_btype(&cur_type, &ad_tmp);
-		type_decl(&cur_type, &ad_tmp, &itmp, TYPE_ABSTRACT);
-		if (compare_types(&controlling_type, &cur_type, 0)) {
-		    if (has_match) {
-		      tcc_error("type match twice");
-		    }
-		    has_match = 1;
-		    learn = 1;
-		}
-	    }
-	    skip(':');
-	    if (learn) {
-		if (str)
-		    tok_str_free(str);
-		skip_or_save_block(&str);
-	    } else {
-		skip_or_save_block(NULL);
-	    }
-	    if (tok == ')')
-		break;
-	}
-	if (!str) {
-	    char buf[60];
-	    type_to_str(buf, sizeof buf, &controlling_type, NULL);
-	    tcc_error("type '%s' does not match any association", buf);
-	}
-	begin_macro(str, 1);
-	next();
-	expr_eq();
-	if (tok != TOK_EOF)
-	    expect(",");
-	end_macro();
-        next();
-	break;
-    }
+        unary_generic();
+        break;
     // special qnan , snan and infinity values
     case TOK___NAN__:
     case TOK___SNAN__:

@@ -1190,11 +1190,11 @@ extern TokenSym **table_ident;
 
 TokenSym *tok_alloc(const char *str, int len);
 extern const char *get_tok_str(int v, CValue *cv);
-ST_FUNC void begin_macro(TokenString *str, int alloc);
-ST_FUNC void end_macro(void);
+void begin_macro(TokenString *str, int alloc);
+void end_macro(void);
 ST_INLN void tok_str_new(TokenString *s);
 TokenString *tok_str_alloc(void);
-ST_FUNC void tok_str_free(TokenString *s);
+void tok_str_free(TokenString *s);
 ST_FUNC void tok_str_free_str(int *str);
 void tok_str_add(TokenString *s, int t);
 void tok_str_add_tok(TokenString *s);

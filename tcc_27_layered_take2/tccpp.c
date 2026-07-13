@@ -1049,7 +1049,7 @@ ST_FUNC void tok_str_free_str(int *str)
     tal_free(tokstr_alloc, str);
 }
 
-ST_FUNC void tok_str_free(TokenString *str)
+void tok_str_free(TokenString *str)
 {
     tok_str_free_str(str->str);
     tal_free(tokstr_alloc, str);
@@ -1084,7 +1084,7 @@ void tok_str_add(TokenString *s, int t)
     s->len = len;
 }
 
-ST_FUNC void begin_macro(TokenString *str, int alloc)
+void begin_macro(TokenString *str, int alloc)
 {
     str->alloc = alloc;
     str->prev = macro_stack;
@@ -1094,7 +1094,7 @@ ST_FUNC void begin_macro(TokenString *str, int alloc)
     macro_stack = str;
 }
 
-ST_FUNC void end_macro(void)
+void end_macro(void)
 {
     TokenString *str = macro_stack;
     macro_stack = str->prev;

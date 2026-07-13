@@ -357,6 +357,8 @@ var CC2_TOKEN_WIDE_STRING = 186;
 var CC2_TOKEN_FUNCTION_NAME_GNU = 331;
 var CC2_TOKEN_FUNCTION_NAME_STANDARD = 334;
 var CC2_SECTION_DATA_OFFSET = 0;
+var CC2_TOKEN_GENERIC = 292;
+var CC2_TOKEN_DEFAULT = 300;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;
 var CC2_IEEE_DOUBLE_INFINITY_HIGH_WORD = 2146435072;
 var table_ident;
@@ -5890,6 +5892,94 @@ function unary_function_name(token)
     }
     next();
     free(type);
+    return 0;
+}
+
+function unary_generic()
+{
+    var controlling_type;
+    var current_type;
+    var attributes;
+    var identifier;
+    var selected_holder;
+    var selected;
+    var has_default;
+    var has_match;
+    var learn;
+    var buffer;
+    controlling_type = malloc(8);
+    current_type = malloc(8);
+    attributes = malloc(CC2_ATTRIBUTE_BYTES);
+    identifier = malloc(4);
+    selected_holder = malloc(4);
+    wi32(selected_holder, 0);
+    has_default = 0;
+    has_match = 0;
+    next();
+    skip(40);
+    expr_type(controlling_type, 2);
+    wi32(controlling_type, and(ri32(controlling_type), bnot(or(or(
+        CC2_TCC_CONST_QUALIFIER, CC2_TCC_VOLATILE_QUALIFIER),
+        CC2_TCC_ARRAY_TYPE))));
+    while (1) {
+        learn = 0;
+        skip(44);
+        if (eq(ri32(tok_address), CC2_TOKEN_DEFAULT)) {
+            if (has_default) {
+                tcc_error(mks("too many 'default'"), 0);
+            }
+            has_default = 1;
+            if (not(has_match)) {
+                learn = 1;
+            }
+            next();
+        } else {
+            cc2_zero_bytes(attributes, CC2_ATTRIBUTE_BYTES);
+            parse_btype(current_type, attributes);
+            type_decl(current_type, attributes, identifier,
+                CC2_TYPE_ABSTRACT);
+            if (compare_types(controlling_type, current_type, 0)) {
+                if (has_match) {
+                    tcc_error(mks("type match twice"), 0);
+                }
+                has_match = 1;
+                learn = 1;
+            }
+        }
+        skip(58);
+        if (learn) {
+            selected = ri32(selected_holder);
+            if (selected) {
+                tok_str_free(selected);
+            }
+            skip_or_save_block(selected_holder);
+        } else {
+            skip_or_save_block(0);
+        }
+        if (eq(ri32(tok_address), 41)) {
+            break;
+        }
+    }
+    selected = ri32(selected_holder);
+    if (not(selected)) {
+        buffer = malloc(60);
+        type_to_str(buffer, 60, controlling_type, 0);
+        tcc_error(mks("type '%s' does not match any association"), buffer);
+        free(buffer);
+    }
+    begin_macro(selected, 1);
+    next();
+    expr_eq();
+    if (not(eq(ri32(tok_address), sub(0, 1)))) {
+        expect(mks(","));
+    }
+    end_macro();
+    next();
+    free(selected_holder);
+    free(identifier);
+    free(attributes);
+    free(current_type);
+    free(controlling_type);
     return 0;
 }
 

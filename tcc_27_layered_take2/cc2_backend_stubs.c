@@ -25,6 +25,21 @@ function section_ptr_add(section, length)
     return malloc(length);
 }
 
+function tok_str_free(stream)
+{
+    return 0;
+}
+
+function begin_macro(stream, allocate)
+{
+    return 0;
+}
+
+function end_macro()
+{
+    return 0;
+}
+
 function sym_redeclaration_error(value)
 {
     return 0;
