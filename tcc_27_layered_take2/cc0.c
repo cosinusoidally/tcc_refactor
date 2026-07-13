@@ -1134,6 +1134,15 @@ function cc0_elf_external_symbol(name, length)
     if (cc0_compiler_slice_equal(name, length, mks("tcc_warning"), 11)) {
         return cc0_elf_put_undefined_function(name, length);
     }
+    if (cc0_compiler_slice_equal(name, length, mks("next"), 4)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("unary"), 5)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("gen_op"), 6)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
     if (cc0_compiler_slice_equal(name, length, mks("open"), 4)) {
         if (eq(CC0_ELF_OPEN_SYMBOL, 0)) {
             CC0_ELF_OPEN_SYMBOL = cc0_elf_put_undefined_function(
@@ -3511,6 +3520,15 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("tcc_warning"))) {
         return 2;
     }
+    if (cc0_text_equal(name, length, mks("next"))) {
+        return 0;
+    }
+    if (cc0_text_equal(name, length, mks("unary"))) {
+        return 0;
+    }
+    if (cc0_text_equal(name, length, mks("gen_op"))) {
+        return 1;
+    }
     return sub(0, 1);
 }
 
@@ -3641,6 +3659,15 @@ function cc0_compiler_external_arity(name, length)
     }
     if (cc0_text_equal(name, length, mks("tcc_warning"))) {
         return 2;
+    }
+    if (cc0_text_equal(name, length, mks("next"))) {
+        return 0;
+    }
+    if (cc0_text_equal(name, length, mks("unary"))) {
+        return 0;
+    }
+    if (cc0_text_equal(name, length, mks("gen_op"))) {
+        return 1;
     }
     return sub(0, 1);
 }

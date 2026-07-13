@@ -1419,7 +1419,7 @@ static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
 }
 
 /* generic gen_op: handles types problems */
-ST_FUNC void gen_op(int op)
+void gen_op(int op)
 {
     int u, t1, t2, bt1, bt2, t;
     CType type1;
@@ -3572,7 +3572,7 @@ static void parse_builtin_params(int nc, const char *args)
         nocode_wanted--;
 }
 
-ST_FUNC void unary(void)
+void unary(void)
 {
     int n, t, align, size, r, sizeof_caller;
     CType type;
@@ -4261,102 +4261,6 @@ ST_FUNC void unary(void)
         } else {
             break;
         }
-    }
-}
-
-ST_FUNC void expr_prod(void)
-{
-    int t;
-
-    unary();
-    while (tok == '*' || tok == '/' || tok == '%') {
-        t = tok;
-        next();
-        unary();
-        gen_op(t);
-    }
-}
-
-ST_FUNC void expr_sum(void)
-{
-    int t;
-
-    expr_prod();
-    while (tok == '+' || tok == '-') {
-        t = tok;
-        next();
-        expr_prod();
-        gen_op(t);
-    }
-}
-
-static void expr_shift(void)
-{
-    int t;
-
-    expr_sum();
-    while (tok == TOK_SHL || tok == TOK_SAR) {
-        t = tok;
-        next();
-        expr_sum();
-        gen_op(t);
-    }
-}
-
-static void expr_cmp(void)
-{
-    int t;
-
-    expr_shift();
-    while ((tok >= TOK_ULE && tok <= TOK_GT) ||
-           tok == TOK_ULT || tok == TOK_UGE) {
-        t = tok;
-        next();
-        expr_shift();
-        gen_op(t);
-    }
-}
-
-static void expr_cmpeq(void)
-{
-    int t;
-
-    expr_cmp();
-    while (tok == TOK_EQ || tok == TOK_NE) {
-        t = tok;
-        next();
-        expr_cmp();
-        gen_op(t);
-    }
-}
-
-static void expr_and(void)
-{
-    expr_cmpeq();
-    while (tok == '&') {
-        next();
-        expr_cmpeq();
-        gen_op('&');
-    }
-}
-
-static void expr_xor(void)
-{
-    expr_and();
-    while (tok == '^') {
-        next();
-        expr_and();
-        gen_op('^');
-    }
-}
-
-static void expr_or(void)
-{
-    expr_xor();
-    while (tok == '|') {
-        next();
-        expr_xor();
-        gen_op('|');
     }
 }
 

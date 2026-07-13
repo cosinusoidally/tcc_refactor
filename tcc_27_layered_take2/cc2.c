@@ -109,6 +109,22 @@ var CC2_TCC_INLINE_STORAGE = 32768;
 var CC2_SYM_ATTRIBUTE_ALIGNED_MASK = 31;
 var CC2_SYM_ATTRIBUTE_WEAK = 64;
 var CC2_SYM_ATTRIBUTE_VISIBILITY_MASK = 384;
+var CC2_ASCII_PERCENT = 37;
+var CC2_ASCII_AMPERSAND = 38;
+var CC2_ASCII_ASTERISK = 42;
+var CC2_ASCII_PLUS = 43;
+var CC2_ASCII_MINUS = 45;
+var CC2_ASCII_SLASH = 47;
+var CC2_ASCII_CARET = 94;
+var CC2_ASCII_VERTICAL_BAR = 124;
+var CC2_TOKEN_SHIFT_LEFT = 1;
+var CC2_TOKEN_SHIFT_RIGHT = 2;
+var CC2_TOKEN_UNSIGNED_LESS = 146;
+var CC2_TOKEN_UNSIGNED_GREATER_EQUAL = 147;
+var CC2_TOKEN_EQUAL = 148;
+var CC2_TOKEN_NOT_EQUAL = 149;
+var CC2_TOKEN_UNSIGNED_LESS_EQUAL = 150;
+var CC2_TOKEN_GREATER = 159;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -146,6 +162,7 @@ var vstack_limit;
 var funcname;
 var cur_switch;
 var tok_ident;
+var tok_address;
 var table_ident;
 /* CType is two i386 words. */
 var char_pointer_type[2];
@@ -1167,6 +1184,134 @@ function find_field_(type, value, symbol, symbol_value, symbol_type, found)
 function find_field(type, value)
 {
     return find_field_(type, value, 0, 0, 0, 0);
+}
+
+/* TCC's precedence ladder stays iterative so deeply nested source does not
+   add recursion beyond the grammar's actual parenthesis nesting. */
+function expr_prod_(operation)
+{
+    unary();
+    while (or(or(eq(ri32(tok_address), CC2_ASCII_ASTERISK),
+        eq(ri32(tok_address), CC2_ASCII_SLASH)),
+        eq(ri32(tok_address), CC2_ASCII_PERCENT))) {
+        operation = ri32(tok_address);
+        next();
+        unary();
+        gen_op(operation);
+    }
+    return 0;
+}
+
+function expr_prod()
+{
+    return expr_prod_(0);
+}
+
+function expr_sum_(operation)
+{
+    expr_prod();
+    while (or(eq(ri32(tok_address), CC2_ASCII_PLUS),
+        eq(ri32(tok_address), CC2_ASCII_MINUS))) {
+        operation = ri32(tok_address);
+        next();
+        expr_prod();
+        gen_op(operation);
+    }
+    return 0;
+}
+
+function expr_sum()
+{
+    return expr_sum_(0);
+}
+
+function expr_shift_(operation)
+{
+    expr_sum();
+    while (or(eq(ri32(tok_address), CC2_TOKEN_SHIFT_LEFT),
+        eq(ri32(tok_address), CC2_TOKEN_SHIFT_RIGHT))) {
+        operation = ri32(tok_address);
+        next();
+        expr_sum();
+        gen_op(operation);
+    }
+    return 0;
+}
+
+function expr_shift()
+{
+    return expr_shift_(0);
+}
+
+function expr_cmp_(operation)
+{
+    expr_shift();
+    while (or(and(le(CC2_TOKEN_UNSIGNED_LESS_EQUAL, ri32(tok_address)),
+        le(ri32(tok_address), CC2_TOKEN_GREATER)),
+        or(eq(ri32(tok_address), CC2_TOKEN_UNSIGNED_LESS),
+        eq(ri32(tok_address), CC2_TOKEN_UNSIGNED_GREATER_EQUAL)))) {
+        operation = ri32(tok_address);
+        next();
+        expr_shift();
+        gen_op(operation);
+    }
+    return 0;
+}
+
+function expr_cmp()
+{
+    return expr_cmp_(0);
+}
+
+function expr_cmpeq_(operation)
+{
+    expr_cmp();
+    while (or(eq(ri32(tok_address), CC2_TOKEN_EQUAL),
+        eq(ri32(tok_address), CC2_TOKEN_NOT_EQUAL))) {
+        operation = ri32(tok_address);
+        next();
+        expr_cmp();
+        gen_op(operation);
+    }
+    return 0;
+}
+
+function expr_cmpeq()
+{
+    return expr_cmpeq_(0);
+}
+
+function expr_and()
+{
+    expr_cmpeq();
+    while (eq(ri32(tok_address), CC2_ASCII_AMPERSAND)) {
+        next();
+        expr_cmpeq();
+        gen_op(CC2_ASCII_AMPERSAND);
+    }
+    return 0;
+}
+
+function expr_xor()
+{
+    expr_and();
+    while (eq(ri32(tok_address), CC2_ASCII_CARET)) {
+        next();
+        expr_and();
+        gen_op(CC2_ASCII_CARET);
+    }
+    return 0;
+}
+
+function expr_or()
+{
+    expr_xor();
+    while (eq(ri32(tok_address), CC2_ASCII_VERTICAL_BAR)) {
+        next();
+        expr_xor();
+        gen_op(CC2_ASCII_VERTICAL_BAR);
+    }
+    return 0;
 }
 
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)

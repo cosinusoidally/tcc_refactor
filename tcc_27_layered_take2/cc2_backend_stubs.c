@@ -63,3 +63,18 @@ function tcc_warning(format, value)
 {
     return 0;
 }
+
+function next()
+{
+    return 0;
+}
+
+function unary()
+{
+    return 0;
+}
+
+function gen_op(operation)
+{
+    return 0;
+}
