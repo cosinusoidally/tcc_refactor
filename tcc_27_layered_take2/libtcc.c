@@ -51,11 +51,11 @@ static int nb_states;
 #include "tccpp.c"
 #define function int
 #define var int
+#define CC2_FULL_TCC 1
 #include "cc2.c"
+#undef CC2_FULL_TCC
 #undef var
 #undef function
-/* Transitional legacy backend until its typed routines migrate into cc2.c. */
-#include "tccgen.c"
 #include "cc3.c"
 #include "cc4.c"
 #endif /* ONE_SOURCE */

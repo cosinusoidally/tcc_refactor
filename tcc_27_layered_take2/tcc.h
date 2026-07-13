@@ -1243,7 +1243,7 @@ static inline int toup(int c) {
     return cc0_to_upper(c);
 }
 
-/* ------------ tccgen.c ------------ */
+/* ------------ cc2.c production frontend ------------ */
 
 #define SYM_POOL_NB (8192 / sizeof(Sym))
 ST_DATA Sym *sym_free_first;
