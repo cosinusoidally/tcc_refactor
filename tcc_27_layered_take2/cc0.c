@@ -1125,6 +1125,15 @@ function cc0_elf_external_symbol(name, length)
     if (cc0_compiler_slice_equal(name, length, mks("load"), 4)) {
         return cc0_elf_put_undefined_function(name, length);
     }
+    if (cc0_compiler_slice_equal(name, length, mks("get_tok_str"), 11)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("tcc_error"), 9)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("tcc_warning"), 11)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
     if (cc0_compiler_slice_equal(name, length, mks("open"), 4)) {
         if (eq(CC0_ELF_OPEN_SYMBOL, 0)) {
             CC0_ELF_OPEN_SYMBOL = cc0_elf_put_undefined_function(
@@ -3493,6 +3502,15 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("load"))) {
         return 2;
     }
+    if (cc0_text_equal(name, length, mks("get_tok_str"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("tcc_error"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("tcc_warning"))) {
+        return 2;
+    }
     return sub(0, 1);
 }
 
@@ -3613,6 +3631,15 @@ function cc0_compiler_external_arity(name, length)
         return 2;
     }
     if (cc0_text_equal(name, length, mks("load"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("get_tok_str"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("tcc_error"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("tcc_warning"))) {
         return 2;
     }
     return sub(0, 1);

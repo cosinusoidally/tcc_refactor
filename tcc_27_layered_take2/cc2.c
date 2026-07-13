@@ -105,6 +105,10 @@ var CC2_I386_WORD_BYTES = 4;
 var CC2_TCC_VLA_TYPE = 1024;
 var CC2_TYPE_ALIGNMENT_TEMPORARY;
 var CC2_VALUE_BOUNDED = 32768;
+var CC2_TCC_INLINE_STORAGE = 32768;
+var CC2_SYM_ATTRIBUTE_ALIGNED_MASK = 31;
+var CC2_SYM_ATTRIBUTE_WEAK = 64;
+var CC2_SYM_ATTRIBUTE_VISIBILITY_MASK = 384;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -151,6 +155,7 @@ var size_type[2];
 var ptrdiff_type[2];
 var int_type_address;
 var size_type_address;
+var func_old_type_address;
 /* TCC's 257-entry value stack, with seven i386 words per SValue. */
 var __vstack[1799];
 /* Scratch space is safe because TCC's frontend and value stack are global. */
@@ -1208,6 +1213,164 @@ function sym_to_attr_(attributes, symbol, symbol_attributes,
 function sym_to_attr(attributes, symbol)
 {
     return sym_to_attr_(attributes, symbol, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_symbol_name(symbol)
+{
+    return get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0);
+}
+
+function patch_type_(symbol, type, symbol_type, new_type, static_storage,
+    symbol_reference, new_reference, new_count, old_count)
+{
+    symbol_type = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
+    new_type = ri32(type);
+    if (eq(and(new_type, CC2_TCC_EXTERN_STORAGE), 0)) {
+        if (eq(and(symbol_type, CC2_TCC_EXTERN_STORAGE), 0)) {
+            tcc_error(mks("redefinition of '%s'"), cc2_symbol_name(symbol));
+        }
+        symbol_type = and(symbol_type, bnot(CC2_TCC_EXTERN_STORAGE));
+        wi32(add(symbol, CC2_SYM_TYPE_OFFSET), symbol_type);
+    }
+    if (eq(and(symbol_type, 31), CC2_TCC_ASSEMBLER_TYPE)) {
+        symbol_type = and(new_type,
+            or(symbol_type, bnot(CC2_TCC_STATIC_STORAGE)));
+        wi32(add(symbol, CC2_SYM_TYPE_OFFSET), symbol_type);
+        wi32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET), ri32(add(type, 4)));
+    }
+    symbol_type = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
+    if (eq(is_compatible_types(add(symbol, CC2_SYM_TYPE_OFFSET), type), 0)) {
+        tcc_error(mks("incompatible types for redefinition of '%s'"),
+            cc2_symbol_name(symbol));
+    } else if (eq(and(symbol_type, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_FUNCTION_TYPE)) {
+        static_storage = and(symbol_type, CC2_TCC_STATIC_STORAGE);
+        if (and(not(eq(and(new_type, CC2_TCC_STATIC_STORAGE), 0)),
+            and(eq(static_storage, 0),
+            eq(and(new_type, CC2_TCC_INLINE_STORAGE), 0)))) {
+            tcc_warning(mks("static storage ignored for redefinition of '%s'"),
+                cc2_symbol_name(symbol));
+        }
+        if (eq(and(new_type, CC2_TCC_EXTERN_STORAGE), 0)) {
+            symbol_type = or(and(new_type,
+                bnot(CC2_TCC_STATIC_STORAGE)), static_storage);
+            if (not(eq(and(new_type, CC2_TCC_INLINE_STORAGE), 0))) {
+                symbol_type = new_type;
+            }
+            wi32(add(symbol, CC2_SYM_TYPE_OFFSET), symbol_type);
+            wi32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET),
+                ri32(add(type, 4)));
+        }
+    } else {
+        if (not(eq(and(symbol_type, CC2_TCC_ARRAY_TYPE), 0))) {
+            new_reference = ri32(add(type, 4));
+            new_count = ri32(add(new_reference, CC2_SYM_CONSTANT_OFFSET));
+            if (le(0, new_count)) {
+                symbol_reference = ri32(add(symbol,
+                    CC2_SYM_TYPE_REFERENCE_OFFSET));
+                old_count = ri32(add(symbol_reference,
+                    CC2_SYM_CONSTANT_OFFSET));
+                if (lt(old_count, 0)) {
+                    wi32(add(symbol_reference, CC2_SYM_CONSTANT_OFFSET),
+                        new_count);
+                } else if (not(eq(old_count, new_count))) {
+                    tcc_error(mks("conflicting type for '%s'"),
+                        cc2_symbol_name(symbol));
+                }
+            }
+        }
+        if (not(eq(and(xor(new_type, symbol_type),
+            CC2_TCC_STATIC_STORAGE), 0))) {
+            tcc_warning(mks("storage mismatch for redefinition of '%s'"),
+                cc2_symbol_name(symbol));
+        }
+    }
+    return 0;
+}
+
+function patch_type(symbol, type)
+{
+    return patch_type_(symbol, type, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function patch_storage_(symbol, attributes, type, symbol_attributes,
+    new_attributes, visibility, new_visibility, aligned, asm_label)
+{
+    if (not(eq(type, 0))) {
+        patch_type(symbol, type);
+    }
+    symbol_attributes = and(ushr(ri32(add(symbol, 4)), 16), 65535);
+    new_attributes = and(ri32(attributes), 65535);
+    symbol_attributes = or(symbol_attributes,
+        and(new_attributes, CC2_SYM_ATTRIBUTE_WEAK));
+    new_visibility = and(new_attributes,
+        CC2_SYM_ATTRIBUTE_VISIBILITY_MASK);
+    if (not(eq(new_visibility, 0))) {
+        visibility = and(symbol_attributes,
+            CC2_SYM_ATTRIBUTE_VISIBILITY_MASK);
+        if (eq(visibility, 0)) {
+            visibility = new_visibility;
+        } else if (lt(new_visibility, visibility)) {
+            visibility = new_visibility;
+        }
+        symbol_attributes = or(and(symbol_attributes,
+            bnot(CC2_SYM_ATTRIBUTE_VISIBILITY_MASK)), visibility);
+    }
+    aligned = and(new_attributes, CC2_SYM_ATTRIBUTE_ALIGNED_MASK);
+    if (not(eq(aligned, 0))) {
+        symbol_attributes = or(and(symbol_attributes,
+            bnot(CC2_SYM_ATTRIBUTE_ALIGNED_MASK)), aligned);
+    }
+    wi32(add(symbol, 4), or(and(ri32(add(symbol, 4)), 65535),
+        shl(symbol_attributes, 16)));
+    asm_label = ri32(add(attributes, 16));
+    if (not(eq(asm_label, 0))) {
+        wi32(add(symbol, CC2_SYM_NEXT_OFFSET), asm_label);
+    }
+    update_storage(symbol);
+    return 0;
+}
+
+function patch_storage(symbol, attributes, type)
+{
+    return patch_storage_(symbol, attributes, type, 0, 0, 0, 0, 0, 0);
+}
+
+function external_sym_(value, type, reg, attributes, symbol,
+    registers, symbol_attributes)
+{
+    symbol = sym_find(value);
+    if (eq(symbol, 0)) {
+        symbol = sym_push(value, type,
+            or(or(reg, CC2_VALUE_CONSTANT), CC2_TCC_SYMBOL_VALUE), 0);
+        wi32(add(symbol, CC2_SYM_TYPE_OFFSET),
+            or(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)),
+            CC2_TCC_EXTERN_STORAGE));
+        registers = ri32(add(symbol, 4));
+        symbol_attributes = and(ri32(attributes), 65535);
+        wi32(add(symbol, 4), or(and(registers, 65535),
+            shl(symbol_attributes, 16)));
+        wi32(add(symbol, CC2_SYM_SCOPE_OFFSET), 0);
+    } else {
+        if (eq(ri32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET)),
+            ri32(add(func_old_type_address, 4)))) {
+            wi32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET),
+                ri32(add(type, 4)));
+            registers = ri32(add(symbol, 4));
+            wi32(add(symbol, 4), or(and(registers, bnot(65535)),
+                or(or(reg, CC2_VALUE_CONSTANT), CC2_TCC_SYMBOL_VALUE)));
+            wi32(add(symbol, CC2_SYM_TYPE_OFFSET),
+                or(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)),
+                CC2_TCC_EXTERN_STORAGE));
+        }
+        patch_storage(symbol, attributes, type);
+    }
+    return symbol;
+}
+
+function external_sym(value, type, reg, attributes)
+{
+    return external_sym_(value, type, reg, attributes, 0, 0, 0);
 }
 
 function vpushv_(value, limit)

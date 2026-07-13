@@ -48,3 +48,18 @@ function load(reg, value)
 {
     return 0;
 }
+
+function get_tok_str(token, value)
+{
+    return 0;
+}
+
+function tcc_error(format, value)
+{
+    return 0;
+}
+
+function tcc_warning(format, value)
+{
+    return 0;
+}

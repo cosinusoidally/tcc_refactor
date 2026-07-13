@@ -1185,7 +1185,7 @@ extern TokenSym **table_ident;
 #define IS_NUM 4
 
 ST_FUNC TokenSym *tok_alloc(const char *str, int len);
-ST_FUNC const char *get_tok_str(int v, CValue *cv);
+extern const char *get_tok_str(int v, CValue *cv);
 ST_FUNC void begin_macro(TokenString *str, int alloc);
 ST_FUNC void end_macro(void);
 ST_INLN void tok_str_new(TokenString *s);
@@ -1263,7 +1263,7 @@ extern Sym *local_label_stack;
 extern Sym *global_label_stack;
 extern Sym *define_stack;
 extern CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
-extern CType *int_type_address, *size_type_address;
+extern CType *int_type_address, *size_type_address, *func_old_type_address;
 extern SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE];
 extern SValue *vtop, *pvtop;
 extern SValue *vstack_base, *vstack_limit;
@@ -1345,8 +1345,13 @@ extern void vla_runtime_pointed_size(CType *type);
 extern int is_null_pointer(SValue *value);
 extern CType *pointed_type(CType *type);
 extern void mk_pointer(CType *type);
+extern int compare_types(CType *type1, CType *type2, int unqualified);
 extern int is_compatible_types(CType *type1, CType *type2);
 extern int is_compatible_unqualified_types(CType *type1, CType *type2);
+extern void patch_type(Sym *symbol, CType *type);
+extern void patch_storage(Sym *symbol, AttributeDef *attributes, CType *type);
+extern Sym *external_sym(int value, CType *type, int reg,
+                        AttributeDef *attributes);
 ST_FUNC void vstore(void);
 ST_FUNC void inc(int post, int c);
 ST_FUNC void parse_mult_str (CString *astr, const char *msg);
