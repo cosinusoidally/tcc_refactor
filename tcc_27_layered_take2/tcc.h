@@ -1331,7 +1331,7 @@ ST_FUNC void lexpand_nr(void);
 extern void vpushv(SValue *v);
 extern void save_reg(int r);
 extern void save_reg_upstack(int r, int n);
-ST_FUNC int get_reg(int rc);
+extern int get_reg(int rc);
 extern void save_regs(int n);
 extern void gaddrof(void);
 extern int gv(int rc);

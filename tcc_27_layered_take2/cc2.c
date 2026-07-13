@@ -83,6 +83,12 @@ var CC2_I386_POP_FLOAT_STACK = 55517;
 var CC2_VALUE_LOCAL_LVALUE = 49;
 var CC2_VALUE_LOCAL = 50;
 var CC2_VALUE_LVALUE_TYPE_MASK = 28672;
+var CC2_I386_REGISTER_COUNT = 5;
+var CC2_I386_EAX_CLASS = 5;
+var CC2_I386_ECX_CLASS = 17;
+var CC2_I386_EDX_CLASS = 33;
+var CC2_I386_EBX_CLASS = 0;
+var CC2_I386_ST0_CLASS = 10;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -674,6 +680,87 @@ function gaddrof_(registers, location)
 function gaddrof()
 {
     return gaddrof_(0, 0);
+}
+
+function cc2_i386_register_class(reg)
+{
+    if (eq(reg, 0)) {
+        return CC2_I386_EAX_CLASS;
+    }
+    if (eq(reg, 1)) {
+        return CC2_I386_ECX_CLASS;
+    }
+    if (eq(reg, 2)) {
+        return CC2_I386_EDX_CLASS;
+    }
+    if (eq(reg, 3)) {
+        return CC2_I386_EBX_CLASS;
+    }
+    return CC2_I386_ST0_CLASS;
+}
+
+function cc2_register_used_(reg, entry, registers)
+{
+    entry = vstack_base;
+    while (le(entry, vtop)) {
+        registers = ri32(add(entry, CC2_SVALUE_REGISTER_OFFSET));
+        if (eq(and(registers, CC2_VALUE_LOCATION_MASK), reg)) {
+            return 1;
+        }
+        if (eq(and(ushr(registers, 16), CC2_VALUE_LOCATION_MASK), reg)) {
+            return 1;
+        }
+        entry = add(entry, CC2_SVALUE_BYTES);
+    }
+    return 0;
+}
+
+function cc2_register_used(reg)
+{
+    return cc2_register_used_(reg, 0, 0);
+}
+
+function get_reg_(required_class, reg, entry, registers)
+{
+    reg = 0;
+    while (lt(reg, CC2_I386_REGISTER_COUNT)) {
+        if (not(eq(and(cc2_i386_register_class(reg), required_class), 0))) {
+            if (not(eq(nocode_wanted, 0))) {
+                return reg;
+            }
+            if (eq(cc2_register_used(reg), 0)) {
+                return reg;
+            }
+        }
+        reg = add(reg, 1);
+    }
+    entry = vstack_base;
+    while (le(entry, vtop)) {
+        registers = ri32(add(entry, CC2_SVALUE_REGISTER_OFFSET));
+        reg = and(ushr(registers, 16), CC2_VALUE_LOCATION_MASK);
+        if (lt(reg, CC2_VALUE_CONSTANT)) {
+            if (not(eq(and(cc2_i386_register_class(reg),
+                required_class), 0))) {
+                save_reg(reg);
+                return reg;
+            }
+        }
+        reg = and(registers, CC2_VALUE_LOCATION_MASK);
+        if (lt(reg, CC2_VALUE_CONSTANT)) {
+            if (not(eq(and(cc2_i386_register_class(reg),
+                required_class), 0))) {
+                save_reg(reg);
+                return reg;
+            }
+        }
+        entry = add(entry, CC2_SVALUE_BYTES);
+    }
+    return sub(0, 1);
+}
+
+function get_reg(required_class)
+{
+    return get_reg_(required_class, 0, 0, 0);
 }
 
 function vpushv_(value, limit)

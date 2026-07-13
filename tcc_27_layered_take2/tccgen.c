@@ -615,46 +615,6 @@ ST_FUNC int get_reg_ex(int rc, int rc2)
 }
 #endif
 
-/* find a free register of class 'rc'. If none, save one register */
-ST_FUNC int get_reg(int rc)
-{
-    int r;
-    SValue *p;
-
-    /* find a free register */
-    for(r=0;r<NB_REGS;r++) {
-        if (reg_classes[r] & rc) {
-            if (nocode_wanted)
-                return r;
-            for(p=vstack;p<=vtop;p++) {
-                if ((p->r & VT_VALMASK) == r ||
-                    (p->r2 & VT_VALMASK) == r)
-                    goto notfound;
-            }
-            return r;
-        }
-    notfound: ;
-    }
-    
-    /* no register left : free the first one on the stack (VERY
-       IMPORTANT to start from the bottom to ensure that we don't
-       spill registers used in gen_opi()) */
-    for(p=vstack;p<=vtop;p++) {
-        /* look at second register (if long long) */
-        r = p->r2 & VT_VALMASK;
-        if (r < VT_CONST && (reg_classes[r] & rc))
-            goto save_found;
-        r = p->r & VT_VALMASK;
-        if (r < VT_CONST && (reg_classes[r] & rc)) {
-        save_found:
-            save_reg(r);
-            return r;
-        }
-    }
-    /* Should never comes here */
-    return -1;
-}
-
 /* move register 's' (of type 't') to 'r', and flush previous value of r to memory
    if needed */
 static void move_reg(int r, int s, int t)
