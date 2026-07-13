@@ -1178,6 +1178,7 @@ extern int *pp_once_address;
 extern int *tok_flags_address;
 extern int *total_lines_address;
 extern CString *tokcstr_address;
+extern TokenSym **hash_ident_address;
 extern int tok_ident;
 extern TokenSym **table_ident;
 
@@ -1202,6 +1203,7 @@ extern TokenSym **table_ident;
 #define IS_NUM 4
 
 TokenSym *tok_alloc(const char *str, int len);
+TokenSym *tok_alloc_new(TokenSym **slot, const char *text, int length);
 extern const char *get_tok_str(int v, CValue *cv);
 void begin_macro(TokenString *str, int alloc);
 void end_macro(void);

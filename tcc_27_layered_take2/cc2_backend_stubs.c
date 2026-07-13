@@ -107,7 +107,7 @@ function find_section(state, name)
     return 0;
 }
 
-function tok_alloc(text, length)
+function tok_alloc_new(slot, text, length)
 {
     return 0;
 }

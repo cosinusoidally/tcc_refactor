@@ -323,7 +323,7 @@ static void add_char(CString *cstr, int c)
 
 /* ------------------------------------------------------------------------- */
 /* allocate a new token */
-static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
+TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
 {
     TokenSym *ts, **ptable;
     int i;
@@ -351,26 +351,6 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
     ts->str[len] = '\0';
     *pts = ts;
     return ts;
-}
-
-/* find a token and add it if not found */
-TokenSym *tok_alloc(const char *str, int len)
-{
-    TokenSym *ts, **pts;
-    unsigned int h;
-
-    h = cc0_token_hash((int)str, len);
-
-    pts = &hash_ident[h];
-    for(;;) {
-        ts = *pts;
-        if (!ts)
-            break;
-        if (ts->len == len && !memcmp(ts->str, str, len))
-            return ts;
-        pts = &(ts->hash_next);
-    }
-    return tok_alloc_new(pts, str, len);
 }
 
 /* XXX: buffer overflow */
@@ -1891,6 +1871,7 @@ ST_FUNC void tccpp_new(TCCState *s)
     tok_flags_address = &tok_flags;
     total_lines_address = &total_lines;
     tokcstr_address = &tokcstr;
+    hash_ident_address = hash_ident;
 
     /* cc0 owns the character classes used to initialize this lexer. */
     cc0_init();

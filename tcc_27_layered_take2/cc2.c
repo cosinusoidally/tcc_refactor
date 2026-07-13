@@ -471,6 +471,9 @@ var CC2_BUFFERED_FILE_INCLUDE_NEXT_INDEX_OFFSET;
 var CC2_TOKEN_FLAG_BEGINNING_OF_FILE;
 var CC2_TOKEN_FLAG_BEGINNING_OF_LINE;
 var CC2_UNICODE_REPLACEMENT_CHARACTER;
+var CC2_TOKEN_SYMBOL_HASH_NEXT_OFFSET;
+var CC2_TOKEN_SYMBOL_LENGTH_OFFSET;
+var CC2_TOKEN_SYMBOL_TEXT_OFFSET;
 var CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET;
 var CC2_BUFFERED_FILE_FILENAME_CAPACITY;
 var CC2_STABS_INCLUDE_TYPE;
@@ -588,6 +591,7 @@ var pp_once_address;
 var tok_flags_address;
 var total_lines_address;
 var tokcstr_address;
+var hash_ident_address;
 var symtab_section_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET;
@@ -2623,6 +2627,28 @@ function parse_string(source, length)
         }
     }
     return 0;
+}
+
+/* Intern an identifier in TCC's existing chained hash table. */
+function tok_alloc(text, length)
+{
+    var hash;
+    var slot;
+    var symbol;
+    hash = cc0_token_hash(text, length);
+    slot = add(hash_ident_address, mul(hash, CC2_I386_WORD_BYTES));
+    symbol = ri32(slot);
+    while (symbol) {
+        if (eq(ri32(add(symbol, CC2_TOKEN_SYMBOL_LENGTH_OFFSET)), length)) {
+            if (eq(memcmp(add(symbol, CC2_TOKEN_SYMBOL_TEXT_OFFSET), text,
+                length), 0)) {
+                return symbol;
+            }
+        }
+        slot = add(symbol, CC2_TOKEN_SYMBOL_HASH_NEXT_OFFSET);
+        symbol = ri32(slot);
+    }
+    return tok_alloc_new(slot, text, length);
 }
 
 function tok_str_add2(stream, token, value)
@@ -14227,6 +14253,9 @@ function cc2_init_constants()
     CC2_TOKEN_FLAG_BEGINNING_OF_FILE = 2;
     CC2_TOKEN_FLAG_BEGINNING_OF_LINE = 1;
     CC2_UNICODE_REPLACEMENT_CHARACTER = 65533;
+    CC2_TOKEN_SYMBOL_HASH_NEXT_OFFSET = 0;
+    CC2_TOKEN_SYMBOL_LENGTH_OFFSET = 24;
+    CC2_TOKEN_SYMBOL_TEXT_OFFSET = 28;
     CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET = 1064;
     CC2_BUFFERED_FILE_FILENAME_CAPACITY = 1024;
     CC2_STABS_INCLUDE_TYPE = 130;
