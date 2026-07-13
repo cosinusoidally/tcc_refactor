@@ -33,6 +33,8 @@ int main()
     temporary = (temporary == 2) ? temporary : record(99);
     temporary = (temporary != 2) ? record(99) : temporary;
     temporary = temporary + global_result;
+    temporary = temporary + (sizeof(char) - 1) + (sizeof(short) - 2);
+    temporary = temporary + (sizeof(int *) - 4) + (sizeof temporary - 4);
     scalar_value = temporary;
     temporary = (temporary << 1) >> 1;
     temporary = (temporary | 8) ^ 8;

@@ -121,6 +121,7 @@ var CC1_EXPRESSION_ASSIGN_KIND;
 var CC1_EXPRESSION_LOGICAL_AND_KIND;
 var CC1_EXPRESSION_LOGICAL_OR_KIND;
 var CC1_EXPRESSION_CONDITIONAL_KIND;
+var CC1_EXPRESSION_CONSTANT_KIND;
 var CC1_EXPRESSIONS;
 var CC1_EXPRESSION_CAPACITY;
 var CC1_EXPRESSION_COUNT;
@@ -1425,6 +1426,7 @@ function cc1_expression_init()
     CC1_EXPRESSION_LOGICAL_AND_KIND = 23;
     CC1_EXPRESSION_LOGICAL_OR_KIND = 24;
     CC1_EXPRESSION_CONDITIONAL_KIND = 25;
+    CC1_EXPRESSION_CONSTANT_KIND = 26;
     CC1_EXPRESSION_COUNT = 0;
     CC1_EXPRESSION_ERROR = 0;
     return 0;
@@ -1547,10 +1549,64 @@ function cc1_expression_parse_primary()
     return cc1_expression_parse_primary_(0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
+function cc1_expression_parse_sizeof_(token, next_token, text, length,
+    size, kind, operand)
+{
+    cc1_preprocessed_consume();
+    size = 4;
+    if (eq(cc1_expression_token_kind(), 40)) {
+        next_token = cc1_preprocessed_peek(1);
+        if (not(eq(next_token, 0))) {
+            text = ri32(add(next_token, CC1_TOKEN_TEXT_OFFSET));
+            length = ri32(add(next_token, CC1_TOKEN_LENGTH_OFFSET));
+            if (cc1_declaration_type_word(text, length)) {
+                cc1_preprocessed_consume();
+                while (not(eq(cc1_expression_token_kind(), 41))) {
+                    next_token = cc1_preprocessed_consume();
+                    kind = ri32(add(next_token, CC1_TOKEN_KIND_OFFSET));
+                    text = ri32(add(next_token, CC1_TOKEN_TEXT_OFFSET));
+                    length = ri32(add(next_token, CC1_TOKEN_LENGTH_OFFSET));
+                    if (eq(kind, 42)) {
+                        size = 4;
+                    } else if (cc1_text_equal(text, length, mks("char"))) {
+                        size = 1;
+                    } else if (cc1_text_equal(text, length, mks("short"))) {
+                        size = 2;
+                    } else if (cc1_declaration_type_word(text, length)) {
+                    } else if (cc1_declaration_qualifier(text, length)) {
+                    } else {
+                        CC1_EXPRESSION_ERROR = 1;
+                        return 0;
+                    }
+                }
+                cc1_preprocessed_consume();
+                return cc1_expression_new(CC1_EXPRESSION_CONSTANT_KIND,
+                    token, size, 0);
+            }
+        }
+    }
+    operand = cc1_expression_parse_unary();
+    if (eq(operand, 0)) {
+        return 0;
+    }
+    return cc1_expression_new(CC1_EXPRESSION_CONSTANT_KIND, token, 4, 0);
+}
+
+function cc1_expression_parse_sizeof(token)
+{
+    return cc1_expression_parse_sizeof_(token, 0, 0, 0, 0, 0, 0);
+}
+
 function cc1_expression_parse_unary_(token, kind, expression)
 {
     token = cc1_preprocessed_peek(0);
     kind = cc1_expression_token_kind();
+    if (not(eq(token, 0))) {
+        if (cc1_text_equal(ri32(add(token, CC1_TOKEN_TEXT_OFFSET)),
+            ri32(add(token, CC1_TOKEN_LENGTH_OFFSET)), mks("sizeof"))) {
+            return cc1_expression_parse_sizeof(token);
+        }
+    }
     if (eq(kind, 33)) {
         cc1_preprocessed_consume();
         expression = cc1_expression_parse_unary();
@@ -2061,6 +2117,11 @@ function cc1_expression_emit_(expression, kind, token, argument, origin)
     }
     kind = ri32(add(expression, CC1_EXPRESSION_KIND_OFFSET));
     token = ri32(add(expression, CC1_EXPRESSION_TOKEN_OFFSET));
+    if (eq(kind, CC1_EXPRESSION_CONSTANT_KIND)) {
+        origin = ri32(add(token, CC1_TOKEN_SOURCE_OFFSET));
+        return cc1_normalized_byte(add(48, ri32(add(expression,
+            CC1_EXPRESSION_LEFT_OFFSET))), origin);
+    }
     if (eq(kind, CC1_EXPRESSION_ATOM_KIND)) {
         return cc1_expression_emit_token(token);
     }
