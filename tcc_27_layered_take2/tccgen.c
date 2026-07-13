@@ -950,11 +950,10 @@ void parse_mult_str (CString *astr, const char *msg)
 /* enum/struct/union declaration. u is VT_ENUM/VT_STRUCT/VT_UNION */
 static void struct_decl(CType *type, int u)
 {
-    int v, c, size, align, flexible;
-    int bit_size, bsize, bt;
-    Sym *s, *ss, **ps;
-    AttributeDef ad, ad1;
-    CType type1, btype;
+    int v;
+    Sym *s;
+    AttributeDef ad;
+    CType type1;
 
     memset(&ad, 0, sizeof ad);
     next();
@@ -992,115 +991,10 @@ do_decl:
             tcc_error("struct/union/enum already defined");
         /* cannot be empty */
         /* non empty enums are not allowed */
-        ps = &s->next;
         if (u == VT_ENUM) {
             struct_decl_enum(type, s);
         } else {
-            c = 0;
-            flexible = 0;
-            while (tok != '}') {
-                if (!parse_btype(&btype, &ad1)) {
-		    skip(';');
-		    continue;
-		}
-                while (1) {
-		    if (flexible)
-		        tcc_error("flexible array member '%s' not at the end of struct",
-                              get_tok_str(v, NULL));
-                    bit_size = -1;
-                    v = 0;
-                    type1 = btype;
-                    if (tok != ':') {
-			if (tok != ';')
-                            type_decl(&type1, &ad1, &v, TYPE_DIRECT);
-                        if (v == 0) {
-                    	    if ((type1.t & VT_BTYPE) != VT_STRUCT)
-                        	expect("identifier");
-                    	    else {
-				int v = btype.ref->v;
-				if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
-				    if (tcc_state->ms_extensions == 0)
-                        		expect("identifier");
-				}
-                    	    }
-                        }
-                        if (type_size(&type1, &align) < 0) {
-			    if ((u == VT_STRUCT) && (type1.t & VT_ARRAY) && c)
-			        flexible = 1;
-			    else
-			        tcc_error("field '%s' has incomplete type",
-                                      get_tok_str(v, NULL));
-                        }
-                        if ((type1.t & VT_BTYPE) == VT_FUNC ||
-                            (type1.t & VT_STORAGE))
-                            tcc_error("invalid type for '%s'", 
-                                  get_tok_str(v, NULL));
-                    }
-                    if (tok == ':') {
-                        next();
-                        bit_size = expr_const();
-                        /* XXX: handle v = 0 case for messages */
-                        if (bit_size < 0)
-                            tcc_error("negative width in bit-field '%s'", 
-                                  get_tok_str(v, NULL));
-                        if (v && bit_size == 0)
-                            tcc_error("zero width for bit-field '%s'", 
-                                  get_tok_str(v, NULL));
-			parse_attribute(&ad1);
-                    }
-                    size = type_size(&type1, &align);
-                    if (bit_size >= 0) {
-                        bt = type1.t & VT_BTYPE;
-                        if (bt != VT_INT && 
-                            bt != VT_BYTE && 
-                            bt != VT_SHORT &&
-                            bt != VT_BOOL &&
-                            bt != VT_LLONG)
-                            tcc_error("bitfields must have scalar type");
-                        bsize = size * 8;
-                        if (bit_size > bsize) {
-                            tcc_error("width of '%s' exceeds its type",
-                                  get_tok_str(v, NULL));
-                        } else if (bit_size == bsize
-                                    && !ad.a.packed && !ad1.a.packed) {
-                            /* no need for bit fields */
-                            ;
-                        } else if (bit_size == 64) {
-                            tcc_error("field width 64 not implemented");
-                        } else {
-                            type1.t = (type1.t & ~VT_STRUCT_MASK)
-                                | VT_BITFIELD
-                                | (bit_size << (VT_STRUCT_SHIFT + 6));
-                        }
-                    }
-                    if (v != 0 || (type1.t & VT_BTYPE) == VT_STRUCT) {
-                        /* Remember we've seen a real field to check
-			   for placement of flexible array member. */
-			c = 1;
-                    }
-		    /* If member is a struct or bit-field, enforce
-		       placing into the struct (as anonymous).  */
-                    if (v == 0 &&
-			((type1.t & VT_BTYPE) == VT_STRUCT ||
-			 bit_size >= 0)) {
-		        v = anon_sym++;
-		    }
-                    if (v) {
-                        ss = sym_push(v | SYM_FIELD, &type1, 0, 0);
-                        ss->a = ad1.a;
-                        *ps = ss;
-                        ps = &ss->next;
-                    }
-                    if (tok == ';' || tok == TOK_EOF)
-                        break;
-                    skip(',');
-                }
-                skip(';');
-            }
-            skip('}');
-	    parse_attribute(&ad);
-	    struct_layout(type, &ad, !tcc_state->ms_bitfields,
-	                  *tcc_state->pack_stack_ptr);
+            struct_decl_fields(type, u, s, &ad);
         }
     }
 }

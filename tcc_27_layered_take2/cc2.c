@@ -206,6 +206,8 @@ var CC2_FUNCTION_TYPE_MASK = 24;
 var CC2_FUNCTION_ARGUMENT_SHIFT = 5;
 var CC2_FUNCTION_ARGUMENT_MASK = 8160;
 var CC2_TCC_ENUM_VALUE = 3145728;
+var CC2_TCC_STRUCT_MASK = 0xfff00080;
+var CC2_BITS_PER_BYTE = 8;
 var CC2_TOKEN_SECTION_FIRST = 338;
 var CC2_TOKEN_SECTION_SECOND = 339;
 var CC2_TOKEN_ALIAS_FIRST = 346;
@@ -302,6 +304,9 @@ var data_section_address;
 var tcc_state_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET = 80;
+var CC2_TCC_STATE_MS_EXTENSIONS_OFFSET = 64;
+var CC2_TCC_STATE_MS_BITFIELDS_OFFSET = 72;
+var CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET = 936;
 var table_ident;
 /* CType is two i386 words. */
 var char_pointer_type[2];
@@ -3805,7 +3810,7 @@ function struct_decl_enum_(type, symbol, words, member_type, member,
             expect(mks("identifier"));
         }
         member = sym_find(name);
-        if (and(member, not(local_stack))) {
+        if (and(not(not(member)), not(local_stack))) {
             tcc_error(mks("redefinition of enumerator '%s'"),
                 get_tok_str(name, 0));
         }
@@ -3891,6 +3896,180 @@ function struct_decl_enum(type, symbol)
     scratch = malloc(16);
     result = struct_decl_enum_(type, symbol, scratch, add(scratch, 8),
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    free(scratch);
+    return result;
+}
+
+function cc2_copy_type(destination, source)
+{
+    wi32(destination, ri32(source));
+    wi32(add(destination, 4), ri32(add(source, 4)));
+    return 0;
+}
+
+function cc2_set_symbol_attributes(symbol, attributes)
+{
+    wi32(add(symbol, 4), or(and(ri32(add(symbol, 4)), 65535),
+        shl(and(ri32(attributes), 65535), 16)));
+    return 0;
+}
+
+function struct_decl_fields_(type, structure_kind, symbol, attributes,
+    field_attributes, declared_type, base_type, identifier, alignment)
+{
+    var member;
+    var last_member;
+    var name;
+    var size;
+    var bit_size;
+    var basic_type;
+    var flexible;
+    var has_field;
+    has_field = 0;
+    flexible = 0;
+    last_member = 0;
+    while (not(eq(ri32(tok_address), 125))) {
+        if (not(parse_btype(base_type, field_attributes))) {
+            skip(59);
+        } else {
+            while (1) {
+                if (flexible) {
+                    tcc_error(mks("flexible array member '%s' not at the end of struct"),
+                        get_tok_str(name, 0));
+                }
+                bit_size = sub(0, 1);
+                name = 0;
+                cc2_copy_type(declared_type, base_type);
+                if (not(eq(ri32(tok_address), 58))) {
+                    if (not(eq(ri32(tok_address), 59))) {
+                        type_decl(declared_type, field_attributes,
+                            identifier, CC2_TYPE_DIRECT);
+                        name = ri32(identifier);
+                    }
+                    if (eq(name, 0)) {
+                        if (not(eq(and(ri32(declared_type),
+                            CC2_TCC_BASIC_TYPE_MASK),
+                            CC2_TCC_STRUCT_TYPE))) {
+                            expect(mks("identifier"));
+                        } else {
+                            size = ri32(add(ri32(add(base_type, 4)),
+                                CC2_SYM_VALUE_OFFSET));
+                            if (and(eq(and(size, CC2_SYMBOL_FIELD_FLAG), 0),
+                                lt(and(size, bnot(CC2_SYMBOL_STRUCT_FLAG)),
+                                CC2_FIRST_ANONYMOUS_SYMBOL))) {
+                                if (eq(ri32(add(tcc_state_address,
+                                    CC2_TCC_STATE_MS_EXTENSIONS_OFFSET)), 0)) {
+                                    expect(mks("identifier"));
+                                }
+                            }
+                        }
+                    }
+                    size = type_size(declared_type, alignment);
+                    if (lt(size, 0)) {
+                        if (and(eq(structure_kind, CC2_TCC_STRUCT_TYPE),
+                            not(not(and(ri32(declared_type),
+                            CC2_TCC_ARRAY_TYPE))))) {
+                            if (has_field) {
+                                flexible = 1;
+                            }
+                        } else {
+                            tcc_error(mks("field '%s' has incomplete type"),
+                                get_tok_str(name, 0));
+                        }
+                    }
+                    if (or(eq(and(ri32(declared_type),
+                        CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_FUNCTION_TYPE),
+                        and(ri32(declared_type), CC2_TCC_STORAGE_MASK))) {
+                        tcc_error(mks("invalid type for '%s'"),
+                            get_tok_str(name, 0));
+                    }
+                }
+                if (eq(ri32(tok_address), 58)) {
+                    next();
+                    bit_size = expr_const();
+                    if (lt(bit_size, 0)) {
+                        tcc_error(mks("negative width in bit-field '%s'"),
+                            get_tok_str(name, 0));
+                    }
+                    if (and(not(not(name)), eq(bit_size, 0))) {
+                        tcc_error(mks("zero width for bit-field '%s'"),
+                            get_tok_str(name, 0));
+                    }
+                    parse_attribute(field_attributes);
+                }
+                size = type_size(declared_type, alignment);
+                if (not(lt(bit_size, 0))) {
+                    basic_type = and(ri32(declared_type),
+                        CC2_TCC_BASIC_TYPE_MASK);
+                    if (not(or(or(eq(basic_type, CC2_TCC_INT_TYPE),
+                        eq(basic_type, CC2_TCC_BYTE_TYPE)), or(or(eq(
+                        basic_type, CC2_TCC_SHORT_TYPE), eq(basic_type,
+                        CC2_TCC_BOOLEAN_TYPE)), eq(basic_type,
+                        CC2_TCC_LONG_LONG_TYPE))))) {
+                        tcc_error(mks("bitfields must have scalar type"), 0);
+                    }
+                    size = mul(size, CC2_BITS_PER_BYTE);
+                    if (lt(size, bit_size)) {
+                        tcc_error(mks("width of '%s' exceeds its type"),
+                            get_tok_str(name, 0));
+                    } else if (and(eq(bit_size, size), and(eq(and(ri32(
+                        attributes), CC2_ATTRIBUTE_PACKED), 0), eq(and(ri32(
+                        field_attributes), CC2_ATTRIBUTE_PACKED), 0)))) {
+                        size = size;
+                    } else if (eq(bit_size, 64)) {
+                        tcc_error(mks("field width 64 not implemented"), 0);
+                    } else {
+                        wi32(declared_type, or(or(and(ri32(declared_type),
+                            bnot(CC2_TCC_STRUCT_MASK)), CC2_TCC_BITFIELD),
+                            shl(bit_size, CC2_TCC_BITFIELD_SIZE_SHIFT)));
+                    }
+                }
+                if (or(name, eq(and(ri32(declared_type),
+                    CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_STRUCT_TYPE))) {
+                    has_field = 1;
+                }
+                if (and(eq(name, 0), or(eq(and(ri32(declared_type),
+                    CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_STRUCT_TYPE),
+                    not(lt(bit_size, 0))))) {
+                    name = anon_sym;
+                    anon_sym = add(anon_sym, 1);
+                }
+                if (name) {
+                    member = sym_push(or(name, CC2_SYMBOL_FIELD_FLAG),
+                        declared_type, 0, 0);
+                    cc2_set_symbol_attributes(member, field_attributes);
+                    if (not(last_member)) {
+                        wi32(add(symbol, CC2_SYM_NEXT_OFFSET), member);
+                    } else {
+                        wi32(add(last_member, CC2_SYM_NEXT_OFFSET), member);
+                    }
+                    last_member = member;
+                }
+                if (or(eq(ri32(tok_address), 59),
+                    eq(ri32(tok_address), sub(0, 1)))) {
+                    break;
+                }
+                skip(CC2_ASCII_COMMA);
+            }
+            skip(59);
+        }
+    }
+    skip(125);
+    parse_attribute(attributes);
+    struct_layout(type, attributes, not(ri32(add(tcc_state_address,
+        CC2_TCC_STATE_MS_BITFIELDS_OFFSET))), ri32(ri32(add(
+        tcc_state_address, CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET))));
+    return 0;
+}
+
+function struct_decl_fields(type, structure_kind, symbol, attributes)
+{
+    var scratch;
+    var result;
+    scratch = malloc(48);
+    result = struct_decl_fields_(type, structure_kind, symbol, attributes,
+        scratch, add(scratch, 24), add(scratch, 32), add(scratch, 40),
+        add(scratch, 44));
     free(scratch);
     return result;
 }

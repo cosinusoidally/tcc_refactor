@@ -1375,6 +1375,8 @@ void parse_asm_str(CString *astr);
 int asm_label_instr(void);
 int post_type(CType *type, AttributeDef *ad, int storage, int td);
 void struct_decl_enum(CType *type, Sym *symbol);
+void struct_decl_fields(CType *type, int structure_kind, Sym *symbol,
+                        AttributeDef *attributes);
 extern int lvalue_type(int t);
 extern void indir(void);
 extern void lexpand(void);
