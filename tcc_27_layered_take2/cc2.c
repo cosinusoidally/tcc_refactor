@@ -344,6 +344,7 @@ var CC2_TCC_STATE_MS_EXTENSIONS_OFFSET = 64;
 var CC2_TCC_STATE_MS_BITFIELDS_OFFSET = 72;
 var CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET = 936;
 var CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET = 56;
+var CC2_TCC_STATE_WARN_WRITE_STRINGS_OFFSET = 76;
 var CC2_CASE_SECOND_VALUE_OFFSET = 8;
 var CC2_CASE_SYMBOL_OFFSET = 16;
 var CC2_SWITCH_DEFAULT_SYMBOL_OFFSET = 8;
@@ -351,6 +352,8 @@ var CC2_TOKEN_MEMSET = 388;
 var CC2_TOKEN_NAN = 335;
 var CC2_TOKEN_SIGNALING_NAN = 336;
 var CC2_TOKEN_INFINITY = 337;
+var CC2_TOKEN_STRING = 185;
+var CC2_TOKEN_WIDE_STRING = 186;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;
 var CC2_IEEE_DOUBLE_INFINITY_HIGH_WORD = 2146435072;
 var table_ident;
@@ -5825,6 +5828,36 @@ function unary_parenthesized(sizeof_caller)
     free(attributes);
     free(type);
     return returns_type;
+}
+
+function unary_string(token)
+{
+    var type;
+    var attributes;
+    var element_type;
+    type = malloc(8);
+    attributes = malloc(CC2_ATTRIBUTE_BYTES);
+    element_type = CC2_TCC_INT_TYPE;
+    if (eq(token, CC2_TOKEN_STRING)) {
+        element_type = CC2_TCC_BYTE_TYPE;
+        if (ri32(add(tcc_state_address,
+            CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET))) {
+            element_type = or(element_type, CC2_TCC_UNSIGNED_TYPE);
+        }
+    }
+    if (ri32(add(tcc_state_address,
+        CC2_TCC_STATE_WARN_WRITE_STRINGS_OFFSET))) {
+        element_type = or(element_type, CC2_TCC_CONST_QUALIFIER);
+    }
+    wi32(type, element_type);
+    wi32(add(type, 4), 0);
+    mk_pointer(type);
+    wi32(type, or(ri32(type), CC2_TCC_ARRAY_TYPE));
+    cc2_zero_bytes(attributes, CC2_ATTRIBUTE_BYTES);
+    decl_initializer_alloc(type, attributes, CC2_VALUE_CONSTANT, 2, 0, 0);
+    free(attributes);
+    free(type);
+    return 0;
 }
 
 /* Parse the pointer and nested-declarator portion of a C declaration. */

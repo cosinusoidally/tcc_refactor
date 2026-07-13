@@ -72,6 +72,7 @@ void unary_sizeof(int token);
 void unary_minus(void);
 void unary_ieee_constant(int token);
 int unary_parenthesized(int sizeof_caller);
+void unary_string(int token);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1067,25 +1068,8 @@ void unary(void)
         }
         break;
     case TOK_LSTR:
-#ifdef TCC_TARGET_PE
-        t = VT_SHORT | VT_UNSIGNED;
-#else
-        t = VT_INT;
-#endif
-        goto str_init;
     case TOK_STR:
-        /* string parsing */
-        t = VT_BYTE;
-        if (tcc_state->char_is_unsigned)
-            t = VT_BYTE | VT_UNSIGNED;
-    str_init:
-        if (tcc_state->warn_write_strings)
-            t |= VT_CONSTANT;
-        type.t = t;
-        mk_pointer(&type);
-        type.t |= VT_ARRAY;
-        memset(&ad, 0, sizeof(AttributeDef));
-        decl_initializer_alloc(&type, &ad, VT_CONST, 2, 0, 0);
+        unary_string(tok);
         break;
     case '(':
         if (unary_parenthesized(sizeof_caller)) {
