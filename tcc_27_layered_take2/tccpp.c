@@ -630,64 +630,6 @@ static inline int *macro_twosharps(const int *ptr0)
 
 /* peek or read [ws_str == NULL] next token from function macro call,
    walking up macro levels up to the file if necessary */
-static int next_argstream(Sym **nested_list, TokenString *ws_str)
-{
-    int t;
-    const int *p;
-    Sym *sa;
-
-    for (;;) {
-        if (macro_ptr) {
-            p = macro_ptr, t = *p;
-            if (ws_str) {
-                while (is_space(t) || TOK_LINEFEED == t || TOK_PLCHLDR == t)
-                    tok_str_add(ws_str, t), t = *++p;
-            }
-            if (t == 0) {
-                end_macro();
-                /* also, end of scope for nested defined symbol */
-                sa = *nested_list;
-                while (sa && sa->v == 0)
-                    sa = sa->prev;
-                if (sa)
-                    sa->v = 0;
-                continue;
-            }
-        } else {
-            ch = handle_eob();
-            if (ws_str) {
-                while (is_space(ch) || ch == '\n' || ch == '/') {
-                    if (ch == '/') {
-                        int c;
-                        uint8_t *p = file->buf_ptr;
-                        PEEKC(c, p);
-                        if (c == '*') {
-                            p = parse_comment(p);
-                            file->buf_ptr = p - 1;
-                        } else if (c == '/') {
-                            p = parse_line_comment(p);
-                            file->buf_ptr = p - 1;
-                        } else
-                            break;
-                        ch = ' ';
-                    }
-                    if (ch == '\n')
-                        file->line_num++;
-                    if (!(ch == '\f' || ch == '\v' || ch == '\r'))
-                        tok_str_add(ws_str, ch);
-                    cinp();
-                }
-            }
-            t = ch;
-        }
-
-        if (ws_str)
-            return t;
-        next_nomacro_spc();
-        return tok;
-    }
-}
-
 /* do macro substitution of current token with macro 's' and add
    result to (tok_str,tok_len). 'nested_list' is the list of all
    macros we got inside to avoid recursing. Return non zero if no

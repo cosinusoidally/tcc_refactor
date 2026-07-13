@@ -431,6 +431,7 @@ var CC2_TOKEN_DEFINED;
 var CC2_TOKEN_VARIADIC_ARGUMENTS;
 var CC2_TOKEN_TWO_SHARPS;
 var CC2_TOKEN_PREPROCESSOR_JOIN;
+var CC2_TOKEN_PLACEHOLDER;
 var CC2_PARSE_FLAG_SPACES;
 var CC2_PARSE_FLAG_LINE_FEED;
 var CC2_PARSE_FLAG_PREPROCESS;
@@ -2187,6 +2188,90 @@ function cc2_tcc_preprocess_(state, token_seen, spaces, level,
 function cc2_tcc_preprocess(state)
 {
     return cc2_tcc_preprocess_(state, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+/* Peek or consume the next function-macro argument token.  Whitespace may
+   cross saved macro streams, comments, refills, and the underlying file. */
+function next_argstream_(nested_list, whitespace, token, pointer, symbol,
+    source_file, character)
+{
+    while (1) {
+        if (macro_ptr) {
+            pointer = macro_ptr;
+            token = ri32(pointer);
+            if (whitespace) {
+                while (or(or(cc2_token_is_space(token),
+                    eq(token, CC2_TOKEN_LINE_FEED)),
+                    eq(token, CC2_TOKEN_PLACEHOLDER))) {
+                    tok_str_add(whitespace, token);
+                    pointer = add(pointer, CC2_I386_WORD_BYTES);
+                    token = ri32(pointer);
+                }
+            }
+            if (eq(token, 0)) {
+                end_macro();
+                symbol = ri32(nested_list);
+                while (symbol) {
+                    if (not(eq(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0))) {
+                        break;
+                    }
+                    symbol = ri32(add(symbol, CC2_SYM_PREV_OFFSET));
+                }
+                if (symbol) {
+                    wi32(add(symbol, CC2_SYM_VALUE_OFFSET), 0);
+                }
+                continue;
+            }
+        } else {
+            ch = handle_eob();
+            if (whitespace) {
+                while (or(or(cc2_token_is_space(ch),
+                    eq(ch, mkC("\n"))), eq(ch, mkC("/")))) {
+                    if (eq(ch, mkC("/"))) {
+                        source_file = ri32(file_address);
+                        pointer = ri32(add(source_file,
+                            CC2_BUFFERED_FILE_POINTER_OFFSET));
+                        pointer = cc2_lex_peek(pointer);
+                        character = ri8(pointer);
+                        if (eq(character, mkC("*"))) {
+                            pointer = parse_comment(pointer);
+                        } else if (eq(character, mkC("/"))) {
+                            pointer = parse_line_comment(pointer);
+                        } else {
+                            break;
+                        }
+                        source_file = ri32(file_address);
+                        wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET),
+                            sub(pointer, 1));
+                        ch = mkC(" ");
+                    }
+                    if (eq(ch, mkC("\n"))) {
+                        source_file = ri32(file_address);
+                        wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET),
+                            add(ri32(add(source_file,
+                            CC2_BUFFERED_FILE_LINE_OFFSET)), 1));
+                    }
+                    if (and(not(eq(ch, mkC("\f"))), and(
+                        not(eq(ch, mkC("\v"))),
+                        not(eq(ch, mkC("\r")))))) {
+                        tok_str_add(whitespace, ch);
+                    }
+                    minp();
+                }
+            }
+            token = ch;
+        }
+        if (whitespace) {
+            return token;
+        }
+        next_nomacro_spc();
+        return ri32(tok_address);
+    }
+}
+
+function next_argstream(nested_list, whitespace)
+{
+    return next_argstream_(nested_list, whitespace, 0, 0, 0, 0, 0);
 }
 
 /* Keep preprocessor output tokens textually separate where concatenation
@@ -15657,6 +15742,7 @@ function cc2_init_constants()
     CC2_TOKEN_VARIADIC_ARGUMENTS = 332;
     CC2_TOKEN_TWO_SHARPS = 202;
     CC2_TOKEN_PREPROCESSOR_JOIN = 205;
+    CC2_TOKEN_PLACEHOLDER = 203;
     CC2_PARSE_FLAG_SPACES = 16;
     CC2_PARSE_FLAG_LINE_FEED = 4;
     CC2_PARSE_FLAG_PREPROCESS = 1;
