@@ -3538,7 +3538,7 @@ function cc0_compiler_parse_break()
     return cc0_compiler_parse_break_(0, 0);
 }
 
-function cc0_compiler_parse_local_(name, length)
+function cc0_compiler_parse_local_(name, length, initialized)
 {
     cc0_compiler_next_token();
     if (not(eq(CC0_TOKEN, CC0_TOKEN_IDENTIFIER))) {
@@ -3561,12 +3561,22 @@ function cc0_compiler_parse_local_(name, length)
         name, length, CC0_LOCAL_COUNT);
     CC0_LOCAL_COUNT = add(CC0_LOCAL_COUNT, 1);
     cc0_compiler_next_token();
+    initialized = eq(CC0_TOKEN, CC0_PUNCTUATION_ASSIGN);
+    if (initialized) {
+        cc0_compiler_next_token();
+        if (cc0_compiler_parse_expression()) {
+            return CC0_TRUE;
+        }
+        if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+            cc0_compiler_emit_store_variable(name, length);
+        }
+    }
     return cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON);
 }
 
 function cc0_compiler_parse_local()
 {
-    return cc0_compiler_parse_local_(0, 0);
+    return cc0_compiler_parse_local_(0, 0, 0);
 }
 
 function cc0_compiler_parse_statement()
