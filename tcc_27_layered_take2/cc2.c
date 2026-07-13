@@ -2502,6 +2502,429 @@ function cc2_expand_special_macro(stream, token)
     return 1;
 }
 
+function macro_subst_(output, nested_list, macro_stream, stream_pointer,
+    token_pointer, value, spacing_pointer, symbol, temporary_stream, token,
+    spacing, no_substitution)
+{
+    stream_pointer = malloc(CC2_I386_WORD_BYTES);
+    token_pointer = malloc(CC2_I386_WORD_BYTES);
+    value = malloc(CC2_CVALUE_BYTES);
+    spacing_pointer = malloc(CC2_I386_WORD_BYTES);
+    temporary_stream = malloc(CC2_TOKEN_STRING_BYTES);
+    spacing = 0;
+    no_substitution = 0;
+    while (1) {
+        wi32(stream_pointer, macro_stream);
+        tok_get(token_pointer, stream_pointer, value);
+        macro_stream = ri32(stream_pointer);
+        token = ri32(token_pointer);
+        if (not(lt(0, token))) {
+            break;
+        }
+        symbol = 0;
+        if (and(not(lt(token, CC2_TOKEN_IDENTIFIER_BASE)),
+            eq(no_substitution, 0))) {
+            symbol = define_find(token);
+            if (symbol) {
+                if (sym_find2(ri32(nested_list), token)) {
+                    tok_str_add2(output, CC2_TOKEN_NO_SUBSTITUTION, 0);
+                    symbol = 0;
+                } else {
+                    cc2_zero_bytes(temporary_stream, CC2_TOKEN_STRING_BYTES);
+                    wi32(add(temporary_stream, CC2_TOKEN_STRING_DATA_OFFSET),
+                        macro_stream);
+                    begin_macro(temporary_stream, 2);
+                    wi32(tok_address, token);
+                    macro_subst_tok(output, nested_list, symbol);
+                    if (eq(ri8(add(temporary_stream,
+                        CC2_TOKEN_STRING_ALLOC_OFFSET)), 3)) {
+                        break;
+                    }
+                    macro_stream = macro_ptr;
+                    end_macro();
+                    if (ri32(add(output, CC2_TOKEN_STRING_LENGTH_OFFSET))) {
+                        token = ri32(add(ri32(add(output,
+                            CC2_TOKEN_STRING_DATA_OFFSET)), mul(ri32(add(
+                            output, CC2_TOKEN_STRING_LAST_LENGTH_OFFSET)),
+                            CC2_I386_WORD_BYTES)));
+                        spacing = cc2_token_is_space(token);
+                    }
+                    continue;
+                }
+            }
+        }
+        if (and(eq(token, mkC("\\")), eq(and(ri32(parse_flags_address),
+            CC2_PARSE_FLAG_ACCEPT_STRAYS), 0))) {
+            tcc_error(mks("stray backslash in program"), 0);
+        }
+        wi32(spacing_pointer, spacing);
+        if (not(cc0_check_space(isidnum_table_address, token,
+            spacing_pointer))) {
+            tok_str_add2(output, token, value);
+        }
+        spacing = ri32(spacing_pointer);
+        if (no_substitution) {
+            if (lt(1, no_substitution)) {
+                if (spacing) {
+                    continue;
+                }
+                no_substitution = add(no_substitution, 1);
+                if (and(eq(no_substitution, 3), eq(token, mkC("(")))) {
+                    continue;
+                }
+            }
+            no_substitution = 0;
+        }
+        if (eq(token, CC2_TOKEN_NO_SUBSTITUTION)) {
+            no_substitution = 1;
+        }
+        if (and(eq(token, CC2_TOKEN_DEFINED), pp_expr)) {
+            no_substitution = 2;
+        }
+    }
+    free(temporary_stream);
+    free(spacing_pointer);
+    free(value);
+    free(token_pointer);
+    free(stream_pointer);
+    return 0;
+}
+
+function macro_subst(output, nested_list, macro_stream)
+{
+    return macro_subst_(output, nested_list, macro_stream, 0, 0, 0, 0, 0,
+        0, 0, 0, 0);
+}
+
+function macro_arg_subst_(nested_list, macro_stream, arguments,
+    stream_pointer, token_pointer, value, output, string, spacing_pointer,
+    argument, argument_stream, text, previous_previous, previous, token,
+    initial_length, expand_argument, cached, expanded_stream, result)
+{
+    stream_pointer = malloc(CC2_I386_WORD_BYTES);
+    token_pointer = malloc(CC2_I386_WORD_BYTES);
+    value = malloc(CC2_CVALUE_BYTES);
+    output = malloc(CC2_TOKEN_STRING_BYTES);
+    string = malloc(CC2_CSTRING_BYTES);
+    expanded_stream = malloc(CC2_TOKEN_STRING_BYTES);
+    spacing_pointer = malloc(CC2_I386_WORD_BYTES);
+    tok_str_new(output);
+    previous_previous = 0;
+    previous = 0;
+    while (1) {
+        wi32(stream_pointer, macro_stream);
+        tok_get(token_pointer, stream_pointer, value);
+        macro_stream = ri32(stream_pointer);
+        token = ri32(token_pointer);
+        if (eq(token, 0)) {
+            break;
+        }
+        if (eq(token, mkC("#"))) {
+            wi32(stream_pointer, macro_stream);
+            tok_get(token_pointer, stream_pointer, value);
+            macro_stream = ri32(stream_pointer);
+            token = ri32(token_pointer);
+            argument = sym_find2(arguments, token);
+            if (or(eq(token, 0), eq(argument, 0))) {
+                expect(mks("macro parameter after '#'"));
+            }
+            cstr_new(string);
+            cstr_ccat(string, mkC("\""));
+            argument_stream = ri32(add(argument, CC2_SYM_CONSTANT_OFFSET));
+            wi32(spacing_pointer, 0);
+            while (not(lt(ri32(argument_stream), 0))) {
+                wi32(stream_pointer, argument_stream);
+                tok_get(token_pointer, stream_pointer, value);
+                argument_stream = ri32(stream_pointer);
+                token = ri32(token_pointer);
+                if (and(not(eq(token, CC2_TOKEN_PLACEHOLDER)),
+                    not(eq(token, CC2_TOKEN_NO_SUBSTITUTION)))) {
+                    if (not(cc0_check_space(isidnum_table_address, token,
+                        spacing_pointer))) {
+                        text = get_tok_str(token, value);
+                        while (ri8(text)) {
+                            if (and(eq(token,
+                                CC2_TOKEN_PREPROCESSOR_STRING),
+                                not(eq(ri8(text), mkC("'"))))) {
+                                add_char(string, ri8(text));
+                            } else {
+                                cstr_ccat(string, ri8(text));
+                            }
+                            text = add(text, 1);
+                        }
+                    }
+                }
+            }
+            wi32(add(string, CC2_CSTRING_SIZE_OFFSET), sub(ri32(add(string,
+                CC2_CSTRING_SIZE_OFFSET)), ri32(spacing_pointer)));
+            cstr_ccat(string, mkC("\""));
+            cstr_ccat(string, 0);
+            wi32(value, ri32(add(string, CC2_CSTRING_SIZE_OFFSET)));
+            wi32(add(value, CC2_I386_WORD_BYTES),
+                ri32(add(string, CC2_CSTRING_DATA_OFFSET)));
+            tok_str_add2(output, CC2_TOKEN_PREPROCESSOR_STRING, value);
+            cstr_free(string);
+        } else if (not(lt(token, CC2_TOKEN_IDENTIFIER_BASE))) {
+            argument = sym_find2(arguments, token);
+            if (argument) {
+                initial_length = ri32(add(output,
+                    CC2_TOKEN_STRING_LENGTH_OFFSET));
+                argument_stream = ri32(add(argument,
+                    CC2_SYM_CONSTANT_OFFSET));
+                expand_argument = not(or(eq(ri32(macro_stream),
+                    CC2_TOKEN_PREPROCESSOR_JOIN),
+                    eq(previous, CC2_TOKEN_PREPROCESSOR_JOIN)));
+                if (and(not(expand_argument), and(eq(previous,
+                    CC2_TOKEN_PREPROCESSOR_JOIN), and(eq(previous_previous,
+                    mkC(",")), and(ri32(gnu_ext_address),
+                    ri32(add(argument, CC2_SYM_TYPE_OFFSET))))))) {
+                    if (not(lt(0, ri32(argument_stream)))) {
+                        wi32(add(output, CC2_TOKEN_STRING_LENGTH_OFFSET), sub(
+                            ri32(add(output, CC2_TOKEN_STRING_LENGTH_OFFSET)),
+                            2));
+                    } else {
+                        wi32(add(output, CC2_TOKEN_STRING_LENGTH_OFFSET), sub(
+                            ri32(add(output, CC2_TOKEN_STRING_LENGTH_OFFSET)),
+                            1));
+                        expand_argument = 1;
+                    }
+                }
+                if (expand_argument) {
+                    cached = ri32(add(argument, CC2_SYM_NEXT_OFFSET));
+                    if (eq(cached, 0)) {
+                        cached = sym_push2(add(argument, CC2_SYM_NEXT_OFFSET),
+                            ri32(add(argument, CC2_SYM_VALUE_OFFSET)),
+                            ri32(add(argument, CC2_SYM_TYPE_OFFSET)), 0);
+                        tok_str_new(expanded_stream);
+                        macro_subst(expanded_stream, nested_list,
+                            argument_stream);
+                        tok_str_add(expanded_stream, 0);
+                        wi32(add(cached, CC2_SYM_CONSTANT_OFFSET),
+                            ri32(add(expanded_stream,
+                            CC2_TOKEN_STRING_DATA_OFFSET)));
+                    }
+                    argument_stream = ri32(add(cached,
+                        CC2_SYM_CONSTANT_OFFSET));
+                }
+                while (1) {
+                    wi32(stream_pointer, argument_stream);
+                    tok_get(token_pointer, stream_pointer, value);
+                    argument_stream = ri32(stream_pointer);
+                    if (not(lt(0, ri32(token_pointer)))) {
+                        break;
+                    }
+                    tok_str_add2(output, ri32(token_pointer), value);
+                }
+                if (eq(ri32(add(output, CC2_TOKEN_STRING_LENGTH_OFFSET)),
+                    initial_length)) {
+                    tok_str_add(output, CC2_TOKEN_PLACEHOLDER);
+                }
+            } else {
+                tok_str_add(output, token);
+            }
+        } else {
+            tok_str_add2(output, token, value);
+        }
+        previous_previous = previous;
+        previous = token;
+    }
+    tok_str_add(output, 0);
+    result = ri32(add(output, CC2_TOKEN_STRING_DATA_OFFSET));
+    free(expanded_stream);
+    free(spacing_pointer);
+    free(string);
+    free(output);
+    free(value);
+    free(token_pointer);
+    free(stream_pointer);
+    return result;
+}
+
+function macro_arg_subst(nested_list, macro_stream, arguments)
+{
+    return macro_arg_subst_(nested_list, macro_stream, arguments, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function macro_subst_tok_(output, nested_list, symbol, saved_flags,
+    joined_stream, macro_stream, whitespace, argument_stream, args_pointer,
+    argument, next_argument, spacing_pointer, token, parenthesis_level,
+    spacing, index, fetch_token, finished, nested_symbol)
+{
+    if (cc2_expand_special_macro(output, ri32(tok_address))) {
+        return 0;
+    }
+    macro_stream = ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET));
+    if (eq(macro_stream, 0)) {
+        return 0;
+    }
+    saved_flags = ri32(parse_flags_address);
+    joined_stream = 0;
+    if (eq(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)), CC2_MACRO_FUNCTION)) {
+        whitespace = malloc(CC2_TOKEN_STRING_BYTES);
+        tok_str_new(whitespace);
+        wi32(parse_flags_address, or(saved_flags, or(CC2_PARSE_FLAG_SPACES,
+            or(CC2_PARSE_FLAG_LINE_FEED, CC2_PARSE_FLAG_ACCEPT_STRAYS))));
+        token = next_argstream(nested_list, whitespace);
+        if (not(eq(token, mkC("(")))) {
+            wi32(parse_flags_address, saved_flags);
+            tok_str_add(output, ri32(tok_address));
+            if (and(saved_flags, CC2_PARSE_FLAG_SPACES)) {
+                index = 0;
+                while (lt(index, ri32(add(whitespace,
+                    CC2_TOKEN_STRING_LENGTH_OFFSET)))) {
+                    tok_str_add(output, ri32(add(ri32(add(whitespace,
+                        CC2_TOKEN_STRING_DATA_OFFSET)), mul(index,
+                        CC2_I386_WORD_BYTES))));
+                    index = add(index, 1);
+                }
+            }
+            tok_str_free_str(ri32(add(whitespace,
+                CC2_TOKEN_STRING_DATA_OFFSET)));
+            free(whitespace);
+            return 0;
+        }
+        tok_str_free_str(ri32(add(whitespace,
+            CC2_TOKEN_STRING_DATA_OFFSET)));
+        free(whitespace);
+        while (1) {
+            next_nomacro();
+            if (not(eq(ri32(tok_address), CC2_TOKEN_PLACEHOLDER))) {
+                break;
+            }
+        }
+        args_pointer = malloc(CC2_I386_WORD_BYTES);
+        spacing_pointer = malloc(CC2_I386_WORD_BYTES);
+        argument_stream = malloc(CC2_TOKEN_STRING_BYTES);
+        wi32(args_pointer, 0);
+        argument = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
+        fetch_token = 1;
+        finished = 0;
+        while (not(finished)) {
+            if (fetch_token) {
+                while (1) {
+                    next_argstream(nested_list, 0);
+                    token = ri32(tok_address);
+                    if (and(not(cc2_token_is_space(token)),
+                        not(eq(token, CC2_TOKEN_LINE_FEED)))) {
+                        break;
+                    }
+                }
+            }
+            fetch_token = 1;
+            if (and(eq(ri32(args_pointer), 0), and(eq(argument, 0),
+                eq(token, mkC(")"))))) {
+                break;
+            }
+            if (eq(argument, 0)) {
+                tcc_error(mks("macro '%s' used with too many args"),
+                    get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0));
+            }
+            tok_str_new(argument_stream);
+            parenthesis_level = 0;
+            wi32(spacing_pointer, 0);
+            while (or(lt(0, parenthesis_level), and(not(eq(token,
+                mkC(")"))), or(not(eq(token, mkC(","))),
+                ri32(add(argument, CC2_SYM_TYPE_OFFSET)))))) {
+                if (or(eq(token, CC2_CHARACTER_END_OF_FILE), eq(token, 0))) {
+                    break;
+                }
+                if (eq(token, mkC("("))) {
+                    parenthesis_level = add(parenthesis_level, 1);
+                } else if (eq(token, mkC(")"))) {
+                    parenthesis_level = sub(parenthesis_level, 1);
+                }
+                if (eq(token, CC2_TOKEN_LINE_FEED)) {
+                    token = mkC(" ");
+                    wi32(tok_address, token);
+                }
+                if (not(cc0_check_space(isidnum_table_address, token,
+                    spacing_pointer))) {
+                    tok_str_add2(argument_stream, token, tokc_address);
+                }
+                next_argstream(nested_list, 0);
+                token = ri32(tok_address);
+            }
+            if (parenthesis_level) {
+                expect(mks(")"));
+            }
+            wi32(add(argument_stream, CC2_TOKEN_STRING_LENGTH_OFFSET), sub(
+                ri32(add(argument_stream, CC2_TOKEN_STRING_LENGTH_OFFSET)),
+                ri32(spacing_pointer)));
+            tok_str_add(argument_stream, sub(0, 1));
+            tok_str_add(argument_stream, 0);
+            next_argument = sym_push2(args_pointer, and(ri32(add(argument,
+                CC2_SYM_VALUE_OFFSET)), bnot(CC2_SYMBOL_FIELD_FLAG)),
+                ri32(add(argument, CC2_SYM_TYPE_OFFSET)), 0);
+            wi32(add(next_argument, CC2_SYM_CONSTANT_OFFSET),
+                ri32(add(argument_stream, CC2_TOKEN_STRING_DATA_OFFSET)));
+            argument = ri32(add(argument, CC2_SYM_NEXT_OFFSET));
+            if (eq(token, mkC(")"))) {
+                if (argument) {
+                    if (and(ri32(add(argument, CC2_SYM_TYPE_OFFSET)),
+                        ri32(gnu_ext_address))) {
+                        fetch_token = 0;
+                    } else {
+                        finished = 1;
+                    }
+                } else {
+                    finished = 1;
+                }
+            } else if (not(eq(token, mkC(",")))) {
+                expect(mks(","));
+            }
+        }
+        if (argument) {
+            tcc_error(mks("macro '%s' used with too few args"),
+                get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0));
+        }
+        wi32(parse_flags_address, saved_flags);
+        macro_stream = macro_arg_subst(nested_list, macro_stream,
+            ri32(args_pointer));
+        argument = ri32(args_pointer);
+        while (argument) {
+            next_argument = ri32(add(argument, CC2_SYM_PREV_OFFSET));
+            tok_str_free_str(ri32(add(argument, CC2_SYM_CONSTANT_OFFSET)));
+            nested_symbol = ri32(add(argument, CC2_SYM_NEXT_OFFSET));
+            if (nested_symbol) {
+                tok_str_free_str(ri32(add(nested_symbol,
+                    CC2_SYM_CONSTANT_OFFSET)));
+                sym_free(nested_symbol);
+            }
+            sym_free(argument);
+            argument = next_argument;
+        }
+        free(argument_stream);
+        free(spacing_pointer);
+        free(args_pointer);
+    }
+    sym_push2(nested_list, ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0, 0);
+    wi32(parse_flags_address, saved_flags);
+    joined_stream = macro_twosharps(macro_stream);
+    if (joined_stream) {
+        macro_subst(output, nested_list, joined_stream);
+    } else {
+        macro_subst(output, nested_list, macro_stream);
+    }
+    nested_symbol = ri32(nested_list);
+    wi32(nested_list, ri32(add(nested_symbol, CC2_SYM_PREV_OFFSET)));
+    sym_free(nested_symbol);
+    if (joined_stream) {
+        tok_str_free_str(joined_stream);
+    }
+    if (not(eq(macro_stream,
+        ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET))))) {
+        tok_str_free_str(macro_stream);
+    }
+    return 0;
+}
+
+function macro_subst_tok(output, nested_list, symbol)
+{
+    return macro_subst_tok_(output, nested_list, symbol, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 /* Keep preprocessor output tokens textually separate where concatenation
    would change their meaning. */
 function pp_need_space(first, second)
