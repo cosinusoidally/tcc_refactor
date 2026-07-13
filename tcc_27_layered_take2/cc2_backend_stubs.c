@@ -263,16 +263,6 @@ function vpush_bitfield_mask(type, size, position, invert)
     return 0;
 }
 
-function store(reg, value)
-{
-    return 0;
-}
-
-function load(reg, value)
-{
-    return 0;
-}
-
 function get_tok_str(token, value)
 {
     return 0;

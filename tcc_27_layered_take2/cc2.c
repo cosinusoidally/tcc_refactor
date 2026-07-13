@@ -6293,6 +6293,161 @@ function gen_addrpc32(registers, symbol, value)
     return 0;
 }
 
+function gen_modrm(opcode_register, registers, symbol, constant)
+{
+    var location;
+    opcode_register = shl(opcode_register, 3);
+    location = and(registers, CC2_VALUE_LOCATION_MASK);
+    if (eq(location, CC2_VALUE_CONSTANT)) {
+        o(or(5, opcode_register));
+        gen_addr32(registers, symbol, constant);
+    } else if (eq(location, CC2_VALUE_LOCAL)) {
+        if (and(le(sub(0, 128), constant), lt(constant, 128))) {
+            o(or(69, opcode_register));
+            g(constant);
+        } else {
+            oad(or(133, opcode_register), constant);
+        }
+    } else {
+        g(or(opcode_register, location));
+    }
+    return 0;
+}
+
+function load(target_reg, value)
+{
+    var registers;
+    var type_value;
+    var constant;
+    var location;
+    var temporary;
+    registers = ri32(add(value, CC2_SVALUE_REGISTER_OFFSET));
+    type_value = and(ri32(value), bnot(CC2_TCC_DEFAULT_SIGN));
+    constant = ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET));
+    type_value = and(type_value, bnot(or(CC2_TCC_VOLATILE_QUALIFIER,
+        CC2_TCC_CONST_QUALIFIER)));
+    location = and(registers, CC2_VALUE_LOCATION_MASK);
+
+    if (and(registers, CC2_TCC_LVALUE)) {
+        if (eq(location, CC2_VALUE_LOCAL_LVALUE)) {
+            temporary = malloc(CC2_SVALUE_BYTES);
+            cc2_zero_bytes(temporary, CC2_SVALUE_BYTES);
+            wi32(temporary, CC2_TCC_INT_TYPE);
+            wi32(add(temporary, CC2_SVALUE_REGISTER_OFFSET),
+                or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE));
+            wi32(add(temporary, CC2_SVALUE_CONSTANT_OFFSET), constant);
+            registers = target_reg;
+            if (eq(registers, CC2_I386_FLOAT_RETURN_REGISTER)) {
+                registers = get_reg(CC2_INTEGER_REGISTER_CLASS);
+            }
+            load(registers, temporary);
+            free(temporary);
+        }
+        if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_FLOAT_TYPE)) {
+            o(217);
+            target_reg = 0;
+        } else if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_DOUBLE_TYPE)) {
+            o(221);
+            target_reg = 0;
+        } else if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_LONG_DOUBLE_TYPE)) {
+            o(219);
+            target_reg = 5;
+        } else if (or(eq(and(type_value, CC2_TCC_TYPE_MASK),
+            CC2_TCC_BYTE_TYPE), eq(and(type_value, CC2_TCC_TYPE_MASK),
+            CC2_TCC_BOOLEAN_TYPE))) {
+            o(48655);
+        } else if (eq(and(type_value, CC2_TCC_TYPE_MASK),
+            or(CC2_TCC_BYTE_TYPE, CC2_TCC_UNSIGNED_TYPE))) {
+            o(46607);
+        } else if (eq(and(type_value, CC2_TCC_TYPE_MASK),
+            CC2_TCC_SHORT_TYPE)) {
+            o(48911);
+        } else if (eq(and(type_value, CC2_TCC_TYPE_MASK),
+            or(CC2_TCC_SHORT_TYPE, CC2_TCC_UNSIGNED_TYPE))) {
+            o(46863);
+        } else {
+            o(139);
+        }
+        gen_modrm(target_reg, registers,
+            ri32(add(value, CC2_SVALUE_SYMBOL_OFFSET)), constant);
+    } else if (eq(location, CC2_VALUE_CONSTANT)) {
+        o(add(184, target_reg));
+        gen_addr32(registers, ri32(add(value, CC2_SVALUE_SYMBOL_OFFSET)),
+            constant);
+    } else if (eq(location, CC2_VALUE_LOCAL)) {
+        if (constant) {
+            o(141);
+            gen_modrm(target_reg, CC2_VALUE_LOCAL, 0, constant);
+        } else {
+            o(137);
+            o(add(232, target_reg));
+        }
+    } else if (eq(location, CC2_VALUE_COMPARISON)) {
+        oad(add(184, target_reg), 0);
+        o(15);
+        o(constant);
+        o(add(192, target_reg));
+    } else if (or(eq(location, CC2_VALUE_JUMP),
+        eq(location, CC2_VALUE_JUMP_FALSE))) {
+        location = and(location, 1);
+        oad(add(184, target_reg), location);
+        o(1515);
+        gsym(constant);
+        oad(add(184, target_reg), xor(location, 1));
+    } else if (not(eq(location, target_reg))) {
+        o(137);
+        o(add(add(192, target_reg), mul(location, 8)));
+    }
+    return 0;
+}
+
+function store(target_reg, value)
+{
+    var registers;
+    var type_value;
+    var basic_type;
+    var constant;
+    var location;
+    registers = ri32(add(value, CC2_SVALUE_REGISTER_OFFSET));
+    type_value = and(ri32(value), bnot(or(CC2_TCC_VOLATILE_QUALIFIER,
+        CC2_TCC_CONST_QUALIFIER)));
+    basic_type = and(type_value, CC2_TCC_BASIC_TYPE_MASK);
+    constant = ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET));
+    location = and(registers, CC2_VALUE_LOCATION_MASK);
+    if (eq(basic_type, CC2_TCC_FLOAT_TYPE)) {
+        o(217);
+        target_reg = 2;
+    } else if (eq(basic_type, CC2_TCC_DOUBLE_TYPE)) {
+        o(221);
+        target_reg = 2;
+    } else if (eq(basic_type, CC2_TCC_LONG_DOUBLE_TYPE)) {
+        o(49369);
+        o(219);
+        target_reg = 7;
+    } else {
+        if (eq(basic_type, CC2_TCC_SHORT_TYPE)) {
+            o(102);
+        }
+        if (or(eq(basic_type, CC2_TCC_BYTE_TYPE),
+            eq(basic_type, CC2_TCC_BOOLEAN_TYPE))) {
+            o(136);
+        } else {
+            o(137);
+        }
+    }
+    if (or(or(eq(location, CC2_VALUE_CONSTANT),
+        eq(location, CC2_VALUE_LOCAL)), and(registers, CC2_TCC_LVALUE))) {
+        gen_modrm(target_reg, registers,
+            ri32(add(value, CC2_SVALUE_SYMBOL_OFFSET)), constant);
+    } else if (not(eq(location, target_reg))) {
+        o(add(add(192, location), mul(target_reg, 8)));
+    }
+    return 0;
+}
+
 function init_putv(type, section, offset)
 {
     var destination_type;
