@@ -1531,6 +1531,7 @@ void inp(void);
 int handle_eob(void);
 int handle_stray_noerror(void);
 int handle_stray1(uint8_t *p);
+uint8_t *parse_line_comment(uint8_t *p);
 #endif
 
 /* ------------ xxx-link.c ------------ */

@@ -519,43 +519,6 @@ const char *get_tok_str(int v, CValue *cv)
     }\
 }
 
-/* single line C++ comments */
-static uint8_t *parse_line_comment(uint8_t *p)
-{
-    int c;
-
-    p++;
-    for(;;) {
-        c = *p;
-    redo:
-        if (c == '\n' || c == CH_EOF) {
-            break;
-        } else if (c == '\\') {
-            file->buf_ptr = p;
-            c = handle_eob();
-            p = file->buf_ptr;
-            if (c == '\\') {
-                PEEKC_EOB(c, p);
-                if (c == '\n') {
-                    file->line_num++;
-                    PEEKC_EOB(c, p);
-                } else if (c == '\r') {
-                    PEEKC_EOB(c, p);
-                    if (c == '\n') {
-                        file->line_num++;
-                        PEEKC_EOB(c, p);
-                    }
-                }
-            } else {
-                goto redo;
-            }
-        } else {
-            p++;
-        }
-    }
-    return p;
-}
-
 /* C comments */
 ST_FUNC uint8_t *parse_comment(uint8_t *p)
 {
