@@ -124,8 +124,19 @@ function read(descriptor, buffer, count) {
 }
 
 function write(descriptor, buffer, count) {
-    var file = cc0_prims_files[descriptor];
     var index = 0;
+    var text = "";
+    var file;
+    if (descriptor === 1 || descriptor === 2) {
+        while (index < count) {
+            text += String.fromCharCode(ri8(buffer + index));
+            index++;
+        }
+        putstr(text);
+        return count | 0;
+    }
+    file = cc0_prims_files[descriptor];
+    index = 0;
     while (index < count) {
         file.data.push(ri8(buffer + index));
         index++;

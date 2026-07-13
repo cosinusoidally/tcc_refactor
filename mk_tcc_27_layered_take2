@@ -105,6 +105,24 @@ diff -u -s cc1_stubs.o cc1_stubs_self.o
 ./cc0.exe cc0.o cc1.o cc2_stubs.o -o cc1.exe
 ./cc1.exe -c ../tcc_27_layered_take2/cc2_stubs.c -o cc2_by_cc1.o
 
+# Both front ends expose help and source locations without host-side parsing.
+./cc0.exe --help >cc0_help.txt
+./cc1.exe --help >cc1_help.txt
+test -s cc0_help.txt
+test -s cc1_help.txt
+if ./cc0.exe -c ../tcc_27_layered_take2/tests/layered/cc0_invalid.c \
+    -o cc0_invalid.o 2>cc0_invalid.txt; then
+    exit 1
+fi
+grep '^../tcc_27_layered_take2/tests/layered/cc0_invalid.c:[0-9][0-9]*:[0-9][0-9]*: error:' \
+    cc0_invalid.txt
+if ./cc1.exe -c ../tcc_27_layered_take2/tests/layered/cc0_invalid.c \
+    -o cc1_invalid.o 2>cc1_invalid.txt; then
+    exit 1
+fi
+grep '^../tcc_27_layered_take2/tests/layered/cc0_invalid.c:[0-9][0-9]*:[0-9][0-9]*: error:' \
+    cc1_invalid.txt
+
 # SpiderMonkey must reproduce both cc0 objects and the linked executable.
 js ../tcc_27_layered_take2/tests/layered/cc0_js_bootstrap.js
 diff -u -s cc0.o cc0_js.o

@@ -60,6 +60,8 @@ var CC0_TOKEN_ELSE;
 var CC0_TOKEN_WHILE;
 var CC0_TOKEN_BREAK;
 var CC0_COMPILER_ERROR;
+var CC0_COMPILER_ERROR_POSITION;
+var CC0_DECIMAL_MAX_PLACE;
 var CC0_PUNCTUATION_LEFT_PARENTHESIS;
 var CC0_PUNCTUATION_RIGHT_PARENTHESIS;
 var CC0_PUNCTUATION_LEFT_BRACE;
@@ -168,6 +170,9 @@ var CC0_MAIN_USAGE_ERROR;
 var CC0_MAIN_INPUT_ERROR;
 var CC0_MAIN_COMPILE_ERROR;
 var CC0_MAIN_OUTPUT_ERROR;
+var CC0_MAIN_LINK_ERROR;
+var CC0_STANDARD_OUTPUT;
+var CC0_STANDARD_ERROR;
 var CC0_SECTION_ENTRY_ADDRESS_SHIFT;
 var CC0_SECTION_CAPACITY;
 var CC0_SECTIONS;
@@ -293,6 +298,8 @@ function cc0_init()
     CC0_TOKEN_WHILE = 10;
     CC0_TOKEN_BREAK = 11;
     CC0_COMPILER_ERROR = CC0_FALSE;
+    CC0_COMPILER_ERROR_POSITION = sub(0, 1);
+    CC0_DECIMAL_MAX_PLACE = 1000000000;
     CC0_PUNCTUATION_LEFT_PARENTHESIS = 40;
     CC0_PUNCTUATION_RIGHT_PARENTHESIS = 41;
     CC0_PUNCTUATION_LEFT_BRACE = 123;
@@ -401,6 +408,9 @@ function cc0_init()
     CC0_MAIN_INPUT_ERROR = 3;
     CC0_MAIN_COMPILE_ERROR = 5;
     CC0_MAIN_OUTPUT_ERROR = 6;
+    CC0_MAIN_LINK_ERROR = 7;
+    CC0_STANDARD_OUTPUT = 1;
+    CC0_STANDARD_ERROR = 2;
     CC0_SECTION_ENTRY_ADDRESS_SHIFT = 6;
     CC0_SECTION_CAPACITY = 0;
     CC0_SECTIONS = 0;
@@ -1210,6 +1220,7 @@ function cc0_elf_serialize_object(section_header_offset)
 
 function cc0_compiler_build_object(source, length)
 {
+    CC0_COMPILER_ERROR_POSITION = sub(0, 1);
     if (cc0_compiler_compile_program(source, length)) {
         return CC0_TRUE;
     }
@@ -1643,6 +1654,9 @@ function cc0_compiler_next_token()
 
 function cc0_compiler_fail()
 {
+    if (lt(CC0_COMPILER_ERROR_POSITION, 0)) {
+        CC0_COMPILER_ERROR_POSITION = sub(CC0_TOKEN_START, CC0_SOURCE);
+    }
     CC0_COMPILER_ERROR = CC0_TRUE;
     return CC0_TRUE;
 }
@@ -3220,6 +3234,124 @@ function cc0_c_string_equal(left, right)
     return cc0_c_string_equal_(left, right, 0, 0);
 }
 
+function cc0_c_string_length_(value, length)
+{
+    length = 0;
+    while (not(eq(ri8(add(value, length)), 0))) {
+        length = add(length, 1);
+    }
+    return length;
+}
+
+function cc0_c_string_length(value)
+{
+    return cc0_c_string_length_(value, 0);
+}
+
+function cc0_write_text(descriptor, text)
+{
+    return write(descriptor, text, cc0_c_string_length(text));
+}
+
+function cc0_print_usage_(descriptor, argv, program)
+{
+    program = ri32(argv);
+    cc0_write_text(descriptor, mks("Usage: "));
+    cc0_write_text(descriptor, program);
+    cc0_write_text(descriptor, mks(" -c input.c -o output.o"));
+    file_write_byte(descriptor, CC0_ASCII_LINE_FEED);
+    cc0_write_text(descriptor, mks("       "));
+    cc0_write_text(descriptor, program);
+    cc0_write_text(descriptor, mks(" input.o ... -o output"));
+    file_write_byte(descriptor, CC0_ASCII_LINE_FEED);
+    cc0_write_text(descriptor, mks("Options:"));
+    file_write_byte(descriptor, CC0_ASCII_LINE_FEED);
+    cc0_write_text(descriptor, mks("  -c          Compile one source file"));
+    file_write_byte(descriptor, CC0_ASCII_LINE_FEED);
+    cc0_write_text(descriptor, mks("  -o FILE     Set the output file"));
+    file_write_byte(descriptor, CC0_ASCII_LINE_FEED);
+    cc0_write_text(descriptor, mks("  -h, --help  Display this help"));
+    file_write_byte(descriptor, CC0_ASCII_LINE_FEED);
+    return CC0_FALSE;
+}
+
+function cc0_print_usage(descriptor, argv)
+{
+    return cc0_print_usage_(descriptor, argv, 0);
+}
+
+function cc0_report_error(argv, message, name)
+{
+    cc0_write_text(CC0_STANDARD_ERROR, ri32(argv));
+    cc0_write_text(CC0_STANDARD_ERROR, mks(": "));
+    cc0_write_text(CC0_STANDARD_ERROR, message);
+    if (not(eq(name, 0))) {
+        cc0_write_text(CC0_STANDARD_ERROR, name);
+    }
+    file_write_byte(CC0_STANDARD_ERROR, CC0_ASCII_LINE_FEED);
+    return CC0_FALSE;
+}
+
+/* Decimal formatting stays in the dialect; each place subtracts at most nine times. */
+function cc0_write_decimal_place_(descriptor, value, place, next_place,
+    digit)
+{
+    next_place = add(shl(place, 3), shl(place, 1));
+    if (le(next_place, CC0_DECIMAL_MAX_PLACE)) {
+        if (le(next_place, value)) {
+            value = cc0_write_decimal_place_(descriptor, value, next_place,
+                0, 0);
+        }
+    }
+    digit = 0;
+    while (le(place, value)) {
+        value = sub(value, place);
+        digit = add(digit, 1);
+    }
+    file_write_byte(descriptor, add(CC0_ASCII_ZERO, digit));
+    return value;
+}
+
+function cc0_write_decimal(descriptor, value)
+{
+    return cc0_write_decimal_place_(descriptor, value, 1, 0, 0);
+}
+
+function cc0_report_compile_error_(name, position, line, column, index,
+    character)
+{
+    line = 1;
+    column = 1;
+    index = 0;
+    if (lt(position, 0)) {
+        position = 0;
+    }
+    while (lt(index, position)) {
+        character = ri8(add(CC0_SOURCE, index));
+        if (eq(character, CC0_ASCII_LINE_FEED)) {
+            line = add(line, 1);
+            column = 1;
+        } else {
+            column = add(column, 1);
+        }
+        index = add(index, 1);
+    }
+    cc0_write_text(CC0_STANDARD_ERROR, name);
+    file_write_byte(CC0_STANDARD_ERROR, 58);
+    cc0_write_decimal(CC0_STANDARD_ERROR, line);
+    file_write_byte(CC0_STANDARD_ERROR, 58);
+    cc0_write_decimal(CC0_STANDARD_ERROR, column);
+    cc0_write_text(CC0_STANDARD_ERROR, mks(": error: compilation failed"));
+    file_write_byte(CC0_STANDARD_ERROR, CC0_ASCII_LINE_FEED);
+    return CC0_FALSE;
+}
+
+function cc0_report_compile_error(name)
+{
+    return cc0_report_compile_error_(name, CC0_COMPILER_ERROR_POSITION,
+        0, 0, 0, 0);
+}
+
 function cc0_read_source_(name, size_pointer, descriptor, size, source,
     index, value)
 {
@@ -3281,13 +3413,24 @@ function cc0_write_object(name)
     return cc0_write_object_(name, 0, 0);
 }
 
-/* Standalone policy belongs here; host adapters only supply file syscalls. */
+/* Standalone policy and diagnostics are shared by every layered executable. */
 function main_(argc, argv, input_name, output_name, source_size_pointer,
-    source, source_size)
+    source, source_size, first_argument, result)
 {
     cc0_init();
     input_name = 0;
     output_name = 0;
+    if (eq(argc, 2)) {
+        first_argument = ri32(add(argv, CC0_WORD_BYTES));
+        if (cc0_c_string_equal(first_argument, mks("-h"))) {
+            cc0_print_usage(CC0_STANDARD_OUTPUT, argv);
+            return CC0_FALSE;
+        }
+        if (cc0_c_string_equal(first_argument, mks("--help"))) {
+            cc0_print_usage(CC0_STANDARD_OUTPUT, argv);
+            return CC0_FALSE;
+        }
+    }
     if (eq(argc, 3)) {
         input_name = ri32(add(argv, CC0_WORD_BYTES));
         output_name = ri32(add(argv, shl(2, CC0_WORD_ADDRESS_SHIFT)));
@@ -3305,23 +3448,34 @@ function main_(argc, argv, input_name, output_name, source_size_pointer,
     }
     if (eq(input_name, 0)) {
         if (not(lt(argc, 4))) {
-            return cc1_link(argc, argv);
+            result = cc1_link(argc, argv);
+            if (not(eq(result, 0))) {
+                cc0_report_error(argv, mks("link failed"), 0);
+                return CC0_MAIN_LINK_ERROR;
+            }
+            return CC0_FALSE;
         }
+        cc0_print_usage(CC0_STANDARD_ERROR, argv);
         return CC0_MAIN_USAGE_ERROR;
     }
     source_size_pointer = alloc(CC0_WORD_BYTES);
     if (eq(source_size_pointer, 0)) {
+        cc0_report_error(argv, mks("out of memory while reading "),
+            input_name);
         return CC0_MAIN_INPUT_ERROR;
     }
     source = cc0_read_source(input_name, source_size_pointer);
     if (eq(source, 0)) {
+        cc0_report_error(argv, mks("cannot read input "), input_name);
         return CC0_MAIN_INPUT_ERROR;
     }
     source_size = ri32(source_size_pointer);
     if (cc0_compiler_build_object(source, source_size)) {
+        cc0_report_compile_error(input_name);
         return CC0_MAIN_COMPILE_ERROR;
     }
     if (cc0_write_object(output_name)) {
+        cc0_report_error(argv, mks("cannot write output "), output_name);
         return CC0_MAIN_OUTPUT_ERROR;
     }
     return CC0_FALSE;
@@ -3329,5 +3483,5 @@ function main_(argc, argv, input_name, output_name, source_size_pointer,
 
 function main(argc, argv)
 {
-    return main_(argc, argv, 0, 0, 0, 0, 0);
+    return main_(argc, argv, 0, 0, 0, 0, 0, 0, 0);
 }

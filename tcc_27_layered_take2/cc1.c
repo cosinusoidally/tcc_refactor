@@ -133,13 +133,17 @@ function cc1_link_(argc, argv, linker, runtime, capacity, index, argument,
     wi8(add(command, position), 0);
     status = system(command);
     if (not(eq(status, 0))) {
-        return status;
+        return 1;
     }
     output = cc1_find_output(argc, argv);
     if (eq(output, 0)) {
         return 1;
     }
-    return chmod(output, 493);
+    status = chmod(output, 493);
+    if (not(eq(status, 0))) {
+        return 1;
+    }
+    return 0;
 }
 
 function cc1_link(argc, argv)
