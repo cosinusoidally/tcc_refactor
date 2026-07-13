@@ -28,38 +28,20 @@
    rsym: return symbol
    anon_sym: anonymous symbol index
 */
-ST_DATA int rsym, anon_sym, ind, loc;
-
 ST_DATA Sym *sym_free_first;
 ST_DATA void **sym_pools;
-ST_DATA int nb_sym_pools;
 
 ST_DATA Sym *global_stack;
 ST_DATA Sym *local_stack;
 ST_DATA Sym *define_stack;
 ST_DATA Sym *global_label_stack;
 ST_DATA Sym *local_label_stack;
-static int local_scope;
-static int in_sizeof;
-static int section_sym;
-
-ST_DATA int vlas_in_scope; /* number of VLAs that are currently in scope */
-ST_DATA int vla_sp_root_loc; /* vla_sp_loc for SP before any VLAs were pushed */
-ST_DATA int vla_sp_loc; /* Pointer to variable holding location to store stack pointer on the stack when modifying stack pointer */
-
 ST_DATA SValue __vstack[1+VSTACK_SIZE], *vtop, *pvtop;
 
-ST_DATA int const_wanted; /* true if constant wanted */
-ST_DATA int nocode_wanted; /* no code generation wanted */
 #define NODATA_WANTED (nocode_wanted > 0) /* no static data output wanted either */
 #define STATIC_DATA_WANTED (nocode_wanted & 0xC0000000) /* only static data output */
-ST_DATA int global_expr;  /* true if compound literals must be allocated globally (used during initializers parsing */
 ST_DATA CType func_vt; /* current function return type (used by return instruction) */
-ST_DATA int func_var; /* true if current function is variadic (used by return instruction) */
-ST_DATA int func_vc;
-ST_DATA int last_line_num, last_ind, func_ind; /* debug last line number and pc */
 ST_DATA const char *funcname;
-ST_DATA int g_debug;
 
 ST_DATA CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
 

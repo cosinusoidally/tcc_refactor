@@ -1252,7 +1252,7 @@ static inline int toup(int c) {
 #define SYM_POOL_NB (8192 / sizeof(Sym))
 ST_DATA Sym *sym_free_first;
 ST_DATA void **sym_pools;
-ST_DATA int nb_sym_pools;
+extern int nb_sym_pools;
 
 ST_DATA Sym *global_stack;
 ST_DATA Sym *local_stack;
@@ -1262,17 +1262,19 @@ ST_DATA Sym *define_stack;
 ST_DATA CType char_pointer_type, func_old_type, int_type, size_type;
 ST_DATA SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE], *vtop, *pvtop;
 #define vstack  (__vstack + 1)
-ST_DATA int rsym, anon_sym, ind, loc;
+extern int rsym, anon_sym, ind, loc;
 
-ST_DATA int const_wanted; /* true if constant wanted */
-ST_DATA int nocode_wanted; /* true if no code generation wanted for an expression */
-ST_DATA int global_expr;  /* true if compound literals must be allocated globally (used during initializers parsing */
+extern int const_wanted; /* true if constant wanted */
+extern int nocode_wanted; /* true if no code generation wanted for an expression */
+extern int global_expr;  /* true if compound literals must be allocated globally (used during initializers parsing */
 ST_DATA CType func_vt; /* current function return type (used by return instruction) */
-ST_DATA int func_var; /* true if current function is variadic */
-ST_DATA int func_vc;
-ST_DATA int last_line_num, last_ind, func_ind; /* debug last line number and pc */
+extern int func_var; /* true if current function is variadic */
+extern int func_vc;
+extern int last_line_num, last_ind, func_ind; /* debug last line number and pc */
 ST_DATA const char *funcname;
-ST_DATA int g_debug;
+extern int g_debug;
+extern int local_scope, in_sizeof, section_sym;
+extern int vlas_in_scope, vla_sp_root_loc, vla_sp_loc;
 
 ST_FUNC void tcc_debug_start(TCCState *s1);
 ST_FUNC void tcc_debug_end(TCCState *s1);

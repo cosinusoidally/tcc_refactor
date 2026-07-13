@@ -42,6 +42,28 @@ var CC2_TCC_QUAD_FLOAT_TYPE = 14;
 var CC2_I386_FLOAT_RETURN_CLASS = 8;
 var CC2_I386_FLOAT_RETURN_REGISTER = 4;
 
+/* Scalar production frontend state; structured state remains in tcc_rest.o. */
+var nb_sym_pools;
+var rsym;
+var anon_sym;
+var ind;
+var loc;
+var local_scope;
+var in_sizeof;
+var section_sym;
+var vlas_in_scope;
+var vla_sp_root_loc;
+var vla_sp_loc;
+var const_wanted;
+var nocode_wanted;
+var global_expr;
+var func_var;
+var func_vc;
+var last_line_num;
+var last_ind;
+var func_ind;
+var g_debug;
+
 function cc2_copy_bytes_(destination, source, length, index)
 {
     index = 0;
