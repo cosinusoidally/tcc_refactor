@@ -328,6 +328,11 @@ var CC2_ELF_SYMBOL_NO_TYPE = 0;
 var CC2_ELF_SYMBOL_OBJECT_TYPE = 1;
 var CC2_ELF_SYMBOL_FUNCTION_TYPE = 2;
 var CC2_TCC_STATE_SECTIONS_OFFSET = 956;
+var CC2_TCC_STATE_OUTPUT_TYPE_OFFSET = 48;
+var CC2_TCC_STATE_GOT_OFFSET = 972;
+var CC2_TCC_STATE_PLT_OFFSET = 976;
+var CC2_TCC_OUTPUT_DLL = 3;
+var CC2_SECTION_ADDRESS_OFFSET = 44;
 var CC2_ELF_RELOCATION_BYTES = 8;
 var CC2_ELF_RELOCATION_OFFSET_OFFSET = 0;
 var CC2_ELF_RELOCATION_INFO_OFFSET = 4;
@@ -6281,6 +6286,77 @@ function gotplt_entry_type(relocation_type)
     }
     tcc_error(mks("Unknown relocation type: %d"), relocation_type);
     return sub(0, 1);
+}
+
+function create_plt_entry(state, got_offset, attributes)
+{
+    var plt;
+    var got;
+    var pointer;
+    var modrm;
+    var plt_offset;
+    var relocation_offset;
+    plt = ri32(add(state, CC2_TCC_STATE_PLT_OFFSET));
+    got = ri32(add(state, CC2_TCC_STATE_GOT_OFFSET));
+    if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+        CC2_TCC_OUTPUT_DLL)) {
+        modrm = 163;
+    } else {
+        modrm = 37;
+    }
+    if (eq(ri32(add(plt, CC2_SECTION_DATA_OFFSET)), 0)) {
+        pointer = section_ptr_add(plt, 16);
+        wi8(pointer, 255);
+        wi8(add(pointer, 1), add(modrm, 16));
+        wi32(add(pointer, 2), CC2_I386_WORD_BYTES);
+        wi8(add(pointer, 6), 255);
+        wi8(add(pointer, 7), modrm);
+        wi32(add(pointer, 8), mul(CC2_I386_WORD_BYTES, 2));
+    }
+    plt_offset = ri32(add(plt, CC2_SECTION_DATA_OFFSET));
+    pointer = ri32(add(got, CC2_SECTION_RELOCATION_OFFSET));
+    if (eq(pointer, 0)) {
+        relocation_offset = 0;
+    } else {
+        relocation_offset = ri32(add(pointer, CC2_SECTION_DATA_OFFSET));
+    }
+    pointer = section_ptr_add(plt, 16);
+    wi8(pointer, 255);
+    wi8(add(pointer, 1), modrm);
+    wi32(add(pointer, 2), got_offset);
+    wi8(add(pointer, 6), 104);
+    wi32(add(pointer, 7), relocation_offset);
+    wi8(add(pointer, 11), 233);
+    wi32(add(pointer, 12), sub(0,
+        ri32(add(plt, CC2_SECTION_DATA_OFFSET))));
+    return plt_offset;
+}
+
+function relocate_plt(state)
+{
+    var plt;
+    var got;
+    var pointer;
+    var end;
+    var got_address;
+    plt = ri32(add(state, CC2_TCC_STATE_PLT_OFFSET));
+    if (eq(plt, 0)) {
+        return 0;
+    }
+    got = ri32(add(state, CC2_TCC_STATE_GOT_OFFSET));
+    got_address = ri32(add(got, CC2_SECTION_ADDRESS_OFFSET));
+    pointer = ri32(add(plt, CC2_SECTION_DATA_POINTER_OFFSET));
+    end = add(pointer, ri32(add(plt, CC2_SECTION_DATA_OFFSET)));
+    if (lt(pointer, end)) {
+        wi32(add(pointer, 2), add(ri32(add(pointer, 2)), got_address));
+        wi32(add(pointer, 8), add(ri32(add(pointer, 8)), got_address));
+        pointer = add(pointer, 16);
+        while (lt(pointer, end)) {
+            wi32(add(pointer, 2), add(ri32(add(pointer, 2)), got_address));
+            pointer = add(pointer, 16);
+        }
+    }
+    return 0;
 }
 
 /* i386 target-byte emission belongs to cc2, not the typed C remainder. */
