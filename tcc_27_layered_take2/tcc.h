@@ -1223,6 +1223,7 @@ Sym *label_push(Sym **ptop, int v, int flags);
 void label_pop(Sym **ptop, Sym *slast, int keep);
 void parse_define(void);
 void preprocess(int is_bof);
+void parse_escape_string(CString *output, const uint8_t *buffer, int is_long);
 void next_nomacro(void);
 void next_nomacro1(void);
 extern void next(void);

@@ -470,6 +470,7 @@ var CC2_TCC_STATE_TARGET_DEPENDENCY_COUNT_OFFSET;
 var CC2_BUFFERED_FILE_INCLUDE_NEXT_INDEX_OFFSET;
 var CC2_TOKEN_FLAG_BEGINNING_OF_FILE;
 var CC2_TOKEN_FLAG_BEGINNING_OF_LINE;
+var CC2_UNICODE_REPLACEMENT_CHARACTER;
 var CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET;
 var CC2_BUFFERED_FILE_FILENAME_CAPACITY;
 var CC2_STABS_INCLUDE_TYPE;
@@ -2378,6 +2379,179 @@ function preprocess(is_beginning)
         next_nomacro();
     }
     wi32(parse_flags_address, saved_flags);
+    return 0;
+}
+
+function cc2_octal_digit(character)
+{
+    if (and(not(lt(character, 48)), not(lt(55, character)))) {
+        return sub(character, 48);
+    }
+    return sub(0, 1);
+}
+
+function cc2_hex_digit(character)
+{
+    if (and(not(lt(character, 48)), not(lt(57, character)))) {
+        return sub(character, 48);
+    }
+    if (and(not(lt(character, 97)), not(lt(102, character)))) {
+        return add(sub(character, 97), 10);
+    }
+    if (and(not(lt(character, 65)), not(lt(70, character)))) {
+        return add(sub(character, 65), 10);
+    }
+    return sub(0, 1);
+}
+
+/* Decode C escapes and UTF-8 into TCC's narrow or i386-wide CString. */
+function parse_escape_string(output, buffer, is_long)
+{
+    var pointer;
+    var character;
+    var value;
+    var digit;
+    var continuation;
+    var skip;
+    var index;
+    var low;
+    var high;
+    var leading;
+    pointer = buffer;
+    while (ri8(pointer)) {
+        character = ri8(pointer);
+        if (eq(character, 92)) {
+            pointer = add(pointer, 1);
+            character = ri8(pointer);
+            digit = cc2_octal_digit(character);
+            if (not(lt(digit, 0))) {
+                value = digit;
+                pointer = add(pointer, 1);
+                digit = cc2_octal_digit(ri8(pointer));
+                if (not(lt(digit, 0))) {
+                    value = add(mul(value, 8), digit);
+                    pointer = add(pointer, 1);
+                    digit = cc2_octal_digit(ri8(pointer));
+                    if (not(lt(digit, 0))) {
+                        value = add(mul(value, 8), digit);
+                        pointer = add(pointer, 1);
+                    }
+                }
+                character = value;
+            } else if (or(eq(character, 120), or(eq(character, 117),
+                eq(character, 85)))) {
+                pointer = add(pointer, 1);
+                value = 0;
+                digit = cc2_hex_digit(ri8(pointer));
+                while (not(lt(digit, 0))) {
+                    value = add(mul(value, 16), digit);
+                    pointer = add(pointer, 1);
+                    digit = cc2_hex_digit(ri8(pointer));
+                }
+                character = value;
+            } else {
+                if (eq(character, 97)) {
+                    character = 7;
+                } else if (eq(character, 98)) {
+                    character = 8;
+                } else if (eq(character, 102)) {
+                    character = 12;
+                } else if (eq(character, 110)) {
+                    character = 10;
+                } else if (eq(character, 114)) {
+                    character = 13;
+                } else if (eq(character, 116)) {
+                    character = 9;
+                } else if (eq(character, 118)) {
+                    character = 11;
+                } else if (eq(character, 101)) {
+                    if (ri32(gnu_ext_address)) {
+                        character = 27;
+                    } else {
+                        tcc_warning(mks("unknown escape sequence: '\\%c'"),
+                            character);
+                    }
+                } else if (and(not(eq(character, 39)), and(not(eq(character,
+                    34)), and(not(eq(character, 92)), not(eq(character,
+                    63)))))) {
+                    if (and(not(lt(character, 33)), not(lt(126,
+                        character)))) {
+                        tcc_warning(mks("unknown escape sequence: '\\%c'"),
+                            character);
+                    } else {
+                        tcc_warning(mks("unknown escape sequence: '\\x%x'"),
+                            character);
+                    }
+                }
+                pointer = add(pointer, 1);
+            }
+        } else if (and(is_long, not(lt(character, 128)))) {
+            leading = character;
+            skip = 1;
+            continuation = 0;
+            if (lt(character, 194)) {
+                continuation = sub(0, 1);
+            } else if (not(lt(223, character))) {
+                continuation = 1;
+                value = and(character, 31);
+            } else if (not(lt(239, character))) {
+                continuation = 2;
+                value = and(character, 15);
+            } else if (not(lt(244, character))) {
+                continuation = 3;
+                value = and(character, 7);
+            } else {
+                continuation = sub(0, 1);
+            }
+            if (not(lt(continuation, 0))) {
+                index = 1;
+                while (le(index, continuation)) {
+                    low = 128;
+                    high = 191;
+                    if (eq(index, 1)) {
+                        if (eq(leading, 224)) {
+                            low = 160;
+                        } else if (eq(leading, 237)) {
+                            high = 159;
+                        } else if (eq(leading, 240)) {
+                            low = 144;
+                        } else if (eq(leading, 244)) {
+                            high = 143;
+                        }
+                    }
+                    character = ri8(add(pointer, index));
+                    if (or(lt(character, low), lt(high, character))) {
+                        skip = index;
+                        continuation = sub(0, 1);
+                        break;
+                    }
+                    value = or(shl(value, 6), and(character, 63));
+                    index = add(index, 1);
+                }
+            }
+            if (lt(continuation, 0)) {
+                tcc_warning(mks("ill-formed UTF-8 subsequence starting with: '\\x%x'"),
+                    leading);
+                character = CC2_UNICODE_REPLACEMENT_CHARACTER;
+                pointer = add(pointer, skip);
+            } else {
+                character = value;
+                pointer = add(pointer, add(1, continuation));
+            }
+        } else {
+            pointer = add(pointer, 1);
+        }
+        if (is_long) {
+            cstr_wccat(output, character);
+        } else {
+            cstr_ccat(output, character);
+        }
+    }
+    if (is_long) {
+        cstr_wccat(output, 0);
+    } else {
+        cstr_ccat(output, 0);
+    }
     return 0;
 }
 
@@ -13982,6 +14156,7 @@ function cc2_init_constants()
     CC2_BUFFERED_FILE_INCLUDE_NEXT_INDEX_OFFSET = 36;
     CC2_TOKEN_FLAG_BEGINNING_OF_FILE = 2;
     CC2_TOKEN_FLAG_BEGINNING_OF_LINE = 1;
+    CC2_UNICODE_REPLACEMENT_CHARACTER = 65533;
     CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET = 1064;
     CC2_BUFFERED_FILE_FILENAME_CAPACITY = 1024;
     CC2_STABS_INCLUDE_TYPE = 130;
