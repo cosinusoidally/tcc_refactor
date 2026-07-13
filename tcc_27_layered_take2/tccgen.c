@@ -460,17 +460,6 @@ static void gbound(void)
 }
 #endif
 
-static void incr_bf_adr(int o)
-{
-    vtop->type = char_pointer_type;
-    gaddrof();
-    vpushi(o);
-    gen_op('+');
-    vtop->type.t = (vtop->type.t & ~(VT_BTYPE|VT_DEFSIGN))
-        | (VT_BYTE|VT_UNSIGNED);
-    vtop->r = (vtop->r & ~VT_LVAL_TYPE)
-        | (VT_LVAL_BYTE|VT_LVAL_UNSIGNED|VT_LVAL);
-}
 
 /* single-byte load mode for packed or otherwise unaligned bitfields */
 static void load_packed_bf(CType *type, int bit_pos, int bit_size)
@@ -541,18 +530,6 @@ static void store_packed_bf(int bit_pos, int bit_size)
     vpop(), vpop();
 }
 
-static int adjust_bf(SValue *sv, int bit_pos, int bit_size)
-{
-    int t;
-    if (0 == sv->type.ref)
-        return 0;
-    t = sv->type.ref->auxtype;
-    if (t != -1 && t != VT_STRUCT) {
-        sv->type.t = (sv->type.t & ~VT_BTYPE) | t;
-        sv->r = (sv->r & ~VT_LVAL_TYPE) | lvalue_type(sv->type.t);
-    }
-    return t;
-}
 
 /* store vtop a register belonging to class 'rc'. lvalues are
    converted to values. Cannot be used if cannot be converted to

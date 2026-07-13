@@ -2740,6 +2740,42 @@ function gen_cvt_ftoi1(type)
     return 0;
 }
 
+function incr_bf_adr(offset)
+{
+    wi32(vtop, ri32(char_pointer_type));
+    wi32(add(vtop, 4), ri32(add(char_pointer_type, 4)));
+    gaddrof();
+    vpushi(offset);
+    gen_op(CC2_ASCII_PLUS);
+    wi32(vtop, or(and(ri32(vtop), bnot(or(CC2_TCC_BASIC_TYPE_MASK,
+        CC2_TCC_DEFAULT_SIGN))), or(CC2_TCC_BYTE_TYPE,
+        CC2_TCC_UNSIGNED_TYPE)));
+    cc2_set_value_register(vtop, or(and(ri32(add(vtop,
+        CC2_SVALUE_REGISTER_OFFSET)), bnot(CC2_VALUE_LVALUE_TYPE_MASK)),
+        or(or(CC2_TCC_LVALUE_BYTE, CC2_TCC_LVALUE_UNSIGNED),
+        CC2_TCC_LVALUE)));
+    return 0;
+}
+
+function adjust_bf(value, bit_position, bit_size)
+{
+    bit_position = bit_position;
+    bit_size = bit_size;
+    if (eq(ri32(add(value, 4)), 0)) {
+        return 0;
+    }
+    bit_position = ri32(add(ri32(add(value, 4)), CC2_SYM_SCOPE_OFFSET));
+    if (and(not(eq(bit_position, sub(0, 1))),
+        not(eq(bit_position, CC2_TCC_STRUCT_TYPE)))) {
+        wi32(value, or(and(ri32(value), bnot(CC2_TCC_BASIC_TYPE_MASK)),
+            bit_position));
+        cc2_set_value_register(value, or(and(ri32(add(value,
+            CC2_SVALUE_REGISTER_OFFSET)), bnot(CC2_VALUE_LVALUE_TYPE_MASK)),
+            lvalue_type(ri32(value))));
+    }
+    return bit_position;
+}
+
 function is_label_(identifier_floor, saved_token)
 {
     if (lt(ri32(tok_address), identifier_floor)) {
