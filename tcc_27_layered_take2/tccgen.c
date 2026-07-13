@@ -68,6 +68,7 @@ void unary_postfix_increment(int operator);
 void unary_builtin_expression(int token);
 void unary_builtin_frame(int token);
 void unary_label_address(int token);
+void unary_sizeof(int token);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1117,26 +1118,7 @@ void unary(void)
     case TOK_SIZEOF:
     case TOK_ALIGNOF1:
     case TOK_ALIGNOF2:
-        t = tok;
-        next();
-        in_sizeof++;
-        expr_type(&type, 1); /* Perform a in_sizeof = 0; */
-        s = vtop[1].sym; /* hack: accessing previous vtop */
-        size = type_size(&type, &align);
-        if (s && s->a.aligned)
-            align = 1 << (s->a.aligned - 1);
-        if (t == TOK_SIZEOF) {
-            if (!(type.t & VT_VLA)) {
-                if (size < 0)
-                    tcc_error("sizeof applied to an incomplete type");
-                vpushs(size);
-            } else {
-                vla_runtime_type_size(&type, &align);
-            }
-        } else {
-            vpushs(align);
-        }
-        vtop->type.t |= VT_UNSIGNED;
+        unary_sizeof(tok);
         break;
 
     case TOK_builtin_expect:

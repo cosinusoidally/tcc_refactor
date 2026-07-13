@@ -5697,6 +5697,45 @@ function unary_label_address(token)
     return 0;
 }
 
+function unary_sizeof(token)
+{
+    var type;
+    var alignment;
+    var size;
+    var symbol;
+    var aligned;
+    next();
+    in_sizeof = add(in_sizeof, 1);
+    type = malloc(8);
+    alignment = malloc(4);
+    expr_type(type, 1);
+    symbol = ri32(add(add(vtop, CC2_SVALUE_BYTES),
+        CC2_SVALUE_SYMBOL_OFFSET));
+    size = type_size(type, alignment);
+    if (symbol) {
+        aligned = and(ushr(ri32(add(symbol, 4)), 16), 31);
+        if (aligned) {
+            wi32(alignment, shl(1, sub(aligned, 1)));
+        }
+    }
+    if (eq(token, 302)) {
+        if (eq(and(ri32(type), CC2_TCC_VLA_TYPE), 0)) {
+            if (lt(size, 0)) {
+                tcc_error(mks("sizeof applied to an incomplete type"), 0);
+            }
+            vpushs(size);
+        } else {
+            vla_runtime_type_size(type, alignment);
+        }
+    } else {
+        vpushs(ri32(alignment));
+    }
+    wi32(vtop, or(ri32(vtop), CC2_TCC_UNSIGNED_TYPE));
+    free(type);
+    free(alignment);
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {
