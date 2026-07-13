@@ -335,6 +335,7 @@ var tok_ident;
 var tok_address;
 var tokc_address;
 var data_section_address;
+var cur_text_section_address;
 var tcc_state_address;
 var gnu_ext_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
@@ -6190,6 +6191,45 @@ function unary()
             return 0;
         }
     }
+}
+
+function gen_function(symbol)
+{
+    var section;
+    var function_size;
+    nocode_wanted = 0;
+    section = ri32(cur_text_section_address);
+    ind = ri32(add(section, CC2_SECTION_DATA_OFFSET));
+    put_extern_sym(symbol, section, ind, 0);
+    funcname = get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0);
+    func_ind = ind;
+    vla_sp_loc = sub(0, 1);
+    vla_sp_root_loc = sub(0, 1);
+    tcc_debug_funcstart(tcc_state_address, symbol);
+    sym_push2(local_stack_address, CC2_SYMBOL_FIELD_FLAG, 0, 0);
+    local_scope = 1;
+    gfunc_prolog(add(symbol, CC2_SYM_TYPE_OFFSET));
+    local_scope = 0;
+    rsym = 0;
+    block(0, 0, 0);
+    nocode_wanted = 0;
+    gsym(rsym);
+    gfunc_epilog();
+    wi32(add(section, CC2_SECTION_DATA_OFFSET), ind);
+    label_pop(global_label_stack_address, 0, 0);
+    local_scope = 0;
+    sym_pop(local_stack_address, 0, 0);
+    function_size = sub(ind, func_ind);
+    wi32(add(elfsym(symbol), 8), function_size);
+    tcc_debug_funcend(tcc_state_address, function_size);
+    wi32(cur_text_section_address, 0);
+    funcname = mks("");
+    wi32(func_vt_address, CC2_TCC_VOID_TYPE);
+    func_var = 0;
+    ind = 0;
+    nocode_wanted = shl(1, 31);
+    check_vstack();
+    return 0;
 }
 
 /* Parse the pointer and nested-declarator portion of a C declaration. */

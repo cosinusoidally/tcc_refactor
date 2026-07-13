@@ -510,7 +510,7 @@ void gfunc_call(int nb_args)
 #endif
 
 /* generate function prolog of type 't' */
-ST_FUNC void gfunc_prolog(CType *func_type)
+void gfunc_prolog(CType *func_type)
 {
     int addr, align, size, func_call, fastcall_nb_regs;
     int param_index, param_addr;
@@ -600,7 +600,7 @@ ST_FUNC void gfunc_prolog(CType *func_type)
 }
 
 /* generate function epilog */
-ST_FUNC void gfunc_epilog(void)
+void gfunc_epilog(void)
 {
     addr_t v, saved_ind;
 

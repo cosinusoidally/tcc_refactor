@@ -335,6 +335,26 @@ function label_pop(stack_pointer, boundary, keep)
     return 0;
 }
 
+function tcc_debug_funcstart(state, symbol)
+{
+    return 0;
+}
+
+function tcc_debug_funcend(state, size)
+{
+    return 0;
+}
+
+function gfunc_prolog(type)
+{
+    return 0;
+}
+
+function gfunc_epilog()
+{
+    return 0;
+}
+
 function ggoto()
 {
     return 0;

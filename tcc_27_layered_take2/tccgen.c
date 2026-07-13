@@ -177,7 +177,7 @@ void tcc_debug_line(TCCState *s1)
 }
 
 /* put function symbol */
-ST_FUNC void tcc_debug_funcstart(TCCState *s1, Sym *sym)
+void tcc_debug_funcstart(TCCState *s1, Sym *sym)
 {
     char buf[512];
 
@@ -198,7 +198,7 @@ ST_FUNC void tcc_debug_funcstart(TCCState *s1, Sym *sym)
 }
 
 /* put function size */
-ST_FUNC void tcc_debug_funcend(TCCState *s1, int size)
+void tcc_debug_funcend(TCCState *s1, int size)
 {
     if (!s1->do_debug)
         return;
@@ -1777,50 +1777,6 @@ void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
     }
 
     nocode_wanted = saved_nocode_wanted;
-}
-
-/* parse a function defined by symbol 'sym' and generate its code in
-   'cur_text_section' */
-static void gen_function(Sym *sym)
-{
-    nocode_wanted = 0;
-    ind = cur_text_section->data_offset;
-    /* NOTE: we patch the symbol size later */
-    put_extern_sym(sym, cur_text_section, ind, 0);
-    funcname = get_tok_str(sym->v, NULL);
-    func_ind = ind;
-    /* Initialize VLA state */
-    vla_sp_loc = -1;
-    vla_sp_root_loc = -1;
-    /* put debug symbol */
-    tcc_debug_funcstart(tcc_state, sym);
-    /* push a dummy symbol to enable local sym storage */
-    sym_push2(&local_stack, SYM_FIELD, 0, 0);
-    local_scope = 1; /* for function parameters */
-    gfunc_prolog(&sym->type);
-    local_scope = 0;
-    rsym = 0;
-    block(NULL, NULL, 0);
-    nocode_wanted = 0;
-    gsym(rsym);
-    gfunc_epilog();
-    cur_text_section->data_offset = ind;
-    label_pop(&global_label_stack, NULL, 0);
-    /* reset local stack */
-    local_scope = 0;
-    sym_pop(&local_stack, NULL, 0);
-    /* end of function */
-    /* patch symbol size */
-    elfsym(sym)->st_size = ind - func_ind;
-    tcc_debug_funcend(tcc_state, ind - func_ind);
-    /* It's better to crash than to generate wrong code */
-    cur_text_section = NULL;
-    funcname = ""; /* for safety */
-    func_vt.t = VT_VOID; /* for safety */
-    func_var = 0; /* for safety */
-    ind = 0; /* for safety */
-    nocode_wanted = 0x80000000;
-    check_vstack();
 }
 
 static void gen_inline_functions(TCCState *s)
