@@ -48,6 +48,43 @@ var CC1_CONDITION_TAKEN_OFFSET;
 var CC1_CONDITIONS;
 var CC1_CONDITION_CAPACITY;
 var CC1_CONDITION_DEPTH;
+var CC1_TYPE_RECORD_SHIFT;
+var CC1_TYPE_KIND_OFFSET;
+var CC1_TYPE_SIZE_OFFSET;
+var CC1_TYPE_ALIGNMENT_OFFSET;
+var CC1_TYPE_FLAGS_OFFSET;
+var CC1_TYPE_BASE_OFFSET;
+var CC1_TYPE_COUNT_OFFSET;
+var CC1_TYPE_VOID_KIND;
+var CC1_TYPE_CHAR_KIND;
+var CC1_TYPE_SHORT_KIND;
+var CC1_TYPE_INT_KIND;
+var CC1_TYPE_POINTER_KIND;
+var CC1_TYPE_ARRAY_KIND;
+var CC1_TYPE_FUNCTION_KIND;
+var CC1_TYPE_UNSIGNED_FLAG;
+var CC1_TYPES;
+var CC1_TYPE_CAPACITY;
+var CC1_TYPE_COUNT;
+var CC1_VOID_TYPE;
+var CC1_CHAR_TYPE;
+var CC1_UNSIGNED_CHAR_TYPE;
+var CC1_SHORT_TYPE;
+var CC1_UNSIGNED_SHORT_TYPE;
+var CC1_INT_TYPE;
+var CC1_UNSIGNED_INT_TYPE;
+var CC1_SYMBOL_RECORD_SHIFT;
+var CC1_SYMBOL_NAME_OFFSET;
+var CC1_SYMBOL_LENGTH_OFFSET;
+var CC1_SYMBOL_TYPE_OFFSET;
+var CC1_SYMBOL_STORAGE_OFFSET;
+var CC1_SYMBOL_DEPTH_OFFSET;
+var CC1_SYMBOLS;
+var CC1_SYMBOL_CAPACITY;
+var CC1_SYMBOL_COUNT;
+var CC1_SCOPE_MARKERS;
+var CC1_SCOPE_CAPACITY;
+var CC1_SCOPE_DEPTH;
 
 function cc1_token_record(index)
 {
@@ -806,6 +843,282 @@ function cc1_preprocessed_consume_(token)
 function cc1_preprocessed_consume()
 {
     return cc1_preprocessed_consume_(0);
+}
+
+function cc1_product_(left, right, result, index)
+{
+    result = 0;
+    index = 0;
+    while (lt(index, right)) {
+        result = add(result, left);
+        index = add(index, 1);
+    }
+    return result;
+}
+
+function cc1_product(left, right)
+{
+    return cc1_product_(left, right, 0, 0);
+}
+
+function cc1_type_record(index)
+{
+    return add(CC1_TYPES, shl(index, CC1_TYPE_RECORD_SHIFT));
+}
+
+function cc1_type_reserve_(needed, capacity, types, used)
+{
+    needed = shl(add(CC1_TYPE_COUNT, 1), CC1_TYPE_RECORD_SHIFT);
+    if (le(needed, CC1_TYPE_CAPACITY)) {
+        return 0;
+    }
+    capacity = CC1_TYPE_CAPACITY;
+    if (eq(capacity, 0)) {
+        capacity = 256;
+    }
+    while (lt(capacity, needed)) {
+        capacity = shl(capacity, 1);
+    }
+    types = malloc(capacity);
+    if (eq(types, 0)) {
+        return 1;
+    }
+    used = shl(CC1_TYPE_COUNT, CC1_TYPE_RECORD_SHIFT);
+    if (not(eq(CC1_TYPES, 0))) {
+        cc1_token_copy_bytes(types, CC1_TYPES, used);
+    }
+    CC1_TYPES = types;
+    CC1_TYPE_CAPACITY = capacity;
+    return 0;
+}
+
+function cc1_type_reserve()
+{
+    return cc1_type_reserve_(0, 0, 0, 0);
+}
+
+function cc1_type_new_(kind, size, alignment, flags, base, count, type)
+{
+    if (cc1_type_reserve()) {
+        return 0;
+    }
+    type = cc1_type_record(CC1_TYPE_COUNT);
+    wi32(add(type, CC1_TYPE_KIND_OFFSET), kind);
+    wi32(add(type, CC1_TYPE_SIZE_OFFSET), size);
+    wi32(add(type, CC1_TYPE_ALIGNMENT_OFFSET), alignment);
+    wi32(add(type, CC1_TYPE_FLAGS_OFFSET), flags);
+    wi32(add(type, CC1_TYPE_BASE_OFFSET), base);
+    wi32(add(type, CC1_TYPE_COUNT_OFFSET), count);
+    CC1_TYPE_COUNT = add(CC1_TYPE_COUNT, 1);
+    return type;
+}
+
+function cc1_type_new(kind, size, alignment, flags, base, count)
+{
+    return cc1_type_new_(kind, size, alignment, flags, base, count, 0);
+}
+
+function cc1_types_init()
+{
+    CC1_TYPE_RECORD_SHIFT = 5;
+    CC1_TYPE_KIND_OFFSET = 0;
+    CC1_TYPE_SIZE_OFFSET = 4;
+    CC1_TYPE_ALIGNMENT_OFFSET = 8;
+    CC1_TYPE_FLAGS_OFFSET = 12;
+    CC1_TYPE_BASE_OFFSET = 16;
+    CC1_TYPE_COUNT_OFFSET = 20;
+    CC1_TYPE_VOID_KIND = 0;
+    CC1_TYPE_CHAR_KIND = 1;
+    CC1_TYPE_SHORT_KIND = 2;
+    CC1_TYPE_INT_KIND = 3;
+    CC1_TYPE_POINTER_KIND = 4;
+    CC1_TYPE_ARRAY_KIND = 5;
+    CC1_TYPE_FUNCTION_KIND = 6;
+    CC1_TYPE_UNSIGNED_FLAG = 1;
+    CC1_TYPE_COUNT = 0;
+    CC1_VOID_TYPE = cc1_type_new(CC1_TYPE_VOID_KIND, 0, 1, 0, 0, 0);
+    CC1_CHAR_TYPE = cc1_type_new(CC1_TYPE_CHAR_KIND, 1, 1, 0, 0, 0);
+    CC1_UNSIGNED_CHAR_TYPE = cc1_type_new(CC1_TYPE_CHAR_KIND, 1, 1,
+        CC1_TYPE_UNSIGNED_FLAG, 0, 0);
+    CC1_SHORT_TYPE = cc1_type_new(CC1_TYPE_SHORT_KIND, 2, 2, 0, 0, 0);
+    CC1_UNSIGNED_SHORT_TYPE = cc1_type_new(CC1_TYPE_SHORT_KIND, 2, 2,
+        CC1_TYPE_UNSIGNED_FLAG, 0, 0);
+    CC1_INT_TYPE = cc1_type_new(CC1_TYPE_INT_KIND, 4, 4, 0, 0, 0);
+    CC1_UNSIGNED_INT_TYPE = cc1_type_new(CC1_TYPE_INT_KIND, 4, 4,
+        CC1_TYPE_UNSIGNED_FLAG, 0, 0);
+    return eq(CC1_UNSIGNED_INT_TYPE, 0);
+}
+
+function cc1_type_pointer(base)
+{
+    return cc1_type_new(CC1_TYPE_POINTER_KIND, 4, 4, 0, base, 0);
+}
+
+function cc1_type_array_(base, count, size)
+{
+    size = cc1_product(ri32(add(base, CC1_TYPE_SIZE_OFFSET)), count);
+    return cc1_type_new(CC1_TYPE_ARRAY_KIND, size,
+        ri32(add(base, CC1_TYPE_ALIGNMENT_OFFSET)), 0, base, count);
+}
+
+function cc1_type_array(base, count)
+{
+    return cc1_type_array_(base, count, 0);
+}
+
+function cc1_type_function(result_type, parameter_count)
+{
+    return cc1_type_new(CC1_TYPE_FUNCTION_KIND, 0, 1, 0, result_type,
+        parameter_count);
+}
+
+function cc1_symbol_record(index)
+{
+    return add(CC1_SYMBOLS, shl(index, CC1_SYMBOL_RECORD_SHIFT));
+}
+
+function cc1_symbol_reserve_(needed, capacity, symbols, used)
+{
+    needed = shl(add(CC1_SYMBOL_COUNT, 1), CC1_SYMBOL_RECORD_SHIFT);
+    if (le(needed, CC1_SYMBOL_CAPACITY)) {
+        return 0;
+    }
+    capacity = CC1_SYMBOL_CAPACITY;
+    if (eq(capacity, 0)) {
+        capacity = 256;
+    }
+    while (lt(capacity, needed)) {
+        capacity = shl(capacity, 1);
+    }
+    symbols = malloc(capacity);
+    if (eq(symbols, 0)) {
+        return 1;
+    }
+    used = shl(CC1_SYMBOL_COUNT, CC1_SYMBOL_RECORD_SHIFT);
+    if (not(eq(CC1_SYMBOLS, 0))) {
+        cc1_token_copy_bytes(symbols, CC1_SYMBOLS, used);
+    }
+    CC1_SYMBOLS = symbols;
+    CC1_SYMBOL_CAPACITY = capacity;
+    return 0;
+}
+
+function cc1_symbol_reserve()
+{
+    return cc1_symbol_reserve_(0, 0, 0, 0);
+}
+
+function cc1_scope_reserve_(needed, capacity, markers, used)
+{
+    needed = shl(add(CC1_SCOPE_DEPTH, 1), 2);
+    if (le(needed, CC1_SCOPE_CAPACITY)) {
+        return 0;
+    }
+    capacity = CC1_SCOPE_CAPACITY;
+    if (eq(capacity, 0)) {
+        capacity = 256;
+    }
+    while (lt(capacity, needed)) {
+        capacity = shl(capacity, 1);
+    }
+    markers = malloc(capacity);
+    if (eq(markers, 0)) {
+        return 1;
+    }
+    used = shl(CC1_SCOPE_DEPTH, 2);
+    if (not(eq(CC1_SCOPE_MARKERS, 0))) {
+        cc1_token_copy_bytes(markers, CC1_SCOPE_MARKERS, used);
+    }
+    CC1_SCOPE_MARKERS = markers;
+    CC1_SCOPE_CAPACITY = capacity;
+    return 0;
+}
+
+function cc1_scope_reserve()
+{
+    return cc1_scope_reserve_(0, 0, 0, 0);
+}
+
+function cc1_symbols_init()
+{
+    CC1_SYMBOL_RECORD_SHIFT = 5;
+    CC1_SYMBOL_NAME_OFFSET = 0;
+    CC1_SYMBOL_LENGTH_OFFSET = 4;
+    CC1_SYMBOL_TYPE_OFFSET = 8;
+    CC1_SYMBOL_STORAGE_OFFSET = 12;
+    CC1_SYMBOL_DEPTH_OFFSET = 16;
+    CC1_SYMBOL_COUNT = 0;
+    CC1_SCOPE_DEPTH = 0;
+    return 0;
+}
+
+function cc1_symbol_lookup_(name, length, index, symbol)
+{
+    index = CC1_SYMBOL_COUNT;
+    while (not(eq(index, 0))) {
+        index = sub(index, 1);
+        symbol = cc1_symbol_record(index);
+        if (eq(ri32(add(symbol, CC1_SYMBOL_LENGTH_OFFSET)), length)) {
+            if (cc1_slice_equal(name,
+                ri32(add(symbol, CC1_SYMBOL_NAME_OFFSET)), length)) {
+                return symbol;
+            }
+        }
+    }
+    return 0;
+}
+
+function cc1_symbol_lookup(name, length)
+{
+    return cc1_symbol_lookup_(name, length, 0, 0);
+}
+
+function cc1_symbol_define_(name, length, type, storage, existing, symbol)
+{
+    existing = cc1_symbol_lookup(name, length);
+    if (not(eq(existing, 0))) {
+        if (eq(ri32(add(existing, CC1_SYMBOL_DEPTH_OFFSET)),
+            CC1_SCOPE_DEPTH)) {
+            return 0;
+        }
+    }
+    if (cc1_symbol_reserve()) {
+        return 0;
+    }
+    symbol = cc1_symbol_record(CC1_SYMBOL_COUNT);
+    wi32(add(symbol, CC1_SYMBOL_NAME_OFFSET), name);
+    wi32(add(symbol, CC1_SYMBOL_LENGTH_OFFSET), length);
+    wi32(add(symbol, CC1_SYMBOL_TYPE_OFFSET), type);
+    wi32(add(symbol, CC1_SYMBOL_STORAGE_OFFSET), storage);
+    wi32(add(symbol, CC1_SYMBOL_DEPTH_OFFSET), CC1_SCOPE_DEPTH);
+    CC1_SYMBOL_COUNT = add(CC1_SYMBOL_COUNT, 1);
+    return symbol;
+}
+
+function cc1_symbol_define(name, length, type, storage)
+{
+    return cc1_symbol_define_(name, length, type, storage, 0, 0);
+}
+
+function cc1_scope_push()
+{
+    if (cc1_scope_reserve()) {
+        return 1;
+    }
+    wi32(add(CC1_SCOPE_MARKERS, shl(CC1_SCOPE_DEPTH, 2)), CC1_SYMBOL_COUNT);
+    CC1_SCOPE_DEPTH = add(CC1_SCOPE_DEPTH, 1);
+    return 0;
+}
+
+function cc1_scope_pop()
+{
+    if (eq(CC1_SCOPE_DEPTH, 0)) {
+        return 1;
+    }
+    CC1_SCOPE_DEPTH = sub(CC1_SCOPE_DEPTH, 1);
+    CC1_SYMBOL_COUNT = ri32(add(CC1_SCOPE_MARKERS,
+        shl(CC1_SCOPE_DEPTH, 2)));
+    return 0;
 }
 
 function cc1_c_string_length_(value, length)
