@@ -2673,17 +2673,15 @@ maybe_newline:
     case '_':
     parse_ident_fast:
         p1 = p;
-        h = TOK_HASH_INIT;
-        h = TOK_HASH_FUNC(h, c);
-        while (c = *++p, isidnum_table[c - CH_EOF] & (IS_ID|IS_NUM))
-            h = TOK_HASH_FUNC(h, c);
+        p = (uint8_t *)cc0_scan_identifier((int)isidnum_table, (int)p1,
+                                           IS_ID | IS_NUM, (int)&h);
+        c = *p;
         len = p - p1;
         if (c != '\\') {
             TokenSym **pts;
 
             /* fast case : no stray found, so we have the full token
                and we have already hashed it */
-            h &= (TOK_HASH_SIZE - 1);
             pts = &hash_ident[h];
             for(;;) {
                 ts = *pts;

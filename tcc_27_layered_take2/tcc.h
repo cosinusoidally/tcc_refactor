@@ -1224,6 +1224,7 @@ int cc0_to_upper();
 int cc0_set_idnum();
 int cc0_check_space();
 int cc0_token_hash();
+int cc0_scan_identifier();
 int cc0_number_zero();
 int cc0_number_lshift();
 

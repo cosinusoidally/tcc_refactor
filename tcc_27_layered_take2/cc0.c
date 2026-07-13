@@ -217,6 +217,33 @@ function cc0_token_hash(text, length)
     return cc0_token_hash_(text, length, 0, 0, 0, 0, 0);
 }
 
+/* Scan a TCC identifier and retain the hash used by its symbol table. */
+function cc0_scan_identifier_(table, text, continuation_mask, hash_pointer, position, hash, character, flags, left_part, right_part)
+{
+    position = text;
+    hash = CC0_TOKEN_HASH_INITIAL;
+    character = ri8(position);
+    flags = ri8(add(table, sub(character, CC0_CHARACTER_EOF)));
+    while (and(flags, continuation_mask)) {
+        left_part = shl(hash, CC0_TOKEN_HASH_LEFT_SHIFT);
+        right_part = ushr(hash, CC0_TOKEN_HASH_RIGHT_SHIFT);
+        hash = add(hash, left_part);
+        hash = add(hash, right_part);
+        hash = add(hash, character);
+        position = add(position, 1);
+        character = ri8(position);
+        flags = ri8(add(table, sub(character, CC0_CHARACTER_EOF)));
+    }
+    wi32(hash_pointer, and(hash, CC0_TOKEN_HASH_BUCKET_MASK));
+    return position;
+}
+
+function cc0_scan_identifier(table, text, continuation_mask, hash_pointer)
+{
+    return cc0_scan_identifier_(table, text, continuation_mask, hash_pointer,
+        0, 0, 0, 0, 0, 0);
+}
+
 /* TCC accumulates hexadecimal and binary floating literals in two words. */
 function cc0_number_zero_(number, index, address)
 {
