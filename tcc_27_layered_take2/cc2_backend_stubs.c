@@ -20,6 +20,11 @@ function decl_initializer_alloc(type, attributes, storage, has_initializer,
     return 0;
 }
 
+function section_ptr_add(section, length)
+{
+    return malloc(length);
+}
+
 function sym_redeclaration_error(value)
 {
     return 0;

@@ -354,6 +354,9 @@ var CC2_TOKEN_SIGNALING_NAN = 336;
 var CC2_TOKEN_INFINITY = 337;
 var CC2_TOKEN_STRING = 185;
 var CC2_TOKEN_WIDE_STRING = 186;
+var CC2_TOKEN_FUNCTION_NAME_GNU = 331;
+var CC2_TOKEN_FUNCTION_NAME_STANDARD = 334;
+var CC2_SECTION_DATA_OFFSET = 0;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;
 var CC2_IEEE_DOUBLE_INFINITY_HIGH_WORD = 2146435072;
 var table_ident;
@@ -5856,6 +5859,36 @@ function unary_string(token)
     cc2_zero_bytes(attributes, CC2_ATTRIBUTE_BYTES);
     decl_initializer_alloc(type, attributes, CC2_VALUE_CONSTANT, 2, 0, 0);
     free(attributes);
+    free(type);
+    return 0;
+}
+
+function unary_function_name(token)
+{
+    var type;
+    var length;
+    var section;
+    var offset;
+    var destination;
+    if (and(eq(token, CC2_TOKEN_FUNCTION_NAME_GNU),
+        eq(ri32(gnu_ext_address), 0))) {
+        return unary_identifier(token);
+    }
+    length = add(strlen(funcname), 1);
+    type = malloc(8);
+    wi32(type, CC2_TCC_BYTE_TYPE);
+    wi32(add(type, 4), 0);
+    mk_pointer(type);
+    wi32(type, or(ri32(type), CC2_TCC_ARRAY_TYPE));
+    wi32(add(ri32(add(type, 4)), CC2_SYM_CONSTANT_OFFSET), length);
+    section = ri32(data_section_address);
+    offset = ri32(add(section, CC2_SECTION_DATA_OFFSET));
+    vpush_ref(type, section, offset, length);
+    if (not(lt(0, nocode_wanted))) {
+        destination = section_ptr_add(section, length);
+        memcpy(destination, funcname, length);
+    }
+    next();
     free(type);
     return 0;
 }

@@ -288,7 +288,7 @@ size_t section_add(Section *sec, addr_t size, int align)
 
 /* reserve at least 'size' bytes in section 'sec' from
    sec->data_offset. */
-ST_FUNC void *section_ptr_add(Section *sec, addr_t size)
+void *section_ptr_add(Section *sec, addr_t size)
 {
     size_t offset = section_add(sec, size, 1);
     return sec->data + offset;

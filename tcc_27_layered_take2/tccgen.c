@@ -73,6 +73,7 @@ void unary_minus(void);
 void unary_ieee_constant(int token);
 int unary_parenthesized(int sizeof_caller);
 void unary_string(int token);
+void unary_function_name(int token);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1045,27 +1046,8 @@ void unary(void)
         unary_literal(tok);
         break;
     case TOK___FUNCTION__:
-        if (!gnu_ext)
-            goto tok_identifier;
-        /* fall thru */
     case TOK___FUNC__:
-        {
-            void *ptr;
-            int len;
-            /* special function name identifier */
-            len = strlen(funcname) + 1;
-            /* generate char[len] type */
-            type.t = VT_BYTE;
-            mk_pointer(&type);
-            type.t |= VT_ARRAY;
-            type.ref->c = len;
-            vpush_ref(&type, data_section, data_section->data_offset, len);
-            if (!NODATA_WANTED) {
-                ptr = section_ptr_add(data_section, len);
-                memcpy(ptr, funcname, len);
-            }
-            next();
-        }
+        unary_function_name(tok);
         break;
     case TOK_LSTR:
     case TOK_STR:
@@ -1232,7 +1214,6 @@ void unary(void)
         break;
 
     default:
-    tok_identifier:
         t = tok;
         unary_identifier(t);
         break;
