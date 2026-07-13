@@ -7,7 +7,7 @@
   targets to new layered code.
 - Do not inspect, copy, or adapt code from `tcc_27_layered/`. That directory is
   not a reference for this implementation.
-- Keep generated files in the repository-level `artifacts/` directory. Do not
+- Keep build artifacts in the repository-level `artifacts/` directory. Do not
   add build products to this source tree.
 - `sums_tcc_27` is the compatibility contract. Do not change it to accommodate
   compiler output changes.
