@@ -1096,9 +1096,9 @@ ST_FUNC void cstr_new(CString *cstr);
 ST_FUNC void cstr_free(CString *cstr);
 ST_FUNC void cstr_reset(CString *cstr);
 
-ST_INLN void sym_free(Sym *sym);
-ST_FUNC Sym *sym_push2(Sym **ps, int v, int t, int c);
-ST_FUNC Sym *sym_find2(Sym *s, int v);
+extern void sym_free(Sym *sym);
+extern Sym *sym_push2(Sym **ps, int v, int t, int c);
+extern Sym *sym_find2(Sym *s, int v);
 ST_FUNC Sym *sym_push(int v, CType *type, int r, int c);
 ST_FUNC void sym_pop(Sym **ptop, Sym *b, int keep);
 ST_INLN Sym *struct_find(int v);

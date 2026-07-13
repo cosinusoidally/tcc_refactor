@@ -1080,6 +1080,9 @@ function cc0_elf_external_symbol(name, length)
         }
         return CC0_ELF_MALLOC_SYMBOL;
     }
+    if (cc0_compiler_slice_equal(name, length, mks("realloc"), 7)) {
+        return cc0_elf_put_undefined_function(mks("realloc"), 7);
+    }
     if (cc0_compiler_slice_equal(name, length, mks("alloc"), 5)) {
         return cc0_elf_put_undefined_function(mks("alloc"), 5);
     }
@@ -3275,6 +3278,9 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("malloc"))) {
         return 1;
     }
+    if (cc0_text_equal(name, length, mks("realloc"))) {
+        return 2;
+    }
     if (cc0_text_equal(name, length, mks("close"))) {
         return 1;
     }
@@ -3429,6 +3435,9 @@ function cc0_compiler_external_arity(name, length)
 {
     if (cc0_text_equal(name, length, mks("malloc"))) {
         return 1;
+    }
+    if (cc0_text_equal(name, length, mks("realloc"))) {
+        return 2;
     }
     if (cc0_text_equal(name, length, mks("close"))) {
         return 1;

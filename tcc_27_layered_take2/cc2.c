@@ -41,6 +41,14 @@ var CC2_TCC_LONG_DOUBLE_TYPE = 10;
 var CC2_TCC_QUAD_FLOAT_TYPE = 14;
 var CC2_I386_FLOAT_RETURN_CLASS = 8;
 var CC2_I386_FLOAT_RETURN_REGISTER = 4;
+/* TCC's i386 Sym layout and its existing 8192-byte allocation policy. */
+var CC2_SYM_BYTES = 36;
+var CC2_SYM_POOL_BYTES = 8192;
+var CC2_SYM_NEXT_OFFSET = 24;
+var CC2_SYM_PREV_OFFSET = 28;
+var CC2_SYM_VALUE_OFFSET = 0;
+var CC2_SYM_TYPE_OFFSET = 16;
+var CC2_SYM_CONSTANT_OFFSET = 8;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -83,6 +91,119 @@ var size_type[2];
 var ptrdiff_type[2];
 /* TCC's 257-entry value stack, with seven i386 words per SValue. */
 var __vstack[1799];
+
+function cc2_zero_bytes_(address, length, index)
+{
+    index = 0;
+    while (lt(index, length)) {
+        wi8(add(address, index), 0);
+        index = add(index, 1);
+    }
+    return 0;
+}
+
+function cc2_zero_bytes(address, length)
+{
+    return cc2_zero_bytes_(address, length, 0);
+}
+
+/* Grow the pool pointer vector with the same power-of-two rule as TCC. */
+function cc2_add_sym_pool_(pool, count, capacity, pools)
+{
+    count = nb_sym_pools;
+    pools = sym_pools;
+    if (eq(and(count, sub(count, 1)), 0)) {
+        capacity = 1;
+        if (not(eq(count, 0))) {
+            capacity = mul(count, 2);
+        }
+        pools = realloc(pools, mul(capacity, 4));
+        sym_pools = pools;
+    }
+    wi32(add(pools, mul(count, 4)), pool);
+    nb_sym_pools = add(count, 1);
+    return 0;
+}
+
+function cc2_add_sym_pool(pool)
+{
+    return cc2_add_sym_pool_(pool, 0, 0, 0);
+}
+
+function __sym_malloc_(pool, symbol, last_symbol, index, symbol_count)
+{
+    symbol_count = sdiv(CC2_SYM_POOL_BYTES, CC2_SYM_BYTES);
+    pool = malloc(mul(symbol_count, CC2_SYM_BYTES));
+    cc2_add_sym_pool(pool);
+    last_symbol = sym_free_first;
+    symbol = pool;
+    index = 0;
+    while (lt(index, symbol_count)) {
+        wi32(add(symbol, CC2_SYM_NEXT_OFFSET), last_symbol);
+        last_symbol = symbol;
+        symbol = add(symbol, CC2_SYM_BYTES);
+        index = add(index, 1);
+    }
+    sym_free_first = last_symbol;
+    return last_symbol;
+}
+
+function __sym_malloc()
+{
+    return __sym_malloc_(0, 0, 0, 0, 0);
+}
+
+function sym_malloc_(symbol)
+{
+    symbol = sym_free_first;
+    if (eq(symbol, 0)) {
+        symbol = __sym_malloc();
+    }
+    sym_free_first = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
+    return symbol;
+}
+
+function sym_malloc()
+{
+    return sym_malloc_(0);
+}
+
+function sym_free(symbol)
+{
+    wi32(add(symbol, CC2_SYM_NEXT_OFFSET), sym_free_first);
+    sym_free_first = symbol;
+    return 0;
+}
+
+function sym_push2_(stack_pointer, value, type, constant, symbol)
+{
+    symbol = sym_malloc();
+    cc2_zero_bytes(symbol, CC2_SYM_BYTES);
+    wi32(add(symbol, CC2_SYM_VALUE_OFFSET), value);
+    wi32(add(symbol, CC2_SYM_TYPE_OFFSET), type);
+    wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET), constant);
+    wi32(add(symbol, CC2_SYM_PREV_OFFSET), ri32(stack_pointer));
+    wi32(stack_pointer, symbol);
+    return symbol;
+}
+
+function sym_push2(stack_pointer, value, type, constant)
+{
+    return sym_push2_(stack_pointer, value, type, constant, 0);
+}
+
+function sym_find2(symbol, value)
+{
+    while (not(eq(symbol, 0))) {
+        if (eq(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), value)) {
+            return symbol;
+        } else if (eq(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), sub(0, 1))) {
+            return 0;
+        }
+        symbol = ri32(add(symbol, CC2_SYM_PREV_OFFSET));
+    }
+    return 0;
+}
 
 function cc2_copy_bytes_(destination, source, length, index)
 {
