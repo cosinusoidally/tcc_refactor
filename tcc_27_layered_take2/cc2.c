@@ -59,6 +59,7 @@ var CC2_SYM_TYPE_REFERENCE_OFFSET = 20;
 var CC2_SYM_PREVIOUS_TOKEN_OFFSET = 32;
 var CC2_TOKEN_SYMBOL_STRUCT_OFFSET = 12;
 var CC2_TOKEN_SYMBOL_IDENTIFIER_OFFSET = 16;
+var CC2_TOKEN_SYMBOL_DEFINE_OFFSET = 4;
 var CC2_TOKEN_IDENTIFIER_BASE = 256;
 var CC2_SYMBOL_STRUCT_FLAG = 1073741824;
 var CC2_SYMBOL_FIELD_FLAG = 536870912;
@@ -1061,6 +1062,67 @@ function cc2_token_symbol_(value, index)
 function cc2_token_symbol(value)
 {
     return cc2_token_symbol_(value, 0);
+}
+
+function define_find_(value, token_symbol)
+{
+    token_symbol = cc2_token_symbol(value);
+    if (eq(token_symbol, 0)) {
+        return 0;
+    }
+    return ri32(add(token_symbol, CC2_TOKEN_SYMBOL_DEFINE_OFFSET));
+}
+
+function define_find(value)
+{
+    return define_find_(value, 0);
+}
+
+function define_undef_(symbol, value, token_symbol)
+{
+    value = ri32(add(symbol, CC2_SYM_VALUE_OFFSET));
+    token_symbol = cc2_token_symbol(value);
+    if (not(eq(token_symbol, 0))) {
+        wi32(add(token_symbol, CC2_TOKEN_SYMBOL_DEFINE_OFFSET), 0);
+    }
+    return 0;
+}
+
+function define_undef(symbol)
+{
+    return define_undef_(symbol, 0, 0);
+}
+
+function free_defines_(boundary, symbol, value, token_symbol)
+{
+    while (not(eq(define_stack, boundary))) {
+        symbol = define_stack;
+        define_stack = ri32(add(symbol, CC2_SYM_PREV_OFFSET));
+        tok_str_free_str(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)));
+        define_undef(symbol);
+        sym_free(symbol);
+    }
+
+    /* Restore a surviving outer definition hidden by a file-local undef. */
+    symbol = boundary;
+    while (not(eq(symbol, 0))) {
+        value = ri32(add(symbol, CC2_SYM_VALUE_OFFSET));
+        token_symbol = cc2_token_symbol(value);
+        if (not(eq(token_symbol, 0))) {
+            if (eq(ri32(add(token_symbol,
+                CC2_TOKEN_SYMBOL_DEFINE_OFFSET)), 0)) {
+                wi32(add(token_symbol, CC2_TOKEN_SYMBOL_DEFINE_OFFSET),
+                    symbol);
+            }
+        }
+        symbol = ri32(add(symbol, CC2_SYM_PREV_OFFSET));
+    }
+    return 0;
+}
+
+function free_defines(boundary)
+{
+    return free_defines_(boundary, 0, 0, 0);
 }
 
 function struct_find_(value, token_symbol)

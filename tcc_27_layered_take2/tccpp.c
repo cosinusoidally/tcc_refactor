@@ -972,46 +972,6 @@ ST_INLN void define_push(int v, int macro_type, int *str, Sym *first_arg)
 	tcc_warning("%s redefined", get_tok_str(v, NULL));
 }
 
-/* undefined a define symbol. Its name is just set to zero */
-ST_FUNC void define_undef(Sym *s)
-{
-    int v = s->v;
-    if (v >= TOK_IDENT && v < tok_ident)
-        table_ident[v - TOK_IDENT]->sym_define = NULL;
-}
-
-ST_INLN Sym *define_find(int v)
-{
-    v -= TOK_IDENT;
-    if ((unsigned)v >= (unsigned)(tok_ident - TOK_IDENT))
-        return NULL;
-    return table_ident[v]->sym_define;
-}
-
-/* free define stack until top reaches 'b' */
-ST_FUNC void free_defines(Sym *b)
-{
-    while (define_stack != b) {
-        Sym *top = define_stack;
-        define_stack = top->prev;
-        tok_str_free_str(top->d);
-        define_undef(top);
-        sym_free(top);
-    }
-
-    /* restore remaining (-D or predefined) symbols if they were
-       #undef'd in the file */
-    while (b) {
-        int v = b->v;
-        if (v >= TOK_IDENT && v < tok_ident) {
-            Sym **d = &table_ident[v - TOK_IDENT]->sym_define;
-            if (!*d)
-                *d = b;
-        }
-        b = b->prev;
-    }
-}
-
 /* label lookup */
 Sym *label_find(int v)
 {
