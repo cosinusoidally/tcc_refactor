@@ -1,4 +1,5 @@
 #define RESULT 0
+#define ENABLED 1
 int global_result;
 
 int identity(int value)
@@ -12,7 +13,8 @@ int record(int value)
     return 0;
 }
 
-#ifdef RESULT
+#if !defined(MISSING)
+#if ENABLED
 int main()
 {
     int temporary = identity((RESULT + 6 / 3 + 5 % 3 - 2) * 1);
@@ -29,6 +31,12 @@ int main()
     }
     return 1;
 }
+#elif 1
+int main()
+{
+    return 1;
+}
+#endif
 #else
 int main()
 {
