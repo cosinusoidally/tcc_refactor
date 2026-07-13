@@ -137,11 +137,6 @@ function tok_str_add_tok(stream)
     return 0;
 }
 
-function skip(token)
-{
-    return 0;
-}
-
 function expr_const64_words(words)
 {
     wi32(words, 0);
@@ -273,11 +268,6 @@ function gen_cvt_ftoi1(type)
 }
 
 function vstore()
-{
-    return 0;
-}
-
-function expect(message)
 {
     return 0;
 }

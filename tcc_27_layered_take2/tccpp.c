@@ -100,18 +100,6 @@ static const unsigned char tok_two_chars[] =
 
 static void next_nomacro_spc(void);
 
-void skip(int c)
-{
-    if (tok != c)
-        tcc_error("'%c' expected (got \"%s\")", c, get_tok_str(tok, &tokc));
-    next();
-}
-
-void expect(const char *msg)
-{
-    tcc_error("%s expected", msg);
-}
-
 /* ------------------------------------------------------------------------- */
 /* Custom allocator for tiny objects */
 

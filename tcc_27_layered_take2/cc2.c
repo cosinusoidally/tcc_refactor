@@ -510,6 +510,22 @@ function cc2_zero_bytes(address, length)
     return cc2_zero_bytes_(address, length, 0);
 }
 
+function skip(token)
+{
+    if (not(eq(ri32(tok_address), token))) {
+        tcc_error(mks("'%c' expected (got \"%s\")"), token,
+            get_tok_str(ri32(tok_address), tokc_address));
+    }
+    next();
+    return 0;
+}
+
+function expect(message)
+{
+    tcc_error(mks("%s expected"), message);
+    return 0;
+}
+
 function dynarray_add(table_pointer, count_pointer, data)
 {
     var count;
