@@ -61,6 +61,29 @@ function expr_const64_words(words)
     return 0;
 }
 
+function parse_mult_str(string, message)
+{
+    wi32(string, 1);
+    wi32(add(string, 4), mks(""));
+    wi32(add(string, 8), 1);
+    return 0;
+}
+
+function find_section(state, name)
+{
+    return 0;
+}
+
+function tok_alloc(text, length)
+{
+    return 0;
+}
+
+function cstr_free(string)
+{
+    return 0;
+}
+
 function put_extern_sym(symbol, section, offset, size)
 {
     return 0;

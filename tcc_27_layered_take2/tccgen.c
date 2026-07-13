@@ -41,6 +41,7 @@ CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
 void parse_expr_type(CType *type);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
+void parse_attribute(AttributeDef *ad);
 void init_putv(CType *type, Section *sec, unsigned long c);
 static void decl_initializer(CType *type, Section *sec, unsigned long c, int first, int size_only);
 static void block(int *bsym, int *csym, int is_expr);
@@ -930,7 +931,7 @@ void tcc_error_type_pair(CType *source_type, CType *destination_type)
 
 /* post defines POST/PRE add. c is the token ++ or -- */
 
-ST_FUNC void parse_mult_str (CString *astr, const char *msg)
+void parse_mult_str (CString *astr, const char *msg)
 {
     /* read the string */
     if (tok != TOK_STR)
@@ -945,173 +946,6 @@ ST_FUNC void parse_mult_str (CString *astr, const char *msg)
 }
 
 /* Parse __attribute__((...)) GNUC extension. */
-static void parse_attribute(AttributeDef *ad)
-{
-    int t, n;
-    CString astr;
-    
-redo:
-    if (tok != TOK_ATTRIBUTE1 && tok != TOK_ATTRIBUTE2)
-        return;
-    next();
-    skip('(');
-    skip('(');
-    while (tok != ')') {
-        if (tok < TOK_IDENT)
-            expect("attribute name");
-        t = tok;
-        next();
-        switch(t) {
-        case TOK_SECTION1:
-        case TOK_SECTION2:
-            skip('(');
-	    parse_mult_str(&astr, "section name");
-            ad->section = find_section(tcc_state, (char *)astr.data);
-            skip(')');
-	    cstr_free(&astr);
-            break;
-        case TOK_ALIAS1:
-        case TOK_ALIAS2:
-            skip('(');
-	    parse_mult_str(&astr, "alias(\"target\")");
-            ad->alias_target = /* save string as token, for later */
-              tok_alloc((char*)astr.data, astr.size-1)->tok;
-            skip(')');
-	    cstr_free(&astr);
-            break;
-	case TOK_VISIBILITY1:
-	case TOK_VISIBILITY2:
-            skip('(');
-	    parse_mult_str(&astr,
-			   "visibility(\"default|hidden|internal|protected\")");
-	    if (!strcmp (astr.data, "default"))
-	        ad->a.visibility = STV_DEFAULT;
-	    else if (!strcmp (astr.data, "hidden"))
-	        ad->a.visibility = STV_HIDDEN;
-	    else if (!strcmp (astr.data, "internal"))
-	        ad->a.visibility = STV_INTERNAL;
-	    else if (!strcmp (astr.data, "protected"))
-	        ad->a.visibility = STV_PROTECTED;
-	    else
-                expect("visibility(\"default|hidden|internal|protected\")");
-            skip(')');
-	    cstr_free(&astr);
-            break;
-        case TOK_ALIGNED1:
-        case TOK_ALIGNED2:
-            if (tok == '(') {
-                next();
-                n = expr_const();
-                if (n <= 0 || (n & (n - 1)) != 0) 
-                    tcc_error("alignment must be a positive power of two");
-                skip(')');
-            } else {
-                n = MAX_ALIGN;
-            }
-            ad->a.aligned = exact_log2p1(n);
-	    if (n != 1 << (ad->a.aligned - 1))
-	      tcc_error("alignment of %d is larger than implemented", n);
-            break;
-        case TOK_PACKED1:
-        case TOK_PACKED2:
-            ad->a.packed = 1;
-            break;
-        case TOK_WEAK1:
-        case TOK_WEAK2:
-            ad->a.weak = 1;
-            break;
-        case TOK_UNUSED1:
-        case TOK_UNUSED2:
-            /* currently, no need to handle it because tcc does not
-               track unused objects */
-            break;
-        case TOK_NORETURN1:
-        case TOK_NORETURN2:
-            /* currently, no need to handle it because tcc does not
-               track unused objects */
-            break;
-        case TOK_CDECL1:
-        case TOK_CDECL2:
-        case TOK_CDECL3:
-            ad->f.func_call = FUNC_CDECL;
-            break;
-        case TOK_STDCALL1:
-        case TOK_STDCALL2:
-        case TOK_STDCALL3:
-            ad->f.func_call = FUNC_STDCALL;
-            break;
-#ifdef TCC_TARGET_I386
-        case TOK_REGPARM1:
-        case TOK_REGPARM2:
-            skip('(');
-            n = expr_const();
-            if (n > 3) 
-                n = 3;
-            else if (n < 0)
-                n = 0;
-            if (n > 0)
-                ad->f.func_call = FUNC_FASTCALL1 + n - 1;
-            skip(')');
-            break;
-        case TOK_FASTCALL1:
-        case TOK_FASTCALL2:
-        case TOK_FASTCALL3:
-            ad->f.func_call = FUNC_FASTCALLW;
-            break;            
-#endif
-        case TOK_MODE:
-            skip('(');
-            switch(tok) {
-                case TOK_MODE_DI:
-                    ad->attr_mode = VT_LLONG + 1;
-                    break;
-                case TOK_MODE_QI:
-                    ad->attr_mode = VT_BYTE + 1;
-                    break;
-                case TOK_MODE_HI:
-                    ad->attr_mode = VT_SHORT + 1;
-                    break;
-                case TOK_MODE_SI:
-                case TOK_MODE_word:
-                    ad->attr_mode = VT_INT + 1;
-                    break;
-                default:
-                    tcc_warning("__mode__(%s) not supported\n", get_tok_str(tok, NULL));
-                    break;
-            }
-            next();
-            skip(')');
-            break;
-        case TOK_DLLEXPORT:
-            ad->a.dllexport = 1;
-            break;
-        case TOK_DLLIMPORT:
-            ad->a.dllimport = 1;
-            break;
-        default:
-            if (tcc_state->warn_unsupported)
-                tcc_warning("'%s' attribute ignored", get_tok_str(t, NULL));
-            /* skip parameters */
-            if (tok == '(') {
-                int parenthesis = 0;
-                do {
-                    if (tok == '(') 
-                        parenthesis++;
-                    else if (tok == ')') 
-                        parenthesis--;
-                    next();
-                } while (parenthesis && tok != -1);
-            }
-            break;
-        }
-        if (tok != ',')
-            break;
-        next();
-    }
-    skip(')');
-    skip(')');
-    goto redo;
-}
 
 /* enum/struct/union declaration. u is VT_ENUM/VT_STRUCT/VT_UNION */
 static void struct_decl(CType *type, int u)

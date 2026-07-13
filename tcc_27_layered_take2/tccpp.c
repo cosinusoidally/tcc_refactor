@@ -379,7 +379,7 @@ ST_FUNC void cstr_new(CString *cstr)
 }
 
 /* free string and reset it to NULL */
-ST_FUNC void cstr_free(CString *cstr)
+void cstr_free(CString *cstr)
 {
     tal_free(cstr_alloc, cstr->data);
     cstr_new(cstr);
@@ -448,7 +448,7 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
 #define TOK_HASH_FUNC(h, c) ((h) + ((h) << 5) + ((h) >> 27) + (c))
 
 /* find a token and add it if not found */
-ST_FUNC TokenSym *tok_alloc(const char *str, int len)
+TokenSym *tok_alloc(const char *str, int len)
 {
     TokenSym *ts, **pts;
     unsigned int h;
@@ -3562,6 +3562,7 @@ ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
     ptrdiff_type_address = &ptrdiff_type;
     tok_address = &tok;
     data_section_address = &data_section;
+    tcc_state_address = tcc_state;
     s1->pack_stack[0] = 0;
     s1->pack_stack_ptr = s1->pack_stack;
 

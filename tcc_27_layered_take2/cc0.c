@@ -1130,6 +1130,22 @@ function cc0_elf_external_symbol(name, length)
         return cc0_elf_put_undefined_function(name, length);
     }
     if (cc0_compiler_slice_equal(name, length,
+        mks("parse_mult_str"), 14)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("find_section"), 12)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("tok_alloc"), 9)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("cstr_free"), 9)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("strcmp"), 6)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length,
         mks("put_extern_sym"), 14)) {
         return cc0_elf_put_undefined_function(name, length);
     }
@@ -3621,6 +3637,21 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("expr_const64_words"))) {
         return 1;
     }
+    if (cc0_text_equal(name, length, mks("parse_mult_str"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("find_section"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("tok_alloc"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("cstr_free"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("strcmp"))) {
+        return 2;
+    }
     if (cc0_text_equal(name, length, mks("put_extern_sym"))) {
         return 4;
     }
@@ -3859,6 +3890,21 @@ function cc0_compiler_external_arity(name, length)
     }
     if (cc0_text_equal(name, length, mks("expr_const64_words"))) {
         return 1;
+    }
+    if (cc0_text_equal(name, length, mks("parse_mult_str"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("find_section"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("tok_alloc"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("cstr_free"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("strcmp"))) {
+        return 2;
     }
     if (cc0_text_equal(name, length, mks("put_extern_sym"))) {
         return 4;

@@ -184,6 +184,58 @@ var CC2_TOKEN_SUBTRACT_CARRY_FIRST = 197;
 var CC2_EXPRESSION_MODE_COMMA = 0;
 var CC2_EXPRESSION_MODE_UNARY = 1;
 var CC2_EXPRESSION_MODE_EQUALITY = 2;
+var CC2_TOKEN_ATTRIBUTE_FIRST = 303;
+var CC2_TOKEN_ATTRIBUTE_SECOND = 304;
+var CC2_TOKEN_IDENTIFIER = 256;
+var CC2_TOKEN_SECTION_FIRST = 338;
+var CC2_TOKEN_SECTION_SECOND = 339;
+var CC2_TOKEN_ALIAS_FIRST = 346;
+var CC2_TOKEN_ALIAS_SECOND = 347;
+var CC2_TOKEN_VISIBILITY_FIRST = 371;
+var CC2_TOKEN_VISIBILITY_SECOND = 372;
+var CC2_TOKEN_ALIGNED_FIRST = 340;
+var CC2_TOKEN_ALIGNED_SECOND = 341;
+var CC2_TOKEN_PACKED_FIRST = 342;
+var CC2_TOKEN_PACKED_SECOND = 343;
+var CC2_TOKEN_WEAK_FIRST = 344;
+var CC2_TOKEN_WEAK_SECOND = 345;
+var CC2_TOKEN_UNUSED_FIRST = 348;
+var CC2_TOKEN_UNUSED_SECOND = 349;
+var CC2_TOKEN_NORETURN_FIRST = 369;
+var CC2_TOKEN_NORETURN_SECOND = 370;
+var CC2_TOKEN_CDECL_FIRST = 350;
+var CC2_TOKEN_CDECL_SECOND = 351;
+var CC2_TOKEN_CDECL_THIRD = 352;
+var CC2_TOKEN_STDCALL_FIRST = 353;
+var CC2_TOKEN_STDCALL_SECOND = 354;
+var CC2_TOKEN_STDCALL_THIRD = 355;
+var CC2_TOKEN_REGPARM_FIRST = 359;
+var CC2_TOKEN_REGPARM_SECOND = 360;
+var CC2_TOKEN_FASTCALL_FIRST = 356;
+var CC2_TOKEN_FASTCALL_SECOND = 357;
+var CC2_TOKEN_FASTCALL_THIRD = 358;
+var CC2_TOKEN_MODE = 361;
+var CC2_TOKEN_MODE_QI = 362;
+var CC2_TOKEN_MODE_DI = 363;
+var CC2_TOKEN_MODE_HI = 364;
+var CC2_TOKEN_MODE_SI = 365;
+var CC2_TOKEN_MODE_WORD = 366;
+var CC2_TOKEN_DLLEXPORT = 367;
+var CC2_TOKEN_DLLIMPORT = 368;
+var CC2_ATTRIBUTE_SECTION_OFFSET = 8;
+var CC2_ATTRIBUTE_ALIAS_OFFSET = 12;
+var CC2_ATTRIBUTE_MODE_OFFSET = 20;
+var CC2_ATTRIBUTE_ALIGNED_MASK = 31;
+var CC2_ATTRIBUTE_PACKED = 32;
+var CC2_ATTRIBUTE_WEAK = 64;
+var CC2_ATTRIBUTE_VISIBILITY_MASK = 384;
+var CC2_ATTRIBUTE_VISIBILITY_SHIFT = 7;
+var CC2_ATTRIBUTE_DLLEXPORT = 512;
+var CC2_ATTRIBUTE_DLLIMPORT = 1024;
+var CC2_FUNCTION_CALL_MASK = 7;
+var CC2_FUNCTION_STDCALL = 1;
+var CC2_FUNCTION_FASTCALL_FIRST = 2;
+var CC2_FUNCTION_FASTCALL_WINDOWS = 5;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -223,6 +275,9 @@ var cur_switch;
 var tok_ident;
 var tok_address;
 var data_section_address;
+var tcc_state_address;
+/* Verified with offsetof(TCCState, warn_unsupported) for i386. */
+var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET = 80;
 var table_ident;
 /* CType is two i386 words. */
 var char_pointer_type[2];
@@ -3449,6 +3504,208 @@ function expr_const_(words, low_word, high_word, signed_high_word)
 function expr_const()
 {
     return expr_const_(0, 0, 0, 0);
+}
+
+function cc2_token_is_two(token, first, second)
+{
+    return or(eq(token, first), eq(token, second));
+}
+
+function cc2_token_is_three(token, first, second, third)
+{
+    return or(cc2_token_is_two(token, first, second), eq(token, third));
+}
+
+function cc2_attribute_set_call(attributes, call)
+{
+    wi32(add(attributes, 4), or(and(ri32(add(attributes, 4)),
+        bnot(CC2_FUNCTION_CALL_MASK)), call));
+    return 0;
+}
+
+function cc2_attribute_set_visibility(attributes, visibility)
+{
+    wi32(attributes, or(and(ri32(attributes),
+        bnot(CC2_ATTRIBUTE_VISIBILITY_MASK)),
+        shl(visibility, CC2_ATTRIBUTE_VISIBILITY_SHIFT)));
+    return 0;
+}
+
+function parse_attribute_(attributes, token, value, string, data,
+    parenthesis, aligned)
+{
+    while (cc2_token_is_two(ri32(tok_address), CC2_TOKEN_ATTRIBUTE_FIRST,
+        CC2_TOKEN_ATTRIBUTE_SECOND)) {
+        next();
+        skip(40);
+        skip(40);
+        while (not(eq(ri32(tok_address), 41))) {
+            if (lt(ri32(tok_address), CC2_TOKEN_IDENTIFIER)) {
+                expect(mks("attribute name"));
+            }
+            token = ri32(tok_address);
+            next();
+            if (cc2_token_is_two(token, CC2_TOKEN_SECTION_FIRST,
+                CC2_TOKEN_SECTION_SECOND)) {
+                string = malloc(12);
+                skip(40);
+                parse_mult_str(string, mks("section name"));
+                data = ri32(add(string, 4));
+                wi32(add(attributes, CC2_ATTRIBUTE_SECTION_OFFSET),
+                    find_section(tcc_state_address, data));
+                skip(41);
+                cstr_free(string);
+                free(string);
+            } else if (cc2_token_is_two(token, CC2_TOKEN_ALIAS_FIRST,
+                CC2_TOKEN_ALIAS_SECOND)) {
+                string = malloc(12);
+                skip(40);
+                parse_mult_str(string, mks("alias(\"target\")"));
+                data = ri32(add(string, 4));
+                value = tok_alloc(data, sub(ri32(string), 1));
+                wi32(add(attributes, CC2_ATTRIBUTE_ALIAS_OFFSET),
+                    ri32(add(value, 20)));
+                skip(41);
+                cstr_free(string);
+                free(string);
+            } else if (cc2_token_is_two(token,
+                CC2_TOKEN_VISIBILITY_FIRST, CC2_TOKEN_VISIBILITY_SECOND)) {
+                string = malloc(12);
+                skip(40);
+                parse_mult_str(string, mks("visibility(\"default|hidden|internal|protected\")"));
+                data = ri32(add(string, 4));
+                if (eq(strcmp(data, mks("default")), 0)) {
+                    cc2_attribute_set_visibility(attributes, 0);
+                } else if (eq(strcmp(data, mks("hidden")), 0)) {
+                    cc2_attribute_set_visibility(attributes, 2);
+                } else if (eq(strcmp(data, mks("internal")), 0)) {
+                    cc2_attribute_set_visibility(attributes, 1);
+                } else if (eq(strcmp(data, mks("protected")), 0)) {
+                    cc2_attribute_set_visibility(attributes, 3);
+                } else {
+                    expect(mks("visibility(\"default|hidden|internal|protected\")"));
+                }
+                skip(41);
+                cstr_free(string);
+                free(string);
+            } else if (cc2_token_is_two(token, CC2_TOKEN_ALIGNED_FIRST,
+                CC2_TOKEN_ALIGNED_SECOND)) {
+                if (eq(ri32(tok_address), 40)) {
+                    next();
+                    value = expr_const();
+                    if (or(le(value, 0), not(eq(and(value,
+                        sub(value, 1)), 0)))) {
+                        tcc_error(mks("alignment must be a positive power of two"), 0);
+                    }
+                    skip(41);
+                } else {
+                    value = 8;
+                }
+                aligned = exact_log2p1(value);
+                wi32(attributes, or(and(ri32(attributes),
+                    bnot(CC2_ATTRIBUTE_ALIGNED_MASK)), aligned));
+                if (not(eq(value, shl(1, sub(aligned, 1))))) {
+                    tcc_error(mks("alignment of %d is larger than implemented"), value);
+                }
+            } else if (cc2_token_is_two(token, CC2_TOKEN_PACKED_FIRST,
+                CC2_TOKEN_PACKED_SECOND)) {
+                wi32(attributes, or(ri32(attributes),
+                    CC2_ATTRIBUTE_PACKED));
+            } else if (cc2_token_is_two(token, CC2_TOKEN_WEAK_FIRST,
+                CC2_TOKEN_WEAK_SECOND)) {
+                wi32(attributes, or(ri32(attributes), CC2_ATTRIBUTE_WEAK));
+            } else if (or(cc2_token_is_two(token, CC2_TOKEN_UNUSED_FIRST,
+                CC2_TOKEN_UNUSED_SECOND), cc2_token_is_two(token,
+                CC2_TOKEN_NORETURN_FIRST, CC2_TOKEN_NORETURN_SECOND))) {
+            } else if (cc2_token_is_three(token, CC2_TOKEN_CDECL_FIRST,
+                CC2_TOKEN_CDECL_SECOND, CC2_TOKEN_CDECL_THIRD)) {
+                cc2_attribute_set_call(attributes, 0);
+            } else if (cc2_token_is_three(token, CC2_TOKEN_STDCALL_FIRST,
+                CC2_TOKEN_STDCALL_SECOND, CC2_TOKEN_STDCALL_THIRD)) {
+                cc2_attribute_set_call(attributes, CC2_FUNCTION_STDCALL);
+            } else if (cc2_token_is_two(token, CC2_TOKEN_REGPARM_FIRST,
+                CC2_TOKEN_REGPARM_SECOND)) {
+                skip(40);
+                value = expr_const();
+                if (lt(3, value)) {
+                    value = 3;
+                } else if (lt(value, 0)) {
+                    value = 0;
+                }
+                if (lt(0, value)) {
+                    cc2_attribute_set_call(attributes, add(
+                        CC2_FUNCTION_FASTCALL_FIRST, sub(value, 1)));
+                }
+                skip(41);
+            } else if (cc2_token_is_three(token, CC2_TOKEN_FASTCALL_FIRST,
+                CC2_TOKEN_FASTCALL_SECOND, CC2_TOKEN_FASTCALL_THIRD)) {
+                cc2_attribute_set_call(attributes,
+                    CC2_FUNCTION_FASTCALL_WINDOWS);
+            } else if (eq(token, CC2_TOKEN_MODE)) {
+                skip(40);
+                token = ri32(tok_address);
+                if (eq(token, CC2_TOKEN_MODE_DI)) {
+                    wi8(add(attributes, CC2_ATTRIBUTE_MODE_OFFSET),
+                        add(CC2_TCC_LONG_LONG_TYPE, 1));
+                } else if (eq(token, CC2_TOKEN_MODE_QI)) {
+                    wi8(add(attributes, CC2_ATTRIBUTE_MODE_OFFSET),
+                        add(CC2_TCC_BYTE_TYPE, 1));
+                } else if (eq(token, CC2_TOKEN_MODE_HI)) {
+                    wi8(add(attributes, CC2_ATTRIBUTE_MODE_OFFSET),
+                        add(CC2_TCC_SHORT_TYPE, 1));
+                } else if (or(eq(token, CC2_TOKEN_MODE_SI),
+                    eq(token, CC2_TOKEN_MODE_WORD))) {
+                    wi8(add(attributes, CC2_ATTRIBUTE_MODE_OFFSET),
+                        add(CC2_TCC_INT_TYPE, 1));
+                } else {
+                    tcc_warning(mks("__mode__(%s) not supported\n"),
+                        get_tok_str(token, 0));
+                }
+                next();
+                skip(41);
+            } else if (eq(token, CC2_TOKEN_DLLEXPORT)) {
+                wi32(attributes, or(ri32(attributes),
+                    CC2_ATTRIBUTE_DLLEXPORT));
+            } else if (eq(token, CC2_TOKEN_DLLIMPORT)) {
+                wi32(attributes, or(ri32(attributes),
+                    CC2_ATTRIBUTE_DLLIMPORT));
+            } else {
+                if (ri32(add(tcc_state_address,
+                    CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
+                    tcc_warning(mks("'%s' attribute ignored"),
+                        get_tok_str(token, 0));
+                }
+                if (eq(ri32(tok_address), 40)) {
+                    parenthesis = 0;
+                    while (or(eq(parenthesis, 0), and(parenthesis,
+                        not(eq(ri32(tok_address), sub(0, 1)))))) {
+                        if (eq(ri32(tok_address), 40)) {
+                            parenthesis = add(parenthesis, 1);
+                        } else if (eq(ri32(tok_address), 41)) {
+                            parenthesis = sub(parenthesis, 1);
+                        }
+                        next();
+                        if (eq(parenthesis, 0)) {
+                            parenthesis = 0;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (not(eq(ri32(tok_address), 44))) {
+                break;
+            }
+            next();
+        }
+        skip(41);
+        skip(41);
+    }
+    return 0;
+}
+
+function parse_attribute(attributes)
+{
+    return parse_attribute_(attributes, 0, 0, 0, 0, 0, 0);
 }
 
 function vstore_(destination_type, source_basic, destination_basic,

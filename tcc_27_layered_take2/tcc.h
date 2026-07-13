@@ -1093,7 +1093,7 @@ ST_INLN void cstr_ccat(CString *cstr, int ch);
 ST_FUNC void cstr_cat(CString *cstr, const char *str, int len);
 ST_FUNC void cstr_wccat(CString *cstr, int ch);
 ST_FUNC void cstr_new(CString *cstr);
-ST_FUNC void cstr_free(CString *cstr);
+void cstr_free(CString *cstr);
 ST_FUNC void cstr_reset(CString *cstr);
 
 extern void sym_free(Sym *sym);
@@ -1186,7 +1186,7 @@ extern TokenSym **table_ident;
 #define IS_ID  2
 #define IS_NUM 4
 
-ST_FUNC TokenSym *tok_alloc(const char *str, int len);
+TokenSym *tok_alloc(const char *str, int len);
 extern const char *get_tok_str(int v, CValue *cv);
 ST_FUNC void begin_macro(TokenString *str, int alloc);
 ST_FUNC void end_macro(void);
@@ -1268,6 +1268,7 @@ extern CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type
 extern CType *int_type_address, *size_type_address, *func_old_type_address;
 extern CType *ptrdiff_type_address;
 extern Section **data_section_address;
+extern TCCState *tcc_state_address;
 extern SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE];
 extern SValue *vtop, *pvtop;
 extern SValue *vstack_base, *vstack_limit;
@@ -1369,7 +1370,7 @@ extern Sym *external_sym(int value, CType *type, int reg,
                         AttributeDef *attributes);
 extern void vstore(void);
 extern void inc(int post, int c);
-ST_FUNC void parse_mult_str (CString *astr, const char *msg);
+void parse_mult_str (CString *astr, const char *msg);
 ST_FUNC void parse_asm_str(CString *astr);
 extern int lvalue_type(int t);
 extern void indir(void);
@@ -1447,7 +1448,7 @@ ST_FUNC void section_realloc(Section *sec, unsigned long new_size);
 size_t section_add(Section *sec, addr_t size, int align);
 ST_FUNC void *section_ptr_add(Section *sec, addr_t size);
 ST_FUNC void section_reserve(Section *sec, unsigned long size);
-ST_FUNC Section *find_section(TCCState *s1, const char *name);
+Section *find_section(TCCState *s1, const char *name);
 ST_FUNC Section *new_symtab(TCCState *s1, const char *symtab_name, int sh_type, int sh_flags, const char *strtab_name, const char *hash_name, int hash_sh_flags);
 
 ST_FUNC void put_extern_sym2(Sym *sym, int sh_num, addr_t value, unsigned long size, int can_add_underscore);

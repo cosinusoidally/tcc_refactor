@@ -305,7 +305,7 @@ ST_FUNC void section_reserve(Section *sec, unsigned long size)
 
 /* return a reference to a section, and create it if it does not
    exists */
-ST_FUNC Section *find_section(TCCState *s1, const char *name)
+Section *find_section(TCCState *s1, const char *name)
 {
     Section *sec;
     int i;
