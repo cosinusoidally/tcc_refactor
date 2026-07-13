@@ -26,6 +26,7 @@ int main()
     *pointer = 5;
     temporary = temporary + (*pointer - 5);
     temporary = temporary + (character - 'A');
+    temporary = (unsigned long)temporary;
     scalar_value = temporary;
     temporary = (temporary << 1) >> 1;
     temporary = (temporary | 8) ^ 8;

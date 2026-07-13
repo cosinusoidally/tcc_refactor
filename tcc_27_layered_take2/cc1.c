@@ -1453,7 +1453,7 @@ function cc1_expression_parse_equality()
 }
 
 function cc1_expression_parse_primary_(token, kind, expression, first,
-    last, argument)
+    last, argument, cast_token, cast_text, cast_length)
 {
     token = cc1_preprocessed_consume();
     if (eq(token, 0)) {
@@ -1462,6 +1462,33 @@ function cc1_expression_parse_primary_(token, kind, expression, first,
     }
     kind = ri32(add(token, CC1_TOKEN_KIND_OFFSET));
     if (eq(kind, 40)) {
+        cast_token = cc1_preprocessed_peek(0);
+        if (not(eq(cast_token, 0))) {
+            cast_text = ri32(add(cast_token, CC1_TOKEN_TEXT_OFFSET));
+            cast_length = ri32(add(cast_token, CC1_TOKEN_LENGTH_OFFSET));
+            if (cc1_declaration_type_word(cast_text, cast_length)) {
+                while (not(eq(cc1_expression_token_kind(), 41))) {
+                    cast_token = cc1_preprocessed_consume();
+                    kind = ri32(add(cast_token, CC1_TOKEN_KIND_OFFSET));
+                    cast_text = ri32(add(cast_token,
+                        CC1_TOKEN_TEXT_OFFSET));
+                    cast_length = ri32(add(cast_token,
+                        CC1_TOKEN_LENGTH_OFFSET));
+                    if (not(eq(kind, 42))) {
+                        if (not(cc1_declaration_type_word(cast_text,
+                            cast_length))) {
+                            if (not(cc1_declaration_qualifier(cast_text,
+                                cast_length))) {
+                                CC1_EXPRESSION_ERROR = 1;
+                                return 0;
+                            }
+                        }
+                    }
+                }
+                cc1_preprocessed_consume();
+                return cc1_expression_parse_unary();
+            }
+        }
         expression = cc1_expression_parse_equality();
         if (not(cc1_expression_accept(41))) {
             CC1_EXPRESSION_ERROR = 1;
@@ -1511,7 +1538,7 @@ function cc1_expression_parse_primary_(token, kind, expression, first,
 
 function cc1_expression_parse_primary()
 {
-    return cc1_expression_parse_primary_(0, 0, 0, 0, 0, 0);
+    return cc1_expression_parse_primary_(0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function cc1_expression_parse_unary_(token, kind, expression)
