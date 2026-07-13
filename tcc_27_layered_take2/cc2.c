@@ -310,6 +310,12 @@ var CC2_BUFFERED_FILE_LINE_OFFSET = 16;
 var CC2_BUFFERED_FILE_FILENAME_OFFSET = 40;
 var CC2_SECTION_NUMBER_OFFSET = 16;
 var CC2_SECTION_DATA_POINTER_OFFSET = 4;
+var CC2_STABS_SOURCE_FILE = 100;
+var CC2_STABS_FUNCTION = 36;
+var CC2_STABS_SOURCE_LINE = 68;
+var CC2_ELF_SECTION_SYMBOL_INFO = 3;
+var CC2_ELF_FILE_SYMBOL_INFO = 4;
+var CC2_ELF_ABSOLUTE_SECTION = 65521;
 var CC2_ELF_SYMBOL_BIND_SHIFT = 4;
 var CC2_ELF_SYMBOL_LOCAL_BINDING = 0;
 var CC2_ELF_SYMBOL_GLOBAL_BINDING = 1;
@@ -325,6 +331,9 @@ var CC2_ELF_RELOCATION_SYMBOL_SHIFT = 8;
 var CC2_I386_DATA_POINTER_RELOCATION = 1;
 var CC2_INITIALIZER_SYMBOL_CONSTANT = 560;
 var CC2_TYPE_ERROR_BUFFER_BYTES = 256;
+var CC2_TCC_ENUM_KIND = 2097152;
+var CC2_TCC_UNION_KIND = 1048583;
+var CC2_TCC_STRUCT_KIND_MASK = 4293918848;
 var CC2_CSTRING_SIZE_OFFSET = 0;
 var CC2_CSTRING_DATA_OFFSET = 4;
 var CC2_CSTRING_BYTES = 12;
@@ -400,6 +409,7 @@ var CC2_TCC_STATE_MS_BITFIELDS_OFFSET = 72;
 var CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET = 936;
 var CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET = 56;
 var CC2_TCC_STATE_WARN_WRITE_STRINGS_OFFSET = 76;
+var CC2_TCC_STATE_DEBUG_OFFSET = 100;
 var CC2_CASE_SECOND_VALUE_OFFSET = 8;
 var CC2_CASE_SYMBOL_OFFSET = 16;
 var CC2_SWITCH_DEFAULT_SYMBOL_OFFSET = 8;
@@ -5877,6 +5887,114 @@ function decl0(scope, is_for_loop_initializer, function_symbol)
     return result;
 }
 
+function tcc_debug_start(state)
+{
+    var source_file;
+    var text_section;
+    var symbol_table;
+    var directory;
+    var path;
+    source_file = ri32(file_address);
+    text_section = ri32(text_section_address);
+    symbol_table = ri32(symtab_section_address);
+    if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
+        section_sym = put_elf_sym(symbol_table, 0, 0,
+            CC2_ELF_SECTION_SYMBOL_INFO, 0,
+            ri32(add(text_section, CC2_SECTION_NUMBER_OFFSET)), 0);
+        directory = getcwd(0, 0);
+        path = malloc(add(strlen(directory), 2));
+        wi8(path, 0);
+        cc2_type_string_append(path, add(strlen(directory), 2), directory);
+        cc2_type_string_append(path, add(strlen(directory), 2), mks("/"));
+        cc2_put_stabs_reloc(path, CC2_STABS_SOURCE_FILE, 0, 0,
+            ri32(add(text_section, CC2_SECTION_DATA_OFFSET)), text_section,
+            section_sym);
+        free(path);
+        free(directory);
+        cc2_put_stabs_reloc(add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET),
+            CC2_STABS_SOURCE_FILE, 0, 0,
+            ri32(add(text_section, CC2_SECTION_DATA_OFFSET)), text_section,
+            section_sym);
+        last_ind = 0;
+        last_line_num = 0;
+    }
+    put_elf_sym(symbol_table, 0, 0, CC2_ELF_FILE_SYMBOL_INFO, 0,
+        CC2_ELF_ABSOLUTE_SECTION,
+        add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET));
+    return 0;
+}
+
+function tcc_debug_end(state)
+{
+    var text_section;
+    if (not(ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET)))) {
+        return 0;
+    }
+    text_section = ri32(text_section_address);
+    cc2_put_stabs_reloc(0, CC2_STABS_SOURCE_FILE, 0, 0,
+        ri32(add(text_section, CC2_SECTION_DATA_OFFSET)), text_section,
+        section_sym);
+    return 0;
+}
+
+function tcc_debug_line(state)
+{
+    var source_file;
+    var line;
+    if (not(ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET)))) {
+        return 0;
+    }
+    source_file = ri32(file_address);
+    line = ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET));
+    if (or(not(eq(last_line_num, line)), not(eq(last_ind, ind)))) {
+        cc2_put_stabs_number(CC2_STABS_SOURCE_LINE, 0, line,
+            sub(ind, func_ind));
+        last_ind = ind;
+        last_line_num = line;
+    }
+    return 0;
+}
+
+function tcc_debug_funcstart(state, symbol)
+{
+    var source_file;
+    var buffer_size;
+    var buffer;
+    if (not(ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET)))) {
+        return 0;
+    }
+    source_file = ri32(file_address);
+    buffer_size = add(strlen(funcname), 4);
+    buffer = malloc(buffer_size);
+    wi8(buffer, 0);
+    cc2_type_string_append(buffer, buffer_size, funcname);
+    cc2_type_string_append(buffer, buffer_size, mks(":"));
+    if (and(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)),
+        CC2_TCC_STATIC_STORAGE)) {
+        cc2_type_string_append(buffer, buffer_size, mks("f1"));
+    } else {
+        cc2_type_string_append(buffer, buffer_size, mks("F1"));
+    }
+    cc2_put_stabs_reloc(buffer, CC2_STABS_FUNCTION, 0,
+        ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 0,
+        ri32(cur_text_section_address),
+        ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)));
+    free(buffer);
+    cc2_put_stabs_number(CC2_STABS_SOURCE_LINE, 0,
+        ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 0);
+    last_ind = 0;
+    last_line_num = 0;
+    return 0;
+}
+
+function tcc_debug_funcend(state, size)
+{
+    if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
+        cc2_put_stabs_number(CC2_STABS_FUNCTION, 0, 0, size);
+    }
+    return 0;
+}
+
 function tccgen_compile(state)
 {
     var symbol;
@@ -6284,14 +6402,225 @@ function init_putv(type, section, offset)
     return 0;
 }
 
+/* Append diagnostic text without relying on C varargs or fixed scratch arrays. */
+function cc2_type_string_append(buffer, buffer_size, suffix)
+{
+    var destination;
+    var remaining;
+    destination = buffer;
+    remaining = buffer_size;
+    while (and(lt(1, remaining), not(eq(ri8(destination), 0)))) {
+        destination = add(destination, 1);
+        remaining = sub(remaining, 1);
+    }
+    while (and(lt(1, remaining), not(eq(ri8(suffix), 0)))) {
+        wi8(destination, ri8(suffix));
+        destination = add(destination, 1);
+        suffix = add(suffix, 1);
+        remaining = sub(remaining, 1);
+    }
+    if (lt(0, remaining)) {
+        wi8(destination, 0);
+    }
+    return buffer;
+}
+
+function cc2_type_string_decimal(buffer, buffer_size, value)
+{
+    var digits;
+    var count;
+    var negative;
+    var index;
+    digits = malloc(16);
+    count = 0;
+    negative = lt(value, 0);
+    if (negative) {
+        value = sub(0, value);
+    }
+    if (eq(value, 0)) {
+        wi8(digits, 48);
+        count = 1;
+    }
+    while (value) {
+        wi8(add(digits, count), add(48, mod(value, 10)));
+        count = add(count, 1);
+        value = div(value, 10);
+    }
+    if (negative) {
+        cc2_type_string_append(buffer, buffer_size, mks("-"));
+    }
+    index = count;
+    while (index) {
+        index = sub(index, 1);
+        wi8(add(digits, count), 0);
+        cc2_type_string_append(buffer, buffer_size, add(digits, index));
+        wi8(add(digits, index), 0);
+    }
+    free(digits);
+    return buffer;
+}
+
+function cc2_type_is_enum(type_value)
+{
+    return eq(and(type_value, CC2_TCC_STRUCT_KIND_MASK),
+        CC2_TCC_ENUM_KIND);
+}
+
+function cc2_type_to_str(buffer, buffer_size, type, variable)
+{
+    var type_value;
+    var basic_type;
+    var reference;
+    var argument;
+    var scratch;
+    var token;
+    var type_name;
+    type_value = ri32(type);
+    basic_type = and(type_value, CC2_TCC_BASIC_TYPE_MASK);
+    wi8(buffer, 0);
+
+    if (and(type_value, CC2_TCC_EXTERN_STORAGE)) {
+        cc2_type_string_append(buffer, buffer_size, mks("extern "));
+    }
+    if (and(type_value, CC2_TCC_STATIC_STORAGE)) {
+        cc2_type_string_append(buffer, buffer_size, mks("static "));
+    }
+    if (and(type_value, CC2_TCC_TYPEDEF_STORAGE)) {
+        cc2_type_string_append(buffer, buffer_size, mks("typedef "));
+    }
+    if (and(type_value, CC2_TCC_INLINE_STORAGE)) {
+        cc2_type_string_append(buffer, buffer_size, mks("inline "));
+    }
+    if (and(type_value, CC2_TCC_VOLATILE_QUALIFIER)) {
+        cc2_type_string_append(buffer, buffer_size, mks("volatile "));
+    }
+    if (and(type_value, CC2_TCC_CONST_QUALIFIER)) {
+        cc2_type_string_append(buffer, buffer_size, mks("const "));
+    }
+    if (or(and(and(type_value, CC2_TCC_DEFAULT_SIGN),
+        eq(basic_type, CC2_TCC_BYTE_TYPE)), and(and(type_value,
+        CC2_TCC_UNSIGNED_TYPE), and(not(cc2_type_is_enum(type_value)),
+        or(or(eq(basic_type, CC2_TCC_SHORT_TYPE),
+        eq(basic_type, CC2_TCC_INT_TYPE)),
+        eq(basic_type, CC2_TCC_LONG_LONG_TYPE)))))) {
+        if (and(type_value, CC2_TCC_UNSIGNED_TYPE)) {
+            cc2_type_string_append(buffer, buffer_size, mks("unsigned "));
+        } else {
+            cc2_type_string_append(buffer, buffer_size, mks("signed "));
+        }
+    }
+
+    if (eq(basic_type, CC2_TCC_VOID_TYPE)) {
+        type_name = mks("void");
+    } else if (eq(basic_type, CC2_TCC_BOOLEAN_TYPE)) {
+        type_name = mks("_Bool");
+    } else if (eq(basic_type, CC2_TCC_BYTE_TYPE)) {
+        type_name = mks("char");
+    } else if (eq(basic_type, CC2_TCC_SHORT_TYPE)) {
+        type_name = mks("short");
+    } else if (or(eq(basic_type, CC2_TCC_INT_TYPE),
+        eq(basic_type, CC2_TCC_LONG_LONG_TYPE))) {
+        if (and(type_value, CC2_TCC_LONG_MODIFIER)) {
+            type_name = mks("long");
+        } else if (eq(basic_type, CC2_TCC_LONG_LONG_TYPE)) {
+            type_name = mks("long long");
+        } else {
+            type_name = mks("int");
+        }
+        if (cc2_type_is_enum(type_value)) {
+            type_name = mks("enum ");
+        }
+    } else if (eq(basic_type, CC2_TCC_FLOAT_TYPE)) {
+        type_name = mks("float");
+    } else if (eq(basic_type, CC2_TCC_DOUBLE_TYPE)) {
+        type_name = mks("double");
+    } else if (eq(basic_type, CC2_TCC_LONG_DOUBLE_TYPE)) {
+        type_name = mks("long double");
+    } else if (eq(basic_type, CC2_TCC_STRUCT_TYPE)) {
+        type_name = mks("struct ");
+        if (eq(and(type_value, or(CC2_TCC_STRUCT_KIND_MASK,
+            CC2_TCC_BASIC_TYPE_MASK)), CC2_TCC_UNION_KIND)) {
+            type_name = mks("union ");
+        }
+    } else if (eq(basic_type, CC2_TCC_FUNCTION_TYPE)) {
+        reference = ri32(add(type, 4));
+        cc2_type_to_str(buffer, buffer_size,
+            add(reference, CC2_SYM_TYPE_OFFSET), variable);
+        cc2_type_string_append(buffer, buffer_size, mks("("));
+        argument = ri32(add(reference, CC2_SYM_NEXT_OFFSET));
+        scratch = malloc(buffer_size);
+        while (argument) {
+            cc2_type_to_str(scratch, buffer_size,
+                add(argument, CC2_SYM_TYPE_OFFSET), 0);
+            cc2_type_string_append(buffer, buffer_size, scratch);
+            argument = ri32(add(argument, CC2_SYM_NEXT_OFFSET));
+            if (argument) {
+                cc2_type_string_append(buffer, buffer_size, mks(", "));
+            }
+        }
+        free(scratch);
+        cc2_type_string_append(buffer, buffer_size, mks(")"));
+        return buffer;
+    } else if (eq(basic_type, CC2_TCC_POINTER_TYPE)) {
+        reference = ri32(add(type, 4));
+        scratch = malloc(buffer_size);
+        wi8(scratch, 0);
+        if (and(type_value, CC2_TCC_ARRAY_TYPE)) {
+            if (variable) {
+                cc2_type_string_append(scratch, buffer_size, variable);
+            }
+            cc2_type_string_append(scratch, buffer_size, mks("["));
+            cc2_type_string_decimal(scratch, buffer_size,
+                ri32(add(reference, CC2_SYM_CONSTANT_OFFSET)));
+            cc2_type_string_append(scratch, buffer_size, mks("]"));
+        } else {
+            cc2_type_string_append(scratch, buffer_size, mks("*"));
+            if (and(type_value, CC2_TCC_CONST_QUALIFIER)) {
+                cc2_type_string_append(scratch, buffer_size, mks("const "));
+            }
+            if (and(type_value, CC2_TCC_VOLATILE_QUALIFIER)) {
+                cc2_type_string_append(scratch, buffer_size,
+                    mks("volatile "));
+            }
+            if (variable) {
+                cc2_type_string_append(scratch, buffer_size, variable);
+            }
+        }
+        cc2_type_to_str(buffer, buffer_size,
+            add(reference, CC2_SYM_TYPE_OFFSET), scratch);
+        free(scratch);
+        return buffer;
+    } else {
+        type_name = mks("<unknown>");
+    }
+    cc2_type_string_append(buffer, buffer_size, type_name);
+    if (or(cc2_type_is_enum(type_value),
+        eq(basic_type, CC2_TCC_STRUCT_TYPE))) {
+        reference = ri32(add(type, 4));
+        token = and(ri32(add(reference, CC2_SYM_VALUE_OFFSET)),
+            bnot(CC2_SYMBOL_STRUCT_FLAG));
+        if (not(lt(token, CC2_FIRST_ANONYMOUS_SYMBOL))) {
+            cc2_type_string_append(buffer, buffer_size, mks("<anonymous>"));
+        } else {
+            cc2_type_string_append(buffer, buffer_size,
+                get_tok_str(token, 0));
+        }
+    }
+    if (variable) {
+        cc2_type_string_append(buffer, buffer_size, mks(" "));
+        cc2_type_string_append(buffer, buffer_size, variable);
+    }
+    return buffer;
+}
+
 function tcc_error_type_pair(source_type, destination_type)
 {
     var source;
     var destination;
     source = malloc(CC2_TYPE_ERROR_BUFFER_BYTES);
     destination = malloc(CC2_TYPE_ERROR_BUFFER_BYTES);
-    type_to_str(source, CC2_TYPE_ERROR_BUFFER_BYTES, source_type, 0);
-    type_to_str(destination, CC2_TYPE_ERROR_BUFFER_BYTES,
+    cc2_type_to_str(source, CC2_TYPE_ERROR_BUFFER_BYTES, source_type, 0);
+    cc2_type_to_str(destination, CC2_TYPE_ERROR_BUFFER_BYTES,
         destination_type, 0);
     tcc_error(mks("cannot cast '%s' to '%s'"), source, destination);
     return 0;
@@ -7777,7 +8106,7 @@ function unary_generic()
     selected = ri32(selected_holder);
     if (not(selected)) {
         buffer = malloc(60);
-        type_to_str(buffer, 60, controlling_type, 0);
+        cc2_type_to_str(buffer, 60, controlling_type, 0);
         tcc_error(mks("type '%s' does not match any association"), buffer);
         free(buffer);
     }

@@ -5,6 +5,28 @@
  * operations unavailable in the operator-free scalar dialect.
  */
 
+CType func_vt; /* C storage for cc2's current function return type. */
+
+/* Translate TCC's compact symbol-table index into its ELF record address. */
+ElfSym *elfsym(Sym *s)
+{
+    if (!s || !s->c)
+        return NULL;
+    return &((ElfSym *)symtab_section->data)[s->c];
+}
+
+/* STABS storage is private to tccelf.c; expose only its record operations. */
+void cc2_put_stabs_reloc(const char *text, int type, int other, int desc,
+                         unsigned long value, Section *section, int symbol)
+{
+    put_stabs_r(text, type, other, desc, value, section, symbol);
+}
+
+void cc2_put_stabs_number(int type, int other, int desc, int value)
+{
+    put_stabn(type, other, desc, value);
+}
+
 ST_FUNC int ieee_finite(double d)
 {
     int p[4];
@@ -360,4 +382,3 @@ void decl_record_inline(Sym *sym)
     skip_or_save_block(&fn->func_str);
     dynarray_add(&tcc_state->inline_fns, &tcc_state->nb_inline_fns, fn);
 }
-

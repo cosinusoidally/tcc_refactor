@@ -61,6 +61,17 @@ function tcc_debug_end(state)
     return 0;
 }
 
+function cc2_put_stabs_reloc(text, type, other, description, value, section,
+    symbol)
+{
+    return 0;
+}
+
+function cc2_put_stabs_number(type, other, description, value)
+{
+    return 0;
+}
+
 function neg_zero(basic_type)
 {
     return 0;
