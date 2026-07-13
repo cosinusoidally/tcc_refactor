@@ -136,6 +136,15 @@ var CC0_X86_LOAD_EAX_BYTE_ADDRESS;
 var CC0_X86_STORE_EAX_ADDRESS;
 var CC0_X86_STORE_EAX_BYTE_ADDRESS_OPCODE;
 var CC0_X86_STORE_EAX_BYTE_ADDRESS;
+var CC0_X86_LOAD_EAX_ABSOLUTE;
+var CC0_X86_STORE_EAX_ABSOLUTE;
+var CC0_DATA_CAPACITY;
+var CC0_DATA;
+var CC0_DATA_LENGTH;
+var CC0_CALL_RECORDS;
+var CC0_CALL_COUNT;
+var CC0_RELOCATION_RECORDS;
+var CC0_RELOCATION_COUNT;
 
 function cc0_init()
 {
@@ -259,6 +268,15 @@ function cc0_init()
     CC0_X86_STORE_EAX_ADDRESS = 3;
     CC0_X86_STORE_EAX_BYTE_ADDRESS_OPCODE = 136;
     CC0_X86_STORE_EAX_BYTE_ADDRESS = 3;
+    CC0_X86_LOAD_EAX_ABSOLUTE = 161;
+    CC0_X86_STORE_EAX_ABSOLUTE = 163;
+    CC0_DATA_CAPACITY = 262144;
+    CC0_DATA = 0;
+    CC0_DATA_LENGTH = 0;
+    CC0_CALL_RECORDS = 0;
+    CC0_CALL_COUNT = 0;
+    CC0_RELOCATION_RECORDS = 0;
+    CC0_RELOCATION_COUNT = 0;
     return CC0_FALSE;
 }
 
@@ -767,9 +785,24 @@ function cc0_compiler_prepare_code()
 {
     if (eq(CC0_CODE, 0)) {
         CC0_CODE = alloc(CC0_CODE_CAPACITY);
+        CC0_DATA = alloc(CC0_DATA_CAPACITY);
+        CC0_CALL_RECORDS = alloc(CC0_SYMBOL_TABLE_BYTES);
+        CC0_RELOCATION_RECORDS = alloc(CC0_SYMBOL_TABLE_BYTES);
     }
     CC0_CODE_LENGTH = 0;
+    CC0_DATA_LENGTH = 0;
+    CC0_CALL_COUNT = 0;
+    CC0_RELOCATION_COUNT = 0;
     if (eq(CC0_CODE, 0)) {
+        return cc0_compiler_fail();
+    }
+    if (eq(CC0_DATA, 0)) {
+        return cc0_compiler_fail();
+    }
+    if (eq(CC0_CALL_RECORDS, 0)) {
+        return cc0_compiler_fail();
+    }
+    if (eq(CC0_RELOCATION_RECORDS, 0)) {
         return cc0_compiler_fail();
     }
     return CC0_FALSE;
@@ -803,6 +836,86 @@ function cc0_compiler_patch_word(position, value)
     }
     wi32(add(CC0_CODE, position), value);
     return CC0_FALSE;
+}
+
+function cc0_compiler_emit_data_byte(value)
+{
+    if (not(lt(CC0_DATA_LENGTH, CC0_DATA_CAPACITY))) {
+        return cc0_compiler_fail();
+    }
+    wi8(add(CC0_DATA, CC0_DATA_LENGTH), value);
+    CC0_DATA_LENGTH = add(CC0_DATA_LENGTH, 1);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_record_call(name, length, position, argument_count)
+{
+    if (cc0_compiler_add_symbol(CC0_CALL_RECORDS, CC0_CALL_COUNT,
+        name, length, position)) {
+        return CC0_TRUE;
+    }
+    wi32(add(cc0_compiler_symbol_entry(CC0_CALL_RECORDS, CC0_CALL_COUNT),
+        CC0_SYMBOL_CODE_OFFSET), argument_count);
+    CC0_CALL_COUNT = add(CC0_CALL_COUNT, 1);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_record_relocation(name, length, position, addend)
+{
+    if (cc0_compiler_add_symbol(CC0_RELOCATION_RECORDS,
+        CC0_RELOCATION_COUNT, name, length, position)) {
+        return CC0_TRUE;
+    }
+    wi32(add(cc0_compiler_symbol_entry(CC0_RELOCATION_RECORDS,
+        CC0_RELOCATION_COUNT), CC0_SYMBOL_CODE_OFFSET), addend);
+    CC0_RELOCATION_COUNT = add(CC0_RELOCATION_COUNT, 1);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_register_string_(text, length, start, index)
+{
+    start = CC0_DATA_LENGTH;
+    index = 0;
+    while (lt(index, length)) {
+        cc0_compiler_emit_data_byte(ri8(add(text, index)));
+        index = add(index, 1);
+    }
+    cc0_compiler_emit_data_byte(0);
+    return start;
+}
+
+function cc0_compiler_register_string(text, length)
+{
+    return cc0_compiler_register_string_(text, length, 0, 0);
+}
+
+function cc0_compiler_emit_data_address_(text, length, addend, position)
+{
+    addend = cc0_compiler_register_string(text, length);
+    cc0_compiler_emit_byte(CC0_X86_MOV_EAX_IMMEDIATE);
+    position = CC0_CODE_LENGTH;
+    cc0_compiler_emit_word(addend);
+    cc0_compiler_record_relocation(mks(".data"), 5, position, addend);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_emit_data_address(text, length)
+{
+    return cc0_compiler_emit_data_address_(text, length, 0, 0);
+}
+
+function cc0_compiler_emit_load_global(name, length)
+{
+    cc0_compiler_emit_byte(CC0_X86_LOAD_EAX_ABSOLUTE);
+    cc0_compiler_record_relocation(name, length, CC0_CODE_LENGTH, 0);
+    return cc0_compiler_emit_word(0);
+}
+
+function cc0_compiler_emit_store_global(name, length)
+{
+    cc0_compiler_emit_byte(CC0_X86_STORE_EAX_ABSOLUTE);
+    cc0_compiler_record_relocation(name, length, CC0_CODE_LENGTH, 0);
+    return cc0_compiler_emit_word(0);
 }
 
 function cc0_compiler_emit_prologue()
@@ -917,6 +1030,33 @@ function cc0_compiler_emit_call_placeholder_(position)
 function cc0_compiler_emit_call_placeholder()
 {
     return cc0_compiler_emit_call_placeholder_(0);
+}
+
+function cc0_compiler_patch_calls_(index, call_entry, function_index, function_entry, position, target)
+{
+    index = 0;
+    while (lt(index, CC0_CALL_COUNT)) {
+        call_entry = cc0_compiler_symbol_entry(CC0_CALL_RECORDS, index);
+        function_index = cc0_compiler_find_symbol(CC0_FUNCTION_SYMBOLS,
+            CC0_FUNCTION_COUNT,
+            ri32(add(call_entry, CC0_SYMBOL_NAME_OFFSET)),
+            ri32(add(call_entry, CC0_SYMBOL_LENGTH_OFFSET)));
+        if (lt(function_index, 0)) {
+            return cc0_compiler_fail();
+        }
+        function_entry = cc0_compiler_symbol_entry(CC0_FUNCTION_SYMBOLS,
+            function_index);
+        position = ri32(add(call_entry, CC0_SYMBOL_VALUE_OFFSET));
+        target = ri32(add(function_entry, CC0_SYMBOL_CODE_OFFSET));
+        cc0_compiler_patch_relative(position, target);
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_patch_calls()
+{
+    return cc0_compiler_patch_calls_(0, 0, 0, 0, 0, 0);
 }
 
 function cc0_compiler_emit_drop_arguments(argument_bytes)
