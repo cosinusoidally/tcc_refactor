@@ -157,6 +157,23 @@ var CC0_LOOP_DEPTH;
 var CC0_NEXT_LOOP_ID;
 var CC0_BREAK_RECORDS;
 var CC0_BREAK_COUNT;
+var CC0_ALLOCATOR_STATE_OFFSET;
+var CC0_LINUX_BRK_SYSCALL;
+var CC0_X86_MOV_EDX_EAX;
+var CC0_X86_XOR_REGISTER_OPCODE;
+var CC0_X86_XOR_EBX_EBX;
+var CC0_X86_XOR_EAX_EAX;
+var CC0_X86_LOAD_ECX_ABSOLUTE_OPCODE;
+var CC0_X86_LOAD_ECX_ABSOLUTE;
+var CC0_X86_MOV_EBX_ECX;
+var CC0_X86_ADD_EBX_EDX;
+var CC0_X86_COMPARE_EAX_EBX;
+var CC0_X86_JUMP_IF_NOT_ZERO;
+var CC0_X86_STORE_EBX_ABSOLUTE_OPCODE;
+var CC0_X86_STORE_EBX_ABSOLUTE;
+var CC0_X86_MOV_EAX_ECX;
+var CC0_X86_INTERRUPT_OPCODE;
+var CC0_X86_LINUX_INTERRUPT;
 
 function cc0_init()
 {
@@ -301,6 +318,23 @@ function cc0_init()
     CC0_NEXT_LOOP_ID = 0;
     CC0_BREAK_RECORDS = 0;
     CC0_BREAK_COUNT = 0;
+    CC0_ALLOCATOR_STATE_OFFSET = 0;
+    CC0_LINUX_BRK_SYSCALL = 45;
+    CC0_X86_MOV_EDX_EAX = 194;
+    CC0_X86_XOR_REGISTER_OPCODE = 49;
+    CC0_X86_XOR_EBX_EBX = 219;
+    CC0_X86_XOR_EAX_EAX = 192;
+    CC0_X86_LOAD_ECX_ABSOLUTE_OPCODE = 139;
+    CC0_X86_LOAD_ECX_ABSOLUTE = 13;
+    CC0_X86_MOV_EBX_ECX = 203;
+    CC0_X86_ADD_EBX_EDX = 211;
+    CC0_X86_COMPARE_EAX_EBX = 216;
+    CC0_X86_JUMP_IF_NOT_ZERO = 133;
+    CC0_X86_STORE_EBX_ABSOLUTE_OPCODE = 137;
+    CC0_X86_STORE_EBX_ABSOLUTE = 29;
+    CC0_X86_MOV_EAX_ECX = 200;
+    CC0_X86_INTERRUPT_OPCODE = 205;
+    CC0_X86_LINUX_INTERRUPT = 128;
     return CC0_FALSE;
 }
 
@@ -840,6 +874,8 @@ function cc0_compiler_prepare_code()
     if (eq(CC0_BREAK_RECORDS, 0)) {
         return cc0_compiler_fail();
     }
+    wi32(CC0_DATA, 0);
+    CC0_DATA_LENGTH = CC0_WORD_BYTES;
     return CC0_FALSE;
 }
 
@@ -1022,6 +1058,20 @@ function cc0_compiler_emit_zero_jump_(position)
 function cc0_compiler_emit_zero_jump()
 {
     return cc0_compiler_emit_zero_jump_(0);
+}
+
+function cc0_compiler_emit_nonzero_jump_(position)
+{
+    cc0_compiler_emit_byte(CC0_X86_TWO_BYTE_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_JUMP_IF_NOT_ZERO);
+    position = CC0_CODE_LENGTH;
+    cc0_compiler_emit_word(0);
+    return position;
+}
+
+function cc0_compiler_emit_nonzero_jump()
+{
+    return cc0_compiler_emit_nonzero_jump_(0);
 }
 
 function cc0_compiler_emit_jump_(position)
@@ -1375,6 +1425,65 @@ function cc0_compiler_emit_write_byte()
     return cc0_compiler_emit_byte(CC0_X86_ZERO_EXTEND_EAX_BYTE);
 }
 
+function cc0_compiler_emit_allocator_operand(position)
+{
+    position = CC0_CODE_LENGTH;
+    cc0_compiler_emit_word(CC0_ALLOCATOR_STATE_OFFSET);
+    return cc0_compiler_record_relocation(mks(".data"), 5, position,
+        CC0_ALLOCATOR_STATE_OFFSET);
+}
+
+function cc0_compiler_emit_alloc_(initialized_position, failed_position, done_position)
+{
+    /* Preserve the requested byte count while querying the process break. */
+    cc0_compiler_emit_byte(CC0_X86_MOV_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_MOV_EDX_EAX);
+    cc0_compiler_emit_byte(CC0_X86_LOAD_EAX_ABSOLUTE);
+    cc0_compiler_emit_allocator_operand(0);
+    cc0_compiler_emit_test_result();
+    initialized_position = cc0_compiler_emit_nonzero_jump();
+
+    cc0_compiler_emit_immediate(CC0_LINUX_BRK_SYSCALL);
+    cc0_compiler_emit_byte(CC0_X86_XOR_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_XOR_EBX_EBX);
+    cc0_compiler_emit_byte(CC0_X86_INTERRUPT_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_LINUX_INTERRUPT);
+    cc0_compiler_emit_byte(CC0_X86_STORE_EAX_ABSOLUTE);
+    cc0_compiler_emit_allocator_operand(0);
+    cc0_compiler_patch_relative(initialized_position, CC0_CODE_LENGTH);
+
+    cc0_compiler_emit_byte(CC0_X86_LOAD_ECX_ABSOLUTE_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_LOAD_ECX_ABSOLUTE);
+    cc0_compiler_emit_allocator_operand(0);
+    cc0_compiler_emit_byte(CC0_X86_MOV_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_MOV_EBX_ECX);
+    cc0_compiler_emit_byte(CC0_X86_ADD_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_ADD_EBX_EDX);
+    cc0_compiler_emit_immediate(CC0_LINUX_BRK_SYSCALL);
+    cc0_compiler_emit_byte(CC0_X86_INTERRUPT_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_LINUX_INTERRUPT);
+    cc0_compiler_emit_byte(CC0_X86_COMPARE_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_COMPARE_EAX_EBX);
+    failed_position = cc0_compiler_emit_nonzero_jump();
+
+    cc0_compiler_emit_byte(CC0_X86_STORE_EBX_ABSOLUTE_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_STORE_EBX_ABSOLUTE);
+    cc0_compiler_emit_allocator_operand(0);
+    cc0_compiler_emit_byte(CC0_X86_MOV_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_MOV_EAX_ECX);
+    done_position = cc0_compiler_emit_jump();
+
+    cc0_compiler_patch_relative(failed_position, CC0_CODE_LENGTH);
+    cc0_compiler_emit_byte(CC0_X86_XOR_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_XOR_EAX_EAX);
+    return cc0_compiler_patch_relative(done_position, CC0_CODE_LENGTH);
+}
+
+function cc0_compiler_emit_alloc()
+{
+    return cc0_compiler_emit_alloc_(0, 0, 0);
+}
+
 function cc0_compiler_emit_builtin(name, length)
 {
     if (cc0_text_equal(name, length, mks("not"))) {
@@ -1415,6 +1524,9 @@ function cc0_compiler_emit_builtin(name, length)
     }
     if (cc0_text_equal(name, length, mks("wi32"))) {
         return cc0_compiler_emit_write_word();
+    }
+    if (cc0_text_equal(name, length, mks("alloc"))) {
+        return cc0_compiler_emit_alloc();
     }
     return cc0_compiler_fail();
 }
