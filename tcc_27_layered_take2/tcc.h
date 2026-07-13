@@ -1338,7 +1338,7 @@ extern int gv(int rc);
 ST_FUNC void gv2(int rc1, int rc2);
 extern void vpop(void);
 ST_FUNC void gen_op(int op);
-ST_FUNC int type_size(CType *type, int *a);
+extern int type_size(CType *type, int *a);
 extern CType *pointed_type(CType *type);
 extern void mk_pointer(CType *type);
 extern int is_compatible_types(CType *type1, CType *type2);

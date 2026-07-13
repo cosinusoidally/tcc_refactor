@@ -97,6 +97,11 @@ var CC2_TCC_STRUCT_TYPE = 7;
 var CC2_TCC_FUNCTION_TYPE = 6;
 var CC2_TCC_OLD_FUNCTION = 2;
 var CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET = 12;
+var CC2_TCC_ARRAY_TYPE = 64;
+var CC2_TCC_ENUM_TYPE = 2097152;
+var CC2_TCC_QUAD_INTEGER_TYPE = 13;
+var CC2_I386_LONG_DOUBLE_BYTES = 12;
+var CC2_I386_WORD_BYTES = 4;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -858,6 +863,71 @@ function is_compatible_types(type1, type2)
 function is_compatible_unqualified_types(type1, type2)
 {
     return compare_types(type1, type2, 1);
+}
+
+function type_size_(type, alignment, type_value, basic_type, symbol,
+    element_size, count, structure_mask)
+{
+    type_value = ri32(type);
+    basic_type = and(type_value, CC2_TCC_BASIC_TYPE_MASK);
+    if (eq(basic_type, CC2_TCC_STRUCT_TYPE)) {
+        symbol = ri32(add(type, 4));
+        wi32(alignment, and(ri32(add(symbol, 4)), 65535));
+        return ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET));
+    }
+    if (eq(basic_type, CC2_TCC_POINTER_TYPE)) {
+        if (not(eq(and(type_value, CC2_TCC_ARRAY_TYPE), 0))) {
+            symbol = ri32(add(type, 4));
+            element_size = type_size(add(symbol, CC2_SYM_TYPE_OFFSET),
+                alignment);
+            count = ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET));
+            if (lt(element_size, 0)) {
+                if (lt(count, 0)) {
+                    element_size = sub(0, element_size);
+                }
+            }
+            return mul(element_size, count);
+        }
+        wi32(alignment, CC2_I386_WORD_BYTES);
+        return CC2_I386_WORD_BYTES;
+    }
+    structure_mask = or(shl(4095, 20), 128);
+    if (eq(and(type_value, structure_mask), CC2_TCC_ENUM_TYPE)) {
+        symbol = ri32(add(type, 4));
+        if (eq(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), sub(0, 1))) {
+            return sub(0, 1);
+        }
+    }
+    if (eq(basic_type, CC2_TCC_LONG_DOUBLE_TYPE)) {
+        wi32(alignment, CC2_I386_WORD_BYTES);
+        return CC2_I386_LONG_DOUBLE_BYTES;
+    }
+    if (or(eq(basic_type, CC2_TCC_DOUBLE_TYPE),
+        eq(basic_type, CC2_TCC_LONG_LONG_TYPE))) {
+        wi32(alignment, CC2_I386_WORD_BYTES);
+        return 8;
+    }
+    if (or(eq(basic_type, CC2_TCC_INT_TYPE),
+        eq(basic_type, CC2_TCC_FLOAT_TYPE))) {
+        wi32(alignment, CC2_I386_WORD_BYTES);
+        return CC2_I386_WORD_BYTES;
+    }
+    if (eq(basic_type, CC2_TCC_SHORT_TYPE)) {
+        wi32(alignment, 2);
+        return 2;
+    }
+    if (or(eq(basic_type, CC2_TCC_QUAD_INTEGER_TYPE),
+        eq(basic_type, CC2_TCC_QUAD_FLOAT_TYPE))) {
+        wi32(alignment, 8);
+        return 16;
+    }
+    wi32(alignment, 1);
+    return 1;
+}
+
+function type_size(type, alignment)
+{
+    return type_size_(type, alignment, 0, 0, 0, 0, 0, 0);
 }
 
 function vpushv_(value, limit)
