@@ -36,7 +36,6 @@ ST_DATA CType func_vt; /* current function return type (used by return instructi
 
 static void gen_cast(CType *type);
 static void gen_cast_s(int t);
-static inline CType *pointed_type(CType *type);
 static int is_compatible_types(CType *type1, CType *type2);
 static int parse_btype(CType *type, AttributeDef *ad);
 static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
@@ -2376,21 +2375,6 @@ ST_FUNC void vla_runtime_type_size(CType *type, int *a)
     }
 }
 
-/* return the pointed type of t */
-static inline CType *pointed_type(CType *type)
-{
-    return &type->ref->type;
-}
-
-/* modify type so that its it is a pointer to type. */
-ST_FUNC void mk_pointer(CType *type)
-{
-    Sym *s;
-    s = sym_push(SYM_FIELD, type, 0, -1);
-    type->t = VT_PTR | (type->t & VT_STORAGE);
-    type->ref = s;
-}
-
 /* compare function types. OLD functions match any new functions */
 static int is_compatible_func(CType *type1, CType *type2)
 {
@@ -4079,23 +4063,6 @@ static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
     parse_attribute(ad);
     type->t |= storage;
     return ret;
-}
-
-/* compute the lvalue VT_LVAL_xxx needed to match type t. */
-ST_FUNC int lvalue_type(int t)
-{
-    int bt, r;
-    r = VT_LVAL;
-    bt = t & VT_BTYPE;
-    if (bt == VT_BYTE || bt == VT_BOOL)
-        r |= VT_LVAL_BYTE;
-    else if (bt == VT_SHORT)
-        r |= VT_LVAL_SHORT;
-    else
-        return r;
-    if (t & VT_UNSIGNED)
-        r |= VT_LVAL_UNSIGNED;
-    return r;
 }
 
 /* indirection with full error checking and bound check */

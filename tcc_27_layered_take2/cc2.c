@@ -67,6 +67,14 @@ var CC2_VALUE_CONSTANT = 48;
 var CC2_VALUE_COMPARISON = 51;
 var CC2_VALUE_JUMP = 52;
 var CC2_INTEGER_REGISTER_CLASS = 1;
+var CC2_TCC_POINTER_TYPE = 5;
+var CC2_TCC_BOOLEAN_TYPE = 11;
+var CC2_TCC_UNSIGNED_TYPE = 16;
+var CC2_TCC_STORAGE_MASK = 61440;
+var CC2_TCC_LVALUE = 256;
+var CC2_TCC_LVALUE_BYTE = 4096;
+var CC2_TCC_LVALUE_SHORT = 8192;
+var CC2_TCC_LVALUE_UNSIGNED = 16384;
 
 /* Production frontend state shared with the typed TCC remainder. */
 var nb_sym_pools;
@@ -470,6 +478,49 @@ function vswap()
     cc2_copy_svalue(sub(vtop, CC2_SVALUE_BYTES),
         cc2_svalue_temporary());
     return 0;
+}
+
+function pointed_type(type)
+{
+    return add(ri32(add(type, 4)), CC2_SYM_TYPE_OFFSET);
+}
+
+function mk_pointer_(type, symbol, old_type)
+{
+    old_type = ri32(type);
+    symbol = sym_push(CC2_SYMBOL_FIELD_FLAG, type, 0, sub(0, 1));
+    wi32(type, or(CC2_TCC_POINTER_TYPE,
+        and(old_type, CC2_TCC_STORAGE_MASK)));
+    wi32(add(type, 4), symbol);
+    return 0;
+}
+
+function mk_pointer(type)
+{
+    return mk_pointer_(type, 0, 0);
+}
+
+function lvalue_type_(type, basic_type, result)
+{
+    result = CC2_TCC_LVALUE;
+    basic_type = and(type, CC2_TCC_BASIC_TYPE_MASK);
+    if (or(eq(basic_type, CC2_TCC_BYTE_TYPE),
+        eq(basic_type, CC2_TCC_BOOLEAN_TYPE))) {
+        result = or(result, CC2_TCC_LVALUE_BYTE);
+    } else if (eq(basic_type, CC2_TCC_SHORT_TYPE)) {
+        result = or(result, CC2_TCC_LVALUE_SHORT);
+    } else {
+        return result;
+    }
+    if (not(eq(and(type, CC2_TCC_UNSIGNED_TYPE), 0))) {
+        result = or(result, CC2_TCC_LVALUE_UNSIGNED);
+    }
+    return result;
+}
+
+function lvalue_type(type)
+{
+    return lvalue_type_(type, 0, 0);
 }
 
 function vpushv_(value, limit)
