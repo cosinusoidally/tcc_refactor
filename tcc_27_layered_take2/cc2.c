@@ -526,6 +526,17 @@ function expect(message)
     return 0;
 }
 
+function cstr_new(string)
+{
+    return cc2_zero_bytes(string, CC2_CSTRING_BYTES);
+}
+
+function cstr_reset(string)
+{
+    wi32(add(string, CC2_CSTRING_SIZE_OFFSET), 0);
+    return 0;
+}
+
 function dynarray_add(table_pointer, count_pointer, data)
 {
     var count;

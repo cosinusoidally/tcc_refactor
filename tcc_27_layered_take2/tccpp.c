@@ -361,22 +361,11 @@ ST_FUNC void cstr_wccat(CString *cstr, int ch)
     cstr->size = size;
 }
 
-void cstr_new(CString *cstr)
-{
-    memset(cstr, 0, sizeof(CString));
-}
-
 /* free string and reset it to NULL */
 void cstr_free(CString *cstr)
 {
     tal_free(cstr_alloc, cstr->data);
     cstr_new(cstr);
-}
-
-/* reset string to empty */
-ST_FUNC void cstr_reset(CString *cstr)
-{
-    cstr->size = 0;
 }
 
 /* XXX: unicode ? */

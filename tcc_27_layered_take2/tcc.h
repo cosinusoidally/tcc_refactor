@@ -1094,7 +1094,7 @@ void cstr_cat(CString *cstr, const char *str, int len);
 ST_FUNC void cstr_wccat(CString *cstr, int ch);
 void cstr_new(CString *cstr);
 void cstr_free(CString *cstr);
-ST_FUNC void cstr_reset(CString *cstr);
+void cstr_reset(CString *cstr);
 
 extern void sym_free(Sym *sym);
 extern Sym *sym_push2(Sym **ps, int v, int t, int c);

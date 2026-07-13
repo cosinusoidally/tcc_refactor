@@ -30,11 +30,6 @@ function section_reserve(section, size)
     return 0;
 }
 
-function cstr_new(string)
-{
-    return 0;
-}
-
 function cstr_cat(string, source, length)
 {
     return 0;
