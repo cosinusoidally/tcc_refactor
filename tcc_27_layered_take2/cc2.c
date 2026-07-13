@@ -99,6 +99,7 @@ var CC2_TCC_TYPE_MASK = 986943;
 var CC2_TCC_DEFAULT_SIGN = 32;
 var CC2_TCC_CONST_QUALIFIER = 256;
 var CC2_TCC_VOLATILE_QUALIFIER = 512;
+var CC2_TCC_LONG_MODIFIER = 2048;
 var CC2_TCC_STRUCT_TYPE = 7;
 var CC2_TCC_FUNCTION_TYPE = 6;
 var CC2_TCC_NEW_FUNCTION = 1;
@@ -198,6 +199,33 @@ var CC2_TOKEN_VOLATILE_THIRD = 278;
 var CC2_TOKEN_RESTRICT_FIRST = 288;
 var CC2_TOKEN_RESTRICT_SECOND = 289;
 var CC2_TOKEN_RESTRICT_THIRD = 290;
+var CC2_TOKEN_INT = 256;
+var CC2_TOKEN_VOID = 257;
+var CC2_TOKEN_CHAR = 258;
+var CC2_TOKEN_EXTERN = 265;
+var CC2_TOKEN_STATIC = 266;
+var CC2_TOKEN_UNSIGNED = 267;
+var CC2_TOKEN_LONG = 279;
+var CC2_TOKEN_REGISTER = 280;
+var CC2_TOKEN_SIGNED_FIRST = 281;
+var CC2_TOKEN_SIGNED_SECOND = 282;
+var CC2_TOKEN_SIGNED_THIRD = 283;
+var CC2_TOKEN_AUTO = 284;
+var CC2_TOKEN_INLINE_FIRST = 285;
+var CC2_TOKEN_INLINE_SECOND = 286;
+var CC2_TOKEN_INLINE_THIRD = 287;
+var CC2_TOKEN_EXTENSION = 291;
+var CC2_TOKEN_FLOAT = 293;
+var CC2_TOKEN_DOUBLE = 294;
+var CC2_TOKEN_BOOL = 295;
+var CC2_TOKEN_SHORT = 296;
+var CC2_TOKEN_STRUCT = 297;
+var CC2_TOKEN_UNION = 298;
+var CC2_TOKEN_TYPEDEF = 299;
+var CC2_TOKEN_ENUM = 301;
+var CC2_TOKEN_TYPEOF_FIRST = 307;
+var CC2_TOKEN_TYPEOF_SECOND = 308;
+var CC2_TOKEN_TYPEOF_THIRD = 309;
 var CC2_TYPE_ABSTRACT = 1;
 var CC2_TYPE_DIRECT = 2;
 var CC2_TOKEN_DOTS = 200;
@@ -307,6 +335,7 @@ var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET = 80;
 var CC2_TCC_STATE_MS_EXTENSIONS_OFFSET = 64;
 var CC2_TCC_STATE_MS_BITFIELDS_OFFSET = 72;
 var CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET = 936;
+var CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET = 56;
 var table_ident;
 /* CType is two i386 words. */
 var char_pointer_type[2];
@@ -4144,6 +4173,260 @@ function struct_decl(type, structure_kind)
     result = struct_decl_(type, structure_kind, scratch,
         add(scratch, 24), 0, 0, 0);
     free(scratch);
+    return result;
+}
+
+function parse_btype_(type, attributes, temporary_type, current_type,
+    basic_type, size_modifier, type_found, type_specifier_found, token,
+    parsed_type, storage, symbol, preserved)
+{
+    cc2_zero_bytes(attributes, CC2_ATTRIBUTE_BYTES);
+    current_type = CC2_TCC_INT_TYPE;
+    basic_type = sub(0, 1);
+    size_modifier = sub(0, 1);
+    type_found = 0;
+    type_specifier_found = 0;
+    wi32(add(type, 4), 0);
+    while (1) {
+        token = ri32(tok_address);
+        parsed_type = sub(0, 1);
+        if (eq(token, CC2_TOKEN_EXTENSION)) {
+            next();
+            continue;
+        } else if (eq(token, CC2_TOKEN_CHAR)) {
+            parsed_type = CC2_TCC_BYTE_TYPE;
+        } else if (eq(token, CC2_TOKEN_VOID)) {
+            parsed_type = CC2_TCC_VOID_TYPE;
+        } else if (eq(token, CC2_TOKEN_SHORT)) {
+            parsed_type = CC2_TCC_SHORT_TYPE;
+        } else if (eq(token, CC2_TOKEN_INT)) {
+            parsed_type = CC2_TCC_INT_TYPE;
+        } else if (eq(token, CC2_TOKEN_BOOL)) {
+            parsed_type = CC2_TCC_BOOLEAN_TYPE;
+        } else if (eq(token, CC2_TOKEN_FLOAT)) {
+            parsed_type = CC2_TCC_FLOAT_TYPE;
+        } else if (eq(token, CC2_TOKEN_LONG)) {
+            if (eq(and(current_type, or(CC2_TCC_BASIC_TYPE_MASK,
+                CC2_TCC_LONG_MODIFIER)), CC2_TCC_DOUBLE_TYPE)) {
+                current_type = or(and(current_type, bnot(or(
+                    CC2_TCC_BASIC_TYPE_MASK, CC2_TCC_LONG_MODIFIER))),
+                    CC2_TCC_LONG_DOUBLE_TYPE);
+                next();
+                type_found = 1;
+                continue;
+            }
+            if (eq(and(current_type, or(CC2_TCC_BASIC_TYPE_MASK,
+                CC2_TCC_LONG_MODIFIER)), CC2_TCC_LONG_MODIFIER)) {
+                current_type = or(and(current_type, bnot(or(
+                    CC2_TCC_BASIC_TYPE_MASK, CC2_TCC_LONG_MODIFIER))),
+                    CC2_TCC_LONG_LONG_TYPE);
+                next();
+                type_found = 1;
+                continue;
+            }
+            parsed_type = CC2_TCC_LONG_MODIFIER;
+        } else if (eq(token, CC2_TOKEN_DOUBLE)) {
+            if (eq(and(current_type, or(CC2_TCC_BASIC_TYPE_MASK,
+                CC2_TCC_LONG_MODIFIER)), CC2_TCC_LONG_MODIFIER)) {
+                current_type = or(and(current_type, bnot(or(
+                    CC2_TCC_BASIC_TYPE_MASK, CC2_TCC_LONG_MODIFIER))),
+                    CC2_TCC_LONG_DOUBLE_TYPE);
+            } else {
+                parsed_type = CC2_TCC_DOUBLE_TYPE;
+            }
+            if (eq(parsed_type, sub(0, 1))) {
+                next();
+                type_found = 1;
+                continue;
+            }
+        } else if (eq(token, CC2_TOKEN_ENUM)) {
+            struct_decl(temporary_type, CC2_TCC_ENUM_TYPE);
+            parsed_type = ri32(temporary_type);
+            wi32(add(type, 4), ri32(add(temporary_type, 4)));
+        } else if (eq(token, CC2_TOKEN_STRUCT)) {
+            struct_decl(temporary_type, CC2_TCC_STRUCT_TYPE);
+            parsed_type = ri32(temporary_type);
+            wi32(add(type, 4), ri32(add(temporary_type, 4)));
+        } else if (eq(token, CC2_TOKEN_UNION)) {
+            struct_decl(temporary_type, CC2_TCC_UNION_TYPE);
+            parsed_type = ri32(temporary_type);
+            wi32(add(type, 4), ri32(add(temporary_type, 4)));
+        }
+        if (not(eq(parsed_type, sub(0, 1)))) {
+            if (or(eq(parsed_type, CC2_TCC_SHORT_TYPE),
+                eq(parsed_type, CC2_TCC_LONG_MODIFIER))) {
+                if (or(not(eq(size_modifier, sub(0, 1))), and(not(eq(
+                    basic_type, sub(0, 1))), not(eq(basic_type,
+                    CC2_TCC_INT_TYPE))))) {
+                    tcc_error(mks("too many basic types"), 0);
+                }
+                size_modifier = parsed_type;
+            } else {
+                if (or(not(eq(basic_type, sub(0, 1))), and(not(eq(
+                    size_modifier, sub(0, 1))), not(eq(parsed_type,
+                    CC2_TCC_INT_TYPE))))) {
+                    tcc_error(mks("too many basic types"), 0);
+                }
+                basic_type = parsed_type;
+            }
+            if (not(eq(parsed_type, CC2_TCC_INT_TYPE))) {
+                current_type = or(and(current_type, bnot(or(
+                    CC2_TCC_BASIC_TYPE_MASK, CC2_TCC_LONG_MODIFIER))),
+                    parsed_type);
+            }
+            type_specifier_found = 1;
+            if (or(or(eq(token, CC2_TOKEN_ENUM),
+                eq(token, CC2_TOKEN_STRUCT)), eq(token, CC2_TOKEN_UNION))) {
+                token = token;
+            } else {
+                next();
+            }
+            type_found = 1;
+            continue;
+        }
+        if (cc2_token_is_three(token, CC2_TOKEN_CONST_FIRST,
+            CC2_TOKEN_CONST_SECOND, CC2_TOKEN_CONST_THIRD)) {
+            wi32(type, current_type);
+            parse_btype_qualify(type, CC2_TCC_CONST_QUALIFIER);
+            current_type = ri32(type);
+            next();
+        } else if (cc2_token_is_three(token, CC2_TOKEN_VOLATILE_FIRST,
+            CC2_TOKEN_VOLATILE_SECOND, CC2_TOKEN_VOLATILE_THIRD)) {
+            wi32(type, current_type);
+            parse_btype_qualify(type, CC2_TCC_VOLATILE_QUALIFIER);
+            current_type = ri32(type);
+            next();
+        } else if (cc2_token_is_three(token, CC2_TOKEN_SIGNED_FIRST,
+            CC2_TOKEN_SIGNED_SECOND, CC2_TOKEN_SIGNED_THIRD)) {
+            if (eq(and(current_type, or(CC2_TCC_DEFAULT_SIGN,
+                CC2_TCC_UNSIGNED_TYPE)), or(CC2_TCC_DEFAULT_SIGN,
+                CC2_TCC_UNSIGNED_TYPE))) {
+                tcc_error(mks("signed and unsigned modifier"), 0);
+            }
+            current_type = or(current_type, CC2_TCC_DEFAULT_SIGN);
+            next();
+            type_specifier_found = 1;
+        } else if (or(or(eq(token, CC2_TOKEN_REGISTER),
+            eq(token, CC2_TOKEN_AUTO)), cc2_token_is_three(token,
+            CC2_TOKEN_RESTRICT_FIRST, CC2_TOKEN_RESTRICT_SECOND,
+            CC2_TOKEN_RESTRICT_THIRD))) {
+            next();
+        } else if (eq(token, CC2_TOKEN_UNSIGNED)) {
+            if (eq(and(current_type, or(CC2_TCC_DEFAULT_SIGN,
+                CC2_TCC_UNSIGNED_TYPE)), CC2_TCC_DEFAULT_SIGN)) {
+                tcc_error(mks("signed and unsigned modifier"), 0);
+            }
+            current_type = or(current_type, or(CC2_TCC_DEFAULT_SIGN,
+                CC2_TCC_UNSIGNED_TYPE));
+            next();
+            type_specifier_found = 1;
+        } else if (or(or(eq(token, CC2_TOKEN_EXTERN),
+            eq(token, CC2_TOKEN_STATIC)), eq(token, CC2_TOKEN_TYPEDEF))) {
+            storage = CC2_TCC_EXTERN_STORAGE;
+            if (eq(token, CC2_TOKEN_STATIC)) {
+                storage = CC2_TCC_STATIC_STORAGE;
+            } else if (eq(token, CC2_TOKEN_TYPEDEF)) {
+                storage = 16384;
+            }
+            if (and(current_type, and(or(or(CC2_TCC_EXTERN_STORAGE,
+                CC2_TCC_STATIC_STORAGE), 16384), bnot(storage)))) {
+                tcc_error(mks("multiple storage classes"), 0);
+            }
+            current_type = or(current_type, storage);
+            next();
+        } else if (cc2_token_is_three(token, CC2_TOKEN_INLINE_FIRST,
+            CC2_TOKEN_INLINE_SECOND, CC2_TOKEN_INLINE_THIRD)) {
+            current_type = or(current_type, CC2_TCC_INLINE_STORAGE);
+            next();
+        } else if (cc2_token_is_two(token, CC2_TOKEN_ATTRIBUTE_FIRST,
+            CC2_TOKEN_ATTRIBUTE_SECOND)) {
+            parse_attribute(attributes);
+            parsed_type = ri8(add(attributes, CC2_ATTRIBUTE_MODE_OFFSET));
+            if (parsed_type) {
+                parsed_type = sub(parsed_type, 1);
+                current_type = or(and(current_type, bnot(or(
+                    CC2_TCC_BASIC_TYPE_MASK, CC2_TCC_LONG_MODIFIER))),
+                    parsed_type);
+            }
+        } else if (cc2_token_is_three(token, CC2_TOKEN_TYPEOF_FIRST,
+            CC2_TOKEN_TYPEOF_SECOND, CC2_TOKEN_TYPEOF_THIRD)) {
+            next();
+            parse_expr_type(temporary_type);
+            wi32(temporary_type, and(ri32(temporary_type), bnot(or(or(
+                CC2_TCC_EXTERN_STORAGE, CC2_TCC_STATIC_STORAGE),
+                CC2_TCC_INLINE_STORAGE))));
+            symbol = ri32(add(temporary_type, 4));
+            if (symbol) {
+                sym_to_attr(attributes, symbol);
+            }
+            parsed_type = ri32(temporary_type);
+            wi32(add(type, 4), symbol);
+            basic_type = parsed_type;
+            if (or(eq(parsed_type, CC2_TCC_SHORT_TYPE),
+                eq(parsed_type, CC2_TCC_LONG_MODIFIER))) {
+                size_modifier = parsed_type;
+            } else {
+                basic_type = parsed_type;
+            }
+            current_type = or(and(current_type, bnot(or(
+                CC2_TCC_BASIC_TYPE_MASK, CC2_TCC_LONG_MODIFIER))),
+                parsed_type);
+            type_specifier_found = 1;
+        } else {
+            if (type_specifier_found) {
+                break;
+            }
+            symbol = sym_find(token);
+            if (not(symbol)) {
+                break;
+            }
+            if (eq(and(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)), 16384), 0)) {
+                break;
+            }
+            current_type = and(current_type, bnot(or(
+                CC2_TCC_BASIC_TYPE_MASK, CC2_TCC_LONG_MODIFIER)));
+            preserved = and(current_type, bnot(or(CC2_TCC_CONST_QUALIFIER,
+                CC2_TCC_VOLATILE_QUALIFIER)));
+            current_type = xor(current_type, preserved);
+            wi32(type, or(and(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)),
+                bnot(16384)), preserved));
+            wi32(add(type, 4), ri32(add(symbol,
+                CC2_SYM_TYPE_REFERENCE_OFFSET)));
+            if (current_type) {
+                parse_btype_qualify(type, current_type);
+            }
+            current_type = ri32(type);
+            sym_to_attr(attributes, symbol);
+            next();
+            type_specifier_found = 1;
+            size_modifier = sub(0, 2);
+            basic_type = sub(0, 2);
+        }
+        type_found = 1;
+    }
+    if (ri32(add(tcc_state_address, CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET))) {
+        if (eq(and(current_type, or(CC2_TCC_DEFAULT_SIGN,
+            CC2_TCC_BASIC_TYPE_MASK)), CC2_TCC_BYTE_TYPE)) {
+            current_type = or(current_type, CC2_TCC_UNSIGNED_TYPE);
+        }
+    }
+    basic_type = and(current_type, or(CC2_TCC_BASIC_TYPE_MASK,
+        CC2_TCC_LONG_MODIFIER));
+    if (eq(basic_type, CC2_TCC_LONG_MODIFIER)) {
+        current_type = or(current_type, CC2_TCC_INT_TYPE);
+    }
+    wi32(type, current_type);
+    return type_found;
+}
+
+function parse_btype(type, attributes)
+{
+    var temporary_type;
+    var result;
+    temporary_type = malloc(8);
+    result = parse_btype_(type, attributes, temporary_type,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    free(temporary_type);
     return result;
 }
 

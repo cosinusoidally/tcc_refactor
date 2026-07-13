@@ -44,11 +44,6 @@ function skip(token)
     return 0;
 }
 
-function parse_btype(type, attributes)
-{
-    return 0;
-}
-
 function expr_const64_words(words)
 {
     wi32(words, 0);
