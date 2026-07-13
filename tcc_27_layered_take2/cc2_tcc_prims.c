@@ -396,7 +396,7 @@ void cc2_tcc_close(void)
 
 void *cc2_toksym_alloc(int size)
 {
-    return tal_realloc(toksym_alloc, NULL, size);
+    return tcc_malloc(size);
 }
 
 void cc2_format_token_integer(char *output, unsigned low, unsigned high)

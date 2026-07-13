@@ -1307,11 +1307,6 @@ ST_FUNC void tccpp_new(TCCState *s)
     for(i = 128; i<256; i++)
         cc0_set_idnum((int)isidnum_table, i, IS_ID);
 
-    /* init allocators */
-    tal_new(&toksym_alloc, TOKSYM_TAL_LIMIT, TOKSYM_TAL_SIZE);
-    tal_new(&tokstr_alloc, TOKSTR_TAL_LIMIT, TOKSTR_TAL_SIZE);
-    tal_new(&cstr_alloc, CSTR_TAL_LIMIT, CSTR_TAL_SIZE);
-
     memset(hash_ident, 0, TOK_HASH_SIZE * sizeof(TokenSym *));
     cstr_new(&cstr_buf);
     cstr_realloc(&cstr_buf, STRING_MAX_SIZE);
@@ -1342,7 +1337,7 @@ ST_FUNC void tccpp_delete(TCCState *s)
     /* free tokens */
     n = tok_ident - TOK_IDENT;
     for(i = 0; i < n; i++)
-        tal_free(toksym_alloc, table_ident[i]);
+        tcc_free(table_ident[i]);
     tcc_free(table_ident);
     table_ident = NULL;
 
@@ -1351,13 +1346,6 @@ ST_FUNC void tccpp_delete(TCCState *s)
     cstr_free(&cstr_buf);
     tok_str_free_str(tokstr_buf.str);
 
-    /* free allocators */
-    tal_delete(toksym_alloc);
-    toksym_alloc = NULL;
-    tal_delete(tokstr_alloc);
-    tokstr_alloc = NULL;
-    tal_delete(cstr_alloc);
-    cstr_alloc = NULL;
 }
 
 /* ------------------------------------------------------------------------- */
