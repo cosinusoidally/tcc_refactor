@@ -1105,27 +1105,6 @@ ST_FUNC void tccpp_new(TCCState *s)
     }
 }
 
-ST_FUNC void tccpp_delete(TCCState *s)
-{
-    int i, n;
-
-    /* free -D and compiler defines */
-    free_defines(NULL);
-
-    /* free tokens */
-    n = tok_ident - TOK_IDENT;
-    for(i = 0; i < n; i++)
-        tcc_free(table_ident[i]);
-    tcc_free(table_ident);
-    table_ident = NULL;
-
-    /* free static buffers */
-    cstr_free(&tokcstr);
-    cstr_free(&cstr_buf);
-    tok_str_free_str(tokstr_buf.str);
-
-}
-
 /* ------------------------------------------------------------------------- */
 /* tcc -E [-P[1]] [-dD} support */
 

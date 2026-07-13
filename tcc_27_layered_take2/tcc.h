@@ -1238,7 +1238,7 @@ extern void unget_tok(int last_tok);
 ST_FUNC void preprocess_start(TCCState *s1, int is_asm);
 void preprocess_end(TCCState *s1);
 ST_FUNC void tccpp_new(TCCState *s);
-ST_FUNC void tccpp_delete(TCCState *s);
+void tccpp_delete(TCCState *s);
 ST_FUNC int tcc_preprocess(TCCState *s1);
 void skip(int c);
 extern NORETURN void expect(const char *msg);

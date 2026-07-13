@@ -1759,6 +1759,26 @@ function preprocess_end(state)
     return 0;
 }
 
+function tccpp_delete(state)
+{
+    var index;
+    var count;
+    free_defines(0);
+    count = sub(tok_ident, CC2_TOKEN_IDENTIFIER_BASE);
+    index = 0;
+    while (lt(index, count)) {
+        free(ri32(add(table_ident, mul(index, CC2_I386_WORD_BYTES))));
+        index = add(index, 1);
+    }
+    free(table_ident);
+    table_ident = 0;
+    cstr_free(tokcstr_address);
+    cstr_free(cstr_buf_address);
+    tok_str_free_str(ri32(add(tokstr_buf_address,
+        CC2_TOKEN_STRING_DATA_OFFSET)));
+    return 0;
+}
+
 /* Keep preprocessor output tokens textually separate where concatenation
    would change their meaning. */
 function pp_need_space(first, second)
