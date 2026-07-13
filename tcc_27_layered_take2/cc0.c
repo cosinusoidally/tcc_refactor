@@ -85,6 +85,7 @@ var CC0_CURRENT_NAME_LENGTH;
 var CC0_COMPILER_PHASE;
 var CC0_COMPILER_PHASE_COLLECT;
 var CC0_COMPILER_PHASE_RESOLVE;
+var CC0_COMPILER_PHASE_EMIT;
 var CC0_CODE_CAPACITY;
 var CC0_CODE;
 var CC0_CODE_LENGTH;
@@ -145,6 +146,12 @@ var CC0_CALL_RECORDS;
 var CC0_CALL_COUNT;
 var CC0_RELOCATION_RECORDS;
 var CC0_RELOCATION_COUNT;
+var CC0_X86_STACK_ADDRESS_SUFFIX;
+var CC0_X86_LOAD_EAX_STACK;
+var CC0_X86_LOAD_EBX_STACK;
+var CC0_X86_STORE_EBX_STACK;
+var CC0_X86_STORE_EAX_STACK;
+var CC0_PARAMETER_FIRST_OFFSET;
 
 function cc0_init()
 {
@@ -216,6 +223,7 @@ function cc0_init()
     CC0_CURRENT_NAME_LENGTH = 0;
     CC0_COMPILER_PHASE_COLLECT = 0;
     CC0_COMPILER_PHASE_RESOLVE = 1;
+    CC0_COMPILER_PHASE_EMIT = 2;
     CC0_COMPILER_PHASE = CC0_COMPILER_PHASE_COLLECT;
     CC0_CODE_CAPACITY = 262144;
     CC0_CODE = 0;
@@ -277,6 +285,12 @@ function cc0_init()
     CC0_CALL_COUNT = 0;
     CC0_RELOCATION_RECORDS = 0;
     CC0_RELOCATION_COUNT = 0;
+    CC0_X86_STACK_ADDRESS_SUFFIX = 36;
+    CC0_X86_LOAD_EAX_STACK = 132;
+    CC0_X86_LOAD_EBX_STACK = 156;
+    CC0_X86_STORE_EBX_STACK = 156;
+    CC0_X86_STORE_EAX_STACK = 132;
+    CC0_PARAMETER_FIRST_OFFSET = 8;
     return CC0_FALSE;
 }
 
@@ -1069,6 +1083,117 @@ function cc0_compiler_emit_drop_arguments(argument_bytes)
     return cc0_compiler_emit_word(argument_bytes);
 }
 
+function cc0_compiler_emit_load_eax_stack(displacement)
+{
+    cc0_compiler_emit_byte(CC0_X86_LOAD_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_LOAD_EAX_STACK);
+    cc0_compiler_emit_byte(CC0_X86_STACK_ADDRESS_SUFFIX);
+    return cc0_compiler_emit_word(displacement);
+}
+
+function cc0_compiler_emit_load_ebx_stack(displacement)
+{
+    cc0_compiler_emit_byte(CC0_X86_LOAD_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_LOAD_EBX_STACK);
+    cc0_compiler_emit_byte(CC0_X86_STACK_ADDRESS_SUFFIX);
+    return cc0_compiler_emit_word(displacement);
+}
+
+function cc0_compiler_emit_store_ebx_stack(displacement)
+{
+    cc0_compiler_emit_byte(CC0_X86_STORE_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_STORE_EBX_STACK);
+    cc0_compiler_emit_byte(CC0_X86_STACK_ADDRESS_SUFFIX);
+    return cc0_compiler_emit_word(displacement);
+}
+
+function cc0_compiler_emit_store_eax_stack(displacement)
+{
+    cc0_compiler_emit_byte(CC0_X86_STORE_REGISTER_OPCODE);
+    cc0_compiler_emit_byte(CC0_X86_STORE_EAX_STACK);
+    cc0_compiler_emit_byte(CC0_X86_STACK_ADDRESS_SUFFIX);
+    return cc0_compiler_emit_word(displacement);
+}
+
+function cc0_compiler_reverse_arguments_(argument_count, index, low, high)
+{
+    index = 0;
+    while (lt(shl(index, 1), argument_count)) {
+        low = shl(index, CC0_WORD_ADDRESS_SHIFT);
+        high = shl(sub(sub(argument_count, 1), index),
+            CC0_WORD_ADDRESS_SHIFT);
+        cc0_compiler_emit_load_eax_stack(low);
+        cc0_compiler_emit_load_ebx_stack(high);
+        cc0_compiler_emit_store_ebx_stack(low);
+        cc0_compiler_emit_store_eax_stack(high);
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_reverse_arguments(argument_count)
+{
+    return cc0_compiler_reverse_arguments_(argument_count, 0, 0, 0);
+}
+
+function cc0_compiler_parameter_offset_(name, length, index)
+{
+    index = cc0_compiler_find_symbol(CC0_PARAMETER_SYMBOLS,
+        CC0_PARAMETER_COUNT, name, length);
+    if (lt(index, 0)) {
+        return index;
+    }
+    return add(CC0_PARAMETER_FIRST_OFFSET,
+        shl(index, CC0_WORD_ADDRESS_SHIFT));
+}
+
+function cc0_compiler_parameter_offset(name, length)
+{
+    return cc0_compiler_parameter_offset_(name, length, 0);
+}
+
+function cc0_compiler_emit_load_variable_(name, length, offset)
+{
+    offset = cc0_compiler_parameter_offset(name, length);
+    if (not(lt(offset, 0))) {
+        return cc0_compiler_emit_load_parameter(offset);
+    }
+    return cc0_compiler_emit_load_global(name, length);
+}
+
+function cc0_compiler_emit_load_variable(name, length)
+{
+    return cc0_compiler_emit_load_variable_(name, length, 0);
+}
+
+function cc0_compiler_emit_store_variable_(name, length, offset)
+{
+    offset = cc0_compiler_parameter_offset(name, length);
+    if (not(lt(offset, 0))) {
+        return cc0_compiler_emit_store_parameter(offset);
+    }
+    return cc0_compiler_emit_store_global(name, length);
+}
+
+function cc0_compiler_emit_store_variable(name, length)
+{
+    return cc0_compiler_emit_store_variable_(name, length, 0);
+}
+
+function cc0_compiler_emit_user_call_(name, length, argument_count, position)
+{
+    cc0_compiler_reverse_arguments(argument_count);
+    position = cc0_compiler_emit_call_placeholder();
+    cc0_compiler_record_call(name, length, position, argument_count);
+    return cc0_compiler_emit_drop_arguments(
+        shl(argument_count, CC0_WORD_ADDRESS_SHIFT));
+}
+
+function cc0_compiler_emit_user_call(name, length, argument_count)
+{
+    return cc0_compiler_emit_user_call_(name, length, argument_count, 0);
+}
+
 function cc0_compiler_emit_compare(condition)
 {
     cc0_compiler_emit_byte(CC0_X86_COMPARE_OPCODE);
@@ -1292,6 +1417,23 @@ function cc0_compiler_function_arity(name, length)
     return cc0_compiler_function_arity_(name, length, 0, 0);
 }
 
+function cc0_compiler_set_function_code_(name, length, index, entry)
+{
+    index = cc0_compiler_find_symbol(CC0_FUNCTION_SYMBOLS,
+        CC0_FUNCTION_COUNT, name, length);
+    if (lt(index, 0)) {
+        return cc0_compiler_fail();
+    }
+    entry = cc0_compiler_symbol_entry(CC0_FUNCTION_SYMBOLS, index);
+    wi32(add(entry, CC0_SYMBOL_CODE_OFFSET), CC0_CODE_LENGTH);
+    return CC0_FALSE;
+}
+
+function cc0_compiler_set_function_code(name, length)
+{
+    return cc0_compiler_set_function_code_(name, length, 0, 0);
+}
+
 function cc0_compiler_expect(token)
 {
     if (not(eq(CC0_TOKEN, token))) {
@@ -1301,14 +1443,24 @@ function cc0_compiler_expect(token)
     return CC0_FALSE;
 }
 
-function cc0_compiler_parse_call_(name, length, argument_count, arity)
+function cc0_compiler_parse_call_(name, length, argument_count, arity, builtin_arity)
 {
+    builtin_arity = cc0_compiler_builtin_arity(name, length);
     cc0_compiler_next_token();
     argument_count = 0;
     if (not(eq(CC0_TOKEN, CC0_PUNCTUATION_RIGHT_PARENTHESIS))) {
         while (CC0_TRUE) {
             if (cc0_compiler_parse_expression()) {
                 return CC0_TRUE;
+            }
+            if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+                if (lt(builtin_arity, 0)) {
+                    cc0_compiler_emit_push_result();
+                } else if (eq(builtin_arity, 2)) {
+                    if (eq(argument_count, 0)) {
+                        cc0_compiler_emit_push_result();
+                    }
+                }
             }
             argument_count = add(argument_count, 1);
             if (not(eq(CC0_TOKEN, CC0_PUNCTUATION_COMMA))) {
@@ -1320,7 +1472,7 @@ function cc0_compiler_parse_call_(name, length, argument_count, arity)
     if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
         return CC0_TRUE;
     }
-    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_RESOLVE)) {
+    if (not(eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_COLLECT))) {
         arity = cc0_compiler_function_arity(name, length);
         if (lt(arity, 0)) {
             return cc0_compiler_fail();
@@ -1329,16 +1481,35 @@ function cc0_compiler_parse_call_(name, length, argument_count, arity)
             return cc0_compiler_fail();
         }
     }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        if (lt(builtin_arity, 0)) {
+            return cc0_compiler_emit_user_call(name, length, argument_count);
+        }
+        if (eq(builtin_arity, 2)) {
+            cc0_compiler_emit_pop_left_operand();
+        }
+        if (cc0_text_equal(name, length, mks("mks"))) {
+            return CC0_FALSE;
+        }
+        return cc0_compiler_emit_builtin(name, length);
+    }
     return CC0_FALSE;
 }
 
 function cc0_compiler_parse_expression_(name, length)
 {
     if (eq(CC0_TOKEN, CC0_TOKEN_NUMBER_LITERAL)) {
+        if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+            cc0_compiler_emit_immediate(CC0_TOKEN_NUMBER);
+        }
         cc0_compiler_next_token();
         return CC0_FALSE;
     }
     if (eq(CC0_TOKEN, CC0_TOKEN_STRING_LITERAL)) {
+        if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+            cc0_compiler_emit_data_address(CC0_TOKEN_START,
+                CC0_TOKEN_LENGTH);
+        }
         cc0_compiler_next_token();
         return CC0_FALSE;
     }
@@ -1360,15 +1531,24 @@ function cc0_compiler_parse_expression_(name, length)
             }
         }
         cc0_compiler_next_token();
-        return cc0_compiler_parse_expression_(0, 0);
+        if (cc0_compiler_parse_expression_(0, 0)) {
+            return CC0_TRUE;
+        }
+        if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+            return cc0_compiler_emit_store_variable(name, length);
+        }
+        return CC0_FALSE;
     }
     if (eq(CC0_TOKEN, CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
-        return cc0_compiler_parse_call_(name, length, 0, 0);
+        return cc0_compiler_parse_call_(name, length, 0, 0, 0);
     }
     if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_RESOLVE)) {
         if (not(cc0_compiler_variable_exists(name, length))) {
             return cc0_compiler_fail();
         }
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        return cc0_compiler_emit_load_variable(name, length);
     }
     return CC0_FALSE;
 }
@@ -1397,7 +1577,7 @@ function cc0_compiler_parse_block_()
     return cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_BRACE);
 }
 
-function cc0_compiler_parse_if_()
+function cc0_compiler_parse_if_(false_position, end_position)
 {
     cc0_compiler_next_token();
     if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
@@ -1408,22 +1588,49 @@ function cc0_compiler_parse_if_()
     }
     if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
         return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        cc0_compiler_emit_test_result();
+        false_position = cc0_compiler_emit_zero_jump();
     }
     if (cc0_compiler_parse_statement()) {
         return CC0_TRUE;
     }
     if (eq(CC0_TOKEN, CC0_TOKEN_ELSE)) {
+        if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+            end_position = cc0_compiler_emit_jump();
+            cc0_compiler_patch_relative(false_position, CC0_CODE_LENGTH);
+        }
         cc0_compiler_next_token();
-        return cc0_compiler_parse_statement();
+        if (cc0_compiler_parse_statement()) {
+            return CC0_TRUE;
+        }
+        if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+            return cc0_compiler_patch_relative(end_position,
+                CC0_CODE_LENGTH);
+        }
+        return CC0_FALSE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        return cc0_compiler_patch_relative(false_position,
+            CC0_CODE_LENGTH);
     }
     return CC0_FALSE;
 }
 
-function cc0_compiler_parse_while_()
+function cc0_compiler_parse_if()
+{
+    return cc0_compiler_parse_if_(0, 0);
+}
+
+function cc0_compiler_parse_while_(loop_start, exit_position)
 {
     cc0_compiler_next_token();
     if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
         return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        loop_start = CC0_CODE_LENGTH;
     }
     if (cc0_compiler_parse_expression()) {
         return CC0_TRUE;
@@ -1431,7 +1638,24 @@ function cc0_compiler_parse_while_()
     if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
         return CC0_TRUE;
     }
-    return cc0_compiler_parse_statement();
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        cc0_compiler_emit_test_result();
+        exit_position = cc0_compiler_emit_zero_jump();
+    }
+    if (cc0_compiler_parse_statement()) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        cc0_compiler_emit_jump_to(loop_start);
+        return cc0_compiler_patch_relative(exit_position,
+            CC0_CODE_LENGTH);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_compiler_parse_while()
+{
+    return cc0_compiler_parse_while_(0, 0);
 }
 
 function cc0_compiler_parse_statement()
@@ -1447,13 +1671,19 @@ function cc0_compiler_parse_statement()
         if (cc0_compiler_parse_expression()) {
             return CC0_TRUE;
         }
-        return cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON);
+        if (cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON)) {
+            return CC0_TRUE;
+        }
+        if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+            return cc0_compiler_emit_epilogue();
+        }
+        return CC0_FALSE;
     }
     if (eq(CC0_TOKEN, CC0_TOKEN_IF)) {
-        return cc0_compiler_parse_if_();
+        return cc0_compiler_parse_if();
     }
     if (eq(CC0_TOKEN, CC0_TOKEN_WHILE)) {
-        return cc0_compiler_parse_while_();
+        return cc0_compiler_parse_while();
     }
     if (eq(CC0_TOKEN, CC0_TOKEN_BREAK)) {
         cc0_compiler_next_token();
@@ -1525,7 +1755,19 @@ function cc0_compiler_parse_function_()
         CC0_CURRENT_NAME_LENGTH), CC0_PARAMETER_COUNT))) {
         return cc0_compiler_fail();
     }
-    return cc0_compiler_parse_block_();
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        cc0_compiler_set_function_code(CC0_CURRENT_NAME_START,
+            CC0_CURRENT_NAME_LENGTH);
+        cc0_compiler_emit_prologue();
+    }
+    if (cc0_compiler_parse_block_()) {
+        return CC0_TRUE;
+    }
+    if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+        cc0_compiler_emit_immediate(0);
+        return cc0_compiler_emit_epilogue();
+    }
+    return CC0_FALSE;
 }
 
 function cc0_compiler_parse_global_()
@@ -1576,4 +1818,19 @@ function cc0_compiler_parse_program(source, length)
     }
     return cc0_compiler_parse_program_(source, length,
         CC0_COMPILER_PHASE_RESOLVE);
+}
+
+function cc0_compiler_compile_program(source, length)
+{
+    if (cc0_compiler_parse_program(source, length)) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_prepare_code()) {
+        return CC0_TRUE;
+    }
+    if (cc0_compiler_parse_program_(source, length,
+        CC0_COMPILER_PHASE_EMIT)) {
+        return CC0_TRUE;
+    }
+    return cc0_compiler_patch_calls();
 }
