@@ -423,6 +423,42 @@ int cc2_preprocessor_set_stdout(TCCState *state)
     return 0;
 }
 
+int cc2_bind_preprocess_types(TCCState *state)
+{
+    pvtop = vtop = vstack - 1;
+    vstack_base = vstack;
+    vstack_limit = vstack + (VSTACK_SIZE - 1);
+    int_type_address = &int_type;
+    size_type_address = &size_type;
+    func_old_type_address = &func_old_type;
+    func_vt_address = &func_vt;
+    char_pointer_type_address = &char_pointer_type;
+    local_stack_address = &local_stack;
+    global_label_stack_address = &global_label_stack;
+    local_label_stack_address = &local_label_stack;
+    ptrdiff_type_address = &ptrdiff_type;
+    symtab_section_address = &symtab_section;
+    data_section_address = &data_section;
+    cur_text_section_address = &cur_text_section;
+    bss_section_address = &bss_section;
+    common_section_address = &common_section;
+    text_section_address = &text_section;
+    tcc_state_address = state;
+    return 0;
+}
+
+int cc2_define_symbol(TCCState *state, const char *name, const char *value)
+{
+    tcc_define_symbol(state, name, value);
+    return 0;
+}
+
+int cc2_open_buffer(TCCState *state, const char *name, int size)
+{
+    tcc_open_bf(state, name, size);
+    return 0;
+}
+
 void *cc2_toksym_alloc(int size)
 {
     return tcc_malloc(size);

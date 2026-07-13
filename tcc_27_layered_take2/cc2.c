@@ -608,6 +608,7 @@ var macro_stack;
 var ch;
 var total_bytes;
 var pp_expr;
+var pp_counter;
 var tokstr_buf_address;
 var isidnum_table_address;
 var pp_debug_tok_address;
@@ -629,6 +630,9 @@ var CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET;
 var CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET;
 var CC2_TCC_STATE_WARN_WRITE_STRINGS_OFFSET;
 var CC2_TCC_STATE_DEBUG_OFFSET;
+var CC2_TCC_STATE_DOLLARS_IN_IDENTIFIERS_OFFSET;
+var CC2_TCC_STATE_COMMAND_INCLUDE_FILES_OFFSET;
+var CC2_TCC_STATE_COMMAND_INCLUDE_COUNT_OFFSET;
 var CC2_CASE_SECOND_VALUE_OFFSET;
 var CC2_CASE_SYMBOL_OFFSET;
 var CC2_SWITCH_DEFAULT_SYMBOL_OFFSET;
@@ -1826,6 +1830,90 @@ function cc2_tccpp_new(state, keywords)
         tok_alloc(pointer, sub(end, pointer));
         pointer = add(end, 1);
     }
+    return 0;
+}
+
+function cc2_preprocess_start(state, is_asm)
+{
+    var source_file;
+    var string;
+    var index;
+    var count;
+    var files;
+    var include_pointer;
+    wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
+        add(state, CC2_TCC_STATE_INCLUDE_STACK_OFFSET));
+    wi32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET),
+        add(state, CC2_TCC_STATE_IFDEF_STACK_OFFSET));
+    source_file = ri32(file_address);
+    wi32(add(source_file, CC2_BUFFERED_FILE_IFDEF_STACK_POINTER_OFFSET),
+        ri32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET)));
+    pp_expr = 0;
+    pp_counter = 0;
+    wi32(pp_debug_tok_address, 0);
+    wi32(pp_debug_symv_address, 0);
+    wi32(pp_once_address, add(ri32(pp_once_address), 1));
+    wi32(add(state, CC2_TCC_STATE_PACK_STACK_OFFSET), 0);
+    wi32(add(state, CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET),
+        add(state, CC2_TCC_STATE_PACK_STACK_OFFSET));
+    if (ri32(add(state,
+        CC2_TCC_STATE_DOLLARS_IN_IDENTIFIERS_OFFSET))) {
+        cc0_set_idnum(isidnum_table_address, mkC("$"),
+            CC2_CHARACTER_IDENTIFIER_CLASS);
+    } else {
+        cc0_set_idnum(isidnum_table_address, mkC("$"), 0);
+    }
+    if (is_asm) {
+        cc0_set_idnum(isidnum_table_address, mkC("."),
+            CC2_CHARACTER_IDENTIFIER_CLASS);
+    } else {
+        cc0_set_idnum(isidnum_table_address, mkC("."), 0);
+    }
+    string = malloc(CC2_CSTRING_BYTES);
+    cstr_new(string);
+    cstr_ccat(string, mkC("\""));
+    cstr_cat(string, add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET),
+        sub(0, 1));
+    cstr_ccat(string, mkC("\""));
+    cstr_ccat(string, 0);
+    cc2_define_symbol(state, mks("__BASE_FILE__"),
+        ri32(add(string, CC2_CSTRING_DATA_OFFSET)));
+    cstr_reset(string);
+    files = ri32(add(state, CC2_TCC_STATE_COMMAND_INCLUDE_FILES_OFFSET));
+    count = ri32(add(state, CC2_TCC_STATE_COMMAND_INCLUDE_COUNT_OFFSET));
+    index = 0;
+    while (lt(index, count)) {
+        cstr_cat(string, mks("#include "), sub(0, 1));
+        cstr_ccat(string, mkC("\""));
+        cstr_cat(string, ri32(add(files, mul(index, CC2_I386_WORD_BYTES))),
+            sub(0, 1));
+        cstr_ccat(string, mkC("\""));
+        cstr_ccat(string, mkC("\n"));
+        index = add(index, 1);
+    }
+    if (ri32(add(string, CC2_CSTRING_SIZE_OFFSET))) {
+        include_pointer = ri32(add(state,
+            CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET));
+        wi32(include_pointer, source_file);
+        wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
+            add(include_pointer, CC2_I386_WORD_BYTES));
+        cc2_open_buffer(state, mks("<command line>"),
+            ri32(add(string, CC2_CSTRING_SIZE_OFFSET)));
+        source_file = ri32(file_address);
+        memcpy(add(source_file, CC2_BUFFERED_FILE_BUFFER_OFFSET),
+            ri32(add(string, CC2_CSTRING_DATA_OFFSET)),
+            ri32(add(string, CC2_CSTRING_SIZE_OFFSET)));
+    }
+    cstr_free(string);
+    free(string);
+    if (is_asm) {
+        cc2_define_symbol(state, mks("__ASSEMBLER__"), 0);
+        wi32(parse_flags_address, CC2_PARSE_FLAG_ASM_FILE);
+    } else {
+        wi32(parse_flags_address, 0);
+    }
+    wi32(tok_flags_address, or(CC2_TOKEN_FLAG_BEGINNING_OF_LINE,
+        CC2_TOKEN_FLAG_BEGINNING_OF_FILE));
     return 0;
 }
 
@@ -15241,6 +15329,9 @@ function cc2_init_constants()
     CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET = 56;
     CC2_TCC_STATE_WARN_WRITE_STRINGS_OFFSET = 76;
     CC2_TCC_STATE_DEBUG_OFFSET = 100;
+    CC2_TCC_STATE_DOLLARS_IN_IDENTIFIERS_OFFSET = 68;
+    CC2_TCC_STATE_COMMAND_INCLUDE_FILES_OFFSET = 176;
+    CC2_TCC_STATE_COMMAND_INCLUDE_COUNT_OFFSET = 180;
     CC2_CASE_SECOND_VALUE_OFFSET = 8;
     CC2_CASE_SYMBOL_OFFSET = 16;
     CC2_SWITCH_DEFAULT_SYMBOL_OFFSET = 8;

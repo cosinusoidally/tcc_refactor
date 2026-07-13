@@ -43,7 +43,6 @@ static TokenString tokstr_buf;
 static unsigned char isidnum_table[256 - CH_EOF];
 static int pp_debug_tok, pp_debug_symv;
 static int pp_once;
-static int pp_counter;
 static void tok_print(const char *msg, const int *str);
 
 static const char tcc_keywords[] = 
@@ -982,66 +981,8 @@ void next(void)
 
 ST_FUNC void preprocess_start(TCCState *s1, int is_asm)
 {
-    CString cstr;
-    int i;
-
-    s1->include_stack_ptr = s1->include_stack;
-    s1->ifdef_stack_ptr = s1->ifdef_stack;
-    file->ifdef_stack_ptr = s1->ifdef_stack_ptr;
-    pp_expr = 0;
-    pp_counter = 0;
-    pp_debug_tok = pp_debug_symv = 0;
-    pp_once++;
-    pvtop = vtop = vstack - 1;
-    vstack_base = vstack;
-    vstack_limit = vstack + (VSTACK_SIZE - 1);
-    int_type_address = &int_type;
-    size_type_address = &size_type;
-    func_old_type_address = &func_old_type;
-    func_vt_address = &func_vt;
-    char_pointer_type_address = &char_pointer_type;
-    local_stack_address = &local_stack;
-    global_label_stack_address = &global_label_stack;
-    local_label_stack_address = &local_label_stack;
-    ptrdiff_type_address = &ptrdiff_type;
-    symtab_section_address = &symtab_section;
-    data_section_address = &data_section;
-    cur_text_section_address = &cur_text_section;
-    bss_section_address = &bss_section;
-    common_section_address = &common_section;
-    text_section_address = &text_section;
-    tcc_state_address = tcc_state;
-    s1->pack_stack[0] = 0;
-    s1->pack_stack_ptr = s1->pack_stack;
-
-    cc0_set_idnum((int)isidnum_table, '$',
-                  s1->dollars_in_identifiers ? IS_ID : 0);
-    cc0_set_idnum((int)isidnum_table, '.', is_asm ? IS_ID : 0);
-
-    cstr_new(&cstr);
-    cstr_cat(&cstr, "\"", -1);
-    cstr_cat(&cstr, file->filename, -1);
-    cstr_cat(&cstr, "\"", 0);
-    tcc_define_symbol(s1, "__BASE_FILE__", cstr.data);
-
-    cstr_reset(&cstr);
-    for (i = 0; i < s1->nb_cmd_include_files; i++) {
-        cstr_cat(&cstr, "#include \"", -1);
-        cstr_cat(&cstr, s1->cmd_include_files[i], -1);
-        cstr_cat(&cstr, "\"\n", -1);
-    }
-    if (cstr.size) {
-        *s1->include_stack_ptr++ = file;
-	tcc_open_bf(s1, "<command line>", cstr.size);
-	memcpy(file->buffer, cstr.data, cstr.size);
-    }
-    cstr_free(&cstr);
-
-    if (is_asm)
-        tcc_define_symbol(s1, "__ASSEMBLER__", NULL);
-
-    parse_flags = is_asm ? PARSE_FLAG_ASM_FILE : 0;
-    tok_flags = TOK_FLAG_BOL | TOK_FLAG_BOF;
+    cc2_bind_preprocess_types(s1);
+    cc2_preprocess_start((int)s1, is_asm);
 }
 
 ST_FUNC void tccpp_new(TCCState *s)

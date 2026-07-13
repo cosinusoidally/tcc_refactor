@@ -1170,6 +1170,7 @@ ST_DATA CString tokcstr; /* current parsed string, if any */
 ST_DATA int total_lines;
 extern int total_bytes;
 extern int pp_expr;
+extern int pp_counter;
 extern TokenString *tokstr_buf_address;
 extern unsigned char *isidnum_table_address;
 extern int *pp_debug_tok_address;
