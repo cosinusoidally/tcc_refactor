@@ -373,6 +373,17 @@ void initializer_copy_string(Section *sec, unsigned long offset,
     memcpy(sec->data + offset, source, count);
 }
 
+void cc2_pstrcpy(char *destination, int capacity, const char *source)
+{
+    pstrcpy(destination, capacity, source);
+}
+
+void cc2_put_stabs(const char *text, int type, int other, int description,
+                   unsigned long value)
+{
+    put_stabs(text, type, other, description, value);
+}
+
 /* Rewind a captured initializer through TCC's active macro stream. */
 void initializer_rewind(TokenString *stream)
 {

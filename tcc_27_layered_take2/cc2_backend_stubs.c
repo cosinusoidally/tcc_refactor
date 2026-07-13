@@ -117,6 +117,16 @@ function tcc_set_options(state, text)
     return 0;
 }
 
+function cc2_pstrcpy(destination, capacity, source)
+{
+    return 0;
+}
+
+function cc2_put_stabs(text, type, other, description, value)
+{
+    return 0;
+}
+
 function put_extern_sym(symbol, section, offset, size)
 {
     return 0;

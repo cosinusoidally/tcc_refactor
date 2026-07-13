@@ -702,32 +702,10 @@ include_done:
         }
         break;
     case TOK_PPNUM:
-        n = strtoul((char*)tokc.str.data, &q, 10);
-        goto _line_num;
+        preprocess_line_directive(s1, tok);
+        break;
     case TOK_LINE:
-        next();
-        if (tok != TOK_CINT)
-    _line_err:
-            tcc_error("wrong #line format");
-        n = tokc.i;
-    _line_num:
-        next();
-        if (tok != TOK_LINEFEED) {
-            if (tok == TOK_STR) {
-                if (file->true_filename == file->filename)
-                    file->true_filename = tcc_strdup(file->filename);
-                pstrcpy(file->filename, sizeof(file->filename), (char *)tokc.str.data);
-            } else if (parse_flags & PARSE_FLAG_ASM_FILE)
-                break;
-            else
-                goto _line_err;
-            --n;
-        }
-        if (file->fd > 0)
-            total_lines += file->line_num - n;
-        file->line_num = n;
-        if (s1->do_debug)
-    	    put_stabs(file->filename, N_BINCL, 0, 0, 0);
+        preprocess_line_directive(s1, tok);
         break;
     case TOK_ERROR:
     case TOK_WARNING:
@@ -2372,6 +2350,7 @@ ST_FUNC void tccpp_new(TCCState *s)
     pp_debug_symv_address = &pp_debug_symv;
     pp_once_address = &pp_once;
     tok_flags_address = &tok_flags;
+    total_lines_address = &total_lines;
 
     /* cc0 owns the character classes used to initialize this lexer. */
     cc0_init();

@@ -447,6 +447,10 @@ var CC2_BUFFERED_FILE_IFDEF_STACK_POINTER_OFFSET;
 var CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET;
 var CC2_BUFFERED_FILE_IFNDEF_MACRO_SAVED_OFFSET;
 var CC2_TOKEN_FLAG_ENDIF;
+var CC2_TOKEN_LINE_DIRECTIVE;
+var CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET;
+var CC2_BUFFERED_FILE_FILENAME_CAPACITY;
+var CC2_STABS_INCLUDE_TYPE;
 var CC2_TOKEN_CHARACTER;
 var CC2_TOKEN_WIDE_CHARACTER;
 var CC2_TOKEN_INTEGER_CONSTANT;
@@ -559,6 +563,7 @@ var pp_debug_tok_address;
 var pp_debug_symv_address;
 var pp_once_address;
 var tok_flags_address;
+var total_lines_address;
 var symtab_section_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET;
@@ -1935,6 +1940,59 @@ function preprocess_conditional_endif(state)
         wi32(tok_flags_address, or(ri32(tok_flags_address),
             CC2_TOKEN_FLAG_ENDIF));
         return 1;
+    }
+    return 0;
+}
+
+function preprocess_line_directive(state, directive)
+{
+    var line;
+    var token;
+    var source_file;
+    var filename;
+    var true_filename;
+    var copy;
+    if (eq(directive, CC2_TOKEN_PREPROCESSOR_NUMBER)) {
+        line = strtoul(ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET)), 0,
+            10);
+    } else {
+        next();
+        if (not(eq(ri32(tok_address), CC2_TOKEN_INTEGER_CONSTANT))) {
+            tcc_error(mks("wrong #line format"), 0);
+        }
+        line = ri32(tokc_address);
+    }
+    next();
+    token = ri32(tok_address);
+    source_file = ri32(file_address);
+    if (not(eq(token, CC2_TOKEN_LINE_FEED))) {
+        if (eq(token, CC2_TOKEN_STRING)) {
+            filename = add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET);
+            true_filename = ri32(add(source_file,
+                CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET));
+            if (eq(true_filename, filename)) {
+                copy = malloc(add(strlen(filename), 1));
+                strcpy(copy, filename);
+                wi32(add(source_file, CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET),
+                    copy);
+            }
+            cc2_pstrcpy(filename, CC2_BUFFERED_FILE_FILENAME_CAPACITY,
+                ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET)));
+        } else if (and(ri32(parse_flags_address), CC2_PARSE_FLAG_ASM_FILE)) {
+            return 0;
+        } else {
+            tcc_error(mks("wrong #line format"), 0);
+        }
+        line = sub(line, 1);
+    }
+    if (lt(0, ri32(add(source_file, CC2_BUFFERED_FILE_DESCRIPTOR_OFFSET)))) {
+        wi32(total_lines_address, add(ri32(total_lines_address), sub(ri32(add(
+            source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), line)));
+    }
+    wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), line);
+    if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
+        cc2_put_stabs(add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET),
+            CC2_STABS_INCLUDE_TYPE, 0, 0, 0);
     }
     return 0;
 }
@@ -13517,6 +13575,10 @@ function cc2_init_constants()
     CC2_BUFFERED_FILE_IFNDEF_MACRO_OFFSET = 24;
     CC2_BUFFERED_FILE_IFNDEF_MACRO_SAVED_OFFSET = 28;
     CC2_TOKEN_FLAG_ENDIF = 4;
+    CC2_TOKEN_LINE_DIRECTIVE = 325;
+    CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET = 1064;
+    CC2_BUFFERED_FILE_FILENAME_CAPACITY = 1024;
+    CC2_STABS_INCLUDE_TYPE = 130;
     return 0;
 }
 

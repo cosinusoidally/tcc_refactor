@@ -1176,6 +1176,7 @@ extern int *pp_debug_tok_address;
 extern int *pp_debug_symv_address;
 extern int *pp_once_address;
 extern int *tok_flags_address;
+extern int *total_lines_address;
 extern int tok_ident;
 extern TokenSym **table_ident;
 
@@ -1414,6 +1415,9 @@ void struct_decl_fields(CType *type, int structure_kind, Sym *symbol,
 void struct_decl(CType *type, int structure_kind);
 extern int lvalue_type(int t);
 void decl_record_inline(Sym *sym);
+void cc2_pstrcpy(char *destination, int capacity, const char *source);
+void cc2_put_stabs(const char *text, int type, int other, int description,
+                   unsigned long value);
 extern void indir(void);
 extern void lexpand(void);
 extern void lbuild(int type);
@@ -1553,6 +1557,7 @@ int preprocess_conditional_if(TCCState *state, int is_beginning, int negated,
                               int evaluate_expression);
 int preprocess_conditional_else(TCCState *state, int is_elif);
 int preprocess_conditional_endif(TCCState *state);
+void preprocess_line_directive(TCCState *state, int directive);
 #endif
 
 /* ------------ xxx-link.c ------------ */
