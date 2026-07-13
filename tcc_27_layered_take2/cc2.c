@@ -893,3 +893,29 @@ function cc2_compile(source, length, file)
     }
     return cc1_layer_finish(source, length);
 }
+
+/* Return log2(value) + 1 for positive values, or zero for zero. */
+function exact_log2p1(value)
+{
+    var result;
+    if (not(value)) {
+        return 0;
+    }
+    result = 1;
+    while (le(shl(1, 8), value)) {
+        result = add(result, 8);
+        value = shr(value, 8);
+    }
+    if (le(shl(1, 4), value)) {
+        result = add(result, 4);
+        value = shr(value, 4);
+    }
+    if (le(shl(1, 2), value)) {
+        result = add(result, 2);
+        value = shr(value, 2);
+    }
+    if (le(shl(1, 1), value)) {
+        result = add(result, 1);
+    }
+    return result;
+}

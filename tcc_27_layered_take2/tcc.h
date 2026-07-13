@@ -1226,6 +1226,7 @@ int cc0_token_hash();
 int cc0_scan_identifier();
 int cc0_number_zero();
 int cc0_number_lshift();
+int exact_log2p1();
 
 static inline int is_space(int ch) {
     return cc0_is_space(ch);
