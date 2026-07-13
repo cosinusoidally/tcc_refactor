@@ -1157,6 +1157,7 @@ extern int tok;
 extern int *tok_address;
 extern int *gnu_ext_address;
 extern int *parse_flags_address;
+extern BufferedFile **file_address;
 extern CValue tokc;
 ST_DATA const int *macro_ptr;
 ST_DATA int parse_flags;

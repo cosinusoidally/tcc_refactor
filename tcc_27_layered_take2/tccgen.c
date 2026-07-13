@@ -1226,40 +1226,6 @@ void init_putv(CType *type, Section *sec, unsigned long c)
    allocation. 'first' is true if array '{' must be read (multi
    dimension implicit array init handling). 'size_only' is true if
    size only evaluation is wanted (only for arrays). */
-void gen_inline_functions(TCCState *s)
-{
-    Sym *sym;
-    int inline_generated, i, ln;
-    struct InlineFunc *fn;
-
-    ln = file->line_num;
-    /* iterate while inline function are referenced */
-    do {
-        inline_generated = 0;
-        for (i = 0; i < s->nb_inline_fns; ++i) {
-            fn = s->inline_fns[i];
-            sym = fn->sym;
-            if (sym && sym->c) {
-                /* the function was used: generate its code and
-                   convert it to a normal function */
-                fn->sym = NULL;
-                if (file)
-                    pstrcpy(file->filename, sizeof file->filename, fn->filename);
-                sym->type.t &= ~VT_INLINE;
-
-                begin_macro(fn->func_str, 1);
-                next();
-                cur_text_section = text_section;
-                gen_function(sym);
-                end_macro();
-
-                inline_generated = 1;
-            }
-        }
-    } while (inline_generated);
-    file->line_num = ln;
-}
-
 ST_FUNC void free_inline_functions(TCCState *s)
 {
     int i;

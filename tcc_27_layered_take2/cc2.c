@@ -300,6 +300,14 @@ var CC2_ASCII_OPEN_BRACE = 123;
 var CC2_ELF_SYMBOL_VALUE_OFFSET = 4;
 var CC2_ELF_SYMBOL_SIZE_OFFSET = 8;
 var CC2_PARSE_TRANSLATION_UNIT = 67;
+/* i386 layouts verified with offsetof against this TCC revision. */
+var CC2_TCC_STATE_INLINE_FUNCTIONS_OFFSET = 948;
+var CC2_TCC_STATE_INLINE_FUNCTION_COUNT_OFFSET = 952;
+var CC2_INLINE_STREAM_OFFSET = 0;
+var CC2_INLINE_SYMBOL_OFFSET = 4;
+var CC2_INLINE_FILENAME_OFFSET = 8;
+var CC2_BUFFERED_FILE_LINE_OFFSET = 16;
+var CC2_BUFFERED_FILE_FILENAME_OFFSET = 40;
 var CC2_CSTRING_SIZE_OFFSET = 0;
 var CC2_CSTRING_DATA_OFFSET = 4;
 var CC2_CSTRING_BYTES = 12;
@@ -365,6 +373,7 @@ var text_section_address;
 var tcc_state_address;
 var gnu_ext_address;
 var parse_flags_address;
+var file_address;
 /* Verified with offsetof(TCCState, warn_unsupported) for i386. */
 var CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET = 80;
 var CC2_TCC_STATE_WARN_IMPLICIT_FUNCTION_OFFSET = 92;
@@ -5887,6 +5896,60 @@ function tccgen_compile(state)
     gen_inline_functions(state);
     check_vstack();
     tcc_debug_end(state);
+    return 0;
+}
+
+function gen_inline_functions(state)
+{
+    var source_file;
+    var saved_line;
+    var generated;
+    var index;
+    var count;
+    var functions;
+    var inline_function;
+    var symbol;
+    source_file = ri32(file_address);
+    saved_line = ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET));
+    generated = 1;
+    while (generated) {
+        generated = 0;
+        index = 0;
+        count = ri32(add(state,
+            CC2_TCC_STATE_INLINE_FUNCTION_COUNT_OFFSET));
+        functions = ri32(add(state,
+            CC2_TCC_STATE_INLINE_FUNCTIONS_OFFSET));
+        while (lt(index, count)) {
+            inline_function = ri32(add(functions, mul(index, 4)));
+            symbol = ri32(add(inline_function, CC2_INLINE_SYMBOL_OFFSET));
+            if (symbol) {
+                if (ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET))) {
+                    wi32(add(inline_function, CC2_INLINE_SYMBOL_OFFSET), 0);
+                    source_file = ri32(file_address);
+                    if (source_file) {
+                        strcpy(add(source_file,
+                            CC2_BUFFERED_FILE_FILENAME_OFFSET),
+                            add(inline_function,
+                            CC2_INLINE_FILENAME_OFFSET));
+                    }
+                    wi32(add(symbol, CC2_SYM_TYPE_OFFSET), and(ri32(add(
+                        symbol, CC2_SYM_TYPE_OFFSET)),
+                        bnot(CC2_TCC_INLINE_STORAGE)));
+                    begin_macro(ri32(add(inline_function,
+                        CC2_INLINE_STREAM_OFFSET)), 1);
+                    next();
+                    wi32(cur_text_section_address,
+                        ri32(text_section_address));
+                    gen_function(symbol);
+                    end_macro();
+                    generated = 1;
+                }
+            }
+            index = add(index, 1);
+        }
+    }
+    source_file = ri32(file_address);
+    wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), saved_line);
     return 0;
 }
 
