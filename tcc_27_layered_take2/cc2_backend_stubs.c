@@ -158,6 +158,11 @@ function cc2_open_buffer(state, name, size)
     return 0;
 }
 
+function cc2_local_time(fields)
+{
+    return 0;
+}
+
 function put_extern_sym(symbol, section, offset, size)
 {
     return 0;

@@ -459,6 +459,21 @@ int cc2_open_buffer(TCCState *state, const char *name, int size)
     return 0;
 }
 
+int cc2_local_time(int *fields)
+{
+    time_t value;
+    struct tm *local;
+    time(&value);
+    local = localtime(&value);
+    fields[0] = local->tm_hour;
+    fields[1] = local->tm_min;
+    fields[2] = local->tm_sec;
+    fields[3] = local->tm_mday;
+    fields[4] = local->tm_mon;
+    fields[5] = local->tm_year;
+    return 0;
+}
+
 void *cc2_toksym_alloc(int size)
 {
     return tcc_malloc(size);

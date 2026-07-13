@@ -433,6 +433,12 @@ var CC2_TOKEN_TWO_SHARPS;
 var CC2_TOKEN_PREPROCESSOR_JOIN;
 var CC2_TOKEN_PLACEHOLDER;
 var CC2_TOKEN_NO_SUBSTITUTION;
+var CC2_TOKEN_BUILTIN_LINE;
+var CC2_TOKEN_BUILTIN_FILE;
+var CC2_TOKEN_BUILTIN_DATE;
+var CC2_TOKEN_BUILTIN_TIME;
+var CC2_TOKEN_BUILTIN_COUNTER;
+var CC2_LOCAL_TIME_FIELDS;
 var CC2_PARSE_FLAG_SPACES;
 var CC2_PARSE_FLAG_LINE_FEED;
 var CC2_PARSE_FLAG_PREPROCESS;
@@ -2416,6 +2422,84 @@ function macro_twosharps_(original, pointer, stream_pointer, token_pointer,
 function macro_twosharps(original)
 {
     return macro_twosharps_(original, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_month_name(month)
+{
+    if (eq(month, 0)) { return mks("Jan"); }
+    if (eq(month, 1)) { return mks("Feb"); }
+    if (eq(month, 2)) { return mks("Mar"); }
+    if (eq(month, 3)) { return mks("Apr"); }
+    if (eq(month, 4)) { return mks("May"); }
+    if (eq(month, 5)) { return mks("Jun"); }
+    if (eq(month, 6)) { return mks("Jul"); }
+    if (eq(month, 7)) { return mks("Aug"); }
+    if (eq(month, 8)) { return mks("Sep"); }
+    if (eq(month, 9)) { return mks("Oct"); }
+    if (eq(month, 10)) { return mks("Nov"); }
+    return mks("Dec");
+}
+
+/* Expand predefined macros without exposing calendar or token policy to the
+   primitive support layer.  Return zero for ordinary macros. */
+function cc2_expand_special_macro(stream, token)
+{
+    var buffer;
+    var string;
+    var value;
+    var source_file;
+    var fields;
+    var result_token;
+    var text;
+    if (and(not(eq(token, CC2_TOKEN_BUILTIN_LINE)), and(
+        not(eq(token, CC2_TOKEN_BUILTIN_COUNTER)), and(
+        not(eq(token, CC2_TOKEN_BUILTIN_FILE)), and(
+        not(eq(token, CC2_TOKEN_BUILTIN_DATE)),
+        not(eq(token, CC2_TOKEN_BUILTIN_TIME))))))) {
+        return 0;
+    }
+    buffer = malloc(32);
+    text = buffer;
+    result_token = CC2_TOKEN_STRING;
+    source_file = ri32(file_address);
+    if (eq(token, CC2_TOKEN_BUILTIN_LINE)) {
+        snprintf(buffer, 32, mks("%d"),
+            ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)));
+        result_token = CC2_TOKEN_PREPROCESSOR_NUMBER;
+    } else if (eq(token, CC2_TOKEN_BUILTIN_COUNTER)) {
+        snprintf(buffer, 32, mks("%d"), pp_counter);
+        pp_counter = add(pp_counter, 1);
+        result_token = CC2_TOKEN_PREPROCESSOR_NUMBER;
+    } else if (eq(token, CC2_TOKEN_BUILTIN_FILE)) {
+        text = add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET);
+    } else {
+        fields = malloc(mul(CC2_LOCAL_TIME_FIELDS, CC2_I386_WORD_BYTES));
+        cc2_local_time(fields);
+        if (eq(token, CC2_TOKEN_BUILTIN_DATE)) {
+            snprintf(buffer, 32, mks("%s %2d %d"),
+                cc2_month_name(ri32(add(fields, mul(4, CC2_I386_WORD_BYTES)))),
+                ri32(add(fields, mul(3, CC2_I386_WORD_BYTES))),
+                add(ri32(add(fields, mul(5, CC2_I386_WORD_BYTES))), 1900));
+        } else {
+            snprintf(buffer, 32, mks("%02d:%02d:%02d"), ri32(fields),
+                ri32(add(fields, CC2_I386_WORD_BYTES)),
+                ri32(add(fields, mul(2, CC2_I386_WORD_BYTES))));
+        }
+        free(fields);
+    }
+    string = malloc(CC2_CSTRING_BYTES);
+    value = malloc(CC2_CVALUE_BYTES);
+    cstr_new(string);
+    cstr_cat(string, text, 0);
+    wi32(value, ri32(add(string, CC2_CSTRING_SIZE_OFFSET)));
+    wi32(add(value, CC2_I386_WORD_BYTES),
+        ri32(add(string, CC2_CSTRING_DATA_OFFSET)));
+    tok_str_add2(stream, result_token, value);
+    cstr_free(string);
+    free(value);
+    free(string);
+    free(buffer);
+    return 1;
 }
 
 /* Keep preprocessor output tokens textually separate where concatenation
@@ -15888,6 +15972,12 @@ function cc2_init_constants()
     CC2_TOKEN_PREPROCESSOR_JOIN = 205;
     CC2_TOKEN_PLACEHOLDER = 203;
     CC2_TOKEN_NO_SUBSTITUTION = 204;
+    CC2_TOKEN_BUILTIN_LINE = 327;
+    CC2_TOKEN_BUILTIN_FILE = 328;
+    CC2_TOKEN_BUILTIN_DATE = 329;
+    CC2_TOKEN_BUILTIN_TIME = 330;
+    CC2_TOKEN_BUILTIN_COUNTER = 333;
+    CC2_LOCAL_TIME_FIELDS = 6;
     CC2_PARSE_FLAG_SPACES = 16;
     CC2_PARSE_FLAG_LINE_FEED = 4;
     CC2_PARSE_FLAG_PREPROCESS = 1;

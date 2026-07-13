@@ -503,12 +503,6 @@ static int *macro_arg_subst(Sym **nested_list, const int *macro_str, Sym *args)
     return str.str;
 }
 
-static char const ab_month_name[12][4] =
-{
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-};
-
 /* peek or read [ws_str == NULL] next token from function macro call,
    walking up macro levels up to the file if necessary */
 /* do macro substitution of current token with macro 's' and add
@@ -523,45 +517,12 @@ static int macro_subst_tok(
     Sym *args, *sa, *sa1;
     int parlevel, t, t1, spc;
     TokenString str;
-    char *cstrval;
     CValue cval;
-    CString cstr;
-    char buf[32];
 
     /* if symbol is a macro, prepare substitution */
     /* special macros */
-    if (tok == TOK___LINE__ || tok == TOK___COUNTER__) {
-        t = tok == TOK___LINE__ ? file->line_num : pp_counter++;
-        snprintf(buf, sizeof(buf), "%d", t);
-        cstrval = buf;
-        t1 = TOK_PPNUM;
-        goto add_cstr1;
-    } else if (tok == TOK___FILE__) {
-        cstrval = file->filename;
-        goto add_cstr;
-    } else if (tok == TOK___DATE__ || tok == TOK___TIME__) {
-        time_t ti;
-        struct tm *tm;
-
-        time(&ti);
-        tm = localtime(&ti);
-        if (tok == TOK___DATE__) {
-            snprintf(buf, sizeof(buf), "%s %2d %d", 
-                     ab_month_name[tm->tm_mon], tm->tm_mday, tm->tm_year + 1900);
-        } else {
-            snprintf(buf, sizeof(buf), "%02d:%02d:%02d", 
-                     tm->tm_hour, tm->tm_min, tm->tm_sec);
-        }
-        cstrval = buf;
-    add_cstr:
-        t1 = TOK_STR;
-    add_cstr1:
-        cstr_new(&cstr);
-        cstr_cat(&cstr, cstrval, 0);
-        cval.str.size = cstr.size;
-        cval.str.data = cstr.data;
-        tok_str_add2(tok_str, t1, &cval);
-        cstr_free(&cstr);
+    if (cc2_expand_special_macro((int)tok_str, tok)) {
+        return 0;
     } else if (s->d) {
         int saved_parse_flags = parse_flags;
 	int *joined_str = NULL;
