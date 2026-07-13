@@ -1083,56 +1083,6 @@ void unary(void)
     case TOK_builtin_return_address:
         unary_builtin_frame(tok);
         break;
-#ifdef TCC_TARGET_X86_64
-#ifdef TCC_TARGET_PE
-    case TOK_builtin_va_start:
-	parse_builtin_params(0, "ee");
-        r = vtop->r & VT_VALMASK;
-        if (r == VT_LLOCAL)
-            r = VT_LOCAL;
-        if (r != VT_LOCAL)
-            tcc_error("__builtin_va_start expects a local variable");
-        vtop->r = r;
-	vtop->type = char_pointer_type;
-	vtop->c.i += 8;
-	vstore();
-        break;
-#else
-    case TOK_builtin_va_arg_types:
-	parse_builtin_params(0, "t");
-	vpushi(classify_x86_64_va_arg(&vtop->type));
-	vswap();
-	vpop();
-        break;
-#endif
-#endif
-
-#ifdef TCC_TARGET_ARM64
-    case TOK___va_start: {
-	parse_builtin_params(0, "ee");
-        //xx check types
-        gen_va_start();
-        vpushi(0);
-        vtop->type.t = VT_VOID;
-        break;
-    }
-    case TOK___va_arg: {
-	parse_builtin_params(0, "et");
-	type = vtop->type;
-	vpop();
-        //xx check types
-        gen_va_arg(&type);
-        vtop->type = type;
-        break;
-    }
-    case TOK___arm64_clear_cache: {
-	parse_builtin_params(0, "ee");
-        gen_clear_cache();
-        vpushi(0);
-        vtop->type.t = VT_VOID;
-        break;
-    }
-#endif
     /* pre operations */
     case TOK_INC:
     case TOK_DEC:
