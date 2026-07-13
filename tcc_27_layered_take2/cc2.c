@@ -144,6 +144,15 @@ var CC2_ASSIGNMENT_SHIFT_RIGHT = 130;
 var CC2_ASSIGNMENT_XOR = 222;
 var CC2_ASSIGNMENT_OR = 252;
 var CC2_TOKEN_OPERATOR_MASK = 127;
+var CC2_TOKEN_SIGNED_LESS = 156;
+var CC2_TOKEN_SIGNED_GREATER_EQUAL = 157;
+var CC2_TOKEN_SIGNED_LESS_EQUAL = 158;
+var CC2_TOKEN_SIGNED_GREATER = 159;
+var CC2_TOKEN_UNSIGNED_GREATER = 151;
+var CC2_TOKEN_UNSIGNED_DIVIDE = 176;
+var CC2_TOKEN_UNSIGNED_MODULO = 177;
+var CC2_TOKEN_POINTER_DIVIDE = 178;
+var CC2_TOKEN_UNSIGNED_SHIFT_RIGHT = 201;
 var CC2_TCC_UNION_TYPE = 1048583;
 var CC2_TCC_BITFIELD_POSITION_SHIFT = 20;
 var CC2_TCC_BITFIELD_SIZE_SHIFT = 26;
@@ -198,6 +207,7 @@ var ptrdiff_type[2];
 var int_type_address;
 var size_type_address;
 var func_old_type_address;
+var ptrdiff_type_address;
 /* TCC's 257-entry value stack, with seven i386 words per SValue. */
 var __vstack[1799];
 /* Scratch space is safe because TCC's frontend and value stack are global. */
@@ -2270,6 +2280,233 @@ function gen_assign_cast_(destination_type, source_type, destination_basic,
 function gen_assign_cast(destination_type)
 {
     return gen_assign_cast_(destination_type, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_is_relational_operation(operation)
+{
+    return and(le(CC2_TOKEN_UNSIGNED_LESS, operation),
+        le(operation, CC2_TOKEN_LOGICAL_OR));
+}
+
+function cc2_unsigned_operation(operation)
+{
+    if (eq(operation, CC2_TOKEN_SHIFT_RIGHT)) {
+        return CC2_TOKEN_UNSIGNED_SHIFT_RIGHT;
+    }
+    if (eq(operation, CC2_ASCII_SLASH)) {
+        return CC2_TOKEN_UNSIGNED_DIVIDE;
+    }
+    if (eq(operation, CC2_ASCII_PERCENT)) {
+        return CC2_TOKEN_UNSIGNED_MODULO;
+    }
+    if (eq(operation, CC2_TOKEN_SIGNED_LESS)) {
+        return CC2_TOKEN_UNSIGNED_LESS;
+    }
+    if (eq(operation, CC2_TOKEN_SIGNED_GREATER)) {
+        return CC2_TOKEN_UNSIGNED_GREATER;
+    }
+    if (eq(operation, CC2_TOKEN_SIGNED_LESS_EQUAL)) {
+        return CC2_TOKEN_UNSIGNED_LESS_EQUAL;
+    }
+    if (eq(operation, CC2_TOKEN_SIGNED_GREATER_EQUAL)) {
+        return CC2_TOKEN_UNSIGNED_GREATER_EQUAL;
+    }
+    return operation;
+}
+
+function cc2_is_shift_operation(operation)
+{
+    return or(eq(operation, CC2_TOKEN_UNSIGNED_SHIFT_RIGHT),
+        or(eq(operation, CC2_TOKEN_SHIFT_RIGHT),
+        eq(operation, CC2_TOKEN_SHIFT_LEFT)));
+}
+
+/* Type policy stays here; gen_opic and gen_opif only emit the selected i386
+   integer or floating operation. */
+function gen_op_(operation, first, second, first_type, second_type,
+    first_basic, second_basic, result_type, element_size, temporary_type,
+    registers)
+{
+    temporary_type = malloc(8);
+    first = sub(vtop, CC2_SVALUE_BYTES);
+    second = vtop;
+    first_type = ri32(first);
+    second_type = ri32(second);
+    first_basic = and(first_type, CC2_TCC_BASIC_TYPE_MASK);
+    second_basic = and(second_type, CC2_TCC_BASIC_TYPE_MASK);
+    while (or(eq(first_basic, CC2_TCC_FUNCTION_TYPE),
+        eq(second_basic, CC2_TCC_FUNCTION_TYPE))) {
+        if (eq(second_basic, CC2_TCC_FUNCTION_TYPE)) {
+            mk_pointer(second);
+            gaddrof();
+        }
+        if (eq(first_basic, CC2_TCC_FUNCTION_TYPE)) {
+            vswap();
+            mk_pointer(vtop);
+            gaddrof();
+            vswap();
+        }
+        first = sub(vtop, CC2_SVALUE_BYTES);
+        second = vtop;
+        first_type = ri32(first);
+        second_type = ri32(second);
+        first_basic = and(first_type, CC2_TCC_BASIC_TYPE_MASK);
+        second_basic = and(second_type, CC2_TCC_BASIC_TYPE_MASK);
+    }
+    if (or(eq(first_basic, CC2_TCC_STRUCT_TYPE),
+        eq(second_basic, CC2_TCC_STRUCT_TYPE))) {
+        tcc_error(mks("operation on a struct"), 0);
+    } else if (or(eq(first_basic, CC2_TCC_POINTER_TYPE),
+        eq(second_basic, CC2_TCC_POINTER_TYPE))) {
+        if (cc2_is_relational_operation(operation)) {
+            check_comparison_pointer_types(first, second, operation);
+            result_type = or(CC2_TCC_INT_TYPE, CC2_TCC_UNSIGNED_TYPE);
+        } else if (and(eq(first_basic, CC2_TCC_POINTER_TYPE),
+            eq(second_basic, CC2_TCC_POINTER_TYPE))) {
+            if (not(eq(operation, CC2_ASCII_MINUS))) {
+                tcc_error(mks("cannot use pointers here"), 0);
+            }
+            check_comparison_pointer_types(first, second, operation);
+            if (not(eq(and(first_type, CC2_TCC_VLA_TYPE), 0))) {
+                vla_runtime_pointed_size(first);
+            } else {
+                vpushi(pointed_size(first));
+            }
+            vrott(3);
+            gen_opic(operation);
+            wi32(vtop, ri32(ptrdiff_type_address));
+            wi32(add(vtop, 4), ri32(add(ptrdiff_type_address, 4)));
+            vswap();
+            gen_op(CC2_TOKEN_POINTER_DIVIDE);
+            result_type = sub(0, 1);
+        } else {
+            if (and(not(eq(operation, CC2_ASCII_MINUS)),
+                not(eq(operation, CC2_ASCII_PLUS)))) {
+                tcc_error(mks("cannot use pointers here"), 0);
+            }
+            if (eq(second_basic, CC2_TCC_POINTER_TYPE)) {
+                vswap();
+                first = sub(vtop, CC2_SVALUE_BYTES);
+                second = vtop;
+                first_type = ri32(first);
+                second_type = ri32(second);
+            }
+            if (eq(and(ri32(second), CC2_TCC_BASIC_TYPE_MASK),
+                CC2_TCC_LONG_LONG_TYPE)) {
+                gen_cast_s(CC2_TCC_INT_TYPE);
+            }
+            wi32(temporary_type, and(ri32(first),
+                bnot(CC2_TCC_ARRAY_TYPE)));
+            wi32(add(temporary_type, 4), ri32(add(first, 4)));
+            if (not(eq(and(ri32(first), CC2_TCC_VLA_TYPE), 0))) {
+                vla_runtime_pointed_size(first);
+            } else {
+                element_size = pointed_size(first);
+                if (lt(element_size, 0)) {
+                    tcc_error(mks("unknown array element size"), 0);
+                }
+                vpushi(element_size);
+            }
+            gen_op(CC2_ASCII_ASTERISK);
+            gen_opic(operation);
+            wi32(vtop, ri32(temporary_type));
+            wi32(add(vtop, 4), ri32(add(temporary_type, 4)));
+            result_type = sub(0, 1);
+        }
+    } else if (or(is_float(first_basic), is_float(second_basic))) {
+        if (or(eq(first_basic, CC2_TCC_LONG_DOUBLE_TYPE),
+            eq(second_basic, CC2_TCC_LONG_DOUBLE_TYPE))) {
+            result_type = CC2_TCC_LONG_DOUBLE_TYPE;
+        } else if (or(eq(first_basic, CC2_TCC_DOUBLE_TYPE),
+            eq(second_basic, CC2_TCC_DOUBLE_TYPE))) {
+            result_type = CC2_TCC_DOUBLE_TYPE;
+        } else {
+            result_type = CC2_TCC_FLOAT_TYPE;
+        }
+        if (and(and(and(not(eq(operation, CC2_ASCII_PLUS)),
+            not(eq(operation, CC2_ASCII_MINUS))),
+            and(not(eq(operation, CC2_ASCII_ASTERISK)),
+            not(eq(operation, CC2_ASCII_SLASH)))),
+            not(and(le(CC2_TOKEN_UNSIGNED_LESS, operation),
+            le(operation, CC2_TOKEN_SIGNED_GREATER))))) {
+            tcc_error(mks("invalid operands for binary operation"), 0);
+        }
+    } else if (cc2_is_shift_operation(operation)) {
+        if (eq(first_basic, CC2_TCC_LONG_LONG_TYPE)) {
+            result_type = CC2_TCC_LONG_LONG_TYPE;
+        } else {
+            result_type = CC2_TCC_INT_TYPE;
+        }
+        if (eq(and(first_type, 159),
+            or(result_type, CC2_TCC_UNSIGNED_TYPE))) {
+            result_type = or(result_type, CC2_TCC_UNSIGNED_TYPE);
+        }
+        result_type = or(result_type, and(first_type, 2048));
+    } else if (or(eq(first_basic, CC2_TCC_LONG_LONG_TYPE),
+        eq(second_basic, CC2_TCC_LONG_LONG_TYPE))) {
+        result_type = or(CC2_TCC_LONG_LONG_TYPE, 2048);
+        if (eq(first_basic, CC2_TCC_LONG_LONG_TYPE)) {
+            result_type = and(result_type, first_type);
+        }
+        if (eq(second_basic, CC2_TCC_LONG_LONG_TYPE)) {
+            result_type = and(result_type, second_type);
+        }
+        if (or(eq(and(first_type, 159),
+            or(CC2_TCC_LONG_LONG_TYPE, CC2_TCC_UNSIGNED_TYPE)),
+            eq(and(second_type, 159),
+            or(CC2_TCC_LONG_LONG_TYPE, CC2_TCC_UNSIGNED_TYPE)))) {
+            result_type = or(result_type, CC2_TCC_UNSIGNED_TYPE);
+        }
+    } else {
+        result_type = or(CC2_TCC_INT_TYPE,
+            and(or(first_type, second_type), 2048));
+        if (or(eq(and(first_type, 159),
+            or(CC2_TCC_INT_TYPE, CC2_TCC_UNSIGNED_TYPE)),
+            eq(and(second_type, 159),
+            or(CC2_TCC_INT_TYPE, CC2_TCC_UNSIGNED_TYPE)))) {
+            result_type = or(result_type, CC2_TCC_UNSIGNED_TYPE);
+        }
+    }
+    if (not(eq(result_type, sub(0, 1)))) {
+        if (not(eq(and(result_type, CC2_TCC_UNSIGNED_TYPE), 0))) {
+            operation = cc2_unsigned_operation(operation);
+        }
+        wi32(temporary_type, result_type);
+        wi32(add(temporary_type, 4), 0);
+        vswap();
+        gen_cast(temporary_type);
+        vswap();
+        if (cc2_is_shift_operation(operation)) {
+            wi32(temporary_type, CC2_TCC_INT_TYPE);
+        }
+        gen_cast(temporary_type);
+        if (is_float(result_type)) {
+            gen_opif(operation);
+        } else {
+            gen_opic(operation);
+        }
+        if (and(le(CC2_TOKEN_UNSIGNED_LESS, operation),
+            le(operation, CC2_TOKEN_SIGNED_GREATER))) {
+            wi32(vtop, CC2_TCC_INT_TYPE);
+        } else {
+            wi32(vtop, result_type);
+        }
+    }
+    registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+    if (not(eq(and(registers, CC2_TCC_LVALUE), 0))) {
+        if (is_float(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK))) {
+            gv(CC2_I386_FLOAT_REGISTER_CLASS);
+        } else {
+            gv(CC2_INTEGER_REGISTER_CLASS);
+        }
+    }
+    free(temporary_type);
+    return 0;
+}
+
+function gen_op(operation)
+{
+    return gen_op_(operation, 0, 0, 0, 0, 0, 0, sub(0, 1), 0, 0, 0);
 }
 
 function parse_btype_qualify_(type, qualifiers, type_value, symbol)

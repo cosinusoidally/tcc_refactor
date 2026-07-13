@@ -74,11 +74,6 @@ function unary()
     return 0;
 }
 
-function gen_op(operation)
-{
-    return 0;
-}
-
 function gen_cast_s(type)
 {
     return 0;
@@ -120,6 +115,16 @@ function type_to_str(buffer, buffer_size, type, variable)
 }
 
 function tcc_error_type_pair(source_type, destination_type)
+{
+    return 0;
+}
+
+function gen_opic(operation)
+{
+    return 0;
+}
+
+function gen_opif(operation)
 {
     return 0;
 }
