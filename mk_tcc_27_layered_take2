@@ -14,6 +14,15 @@ CRTN=$(gcc -m32 -print-file-name=crtn.o)
 HOST_LIBC=$(gcc -m32 -print-file-name=libc.so)
 HOST_LIBGCC=$(gcc -m32 -print-file-name=libgcc.a)
 
+# cc1's bootstrap linker consumes these stable local names through TCC.
+ln -s "$CRT1" crt1.o
+ln -s "$CRTI" crti.o
+ln -s "$CRTBEGIN" crtbegin.o
+ln -s "$CRTEND" crtend.o
+ln -s "$CRTN" crtn.o
+ln -s "$HOST_LIBC" libc.so
+ln -s "$HOST_LIBGCC" libgcc.a
+
 # build tcc_27_layered_take2 with gcc
 gcc -O0 -m32 -I ../tcc_27_layered_take2/ -I ../tcc_27_layered_take2/include/ ../tcc_27_layered_take2/tcc_unified.c -o tcc_27_layered_take2_gcc -ldl
 
@@ -64,27 +73,43 @@ diff -u -s cc0_tcc.o cc0_tcc_dialect.o
 
 gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int -Dmain=cc0_smoke_main \
     -c ../tcc_27_layered_take2/cc0.c -o cc0_smoke.o
-gcc -m32 ../tcc_27_layered_take2/cc0_support.c cc0_smoke.o \
+gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take2/cc1_stubs.c -o cc1_stubs_smoke.o
+gcc -m32 ../tcc_27_layered_take2/prims.c cc0_smoke.o cc1_stubs_smoke.o \
     ../tcc_27_layered_take2/tests/layered/cc0_c_smoke.c -o cc0_c_smoke
 ./cc0_c_smoke
 
 js ../tcc_27_layered_take2/tests/layered/cc0_js_smoke.js
 
-# cc0 writes a TCC-style i386 object, then that object rebuilds itself
-gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
-    ../tcc_27_layered_take2/cc0_support.c \
-    ../tcc_27_layered_take2/cc0.c -o cc0_stage0
-./cc0_stage0 -c ../tcc_27_layered_take2/cc0.c -o cc0_self_1.o
-./tcc_27_layered_take2 -I ../tcc_27_layered_take2/include \
-    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
-    -c ../tcc_27_layered_take2/cc0_support.c -U__linux__ \
-    -o cc0_self_support.o
+# Build the explicit cc0 -> cc1 layered bootstrap.
+./tcc_27_layered_take2 -c ../tcc_27_layered_take2/prims.c -o prims.o
+./tcc_27_layered_take2 -std=cc0 -c ../tcc_27_layered_take2/cc0.c \
+    -o cc0_boot.o
+./tcc_27_layered_take2 -std=cc0 -c \
+    ../tcc_27_layered_take2/cc1_stubs.c -o cc1_stubs_boot.o
 ./tcc_27_layered_take2 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
-    cc0_self_1.o cc0_self_support.o "$HOST_LIBC" "$HOST_LIBGCC" \
-    "$CRTEND" "$CRTN" -o cc0_stage1
-chmod +x cc0_stage1
-./cc0_stage1 -c ../tcc_27_layered_take2/cc0.c -o cc0_self_2.o
-diff -u -s cc0_self_1.o cc0_self_2.o
+    prims.o cc0_boot.o cc1_stubs_boot.o "$HOST_LIBC" "$HOST_LIBGCC" \
+    "$CRTEND" "$CRTN" -o cc0_boot.exe
+chmod +x cc0_boot.exe
+
+./cc0_boot.exe -c ../tcc_27_layered_take2/cc0.c -o cc0.o
+./cc0_boot.exe -c ../tcc_27_layered_take2/cc1_stubs.c -o cc1_stubs.o
+./cc0_boot.exe cc0.o cc1_stubs.o -o cc0.exe
+./cc0.exe -c ../tcc_27_layered_take2/cc0.c -o cc0_self.o
+./cc0.exe -c ../tcc_27_layered_take2/cc1_stubs.c -o cc1_stubs_self.o
+diff -u -s cc0.o cc0_self.o
+diff -u -s cc1_stubs.o cc1_stubs_self.o
+
+./cc0.exe -c ../tcc_27_layered_take2/cc1.c -o cc1.o
+./cc0.exe -c ../tcc_27_layered_take2/cc2_stubs.c -o cc2_stubs.o
+./cc0.exe cc0.o cc1.o cc2_stubs.o -o cc1.exe
+./cc1.exe -c ../tcc_27_layered_take2/cc2_stubs.c -o cc2_by_cc1.o
+
+# SpiderMonkey must reproduce both cc0 objects and the linked executable.
+js ../tcc_27_layered_take2/tests/layered/cc0_js_bootstrap.js
+diff -u -s cc0.o cc0_js.o
+diff -u -s cc1_stubs.o cc1_stubs_js.o
+diff -u -s cc0.exe cc0_js.exe
 
 # build some test files
 

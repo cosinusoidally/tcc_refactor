@@ -1,0 +1,151 @@
+/* SpiderMonkey meanings for operations outside the operator-free dialect. */
+function add(left, right) { return (left + right) | 0; }
+function sub(left, right) { return (left - right) | 0; }
+function eq(left, right) { return left === right ? 1 : 0; }
+function lt(left, right) { return left < right ? 1 : 0; }
+function le(left, right) { return left <= right ? 1 : 0; }
+function not(value) { return value ? 0 : 1; }
+function and(left, right) { return (left & right) | 0; }
+function shl(value, count) { return (value << count) | 0; }
+function ushr(value, count) { return (value >>> count) | 0; }
+
+/* Integer addresses remain stable when the backing typed array grows. */
+var CC0_PRIMS_MEMORY_SIZE = 4096;
+var cc0_prims_memory = new Uint8Array(CC0_PRIMS_MEMORY_SIZE);
+var cc0_prims_heap_top = 4;
+var cc0_prims_string_cache = {};
+
+function cc0_prims_reserve(needed) {
+    var grown = CC0_PRIMS_MEMORY_SIZE;
+    var memory;
+    while (grown < needed) {
+        grown = grown * 2;
+    }
+    if (grown !== CC0_PRIMS_MEMORY_SIZE) {
+        memory = new Uint8Array(grown);
+        memory.set(cc0_prims_memory);
+        cc0_prims_memory = memory;
+        CC0_PRIMS_MEMORY_SIZE = grown;
+    }
+}
+
+function malloc(size) {
+    var pointer = cc0_prims_heap_top;
+    cc0_prims_heap_top = (pointer + size + 3) & -4;
+    cc0_prims_reserve(cc0_prims_heap_top);
+    return pointer;
+}
+
+function mks(value) {
+    var index;
+    var pointer;
+    if (Object.prototype.hasOwnProperty.call(cc0_prims_string_cache, value)) {
+        return cc0_prims_string_cache[value];
+    }
+    pointer = malloc(value.length + 1);
+    index = 0;
+    while (index < value.length) {
+        cc0_prims_memory[pointer + index] = value.charCodeAt(index) & 255;
+        index = index + 1;
+    }
+    cc0_prims_memory[pointer + index] = 0;
+    cc0_prims_string_cache[value] = pointer;
+    return pointer;
+}
+
+function ri8(address) {
+    return cc0_prims_memory[address] | 0;
+}
+
+function wi8(address, value) {
+    cc0_prims_memory[address] = value & 255;
+    return value | 0;
+}
+
+function ri32(address) {
+    return (cc0_prims_memory[address] |
+            (cc0_prims_memory[address + 1] << 8) |
+            (cc0_prims_memory[address + 2] << 16) |
+            (cc0_prims_memory[address + 3] << 24)) | 0;
+}
+
+function wi32(address, value) {
+    cc0_prims_memory[address] = value & 255;
+    cc0_prims_memory[address + 1] = (value >>> 8) & 255;
+    cc0_prims_memory[address + 2] = (value >>> 16) & 255;
+    cc0_prims_memory[address + 3] = (value >>> 24) & 255;
+    return value | 0;
+}
+
+/* These functions model the small libc surface used by cc0.c. */
+var cc0_prims_files = {};
+var cc0_prims_next_file = 3;
+
+function cc0_prims_path(address) {
+    var value = "";
+    while (ri8(address) !== 0) {
+        value = value + String.fromCharCode(ri8(address));
+        address = address + 1;
+    }
+    return value;
+}
+
+function open(path, flags, mode) {
+    var descriptor = cc0_prims_next_file++;
+    var writing = (flags & 1) !== 0;
+    cc0_prims_files[descriptor] = {
+        data: writing ? [] : os.file.readFile(cc0_prims_path(path)),
+        path: cc0_prims_path(path),
+        position: 0,
+        output: writing
+    };
+    return descriptor;
+}
+
+function lseek(descriptor, offset, origin) {
+    var file = cc0_prims_files[descriptor];
+    if (origin === 2) {
+        file.position = file.data.length;
+    } else if (origin === 0) {
+        file.position = offset;
+    }
+    return file.position | 0;
+}
+
+function read(descriptor, buffer, count) {
+    var file = cc0_prims_files[descriptor];
+    var index = 0;
+    while (index < count && file.position < file.data.length) {
+        wi8(buffer + index, file.data.charCodeAt(file.position));
+        file.position++;
+        index++;
+    }
+    return index | 0;
+}
+
+function write(descriptor, buffer, count) {
+    var file = cc0_prims_files[descriptor];
+    var index = 0;
+    while (index < count) {
+        file.data.push(ri8(buffer + index));
+        index++;
+    }
+    return count | 0;
+}
+
+function close(descriptor) {
+    var file = cc0_prims_files[descriptor];
+    if (file.output) {
+        os.file.writeTypedArrayToFile(file.path, new Uint8Array(file.data));
+    }
+    delete cc0_prims_files[descriptor];
+    return 0;
+}
+
+function system(command) {
+    return os.system(cc0_prims_path(command));
+}
+
+function chmod(path, mode) {
+    return os.system("chmod 755 '" + cc0_prims_path(path) + "'");
+}

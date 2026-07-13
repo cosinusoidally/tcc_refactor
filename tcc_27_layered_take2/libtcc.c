@@ -37,15 +37,18 @@ static int nb_states;
 /********************************************************/
 
 #if ONE_SOURCE
-#include "cc0_support.c"
+#include "prims.c"
+#undef malloc
 #define function int
 #define var int
 #define main cc0_main
 #include "cc0.c"
 #undef main
+#include "cc1.c"
 #undef var
 #undef function
-#include "cc1.c"
+#define malloc(s) use_tcc_malloc(s)
+#include "tccpp.c"
 #include "cc2.c"
 #include "cc3.c"
 #include "cc4.c"

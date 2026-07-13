@@ -218,13 +218,21 @@ var CC0_ELF_SYMBOL_GLOBAL_OBJECT;
 var CC0_ELF_SYMBOL_GLOBAL_FUNCTION;
 var CC0_ELF_RELOCATION_ABSOLUTE;
 var CC0_ELF_RELOCATION_PC_RELATIVE;
-var CC0_ELF_FILE_OPEN_READ_SYMBOL;
-var CC0_ELF_FILE_OPEN_WRITE_SYMBOL;
-var CC0_ELF_FILE_SIZE_SYMBOL;
-var CC0_ELF_FILE_READ_BYTE_SYMBOL;
-var CC0_ELF_FILE_WRITE_BYTE_SYMBOL;
-var CC0_ELF_FILE_CLOSE_SYMBOL;
-var CC0_ELF_ALLOC_SYMBOL;
+var CC0_ELF_MALLOC_SYMBOL;
+var CC0_ELF_OPEN_SYMBOL;
+var CC0_ELF_LSEEK_SYMBOL;
+var CC0_ELF_READ_SYMBOL;
+var CC0_ELF_WRITE_SYMBOL;
+var CC0_ELF_CLOSE_SYMBOL;
+var CC0_ELF_SYSTEM_SYMBOL;
+var CC0_ELF_CC1_LINK_SYMBOL;
+var CC0_ELF_CHMOD_SYMBOL;
+var CC0_FILE_READ_ONLY;
+var CC0_FILE_WRITE_FLAGS;
+var CC0_FILE_CREATE_MODE;
+var CC0_FILE_SEEK_START;
+var CC0_FILE_SEEK_END;
+var CC0_FILE_BYTE;
 var CC0_ELF_OUTPUT;
 var CC0_ELF_OUTPUT_LENGTH;
 var CC0_ELF_HEADER_BYTES;
@@ -443,13 +451,21 @@ function cc0_init()
     CC0_ELF_SYMBOL_GLOBAL_FUNCTION = 18;
     CC0_ELF_RELOCATION_ABSOLUTE = 1;
     CC0_ELF_RELOCATION_PC_RELATIVE = 2;
-    CC0_ELF_FILE_OPEN_READ_SYMBOL = 0;
-    CC0_ELF_FILE_OPEN_WRITE_SYMBOL = 0;
-    CC0_ELF_FILE_SIZE_SYMBOL = 0;
-    CC0_ELF_FILE_READ_BYTE_SYMBOL = 0;
-    CC0_ELF_FILE_WRITE_BYTE_SYMBOL = 0;
-    CC0_ELF_FILE_CLOSE_SYMBOL = 0;
-    CC0_ELF_ALLOC_SYMBOL = 0;
+    CC0_ELF_MALLOC_SYMBOL = 0;
+    CC0_ELF_OPEN_SYMBOL = 0;
+    CC0_ELF_LSEEK_SYMBOL = 0;
+    CC0_ELF_READ_SYMBOL = 0;
+    CC0_ELF_WRITE_SYMBOL = 0;
+    CC0_ELF_CLOSE_SYMBOL = 0;
+    CC0_ELF_SYSTEM_SYMBOL = 0;
+    CC0_ELF_CC1_LINK_SYMBOL = 0;
+    CC0_ELF_CHMOD_SYMBOL = 0;
+    CC0_FILE_READ_ONLY = 0;
+    CC0_FILE_WRITE_FLAGS = 577;
+    CC0_FILE_CREATE_MODE = 438;
+    CC0_FILE_SEEK_START = 0;
+    CC0_FILE_SEEK_END = 2;
+    CC0_FILE_BYTE = 0;
     CC0_ELF_OUTPUT = 0;
     CC0_ELF_OUTPUT_LENGTH = 0;
     CC0_ELF_HEADER_BYTES = 52;
@@ -463,6 +479,7 @@ function cc0_init()
     CC0_ELF_MAGIC_F = 70;
     CC0_ELF_CLASS_32 = 1;
     CC0_ELF_DATA_LITTLE_ENDIAN = 1;
+    CC0_FILE_BYTE = malloc(1);
     return CC0_FALSE;
 }
 
@@ -862,23 +879,20 @@ function cc0_elf_put_undefined_function(name, length)
         CC0_ELF_SYMBOL_GLOBAL_FUNCTION, 0, 0);
 }
 
-/* File primitives are resolved by the glibc-backed host support object. */
+/* Generated cc0 objects depend only on the small libc surface used below. */
 function cc0_elf_emit_external_symbols()
 {
-    CC0_ELF_FILE_OPEN_READ_SYMBOL = cc0_elf_put_undefined_function(
-        mks("file_open_read"), 14);
-    CC0_ELF_FILE_OPEN_WRITE_SYMBOL = cc0_elf_put_undefined_function(
-        mks("file_open_write"), 15);
-    CC0_ELF_FILE_SIZE_SYMBOL = cc0_elf_put_undefined_function(
-        mks("file_size"), 9);
-    CC0_ELF_FILE_READ_BYTE_SYMBOL = cc0_elf_put_undefined_function(
-        mks("file_read_byte"), 14);
-    CC0_ELF_FILE_WRITE_BYTE_SYMBOL = cc0_elf_put_undefined_function(
-        mks("file_write_byte"), 15);
-    CC0_ELF_FILE_CLOSE_SYMBOL = cc0_elf_put_undefined_function(
-        mks("file_close"), 10);
-    CC0_ELF_ALLOC_SYMBOL = cc0_elf_put_undefined_function(mks("alloc"), 5);
-    if (lt(CC0_ELF_ALLOC_SYMBOL, 0)) {
+    CC0_ELF_MALLOC_SYMBOL = cc0_elf_put_undefined_function(mks("malloc"), 6);
+    CC0_ELF_OPEN_SYMBOL = cc0_elf_put_undefined_function(mks("open"), 4);
+    CC0_ELF_LSEEK_SYMBOL = cc0_elf_put_undefined_function(mks("lseek"), 5);
+    CC0_ELF_READ_SYMBOL = cc0_elf_put_undefined_function(mks("read"), 4);
+    CC0_ELF_WRITE_SYMBOL = cc0_elf_put_undefined_function(mks("write"), 5);
+    CC0_ELF_CLOSE_SYMBOL = cc0_elf_put_undefined_function(mks("close"), 5);
+    CC0_ELF_SYSTEM_SYMBOL = cc0_elf_put_undefined_function(mks("system"), 6);
+    CC0_ELF_CC1_LINK_SYMBOL = cc0_elf_put_undefined_function(
+        mks("cc1_link"), 8);
+    CC0_ELF_CHMOD_SYMBOL = cc0_elf_put_undefined_function(mks("chmod"), 5);
+    if (lt(CC0_ELF_CHMOD_SYMBOL, 0)) {
         return cc0_compiler_fail();
     }
     return CC0_FALSE;
@@ -886,26 +900,32 @@ function cc0_elf_emit_external_symbols()
 
 function cc0_elf_external_symbol(name, length)
 {
-    if (cc0_compiler_slice_equal(name, length, mks("file_open_read"), 14)) {
-        return CC0_ELF_FILE_OPEN_READ_SYMBOL;
+    if (cc0_compiler_slice_equal(name, length, mks("malloc"), 6)) {
+        return CC0_ELF_MALLOC_SYMBOL;
     }
-    if (cc0_compiler_slice_equal(name, length, mks("file_open_write"), 15)) {
-        return CC0_ELF_FILE_OPEN_WRITE_SYMBOL;
+    if (cc0_compiler_slice_equal(name, length, mks("open"), 4)) {
+        return CC0_ELF_OPEN_SYMBOL;
     }
-    if (cc0_compiler_slice_equal(name, length, mks("file_size"), 9)) {
-        return CC0_ELF_FILE_SIZE_SYMBOL;
+    if (cc0_compiler_slice_equal(name, length, mks("lseek"), 5)) {
+        return CC0_ELF_LSEEK_SYMBOL;
     }
-    if (cc0_compiler_slice_equal(name, length, mks("file_read_byte"), 14)) {
-        return CC0_ELF_FILE_READ_BYTE_SYMBOL;
+    if (cc0_compiler_slice_equal(name, length, mks("read"), 4)) {
+        return CC0_ELF_READ_SYMBOL;
     }
-    if (cc0_compiler_slice_equal(name, length, mks("file_write_byte"), 15)) {
-        return CC0_ELF_FILE_WRITE_BYTE_SYMBOL;
+    if (cc0_compiler_slice_equal(name, length, mks("write"), 5)) {
+        return CC0_ELF_WRITE_SYMBOL;
     }
-    if (cc0_compiler_slice_equal(name, length, mks("file_close"), 10)) {
-        return CC0_ELF_FILE_CLOSE_SYMBOL;
+    if (cc0_compiler_slice_equal(name, length, mks("close"), 5)) {
+        return CC0_ELF_CLOSE_SYMBOL;
     }
-    if (cc0_compiler_slice_equal(name, length, mks("alloc"), 5)) {
-        return CC0_ELF_ALLOC_SYMBOL;
+    if (cc0_compiler_slice_equal(name, length, mks("system"), 6)) {
+        return CC0_ELF_SYSTEM_SYMBOL;
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("cc1_link"), 8)) {
+        return CC0_ELF_CC1_LINK_SYMBOL;
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("chmod"), 5)) {
+        return CC0_ELF_CHMOD_SYMBOL;
     }
     return sub(0, 1);
 }
@@ -2533,34 +2553,28 @@ function cc0_compiler_variable_exists(name, length)
 
 function cc0_compiler_builtin_arity(name, length)
 {
+    if (cc0_text_equal(name, length, mks("malloc"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("close"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("alloc"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("system"))) {
+        return 1;
+    }
     if (cc0_text_equal(name, length, mks("not"))) {
         return 1;
     }
     if (cc0_text_equal(name, length, mks("mks"))) {
         return 1;
     }
-    if (cc0_text_equal(name, length, mks("alloc"))) {
-        return 1;
-    }
     if (cc0_text_equal(name, length, mks("ri8"))) {
         return 1;
     }
     if (cc0_text_equal(name, length, mks("ri32"))) {
-        return 1;
-    }
-    if (cc0_text_equal(name, length, mks("file_open_read"))) {
-        return 1;
-    }
-    if (cc0_text_equal(name, length, mks("file_open_write"))) {
-        return 1;
-    }
-    if (cc0_text_equal(name, length, mks("file_size"))) {
-        return 1;
-    }
-    if (cc0_text_equal(name, length, mks("file_read_byte"))) {
-        return 1;
-    }
-    if (cc0_text_equal(name, length, mks("file_close"))) {
         return 1;
     }
     if (cc0_text_equal(name, length, mks("add"))) {
@@ -2593,7 +2607,22 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("wi32"))) {
         return 2;
     }
-    if (cc0_text_equal(name, length, mks("file_write_byte"))) {
+    if (cc0_text_equal(name, length, mks("open"))) {
+        return 3;
+    }
+    if (cc0_text_equal(name, length, mks("lseek"))) {
+        return 3;
+    }
+    if (cc0_text_equal(name, length, mks("read"))) {
+        return 3;
+    }
+    if (cc0_text_equal(name, length, mks("write"))) {
+        return 3;
+    }
+    if (cc0_text_equal(name, length, mks("cc1_link"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("chmod"))) {
         return 2;
     }
     return sub(0, 1);
@@ -2601,25 +2630,34 @@ function cc0_compiler_builtin_arity(name, length)
 
 function cc0_compiler_external_arity(name, length)
 {
+    if (cc0_text_equal(name, length, mks("malloc"))) {
+        return 1;
+    }
+    if (cc0_text_equal(name, length, mks("close"))) {
+        return 1;
+    }
     if (cc0_text_equal(name, length, mks("alloc"))) {
         return 1;
     }
-    if (cc0_text_equal(name, length, mks("file_open_read"))) {
+    if (cc0_text_equal(name, length, mks("system"))) {
         return 1;
     }
-    if (cc0_text_equal(name, length, mks("file_open_write"))) {
-        return 1;
+    if (cc0_text_equal(name, length, mks("open"))) {
+        return 3;
     }
-    if (cc0_text_equal(name, length, mks("file_size"))) {
-        return 1;
+    if (cc0_text_equal(name, length, mks("lseek"))) {
+        return 3;
     }
-    if (cc0_text_equal(name, length, mks("file_read_byte"))) {
-        return 1;
+    if (cc0_text_equal(name, length, mks("read"))) {
+        return 3;
     }
-    if (cc0_text_equal(name, length, mks("file_close"))) {
-        return 1;
+    if (cc0_text_equal(name, length, mks("write"))) {
+        return 3;
     }
-    if (cc0_text_equal(name, length, mks("file_write_byte"))) {
+    if (cc0_text_equal(name, length, mks("cc1_link"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("chmod"))) {
         return 2;
     }
     return sub(0, 1);
@@ -2672,6 +2710,11 @@ function cc0_compiler_parse_call_(name, length, argument_count, arity,
 {
     builtin_arity = cc0_compiler_builtin_arity(name, length);
     external_arity = cc0_compiler_external_arity(name, length);
+    if (not(lt(cc0_compiler_find_symbol(CC0_FUNCTION_SYMBOLS,
+        CC0_FUNCTION_COUNT, name, length), 0))) {
+        external_arity = sub(0, 1);
+        builtin_arity = sub(0, 1);
+    }
     cc0_compiler_next_token();
     argument_count = 0;
     if (not(eq(CC0_TOKEN, CC0_PUNCTUATION_RIGHT_PARENTHESIS))) {
@@ -3104,6 +3147,58 @@ function cc0_compiler_compile_program(source, length)
     return cc0_compiler_patch_calls();
 }
 
+/* libc-backed services are ordinary cc0 code, not bootstrap primitives. */
+function alloc(size)
+{
+    if (lt(size, 0)) {
+        return 0;
+    }
+    return malloc(size);
+}
+
+function file_open_read(path)
+{
+    return open(path, CC0_FILE_READ_ONLY, 0);
+}
+
+function file_open_write(path)
+{
+    return open(path, CC0_FILE_WRITE_FLAGS, CC0_FILE_CREATE_MODE);
+}
+
+function file_size_(descriptor, size)
+{
+    size = lseek(descriptor, 0, CC0_FILE_SEEK_END);
+    if (not(lt(size, 0))) {
+        lseek(descriptor, 0, CC0_FILE_SEEK_START);
+    }
+    return size;
+}
+
+function file_size(descriptor)
+{
+    return file_size_(descriptor, 0);
+}
+
+function file_read_byte(descriptor)
+{
+    if (not(eq(read(descriptor, CC0_FILE_BYTE, 1), 1))) {
+        return sub(0, 1);
+    }
+    return ri8(CC0_FILE_BYTE);
+}
+
+function file_write_byte(descriptor, value)
+{
+    wi8(CC0_FILE_BYTE, value);
+    return write(descriptor, CC0_FILE_BYTE, 1);
+}
+
+function file_close(descriptor)
+{
+    return close(descriptor);
+}
+
 function cc0_c_string_equal_(left, right, left_value, right_value)
 {
     while (CC0_TRUE) {
@@ -3209,6 +3304,9 @@ function main_(argc, argv, input_name, output_name, source_size_pointer,
         }
     }
     if (eq(input_name, 0)) {
+        if (not(lt(argc, 4))) {
+            return cc1_link(argc, argv);
+        }
         return CC0_MAIN_USAGE_ERROR;
     }
     source_size_pointer = alloc(CC0_WORD_BYTES);

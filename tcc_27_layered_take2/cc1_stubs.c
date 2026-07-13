@@ -1,6 +1,6 @@
 /*
- * Layer one currently supplies the TCC-backed link service. The reduced linker
- * will migrate here from tccelf.c while cc0 remains unchanged.
+ * Layer-one bootstrap linker. This intentionally selects the repository's TCC
+ * linker; it never falls back to the GNU linker. cc1.c replaces this stub.
  */
 function cc1_c_string_length_(value, length)
 {

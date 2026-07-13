@@ -1,4 +1,4 @@
-load("../tcc_27_layered_take2/cc0_support.js");
+load("../tcc_27_layered_take2/prims.js");
 load("../tcc_27_layered_take2/cc0.c");
 
 cc0_init();
