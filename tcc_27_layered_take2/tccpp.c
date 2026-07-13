@@ -825,9 +825,7 @@ ST_FUNC uint8_t *parse_comment(uint8_t *p)
 
 ST_FUNC int set_idnum(int c, int val)
 {
-    int prev = isidnum_table[c - CH_EOF];
-    isidnum_table[c - CH_EOF] = val;
-    return prev;
+    return cc0_set_idnum((int)isidnum_table, c, val);
 }
 
 #define cinp minp
@@ -840,13 +838,7 @@ static inline void skip_spaces(void)
 
 static inline int check_space(int t, int *spc) 
 {
-    if (t < 256 && (isidnum_table[t - CH_EOF] & IS_SPC)) {
-        if (*spc) 
-            return 1;
-        *spc = 1;
-    } else 
-        *spc = 0;
-    return 0;
+    return cc0_check_space((int)isidnum_table, t, (int)spc);
 }
 
 /* parse a string without interpreting escapes */

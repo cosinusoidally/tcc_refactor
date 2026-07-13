@@ -1221,6 +1221,8 @@ int cc0_is_name_start();
 int cc0_is_decimal_digit();
 int cc0_is_octal_digit();
 int cc0_to_upper();
+int cc0_set_idnum();
+int cc0_check_space();
 
 static inline int is_space(int ch) {
     return cc0_is_space(ch);

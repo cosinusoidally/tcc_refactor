@@ -7,6 +7,9 @@
  */
 var CC0_FALSE;
 var CC0_TRUE;
+var CC0_CHARACTER_EOF;
+var CC0_BYTE_VALUE_COUNT;
+var CC0_CHARACTER_SPACE_FLAG;
 
 /* Named ASCII values keep character classification independent of literals. */
 var CC0_ASCII_TAB;
@@ -28,6 +31,9 @@ function cc0_init()
 {
     CC0_FALSE = 0;
     CC0_TRUE = 1;
+    CC0_CHARACTER_EOF = sub(0, 1);
+    CC0_BYTE_VALUE_COUNT = 256;
+    CC0_CHARACTER_SPACE_FLAG = 1;
     CC0_ASCII_TAB = 9;
     CC0_ASCII_LINE_FEED = 10;
     CC0_ASCII_VERTICAL_TAB = 11;
@@ -136,4 +142,41 @@ function cc0_to_upper(value)
         return add(sub(value, CC0_ASCII_LOWER_A), CC0_ASCII_UPPER_A);
     }
     return value;
+}
+
+/* The table starts at the EOF entry, followed by all byte values. */
+function cc0_set_idnum_(table, character, flags, address, previous)
+{
+    address = add(table, sub(character, CC0_CHARACTER_EOF));
+    previous = ri8(address);
+    wi8(address, flags);
+    return previous;
+}
+
+function cc0_set_idnum(table, character, flags)
+{
+    return cc0_set_idnum_(table, character, flags, 0, 0);
+}
+
+/* Preserve TCC's rule that a second adjacent space reports one token. */
+function cc0_check_space_(table, token, space_pointer, address, flags)
+{
+    if (lt(token, CC0_BYTE_VALUE_COUNT)) {
+        address = add(table, sub(token, CC0_CHARACTER_EOF));
+        flags = ri8(address);
+        if (and(flags, CC0_CHARACTER_SPACE_FLAG)) {
+            if (ri32(space_pointer)) {
+                return CC0_TRUE;
+            }
+            wi32(space_pointer, CC0_TRUE);
+            return CC0_FALSE;
+        }
+    }
+    wi32(space_pointer, CC0_FALSE);
+    return CC0_FALSE;
+}
+
+function cc0_check_space(table, token, space_pointer)
+{
+    return cc0_check_space_(table, token, space_pointer, 0, 0);
 }

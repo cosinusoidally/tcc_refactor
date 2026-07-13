@@ -26,3 +26,24 @@ if (!cc0_is_space(32) || !cc0_is_space(11) || cc0_is_space(10)) {
 if (cc0_to_upper(97) !== 65 || cc0_to_upper(65) !== 65) {
     throw new Error("cc0 uppercase conversion failed");
 }
+
+var characterFlags = 1024;
+var previousSpace = 2048;
+if (cc0_set_idnum(characterFlags, 32, 1) !== 0) {
+    throw new Error("cc0 character flag initial value failed");
+}
+if (cc0_set_idnum(characterFlags, 32, 1) !== 1) {
+    throw new Error("cc0 character flag replacement failed");
+}
+wi32(previousSpace, 0);
+if (cc0_check_space(characterFlags, 32, previousSpace) !== 0 ||
+    ri32(previousSpace) !== 1) {
+    throw new Error("cc0 first space state failed");
+}
+if (cc0_check_space(characterFlags, 32, previousSpace) !== 1) {
+    throw new Error("cc0 repeated space state failed");
+}
+if (cc0_check_space(characterFlags, 65, previousSpace) !== 0 ||
+    ri32(previousSpace) !== 0) {
+    throw new Error("cc0 non-space reset failed");
+}
