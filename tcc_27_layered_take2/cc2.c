@@ -5141,6 +5141,74 @@ function block_expression(is_expression)
     return 0;
 }
 
+function block_switch(continue_symbol)
+{
+    var switch_record;
+    var switch_value;
+    var break_symbol;
+    var saved_switch;
+    var saved_nocode;
+    var dispatch_jump;
+    var index;
+    var previous_case;
+    var next_case;
+    switch_record = malloc(12);
+    switch_value = malloc(CC2_SVALUE_BYTES);
+    break_symbol = malloc(4);
+    next();
+    skip(40);
+    gexpr();
+    skip(41);
+    cc2_copy_svalue(switch_value, vtop);
+    vtop = sub(vtop, CC2_SVALUE_BYTES);
+    wi32(break_symbol, 0);
+    dispatch_jump = gjmp(0);
+    wi32(switch_record, 0);
+    wi32(add(switch_record, 4), 0);
+    wi32(add(switch_record, CC2_SWITCH_DEFAULT_SYMBOL_OFFSET), 0);
+    saved_switch = cur_switch;
+    cur_switch = switch_record;
+    saved_nocode = nocode_wanted;
+    block(break_symbol, continue_symbol, 0);
+    nocode_wanted = saved_nocode;
+    wi32(break_symbol, gjmp(ri32(break_symbol)));
+    gsym(dispatch_jump);
+    case_sort(ri32(switch_record), ri32(add(switch_record, 4)));
+    index = 1;
+    while (lt(index, ri32(add(switch_record, 4)))) {
+        previous_case = ri32(add(ri32(switch_record),
+            mul(sub(index, 1), 4)));
+        next_case = ri32(add(ri32(switch_record), mul(index, 4)));
+        if (not(cc2_signed_wide_less(
+            ri32(add(previous_case, CC2_CASE_SECOND_VALUE_OFFSET)),
+            ri32(add(previous_case,
+                add(CC2_CASE_SECOND_VALUE_OFFSET, 4))),
+            ri32(next_case), ri32(add(next_case, 4))))) {
+            tcc_error(mks("duplicate case value"), 0);
+        }
+        index = add(index, 1);
+    }
+    if (eq(and(ri32(switch_value), CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE)) {
+        wi32(switch_value, and(ri32(switch_value),
+            bnot(CC2_TCC_UNSIGNED_TYPE)));
+    }
+    vpushv(switch_value);
+    gcase(ri32(switch_record), ri32(add(switch_record, 4)), break_symbol);
+    vpop();
+    if (ri32(add(switch_record, CC2_SWITCH_DEFAULT_SYMBOL_OFFSET))) {
+        gjmp_addr(ri32(add(switch_record,
+            CC2_SWITCH_DEFAULT_SYMBOL_OFFSET)));
+    }
+    dynarray_reset(switch_record, add(switch_record, 4));
+    cur_switch = saved_switch;
+    gsym(ri32(break_symbol));
+    free(break_symbol);
+    free(switch_value);
+    free(switch_record);
+    return 0;
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
 function type_decl(type, attributes, identifier, mode)
 {

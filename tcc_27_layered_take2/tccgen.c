@@ -52,6 +52,7 @@ void block_case(void);
 void block_default(void);
 void block_goto(void);
 void block_expression(int is_expression);
+void block_switch(int *continue_symbol);
 void parse_type(CType *type);
 void parse_builtin_params(int nc, const char *args);
 void parse_attribute(AttributeDef *ad);
@@ -1778,41 +1779,7 @@ void block(int *bsym, int *csym, int is_expr)
         block_do();
     } else
     if (tok == TOK_SWITCH) {
-        struct switch_t *saved, sw;
-	int saved_nocode_wanted = nocode_wanted;
-	SValue switchval;
-        next();
-        skip('(');
-        gexpr();
-        skip(')');
-	switchval = *vtop--;
-        a = 0;
-        b = gjmp(0); /* jump to first case */
-        sw.p = NULL; sw.n = 0; sw.def_sym = 0;
-        saved = cur_switch;
-        cur_switch = &sw;
-        block(&a, csym, 0);
-	nocode_wanted = saved_nocode_wanted;
-        a = gjmp(a); /* add implicit break */
-        /* case lookup */
-        gsym(b);
-        qsort(sw.p, sw.n, sizeof(void*), case_cmp);
-        for (b = 1; b < sw.n; b++)
-            if (sw.p[b - 1]->v2 >= sw.p[b]->v1)
-                tcc_error("duplicate case value");
-        /* Our switch table sorting is signed, so the compared
-           value needs to be as well when it's 64bit.  */
-        if ((switchval.type.t & VT_BTYPE) == VT_LLONG)
-            switchval.type.t &= ~VT_UNSIGNED;
-        vpushv(&switchval);
-        gcase(sw.p, sw.n, &a);
-        vpop();
-        if (sw.def_sym)
-          gjmp_addr(sw.def_sym);
-        dynarray_reset(&sw.p, &sw.n);
-        cur_switch = saved;
-        /* break label */
-        gsym(a);
+        block_switch(csym);
     } else
     if (tok == TOK_CASE) {
         block_case();

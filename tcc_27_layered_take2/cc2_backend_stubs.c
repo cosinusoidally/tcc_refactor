@@ -274,6 +274,16 @@ function dynarray_add(table_pointer, count_pointer, data)
     return 0;
 }
 
+function dynarray_reset(table_pointer, count_pointer)
+{
+    return 0;
+}
+
+function case_sort(base, count)
+{
+    return 0;
+}
+
 function label_find(token)
 {
     return 0;

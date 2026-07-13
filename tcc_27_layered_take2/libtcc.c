@@ -391,7 +391,7 @@ void dynarray_add(void *ptab, int *nb_ptr, void *data)
     *nb_ptr = nb;
 }
 
-ST_FUNC void dynarray_reset(void *pp, int *n)
+void dynarray_reset(void *pp, int *n)
 {
     void **p;
     for (p = *(void***)pp; *n; ++p, --*n)
@@ -399,6 +399,14 @@ ST_FUNC void dynarray_reset(void *pp, int *n)
             tcc_free(*p);
     tcc_free(*(void**)pp);
     *(void**)pp = NULL;
+}
+
+extern int case_cmp(const void *first, const void *second);
+
+/* cc0 cannot express qsort's function-pointer argument. */
+void case_sort(void **base, int count)
+{
+    qsort(base, count, sizeof(void *), case_cmp);
 }
 
 static void tcc_split_path(TCCState *s, void *p_ary, int *p_nb_ary, const char *in)

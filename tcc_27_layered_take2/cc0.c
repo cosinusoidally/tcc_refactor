@@ -1131,6 +1131,12 @@ function cc0_elf_external_symbol(name, length)
     if (cc0_compiler_slice_equal(name, length, mks("dynarray_add"), 12)) {
         return cc0_elf_put_undefined_function(name, length);
     }
+    if (cc0_compiler_slice_equal(name, length, mks("dynarray_reset"), 14)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
+    if (cc0_compiler_slice_equal(name, length, mks("case_sort"), 9)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
     if (cc0_compiler_slice_equal(name, length, mks("label_find"), 10)) {
         return cc0_elf_put_undefined_function(name, length);
     }
@@ -3679,6 +3685,12 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("dynarray_add"))) {
         return 3;
     }
+    if (cc0_text_equal(name, length, mks("dynarray_reset"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("case_sort"))) {
+        return 2;
+    }
     if (cc0_text_equal(name, length, mks("label_find"))) {
         return 1;
     }
@@ -3971,6 +3983,12 @@ function cc0_compiler_external_arity(name, length)
     }
     if (cc0_text_equal(name, length, mks("dynarray_add"))) {
         return 3;
+    }
+    if (cc0_text_equal(name, length, mks("dynarray_reset"))) {
+        return 2;
+    }
+    if (cc0_text_equal(name, length, mks("case_sort"))) {
+        return 2;
     }
     if (cc0_text_equal(name, length, mks("label_find"))) {
         return 1;
