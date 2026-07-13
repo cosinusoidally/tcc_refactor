@@ -611,6 +611,12 @@ function expect(message)
     return 0;
 }
 
+function sym_redeclaration_error(value)
+{
+    tcc_error(mks("redeclaration of '%s'"), get_tok_str(value, 0));
+    return 0;
+}
+
 function cstr_new(string)
 {
     return cc2_zero_bytes(string, CC2_CSTRING_BYTES);

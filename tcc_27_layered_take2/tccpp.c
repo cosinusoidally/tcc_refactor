@@ -34,11 +34,6 @@ ST_DATA CString tokcstr; /* current parsed string, if any */
 /* display benchmark infos */
 ST_DATA int total_lines;
 
-PUB_FUNC void sym_redeclaration_error(int v)
-{
-    tcc_error("redeclaration of '%s'", get_tok_str(v, NULL));
-}
-
 /* ------------------------------------------------------------------------- */
 
 static TokenSym *hash_ident[TOK_HASH_SIZE];
@@ -358,9 +353,6 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
     return ts;
 }
 
-#define TOK_HASH_INIT 1
-#define TOK_HASH_FUNC(h, c) ((h) + ((h) << 5) + ((h) >> 27) + (c))
-
 /* find a token and add it if not found */
 TokenSym *tok_alloc(const char *str, int len)
 {
@@ -519,40 +511,6 @@ const char *get_tok_str(int v, CValue *cv)
 }
 
 #define cinp minp
-
-#if 0
-/* return the number of additional 'ints' necessary to store the
-   token */
-static inline int tok_size(const int *p)
-{
-    switch(*p) {
-        /* 4 bytes */
-    case TOK_CINT:
-    case TOK_CUINT:
-    case TOK_CCHAR:
-    case TOK_LCHAR:
-    case TOK_CFLOAT:
-    case TOK_LINENUM:
-        return 1 + 1;
-    case TOK_STR:
-    case TOK_LSTR:
-    case TOK_PPNUM:
-    case TOK_PPSTR:
-        return 1 + ((sizeof(CString) + ((CString *)(p+1))->size + 3) >> 2);
-    case TOK_CLONG:
-    case TOK_CULONG:
-	return 1 + LONG_SIZE / 4;
-    case TOK_CDOUBLE:
-    case TOK_CLLONG:
-    case TOK_CULLONG:
-        return 1 + 2;
-    case TOK_CLDOUBLE:
-        return 1 + LDOUBLE_SIZE / 4;
-    default:
-        return 1 + 0;
-    }
-}
-#endif
 
 static void pragma_parse(TCCState *s1)
 {
