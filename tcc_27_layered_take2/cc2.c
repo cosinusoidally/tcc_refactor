@@ -6911,6 +6911,205 @@ function unary_postfix_index()
     return 0;
 }
 
+function cc2_integer_constant_zero(value, type_value)
+{
+    if (not(eq(ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)), 0))) {
+        return 0;
+    }
+    if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE)) {
+        return eq(ri32(add(value, add(CC2_SVALUE_CONSTANT_OFFSET, 4))), 0);
+    }
+    return 1;
+}
+
+function cc2_integer_constant_one(value, type_value)
+{
+    if (not(eq(ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)), 1))) {
+        return 0;
+    }
+    if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE)) {
+        return eq(ri32(add(value, add(CC2_SVALUE_CONSTANT_OFFSET, 4))), 0);
+    }
+    return 1;
+}
+
+function cc2_integer_constant_minus_one(value, type_value)
+{
+    if (not(eq(ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)),
+        sub(0, 1)))) {
+        return 0;
+    }
+    if (eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE)) {
+        return eq(ri32(add(value, add(CC2_SVALUE_CONSTANT_OFFSET, 4))),
+            sub(0, 1));
+    }
+    return eq(and(type_value, CC2_TCC_UNSIGNED_TYPE), 0);
+}
+
+function cc2_integer_constant_u32_max(value, type_value)
+{
+    return and(not(eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE)), eq(ri32(add(value,
+        CC2_SVALUE_CONSTANT_OFFSET)), sub(0, 1)));
+}
+
+function gen_opic(operation)
+{
+    var first;
+    var second;
+    var first_type;
+    var second_type;
+    var first_registers;
+    var second_registers;
+    var first_constant;
+    var second_constant;
+    var first_zero;
+    var second_zero;
+    var first_minus_one;
+    var second_minus_one;
+    var second_one;
+    var second_u32_max;
+    var commutative;
+    var shift;
+    var left_location;
+    first = sub(vtop, CC2_SVALUE_BYTES);
+    second = vtop;
+    first_type = ri32(first);
+    second_type = ri32(second);
+    first_registers = and(ri32(add(first,
+        CC2_SVALUE_REGISTER_OFFSET)), 65535);
+    second_registers = and(ri32(add(second,
+        CC2_SVALUE_REGISTER_OFFSET)), 65535);
+    first_constant = eq(and(first_registers, CC2_VALUE_TEST_MASK),
+        CC2_VALUE_CONSTANT);
+    second_constant = eq(and(second_registers, CC2_VALUE_TEST_MASK),
+        CC2_VALUE_CONSTANT);
+    if (and(first_constant, second_constant)) {
+        if (gen_opic_fold_constant(operation)) {
+            return 0;
+        }
+        if (or(eq(and(first_type, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_LONG_LONG_TYPE), eq(and(second_type,
+            CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_LONG_LONG_TYPE))) {
+            gen_opl(operation);
+        } else {
+            gen_opi(operation);
+        }
+        return 0;
+    }
+
+    commutative = or(or(eq(operation, CC2_ASCII_PLUS),
+        eq(operation, CC2_ASCII_AMPERSAND)), or(or(eq(operation,
+        CC2_ASCII_CARET), eq(operation, CC2_ASCII_VERTICAL_BAR)),
+        eq(operation, CC2_ASCII_ASTERISK)));
+    if (and(first_constant, commutative)) {
+        vswap();
+        second_constant = 1;
+        second = vtop;
+    }
+    first_zero = cc2_integer_constant_zero(first, first_type);
+    first_minus_one = cc2_integer_constant_minus_one(first, first_type);
+    second_zero = cc2_integer_constant_zero(second, second_type);
+    second_minus_one = cc2_integer_constant_minus_one(second, second_type);
+    second_one = cc2_integer_constant_one(second, second_type);
+    second_u32_max = cc2_integer_constant_u32_max(second, second_type);
+
+    if (not(const_wanted)) {
+        if (and(first_constant, or(and(first_zero, or(eq(operation,
+            CC2_TOKEN_SHIFT_LEFT), or(eq(operation,
+            CC2_TOKEN_UNSIGNED_SHIFT_RIGHT), eq(operation,
+            CC2_TOKEN_SHIFT_RIGHT)))), and(first_minus_one,
+            eq(operation, CC2_TOKEN_SHIFT_RIGHT))))) {
+            vtop = sub(vtop, CC2_SVALUE_BYTES);
+            return 0;
+        }
+        if (second_constant) {
+            if (or(and(second_zero, or(eq(operation,
+                CC2_ASCII_AMPERSAND), eq(operation,
+                CC2_ASCII_ASTERISK))), or(and(eq(operation,
+                CC2_ASCII_VERTICAL_BAR), or(second_minus_one,
+                second_u32_max)), and(second_one, or(eq(operation,
+                CC2_ASCII_PERCENT), eq(operation,
+                CC2_TOKEN_UNSIGNED_MODULO)))))) {
+                if (second_one) {
+                    wi32(add(second, CC2_SVALUE_CONSTANT_OFFSET), 0);
+                    wi32(add(second, add(CC2_SVALUE_CONSTANT_OFFSET, 4)),
+                        0);
+                }
+                vswap();
+                vtop = sub(vtop, CC2_SVALUE_BYTES);
+                return 0;
+            }
+        }
+    }
+    if (second_constant) {
+        if (or(and(second_one, or(or(eq(operation,
+            CC2_ASCII_ASTERISK), eq(operation, CC2_ASCII_SLASH)), or(
+            eq(operation, CC2_TOKEN_UNSIGNED_DIVIDE), eq(operation,
+            CC2_TOKEN_POINTER_DIVIDE)))), or(and(second_zero, or(or(or(
+            eq(operation, CC2_ASCII_PLUS), eq(operation,
+            CC2_ASCII_MINUS)), or(eq(operation,
+            CC2_ASCII_VERTICAL_BAR), eq(operation,
+            CC2_ASCII_CARET))), or(eq(operation,
+            CC2_TOKEN_SHIFT_LEFT), or(eq(operation,
+            CC2_TOKEN_UNSIGNED_SHIFT_RIGHT), eq(operation,
+            CC2_TOKEN_SHIFT_RIGHT))))), and(eq(operation,
+            CC2_ASCII_AMPERSAND), or(second_minus_one,
+            second_u32_max))))) {
+            vtop = sub(vtop, CC2_SVALUE_BYTES);
+            return 0;
+        }
+        if (or(eq(operation, CC2_ASCII_ASTERISK), or(eq(operation,
+            CC2_TOKEN_POINTER_DIVIDE), eq(operation,
+            CC2_TOKEN_UNSIGNED_DIVIDE)))) {
+            shift = gen_opic_power_shift();
+            if (not(lt(shift, 0))) {
+                wi32(add(second, CC2_SVALUE_CONSTANT_OFFSET), shift);
+                wi32(add(second, add(CC2_SVALUE_CONSTANT_OFFSET, 4)), 0);
+                if (eq(operation, CC2_ASCII_ASTERISK)) {
+                    operation = CC2_TOKEN_SHIFT_LEFT;
+                } else if (eq(operation, CC2_TOKEN_POINTER_DIVIDE)) {
+                    operation = CC2_TOKEN_SHIFT_RIGHT;
+                } else {
+                    operation = CC2_TOKEN_UNSIGNED_SHIFT_RIGHT;
+                }
+            }
+            if (or(eq(and(first_type, CC2_TCC_BASIC_TYPE_MASK),
+                CC2_TCC_LONG_LONG_TYPE), eq(and(second_type,
+                CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_LONG_LONG_TYPE))) {
+                gen_opl(operation);
+            } else {
+                gen_opi(operation);
+            }
+            return 0;
+        }
+        if (or(eq(operation, CC2_ASCII_PLUS),
+            eq(operation, CC2_ASCII_MINUS))) {
+            left_location = and(first_registers,
+                CC2_VALUE_TEST_MASK);
+            if (or(eq(left_location, or(CC2_VALUE_CONSTANT,
+                CC2_TCC_SYMBOL_VALUE)), eq(and(first_registers, or(
+                CC2_VALUE_LOCATION_MASK, CC2_TCC_LVALUE)),
+                CC2_VALUE_LOCAL))) {
+                if (gen_opic_merge_addend(operation)) {
+                    return 0;
+                }
+            }
+        }
+    }
+    if (or(eq(and(first_type, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE), eq(and(second_type,
+        CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_LONG_LONG_TYPE))) {
+        gen_opl(operation);
+    } else {
+        gen_opi(operation);
+    }
+    return 0;
+}
+
 function unary_postfix_call()
 {
     var function_symbol;

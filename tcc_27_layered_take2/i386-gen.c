@@ -747,7 +747,7 @@ int gtst(int inv, int t)
 }
 
 /* generate an integer binary operation */
-ST_FUNC void gen_opi(int op)
+void gen_opi(int op)
 {
     int r, fr, opc, c;
 

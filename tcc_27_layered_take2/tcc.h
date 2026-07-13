@@ -1573,7 +1573,10 @@ void gtst_addr(int inv, int a);
 #else
 #define gtst_addr(inv, a) gsym_addr(gtst(inv, 0), a)
 #endif
-ST_FUNC void gen_opi(int op);
+void gen_opi(int op);
+int gen_opic_fold_constant(int op);
+int gen_opic_power_shift(void);
+int gen_opic_merge_addend(int op);
 ST_FUNC void gen_opf(int op);
 void gen_cvt_ftoi(int t);
 void gen_cvt_ftof(int t);
