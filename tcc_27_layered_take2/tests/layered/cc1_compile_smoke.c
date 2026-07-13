@@ -6,11 +6,23 @@ int identity(int value)
     return value;
 }
 
+int record(int value)
+{
+    global_result = value;
+    return 0;
+}
+
 #ifdef RESULT
 int main()
 {
-    global_result = identity(RESULT + 2);
-    return !(global_result == 2);
+    record(identity(RESULT + 1));
+    while (global_result < 2) {
+        global_result = global_result + 1;
+    }
+    if (global_result <= 2) {
+        return !(global_result == 2);
+    }
+    return 1;
 }
 #else
 int main()

@@ -1402,7 +1402,71 @@ function cc1_normalize_tokens_(index, token, kind, text, length, origin,
         text = ri32(add(token, CC1_TOKEN_TEXT_OFFSET));
         length = ri32(add(token, CC1_TOKEN_LENGTH_OFFSET));
         skip = 0;
-        if (cc1_text_equal(text, length, mks("return"))) {
+        if (cc1_text_equal(text, length, mks("if"))) {
+            if (not(lt(add(index, 2), CC1_PREPROCESSED_COUNT))) {
+                return 1;
+            }
+            next_token = ri32(add(CC1_PREPROCESSED_TOKENS,
+                shl(add(index, 1), 2)));
+            if (not(eq(ri32(add(next_token, CC1_TOKEN_KIND_OFFSET)), 40))) {
+                return 1;
+            }
+            if (cc1_normalized_text(text, length, origin)) {
+                return 1;
+            }
+            if (cc1_normalized_byte(40, ri32(add(next_token,
+                CC1_TOKEN_SOURCE_OFFSET)))) {
+                return 1;
+            }
+            CC1_PREPROCESSED_CURSOR = add(index, 2);
+            expression = cc1_expression_parse_equality();
+            if (CC1_EXPRESSION_ERROR) {
+                return 1;
+            }
+            if (cc1_expression_emit(expression)) {
+                return 1;
+            }
+            if (not(cc1_expression_accept(41))) {
+                return 1;
+            }
+            if (cc1_normalized_byte(41, origin)) {
+                return 1;
+            }
+            index = sub(CC1_PREPROCESSED_CURSOR, 1);
+            skip = 1;
+        } else if (cc1_text_equal(text, length, mks("while"))) {
+            if (not(lt(add(index, 2), CC1_PREPROCESSED_COUNT))) {
+                return 1;
+            }
+            next_token = ri32(add(CC1_PREPROCESSED_TOKENS,
+                shl(add(index, 1), 2)));
+            if (not(eq(ri32(add(next_token, CC1_TOKEN_KIND_OFFSET)), 40))) {
+                return 1;
+            }
+            if (cc1_normalized_text(text, length, origin)) {
+                return 1;
+            }
+            if (cc1_normalized_byte(40, ri32(add(next_token,
+                CC1_TOKEN_SOURCE_OFFSET)))) {
+                return 1;
+            }
+            CC1_PREPROCESSED_CURSOR = add(index, 2);
+            expression = cc1_expression_parse_equality();
+            if (CC1_EXPRESSION_ERROR) {
+                return 1;
+            }
+            if (cc1_expression_emit(expression)) {
+                return 1;
+            }
+            if (not(cc1_expression_accept(41))) {
+                return 1;
+            }
+            if (cc1_normalized_byte(41, origin)) {
+                return 1;
+            }
+            index = sub(CC1_PREPROCESSED_CURSOR, 1);
+            skip = 1;
+        } else if (cc1_text_equal(text, length, mks("return"))) {
             if (cc1_normalized_text(text, length, origin)) {
                 return 1;
             }
@@ -1423,7 +1487,21 @@ function cc1_normalize_tokens_(index, token, kind, text, length, origin,
             if (lt(add(index, 1), CC1_PREPROCESSED_COUNT)) {
                 next_token = ri32(add(CC1_PREPROCESSED_TOKENS,
                     shl(add(index, 1), 2)));
-                if (eq(ri32(add(next_token, CC1_TOKEN_KIND_OFFSET)), 61)) {
+                if (eq(ri32(add(next_token, CC1_TOKEN_KIND_OFFSET)), 40)) {
+                    if (not(header)) {
+                        CC1_PREPROCESSED_CURSOR = index;
+                        expression = cc1_expression_parse_equality();
+                        if (CC1_EXPRESSION_ERROR) {
+                            return 1;
+                        }
+                        if (cc1_expression_emit(expression)) {
+                            return 1;
+                        }
+                        index = sub(CC1_PREPROCESSED_CURSOR, 1);
+                        skip = 1;
+                    }
+                } else if (eq(ri32(add(next_token,
+                    CC1_TOKEN_KIND_OFFSET)), 61)) {
                     if (not(lt(add(index, 2),
                         CC1_PREPROCESSED_COUNT))) {
                         return 1;
