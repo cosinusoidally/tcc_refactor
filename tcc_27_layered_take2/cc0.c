@@ -1125,6 +1125,9 @@ function cc0_elf_external_symbol(name, length)
     if (cc0_compiler_slice_equal(name, length, mks("type_decl"), 9)) {
         return cc0_elf_put_undefined_function(name, length);
     }
+    if (cc0_compiler_slice_equal(name, length, mks("post_type"), 9)) {
+        return cc0_elf_put_undefined_function(name, length);
+    }
     if (cc0_compiler_slice_equal(name, length,
         mks("expr_const64_words"), 18)) {
         return cc0_elf_put_undefined_function(name, length);
@@ -3634,6 +3637,9 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("type_decl"))) {
         return 4;
     }
+    if (cc0_text_equal(name, length, mks("post_type"))) {
+        return 4;
+    }
     if (cc0_text_equal(name, length, mks("expr_const64_words"))) {
         return 1;
     }
@@ -3886,6 +3892,9 @@ function cc0_compiler_external_arity(name, length)
         return 2;
     }
     if (cc0_text_equal(name, length, mks("type_decl"))) {
+        return 4;
+    }
+    if (cc0_text_equal(name, length, mks("post_type"))) {
         return 4;
     }
     if (cc0_text_equal(name, length, mks("expr_const64_words"))) {

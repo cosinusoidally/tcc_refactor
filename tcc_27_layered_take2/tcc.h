@@ -1371,7 +1371,9 @@ extern Sym *external_sym(int value, CType *type, int reg,
 extern void vstore(void);
 extern void inc(int post, int c);
 void parse_mult_str (CString *astr, const char *msg);
-ST_FUNC void parse_asm_str(CString *astr);
+void parse_asm_str(CString *astr);
+int asm_label_instr(void);
+int post_type(CType *type, AttributeDef *ad, int storage, int td);
 extern int lvalue_type(int t);
 extern void indir(void);
 extern void lexpand(void);

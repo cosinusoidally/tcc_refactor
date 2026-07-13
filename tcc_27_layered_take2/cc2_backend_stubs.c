@@ -49,9 +49,9 @@ function parse_btype(type, attributes)
     return 0;
 }
 
-function type_decl(type, attributes, identifier, mode)
+function post_type(type, attributes, storage, mode)
 {
-    return type;
+    return 1;
 }
 
 function expr_const64_words(words)

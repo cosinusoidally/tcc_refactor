@@ -1383,32 +1383,7 @@ the_end:
     return type_found;
 }
 
-/* convert a function parameter type (array to pointer and function to
-   function pointer) */
-ST_FUNC void parse_asm_str(CString *astr)
-{
-    skip('(');
-    parse_mult_str(astr, "string constant");
-}
-
-/* Parse an asm label and return the token */
-static int asm_label_instr(void)
-{
-    int v;
-    CString astr;
-
-    next();
-    parse_asm_str(&astr);
-    skip(')');
-#ifdef ASM_DEBUG
-    printf("asm_alias: \"%s\"\n", (char *)astr.data);
-#endif
-    v = tok_alloc(astr.data, astr.size - 1)->tok;
-    cstr_free(&astr);
-    return v;
-}
-
-static int post_type(CType *type, AttributeDef *ad, int storage, int td)
+int post_type(CType *type, AttributeDef *ad, int storage, int td)
 {
     int n, l, t1, arg_size, align;
     Sym **plast, *s, *first;
@@ -1554,75 +1529,6 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
    type_decl().  If this (possibly abstract) declarator is a pointer chain
    it returns the innermost pointed to type (equals *type, but is a different
    pointer), otherwise returns type itself, that's used for recursive calls.  */
-CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
-{
-    CType *post, *ret;
-    int qualifiers, storage;
-
-    /* recursive type, remove storage bits first, apply them later again */
-    storage = type->t & VT_STORAGE;
-    type->t &= ~VT_STORAGE;
-    post = ret = type;
-
-    while (tok == '*') {
-        qualifiers = 0;
-    redo:
-        next();
-        switch(tok) {
-        case TOK_CONST1:
-        case TOK_CONST2:
-        case TOK_CONST3:
-            qualifiers |= VT_CONSTANT;
-            goto redo;
-        case TOK_VOLATILE1:
-        case TOK_VOLATILE2:
-        case TOK_VOLATILE3:
-            qualifiers |= VT_VOLATILE;
-            goto redo;
-        case TOK_RESTRICT1:
-        case TOK_RESTRICT2:
-        case TOK_RESTRICT3:
-            goto redo;
-	/* XXX: clarify attribute handling */
-	case TOK_ATTRIBUTE1:
-	case TOK_ATTRIBUTE2:
-	    parse_attribute(ad);
-	    break;
-        }
-        mk_pointer(type);
-        type->t |= qualifiers;
-	if (ret == type)
-	    /* innermost pointed to type is the one for the first derivation */
-	    ret = pointed_type(type);
-    }
-
-    if (tok == '(') {
-	/* This is possibly a parameter type list for abstract declarators
-	   ('int ()'), use post_type for testing this.  */
-	if (!post_type(type, ad, 0, td)) {
-	    /* It's not, so it's a nested declarator, and the post operations
-	       apply to the innermost pointed to type (if any).  */
-	    /* XXX: this is not correct to modify 'ad' at this point, but
-	       the syntax is not clear */
-	    parse_attribute(ad);
-	    post = type_decl(type, ad, v, td);
-	    skip(')');
-	}
-    } else if (tok >= TOK_IDENT && (td & TYPE_DIRECT)) {
-	/* type identifier */
-	*v = tok;
-	next();
-    } else {
-	if (!(td & TYPE_ABSTRACT))
-	  expect("identifier");
-	*v = 0;
-    }
-    post_type(post, ad, storage, 0);
-    parse_attribute(ad);
-    type->t |= storage;
-    return ret;
-}
-
 /* indirection with full error checking and bound check */
 
 /* pass a parameter to a function and do type checking and casting */

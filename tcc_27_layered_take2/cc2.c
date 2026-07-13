@@ -187,6 +187,18 @@ var CC2_EXPRESSION_MODE_EQUALITY = 2;
 var CC2_TOKEN_ATTRIBUTE_FIRST = 303;
 var CC2_TOKEN_ATTRIBUTE_SECOND = 304;
 var CC2_TOKEN_IDENTIFIER = 256;
+var CC2_TOKEN_UNNAMED_IDENTIFIER = 314;
+var CC2_TOKEN_CONST_FIRST = 273;
+var CC2_TOKEN_CONST_SECOND = 274;
+var CC2_TOKEN_CONST_THIRD = 275;
+var CC2_TOKEN_VOLATILE_FIRST = 276;
+var CC2_TOKEN_VOLATILE_SECOND = 277;
+var CC2_TOKEN_VOLATILE_THIRD = 278;
+var CC2_TOKEN_RESTRICT_FIRST = 288;
+var CC2_TOKEN_RESTRICT_SECOND = 289;
+var CC2_TOKEN_RESTRICT_THIRD = 290;
+var CC2_TYPE_ABSTRACT = 1;
+var CC2_TYPE_DIRECT = 2;
 var CC2_TOKEN_SECTION_FIRST = 338;
 var CC2_TOKEN_SECTION_SECOND = 339;
 var CC2_TOKEN_ALIAS_FIRST = 346;
@@ -225,6 +237,11 @@ var CC2_TOKEN_DLLIMPORT = 368;
 var CC2_ATTRIBUTE_SECTION_OFFSET = 8;
 var CC2_ATTRIBUTE_ALIAS_OFFSET = 12;
 var CC2_ATTRIBUTE_MODE_OFFSET = 20;
+var CC2_ATTRIBUTE_BYTES = 24;
+var CC2_CSTRING_SIZE_OFFSET = 0;
+var CC2_CSTRING_DATA_OFFSET = 4;
+var CC2_CSTRING_BYTES = 12;
+var CC2_TOKEN_SYMBOL_TOKEN_OFFSET = 20;
 var CC2_ATTRIBUTE_ALIGNED_MASK = 31;
 var CC2_ATTRIBUTE_PACKED = 32;
 var CC2_ATTRIBUTE_WEAK = 64;
@@ -3409,7 +3426,7 @@ function expr_type(type, mode)
 
 function parse_expr_type_(type, attributes, identifier)
 {
-    attributes = malloc(20);
+    attributes = malloc(CC2_ATTRIBUTE_BYTES);
     identifier = malloc(4);
     skip(40);
     if (parse_btype(type, attributes)) {
@@ -3430,7 +3447,7 @@ function parse_expr_type(type)
 
 function parse_type_(type, attributes, identifier)
 {
-    attributes = malloc(20);
+    attributes = malloc(CC2_ATTRIBUTE_BYTES);
     identifier = malloc(4);
     if (eq(parse_btype(type, attributes), 0)) {
         expect(mks("type"));
@@ -3706,6 +3723,100 @@ function parse_attribute_(attributes, token, value, string, data,
 function parse_attribute(attributes)
 {
     return parse_attribute_(attributes, 0, 0, 0, 0, 0, 0);
+}
+
+/* Parse the parenthesized string shared by asm labels and attributes. */
+function parse_asm_str(string)
+{
+    skip(40);
+    parse_mult_str(string, mks("string constant"));
+    return 0;
+}
+
+/* Intern an asm label and return its token number. */
+function asm_label_instr()
+{
+    var string;
+    var token_symbol;
+    var token;
+    string = malloc(CC2_CSTRING_BYTES);
+    next();
+    parse_asm_str(string);
+    skip(41);
+    token_symbol = tok_alloc(ri32(add(string, CC2_CSTRING_DATA_OFFSET)),
+        sub(ri32(add(string, CC2_CSTRING_SIZE_OFFSET)), 1));
+    token = ri32(add(token_symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET));
+    cstr_free(string);
+    free(string);
+    return token;
+}
+
+/* Parse the pointer and nested-declarator portion of a C declaration. */
+function type_decl(type, attributes, identifier, mode)
+{
+    var post;
+    var result;
+    var qualifiers;
+    var storage;
+    var token;
+    storage = and(ri32(type), CC2_TCC_STORAGE_MASK);
+    wi32(type, and(ri32(type), bnot(CC2_TCC_STORAGE_MASK)));
+    post = type;
+    result = type;
+
+    while (eq(ri32(tok_address), CC2_ASCII_ASTERISK)) {
+        qualifiers = 0;
+        next();
+        token = ri32(tok_address);
+        while (or(or(cc2_token_is_three(token,
+            CC2_TOKEN_CONST_FIRST, CC2_TOKEN_CONST_SECOND,
+            CC2_TOKEN_CONST_THIRD), cc2_token_is_three(token,
+            CC2_TOKEN_VOLATILE_FIRST, CC2_TOKEN_VOLATILE_SECOND,
+            CC2_TOKEN_VOLATILE_THIRD)), cc2_token_is_three(token,
+            CC2_TOKEN_RESTRICT_FIRST, CC2_TOKEN_RESTRICT_SECOND,
+            CC2_TOKEN_RESTRICT_THIRD))) {
+            if (cc2_token_is_three(token, CC2_TOKEN_CONST_FIRST,
+                CC2_TOKEN_CONST_SECOND, CC2_TOKEN_CONST_THIRD)) {
+                qualifiers = or(qualifiers, CC2_TCC_CONST_QUALIFIER);
+            } else if (cc2_token_is_three(token,
+                CC2_TOKEN_VOLATILE_FIRST, CC2_TOKEN_VOLATILE_SECOND,
+                CC2_TOKEN_VOLATILE_THIRD)) {
+                qualifiers = or(qualifiers, CC2_TCC_VOLATILE_QUALIFIER);
+            }
+            next();
+            token = ri32(tok_address);
+        }
+        if (cc2_token_is_two(token, CC2_TOKEN_ATTRIBUTE_FIRST,
+            CC2_TOKEN_ATTRIBUTE_SECOND)) {
+            parse_attribute(attributes);
+        }
+        mk_pointer(type);
+        wi32(type, or(ri32(type), qualifiers));
+        if (eq(result, type)) {
+            result = pointed_type(type);
+        }
+    }
+
+    if (eq(ri32(tok_address), 40)) {
+        if (not(post_type(type, attributes, 0, mode))) {
+            parse_attribute(attributes);
+            post = type_decl(type, attributes, identifier, mode);
+            skip(41);
+        }
+    } else if (and(not(lt(ri32(tok_address), CC2_TOKEN_IDENTIFIER)),
+        not(not(and(mode, CC2_TYPE_DIRECT))))) {
+        wi32(identifier, ri32(tok_address));
+        next();
+    } else {
+        if (not(and(mode, CC2_TYPE_ABSTRACT))) {
+            expect(mks("identifier"));
+        }
+        wi32(identifier, 0);
+    }
+    post_type(post, attributes, storage, 0);
+    parse_attribute(attributes);
+    wi32(type, or(ri32(type), storage));
+    return result;
 }
 
 function vstore_(destination_type, source_basic, destination_basic,
