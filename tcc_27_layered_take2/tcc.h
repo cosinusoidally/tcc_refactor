@@ -797,10 +797,6 @@ struct filespec {
 #define VT_SYM       0x0200  /* a symbol value is added */
 #define VT_MUSTCAST  0x0400  /* value must be casted to be correct (used for
                                 char/short stored in integer registers) */
-#define VT_MUSTBOUND 0x0800  /* bound checking must be done before
-                                dereferencing value */
-#define VT_BOUNDED   0x8000  /* value is bounded. The address of the
-                                bounding function call point is in vc */
 #define VT_LVAL_BYTE     0x1000  /* lvalue is a byte */
 #define VT_LVAL_SHORT    0x2000  /* lvalue is a short */
 #define VT_LVAL_UNSIGNED 0x4000  /* lvalue is unsigned */

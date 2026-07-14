@@ -126,8 +126,6 @@ var CC2_I386_WORD_BYTES;
 var CC2_TCC_VLA_TYPE;
 var CC2_TYPE_ALIGNMENT_TEMPORARY;
 var CC2_COMPARISON_TYPES_TEMPORARY;
-var CC2_VALUE_BOUNDED;
-var CC2_VALUE_MUST_BOUND;
 var CC2_TCC_INLINE_STORAGE;
 var CC2_SYM_ATTRIBUTE_ALIGNED_MASK;
 var CC2_SYM_ATTRIBUTE_WEAK;
@@ -11101,8 +11099,7 @@ function save_reg_upstack_(reg, count, entry, last, saved, stack_location,
             }
             if (not(eq(and(registers, CC2_TCC_LVALUE), 0))) {
                 new_register = or(and(registers,
-                    bnot(or(CC2_VALUE_LOCATION_MASK, CC2_VALUE_BOUNDED))),
-                    CC2_VALUE_LOCAL_LVALUE);
+                    bnot(CC2_VALUE_LOCATION_MASK)), CC2_VALUE_LOCAL_LVALUE);
             } else {
                 new_register = or(lvalue_type(ri32(entry)), CC2_VALUE_LOCAL);
             }
@@ -18290,11 +18287,6 @@ function unary_postfix_field(operator)
     if (eq(and(ri32(vtop), CC2_TCC_ARRAY_TYPE), 0)) {
         registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
         registers = or(registers, lvalue_type(ri32(vtop)));
-        if (and(ri32(add(tcc_state_address, 104)),
-            not(eq(and(registers, CC2_VALUE_LOCATION_MASK),
-            CC2_VALUE_LOCAL)))) {
-            registers = or(registers, CC2_VALUE_MUST_BOUND);
-        }
         wi32(add(vtop, CC2_SVALUE_REGISTER_OFFSET), registers);
     }
     next();
@@ -21038,8 +21030,6 @@ function cc2_init_constants()
     CC2_I386_LONG_DOUBLE_BYTES = 12;
     CC2_I386_WORD_BYTES = 4;
     CC2_TCC_VLA_TYPE = 1024;
-    CC2_VALUE_BOUNDED = 32768;
-    CC2_VALUE_MUST_BOUND = 2048;
     CC2_TCC_INLINE_STORAGE = 32768;
     CC2_SYM_ATTRIBUTE_ALIGNED_MASK = 31;
     CC2_SYM_ATTRIBUTE_WEAK = 64;
