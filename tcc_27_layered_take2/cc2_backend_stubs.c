@@ -193,6 +193,11 @@ function tcc_warning(format, value)
     return 0;
 }
 
+function tcc_error_noabort(format, value)
+{
+    return 0;
+}
+
 function gen_cast_constant(type)
 {
     return 0;

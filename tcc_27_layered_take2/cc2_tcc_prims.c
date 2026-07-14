@@ -491,6 +491,19 @@ ST_FUNC int tcc_preprocess(TCCState *state)
     return cc2_tcc_preprocess((int)state);
 }
 
+/* Address-taking for legacy typed globals is outside the cc0 dialect. */
+int cc2_bind_tcc_globals(TCCState *state)
+{
+    symtab_section_address = &symtab_section;
+    data_section_address = &data_section;
+    cur_text_section_address = &cur_text_section;
+    bss_section_address = &bss_section;
+    common_section_address = &common_section;
+    text_section_address = &text_section;
+    tcc_state_address = state;
+    return 0;
+}
+
 int cc2_bind_preprocess_types(TCCState *state)
 {
     pvtop = vtop = vstack - 1;
@@ -505,13 +518,7 @@ int cc2_bind_preprocess_types(TCCState *state)
     global_label_stack_address = &global_label_stack;
     local_label_stack_address = &local_label_stack;
     ptrdiff_type_address = &ptrdiff_type;
-    symtab_section_address = &symtab_section;
-    data_section_address = &data_section;
-    cur_text_section_address = &cur_text_section;
-    bss_section_address = &bss_section;
-    common_section_address = &common_section;
-    text_section_address = &text_section;
-    tcc_state_address = state;
+    cc2_bind_tcc_globals(state);
     return 0;
 }
 

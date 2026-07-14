@@ -706,6 +706,17 @@ var CC2_ELF_SYMBOL_NAME_OFFSET;
 var CC2_ELF_SYMBOL_INFO_OFFSET;
 var CC2_ELF_LOCAL_BINDING;
 var CC2_ELF_UNDEFINED_SECTION;
+var CC2_ELF_WEAK_BINDING;
+var CC2_ELF_SYMBOL_TYPE_MASK;
+var CC2_ELF_SYMBOL_VISIBILITY_MASK;
+var CC2_ELF_DEFAULT_VISIBILITY;
+var CC2_ELF_INTERNAL_VISIBILITY;
+var CC2_ELF_HIDDEN_VISIBILITY;
+var CC2_ELF_COMMON_SECTION;
+var CC2_ELF_LOW_RESERVED_SECTION;
+var CC2_ELF_DYNAMIC_SYMBOL_FLAG;
+var CC2_ELF_ASSEMBLER_SET_FLAG;
+var CC2_NEW_UNDEFINED_SYMBOL;
 var CC2_ELF_INITIAL_HASH_BUCKET_COUNT;
 var CC2_ELF_HASH_HEADER_WORDS;
 var CC2_ELF_RELOCATION_SECTION_PREFIX;
@@ -5700,12 +5711,6 @@ function new_symtab(state, symbol_table_name, section_type, section_flags,
     return symbol_table;
 }
 
-function cc2_set_tcc_state(state)
-{
-    tcc_state_address = state;
-    return 0;
-}
-
 function put_elf_reloca(symbol_table, section, offset, type, symbol, addend)
 {
     var relocation_section;
@@ -5744,6 +5749,124 @@ function put_elf_reloca(symbol_table, section, offset, type, symbol, addend)
 function put_elf_reloc(symbol_table, section, offset, type, symbol)
 {
     return put_elf_reloca(symbol_table, section, offset, type, symbol, 0);
+}
+
+function set_elf_sym(section, value, size, information, other, section_index,
+    name)
+{
+    var binding;
+    var symbol_type;
+    var visibility;
+    var symbol_index;
+    var symbol;
+    var existing_binding;
+    var existing_visibility;
+    var new_visibility;
+    var existing_section_index;
+    var bss_section_number;
+    var define_symbol;
+    var patch_symbol;
+    binding = ushr(information, CC2_ELF_SYMBOL_BIND_SHIFT);
+    symbol_type = and(information, CC2_ELF_SYMBOL_TYPE_MASK);
+    visibility = and(other, CC2_ELF_SYMBOL_VISIBILITY_MASK);
+    define_symbol = eq(binding, CC2_ELF_LOCAL_BINDING);
+    patch_symbol = 0;
+    symbol_index = 0;
+
+    if (not(define_symbol)) {
+        symbol_index = find_elf_sym(section, name);
+        if (eq(symbol_index, 0)) {
+            define_symbol = 1;
+        } else {
+            symbol = add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)),
+                mul(symbol_index, CC2_ELF_SYMBOL_BYTES));
+            existing_section_index = add(ri8(add(symbol,
+                CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), shl(ri8(add(symbol,
+                add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1))), 8));
+            if (and(and(and(and(eq(ri32(add(symbol,
+                CC2_ELF_SYMBOL_VALUE_OFFSET)), value), eq(ri32(add(symbol,
+                CC2_ELF_SYMBOL_SIZE_OFFSET)), size)), eq(ri8(add(symbol,
+                CC2_ELF_SYMBOL_INFO_OFFSET)), information)), eq(ri8(add(symbol,
+                add(CC2_ELF_SYMBOL_INFO_OFFSET, 1))), other)),
+                eq(existing_section_index, section_index))) {
+                return symbol_index;
+            }
+            if (eq(existing_section_index, CC2_ELF_UNDEFINED_SECTION)) {
+                patch_symbol = 1;
+            } else {
+                existing_binding = ushr(ri8(add(symbol,
+                    CC2_ELF_SYMBOL_INFO_OFFSET)), CC2_ELF_SYMBOL_BIND_SHIFT);
+                existing_visibility = and(ri8(add(symbol,
+                    add(CC2_ELF_SYMBOL_INFO_OFFSET, 1))),
+                    CC2_ELF_SYMBOL_VISIBILITY_MASK);
+                if (eq(existing_visibility, CC2_ELF_DEFAULT_VISIBILITY)) {
+                    new_visibility = visibility;
+                } else if (eq(visibility, CC2_ELF_DEFAULT_VISIBILITY)) {
+                    new_visibility = existing_visibility;
+                } else if (lt(existing_visibility, visibility)) {
+                    new_visibility = existing_visibility;
+                } else {
+                    new_visibility = visibility;
+                }
+                other = or(and(ri8(add(symbol, add(
+                    CC2_ELF_SYMBOL_INFO_OFFSET, 1))), bnot(
+                    CC2_ELF_SYMBOL_VISIBILITY_MASK)), new_visibility);
+                wi8(add(symbol, add(CC2_ELF_SYMBOL_INFO_OFFSET, 1)), other);
+                bss_section_number = ri32(add(ri32(bss_section_address),
+                    CC2_SECTION_NUMBER_OFFSET));
+                if (eq(section_index, CC2_ELF_UNDEFINED_SECTION)) {
+                } else if (and(eq(binding, CC2_ELF_SYMBOL_GLOBAL_BINDING),
+                    eq(existing_binding, CC2_ELF_WEAK_BINDING))) {
+                    patch_symbol = 1;
+                } else if (and(eq(binding, CC2_ELF_WEAK_BINDING),
+                    eq(existing_binding, CC2_ELF_SYMBOL_GLOBAL_BINDING))) {
+                } else if (and(eq(binding, CC2_ELF_WEAK_BINDING),
+                    eq(existing_binding, CC2_ELF_WEAK_BINDING))) {
+                } else if (or(eq(visibility, CC2_ELF_HIDDEN_VISIBILITY),
+                    eq(visibility, CC2_ELF_INTERNAL_VISIBILITY))) {
+                } else if (and(or(eq(existing_section_index,
+                    CC2_ELF_COMMON_SECTION), eq(existing_section_index,
+                    bss_section_number)), and(lt(section_index,
+                    CC2_ELF_LOW_RESERVED_SECTION), not(eq(section_index,
+                    bss_section_number))))) {
+                    patch_symbol = 1;
+                } else if (or(eq(section_index, CC2_ELF_COMMON_SECTION),
+                    eq(section_index, bss_section_number))) {
+                } else if (and(ri32(add(section, CC2_SECTION_FLAGS_OFFSET)),
+                    CC2_ELF_DYNAMIC_SYMBOL_FLAG)) {
+                } else if (and(other, CC2_ELF_ASSEMBLER_SET_FLAG)) {
+                    patch_symbol = 1;
+                } else {
+                    tcc_error_noabort(mks("'%s' defined twice"), name);
+                }
+            }
+        }
+    }
+    if (patch_symbol) {
+        wi8(add(symbol, CC2_ELF_SYMBOL_INFO_OFFSET), or(shl(binding,
+            CC2_ELF_SYMBOL_BIND_SHIFT), symbol_type));
+        wi8(add(symbol, CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET),
+            and(section_index, 255));
+        wi8(add(symbol, add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1)),
+            and(ushr(section_index, 8), 255));
+        wi32(add(symbol, CC2_ELF_SYMBOL_VALUE_OFFSET), value);
+        wi32(add(symbol, CC2_ELF_SYMBOL_SIZE_OFFSET), size);
+        wi8(add(symbol, add(CC2_ELF_SYMBOL_INFO_OFFSET, 1)), other);
+        CC2_NEW_UNDEFINED_SYMBOL = 1;
+    } else if (define_symbol) {
+        symbol_index = put_elf_sym(section, value, size, or(shl(binding,
+            CC2_ELF_SYMBOL_BIND_SHIFT), symbol_type), other, section_index,
+            name);
+    }
+    return symbol_index;
+}
+
+function new_undef_syms()
+{
+    var result;
+    result = CC2_NEW_UNDEFINED_SYMBOL;
+    CC2_NEW_UNDEFINED_SYMBOL = 0;
+    return result;
 }
 
 /* Grow the pool pointer vector with the same power-of-two rule as TCC. */
@@ -17171,6 +17294,17 @@ function cc2_init_constants()
     CC2_ELF_SYMBOL_INFO_OFFSET = 12;
     CC2_ELF_LOCAL_BINDING = 0;
     CC2_ELF_UNDEFINED_SECTION = 0;
+    CC2_ELF_WEAK_BINDING = 2;
+    CC2_ELF_SYMBOL_TYPE_MASK = 15;
+    CC2_ELF_SYMBOL_VISIBILITY_MASK = 3;
+    CC2_ELF_DEFAULT_VISIBILITY = 0;
+    CC2_ELF_INTERNAL_VISIBILITY = 1;
+    CC2_ELF_HIDDEN_VISIBILITY = 2;
+    CC2_ELF_COMMON_SECTION = 65522;
+    CC2_ELF_LOW_RESERVED_SECTION = 65280;
+    CC2_ELF_DYNAMIC_SYMBOL_FLAG = 1073741824;
+    CC2_ELF_ASSEMBLER_SET_FLAG = 4;
+    CC2_NEW_UNDEFINED_SYMBOL = 0;
     CC2_ELF_INITIAL_HASH_BUCKET_COUNT = 1;
     CC2_ELF_HASH_HEADER_WORDS = 2;
     CC2_ELF_RELOCATION_SECTION_PREFIX = mks(".rel");

@@ -43,8 +43,6 @@ ST_DATA Section *symtab_section;
 ST_DATA Section *stab_section, *stabstr_section;
 
 /* XXX: avoid static variable */
-static int new_undef_sym = 0; /* Is there a new undefined sym since last new_undef_sym() */
-
 /* special flag to indicate that the section should not be linked to the other ones */
 #define SHF_PRIVATE 0x80000000
 /* section is dynsymtab_section */
@@ -54,7 +52,7 @@ static int new_undef_sym = 0; /* Is there a new undefined sym since last new_und
 
 ST_FUNC void tccelf_new(TCCState *s)
 {
-    cc2_set_tcc_state((int)s);
+    cc2_bind_tcc_globals(s);
     /* no section zero */
     dynarray_add(&s->sections, &s->nb_sections, NULL);
 
@@ -204,94 +202,6 @@ ST_FUNC void* tcc_get_symbol_err(TCCState *s, const char *name)
     return (void*)(uintptr_t)get_elf_sym_addr(s, name, 1);
 }
 #endif
-
-/* add an elf symbol : check if it is already defined and patch
-   it. Return symbol index. NOTE that sh_num can be SHN_UNDEF. */
-ST_FUNC int set_elf_sym(Section *s, addr_t value, unsigned long size,
-                       int info, int other, int shndx, const char *name)
-{
-    ElfW(Sym) *esym;
-    int sym_bind, sym_index, sym_type, esym_bind;
-    unsigned char sym_vis, esym_vis, new_vis;
-
-    sym_bind = ELFW(ST_BIND)(info);
-    sym_type = ELFW(ST_TYPE)(info);
-    sym_vis = ELFW(ST_VISIBILITY)(other);
-
-    if (sym_bind != STB_LOCAL) {
-        /* we search global or weak symbols */
-        sym_index = find_elf_sym(s, name);
-        if (!sym_index)
-            goto do_def;
-        esym = &((ElfW(Sym) *)s->data)[sym_index];
-        if (esym->st_value == value && esym->st_size == size && esym->st_info == info
-            && esym->st_other == other && esym->st_shndx == shndx)
-            return sym_index;
-        if (esym->st_shndx != SHN_UNDEF) {
-            esym_bind = ELFW(ST_BIND)(esym->st_info);
-            /* propagate the most constraining visibility */
-            /* STV_DEFAULT(0)<STV_PROTECTED(3)<STV_HIDDEN(2)<STV_INTERNAL(1) */
-            esym_vis = ELFW(ST_VISIBILITY)(esym->st_other);
-            if (esym_vis == STV_DEFAULT) {
-                new_vis = sym_vis;
-            } else if (sym_vis == STV_DEFAULT) {
-                new_vis = esym_vis;
-            } else {
-                new_vis = (esym_vis < sym_vis) ? esym_vis : sym_vis;
-            }
-            esym->st_other = (esym->st_other & ~ELFW(ST_VISIBILITY)(-1))
-                             | new_vis;
-            other = esym->st_other; /* in case we have to patch esym */
-            if (shndx == SHN_UNDEF) {
-                /* ignore adding of undefined symbol if the
-                   corresponding symbol is already defined */
-            } else if (sym_bind == STB_GLOBAL && esym_bind == STB_WEAK) {
-                /* global overrides weak, so patch */
-                goto do_patch;
-            } else if (sym_bind == STB_WEAK && esym_bind == STB_GLOBAL) {
-                /* weak is ignored if already global */
-            } else if (sym_bind == STB_WEAK && esym_bind == STB_WEAK) {
-                /* keep first-found weak definition, ignore subsequents */
-            } else if (sym_vis == STV_HIDDEN || sym_vis == STV_INTERNAL) {
-                /* ignore hidden symbols after */
-            } else if ((esym->st_shndx == SHN_COMMON
-                            || esym->st_shndx == bss_section->sh_num)
-                        && (shndx < SHN_LORESERVE
-                            && shndx != bss_section->sh_num)) {
-                /* data symbol gets precedence over common/bss */
-                goto do_patch;
-            } else if (shndx == SHN_COMMON || shndx == bss_section->sh_num) {
-                /* data symbol keeps precedence over common/bss */
-            } else if (s->sh_flags & SHF_DYNSYM) {
-                /* we accept that two DLL define the same symbol */
-	    } else if (esym->st_other & ST_ASM_SET) {
-		/* If the existing symbol came from an asm .set
-		   we can override.  */
-		goto do_patch;
-            } else {
-#if 0
-                printf("new_bind=%x new_shndx=%x new_vis=%x old_bind=%x old_shndx=%x old_vis=%x\n",
-                       sym_bind, shndx, new_vis, esym_bind, esym->st_shndx, esym_vis);
-#endif
-                tcc_error_noabort("'%s' defined twice", name);
-            }
-        } else {
-        do_patch:
-            esym->st_info = ELFW(ST_INFO)(sym_bind, sym_type);
-            esym->st_shndx = shndx;
-            new_undef_sym = 1;
-            esym->st_value = value;
-            esym->st_size = size;
-            esym->st_other = other;
-        }
-    } else {
-    do_def:
-        sym_index = put_elf_sym(s, value, size,
-                                ELFW(ST_INFO)(sym_bind, sym_type), other,
-                                shndx, name);
-    }
-    return sym_index;
-}
 
 /* Remove relocations for section S->reloc starting at oldrelocoffset
    that are to the same place, retaining the last of them.  As side effect
@@ -2616,14 +2526,6 @@ static int ld_add_file(TCCState *s1, const char filename[])
         filename = tcc_basename(filename);
     }
     return tcc_add_dll(s1, filename, 0);
-}
-
-static inline int new_undef_syms(void)
-{
-    int ret = 0;
-    ret = new_undef_sym;
-    new_undef_sym = 0;
-    return ret;
 }
 
 static int ld_add_file_list(TCCState *s1, const char *cmd, int as_needed)
