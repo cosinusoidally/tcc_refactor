@@ -877,6 +877,11 @@ var CC2_ASM_OPERAND_CONSTRAINT_OFFSET;
 var CC2_ASM_OPERAND_VALUE_OFFSET;
 var CC2_ASM_OPERAND_REGISTER_OFFSET;
 var CC2_ASM_OPERAND_MEMORY_OFFSET;
+var CC2_ASM_OPERAND_REFERENCE_OFFSET;
+var CC2_ASM_OPERAND_INPUT_OFFSET;
+var CC2_ASM_OPERAND_PRIORITY_OFFSET;
+var CC2_ASM_OPERAND_LONG_LONG_OFFSET;
+var CC2_ASM_OPERAND_READ_WRITE_OFFSET;
 var CC2_ASM_OPERAND_LIMIT;
 var CC2_ASM_REGISTER_COUNT;
 var CC2_CHARACTER_IDENTIFIER_FLAG;
@@ -9193,6 +9198,331 @@ function asm_gen_code(operands, operand_count, output_count, is_output,
         }
     }
     free(allocated);
+    return 0;
+}
+
+function cc2_asm_register_available(allocated, reg, mask)
+{
+    return eq(and(ri8(add(allocated, reg)), mask), 0);
+}
+
+function cc2_asm_allocate_general_register(allocated, first, last, mask)
+{
+    var reg;
+    reg = first;
+    while (lt(reg, last)) {
+        if (cc2_asm_register_available(allocated, reg, mask)) {
+            return reg;
+        }
+        reg = add(reg, 1);
+    }
+    return sub(0, 1);
+}
+
+function asm_compute_constraints(operands, operand_count, output_count,
+    clobbers, output_register)
+{
+    var sorted;
+    var allocated;
+    var index;
+    var other_index;
+    var operand_index;
+    var operand;
+    var other;
+    var constraint;
+    var current;
+    var character;
+    var priority;
+    var other_priority;
+    var temporary;
+    var value;
+    var registers;
+    var symbol;
+    var reg;
+    var register_mask;
+    var satisfied;
+    sorted = malloc(mul(operand_count, CC2_I386_WORD_BYTES));
+    allocated = malloc(CC2_ASM_REGISTER_COUNT);
+    index = 0;
+    while (lt(index, operand_count)) {
+        operand = add(operands, mul(index, CC2_ASM_OPERAND_BYTES));
+        wi32(add(operand, CC2_ASM_OPERAND_INPUT_OFFSET), sub(0, 1));
+        wi32(add(operand, CC2_ASM_OPERAND_REFERENCE_OFFSET), sub(0, 1));
+        wi32(add(operand, CC2_ASM_OPERAND_REGISTER_OFFSET), sub(0, 1));
+        wi32(add(operand, CC2_ASM_OPERAND_MEMORY_OFFSET), 0);
+        wi32(add(operand, CC2_ASM_OPERAND_READ_WRITE_OFFSET), 0);
+        constraint = skip_constraint_modifiers(ri32(add(operand,
+            CC2_ASM_OPERAND_CONSTRAINT_OFFSET)));
+        character = ri8(constraint);
+        if (or(and(le(mkC("0"), character), le(character, mkC("9"))),
+            eq(character, mkC("[")))) {
+            other_index = find_constraint(operands, operand_count,
+                constraint, 0);
+            if (or(not(cc2_unsigned_less(other_index, index)),
+                lt(index, output_count))) {
+                tcc_error(mks("invalid reference in constraint %d ('%s')"),
+                    index, constraint);
+            }
+            wi32(add(operand, CC2_ASM_OPERAND_REFERENCE_OFFSET),
+                other_index);
+            other = add(operands, mul(other_index,
+                CC2_ASM_OPERAND_BYTES));
+            if (le(0, ri32(add(other, CC2_ASM_OPERAND_INPUT_OFFSET)))) {
+                tcc_error(mks("cannot reference twice the same operand"), 0);
+            }
+            wi32(add(other, CC2_ASM_OPERAND_INPUT_OFFSET), index);
+            wi32(add(operand, CC2_ASM_OPERAND_PRIORITY_OFFSET), 5);
+        } else {
+            value = ri32(add(operand, CC2_ASM_OPERAND_VALUE_OFFSET));
+            registers = ri32(add(value, CC2_SVALUE_REGISTER_OFFSET));
+            symbol = ri32(add(value, CC2_SVALUE_SYMBOL_OFFSET));
+            reg = sub(0, 1);
+            if (not(eq(symbol, 0))) {
+                reg = and(ri32(add(symbol, CC2_SYM_REGISTER_OFFSET)),
+                    CC2_VALUE_LOCATION_MASK);
+            }
+            if (and(eq(and(registers, CC2_VALUE_LOCATION_MASK),
+                CC2_VALUE_LOCAL), and(not(eq(symbol, 0)),
+                lt(reg, CC2_VALUE_CONSTANT)))) {
+                wi32(add(operand, CC2_ASM_OPERAND_PRIORITY_OFFSET), 1);
+                wi32(add(operand, CC2_ASM_OPERAND_REGISTER_OFFSET), reg);
+            } else {
+                wi32(add(operand, CC2_ASM_OPERAND_PRIORITY_OFFSET),
+                    constraint_priority(constraint));
+            }
+        }
+        wi32(add(sorted, shl(index, 2)), index);
+        index = add(index, 1);
+    }
+    index = 0;
+    while (lt(index, sub(operand_count, 1))) {
+        other_index = add(index, 1);
+        while (lt(other_index, operand_count)) {
+            operand_index = ri32(add(sorted, shl(index, 2)));
+            priority = ri32(add(add(operands, mul(operand_index,
+                CC2_ASM_OPERAND_BYTES)), CC2_ASM_OPERAND_PRIORITY_OFFSET));
+            operand_index = ri32(add(sorted, shl(other_index, 2)));
+            other_priority = ri32(add(add(operands, mul(operand_index,
+                CC2_ASM_OPERAND_BYTES)), CC2_ASM_OPERAND_PRIORITY_OFFSET));
+            if (lt(other_priority, priority)) {
+                temporary = ri32(add(sorted, shl(index, 2)));
+                wi32(add(sorted, shl(index, 2)), ri32(add(sorted,
+                    shl(other_index, 2))));
+                wi32(add(sorted, shl(other_index, 2)), temporary);
+            }
+            other_index = add(other_index, 1);
+        }
+        index = add(index, 1);
+    }
+    index = 0;
+    while (lt(index, CC2_ASM_REGISTER_COUNT)) {
+        if (ri8(add(clobbers, index))) {
+            wi8(add(allocated, index), 3);
+        } else {
+            wi8(add(allocated, index), 0);
+        }
+        index = add(index, 1);
+    }
+    wi8(add(allocated, 4), 3);
+    wi8(add(allocated, 5), 3);
+    index = 0;
+    while (lt(index, operand_count)) {
+        operand_index = ri32(add(sorted, shl(index, 2)));
+        operand = add(operands, mul(operand_index,
+            CC2_ASM_OPERAND_BYTES));
+        if (lt(ri32(add(operand, CC2_ASM_OPERAND_REFERENCE_OFFSET)), 0)) {
+            if (le(0, ri32(add(operand, CC2_ASM_OPERAND_INPUT_OFFSET)))) {
+                register_mask = 3;
+            } else if (lt(operand_index, output_count)) {
+                register_mask = 1;
+            } else {
+                register_mask = 2;
+            }
+            reg = ri32(add(operand, CC2_ASM_OPERAND_REGISTER_OFFSET));
+            if (le(0, reg)) {
+                if (not(cc2_asm_register_available(allocated, reg,
+                    register_mask))) {
+                    tcc_error(mks("asm regvar requests register that's taken already"), 0);
+                }
+                wi8(add(allocated, reg), or(ri8(add(allocated, reg)),
+                    register_mask));
+                wi32(add(operand, CC2_ASM_OPERAND_LONG_LONG_OFFSET), 0);
+            } else {
+                current = ri32(add(operand,
+                    CC2_ASM_OPERAND_CONSTRAINT_OFFSET));
+                satisfied = 0;
+                while (and(not(satisfied), not(eq(ri8(current), 0)))) {
+                    character = ri8(current);
+                    current = add(current, 1);
+                    if (eq(character, mkC("="))) {
+                        character = 0;
+                    } else if (or(eq(character, mkC("+")),
+                        eq(character, mkC("&")))) {
+                        if (eq(character, mkC("+"))) {
+                            wi32(add(operand,
+                                CC2_ASM_OPERAND_READ_WRITE_OFFSET), 1);
+                        }
+                        if (not(lt(operand_index, output_count))) {
+                            tcc_error(mks("'%c' modifier can only be applied to outputs"), character);
+                        }
+                        register_mask = 3;
+                    } else if (eq(character, mkC("A"))) {
+                        if (and(cc2_asm_register_available(allocated, 0,
+                            register_mask), cc2_asm_register_available(
+                            allocated, 2, register_mask))) {
+                            wi32(add(operand,
+                                CC2_ASM_OPERAND_LONG_LONG_OFFSET), 1);
+                            reg = 0;
+                            wi8(allocated, or(ri8(allocated), register_mask));
+                            wi8(add(allocated, 2), or(ri8(add(allocated, 2)),
+                                register_mask));
+                            wi32(add(operand,
+                                CC2_ASM_OPERAND_REGISTER_OFFSET), reg);
+                            satisfied = 2;
+                        }
+                    } else if (or(or(eq(character, mkC("a")),
+                        eq(character, mkC("b"))), or(eq(character,
+                        mkC("c")), eq(character, mkC("d"))))) {
+                        if (eq(character, mkC("a"))) {
+                            reg = 0;
+                        } else if (eq(character, mkC("b"))) {
+                            reg = 3;
+                        } else if (eq(character, mkC("c"))) {
+                            reg = 1;
+                        } else {
+                            reg = 2;
+                        }
+                        if (cc2_asm_register_available(allocated, reg,
+                            register_mask)) {
+                            satisfied = 1;
+                        }
+                    } else if (or(eq(character, mkC("S")),
+                        eq(character, mkC("D")))) {
+                        if (eq(character, mkC("S"))) {
+                            reg = 6;
+                        } else {
+                            reg = 7;
+                        }
+                        if (cc2_asm_register_available(allocated, reg,
+                            register_mask)) {
+                            satisfied = 1;
+                        }
+                    } else if (eq(character, mkC("q"))) {
+                        reg = cc2_asm_allocate_general_register(allocated,
+                            0, 4, register_mask);
+                        if (le(0, reg)) {
+                            satisfied = 1;
+                        }
+                    } else if (or(or(eq(character, mkC("r")),
+                        eq(character, mkC("R"))), eq(character,
+                        mkC("p")))) {
+                        reg = cc2_asm_allocate_general_register(allocated,
+                            0, CC2_ASM_REGISTER_COUNT, register_mask);
+                        if (le(0, reg)) {
+                            satisfied = 1;
+                        }
+                    } else if (or(eq(character, mkC("e")),
+                        eq(character, mkC("i")))) {
+                        value = ri32(add(operand,
+                            CC2_ASM_OPERAND_VALUE_OFFSET));
+                        registers = ri32(add(value,
+                            CC2_SVALUE_REGISTER_OFFSET));
+                        if (eq(and(registers, or(CC2_VALUE_LOCATION_MASK,
+                            CC2_TCC_LVALUE)), CC2_VALUE_CONSTANT)) {
+                            satisfied = 1;
+                            reg = sub(0, 1);
+                        }
+                    } else if (or(or(eq(character, mkC("I")),
+                        eq(character, mkC("N"))), eq(character,
+                        mkC("M")))) {
+                        value = ri32(add(operand,
+                            CC2_ASM_OPERAND_VALUE_OFFSET));
+                        registers = ri32(add(value,
+                            CC2_SVALUE_REGISTER_OFFSET));
+                        if (eq(and(registers, or(CC2_VALUE_LOCATION_MASK,
+                            or(CC2_TCC_LVALUE, CC2_TCC_SYMBOL_VALUE))),
+                            CC2_VALUE_CONSTANT)) {
+                            satisfied = 1;
+                            reg = sub(0, 1);
+                        }
+                    } else if (or(eq(character, mkC("m")),
+                        eq(character, mkC("g")))) {
+                        value = ri32(add(operand,
+                            CC2_ASM_OPERAND_VALUE_OFFSET));
+                        registers = ri32(add(value,
+                            CC2_SVALUE_REGISTER_OFFSET));
+                        if (and(or(lt(operand_index, output_count),
+                            eq(character, mkC("m"))), eq(and(registers,
+                            CC2_VALUE_LOCATION_MASK),
+                            CC2_VALUE_LOCAL_LVALUE))) {
+                            reg = cc2_asm_allocate_general_register(
+                                allocated, 0, CC2_ASM_REGISTER_COUNT, 2);
+                            if (le(0, reg)) {
+                                wi8(add(allocated, reg), or(ri8(add(
+                                    allocated, reg)), 2));
+                                wi32(add(operand,
+                                    CC2_ASM_OPERAND_MEMORY_OFFSET), 1);
+                                wi32(add(operand,
+                                    CC2_ASM_OPERAND_REGISTER_OFFSET), reg);
+                                satisfied = 2;
+                            }
+                        } else {
+                            reg = sub(0, 1);
+                            satisfied = 1;
+                        }
+                    } else {
+                        tcc_error(mks("asm constraint %d ('%s') could not be satisfied"), operand_index, ri32(add(operand,
+                            CC2_ASM_OPERAND_CONSTRAINT_OFFSET)));
+                    }
+                    if (and(eq(satisfied, 1), le(0, reg))) {
+                        wi32(add(operand,
+                            CC2_ASM_OPERAND_LONG_LONG_OFFSET), 0);
+                        wi32(add(operand,
+                            CC2_ASM_OPERAND_REGISTER_OFFSET), reg);
+                        wi8(add(allocated, reg), or(ri8(add(allocated, reg)),
+                            register_mask));
+                    }
+                }
+                if (not(satisfied)) {
+                    tcc_error(mks("asm constraint %d ('%s') could not be satisfied"), operand_index, ri32(add(operand,
+                        CC2_ASM_OPERAND_CONSTRAINT_OFFSET)));
+                }
+            }
+            other_index = ri32(add(operand, CC2_ASM_OPERAND_INPUT_OFFSET));
+            if (le(0, other_index)) {
+                other = add(operands, mul(other_index,
+                    CC2_ASM_OPERAND_BYTES));
+                wi32(add(other, CC2_ASM_OPERAND_REGISTER_OFFSET),
+                    ri32(add(operand, CC2_ASM_OPERAND_REGISTER_OFFSET)));
+                wi32(add(other, CC2_ASM_OPERAND_LONG_LONG_OFFSET),
+                    ri32(add(operand, CC2_ASM_OPERAND_LONG_LONG_OFFSET)));
+            }
+        }
+        index = add(index, 1);
+    }
+    wi32(output_register, sub(0, 1));
+    index = 0;
+    while (lt(index, operand_count)) {
+        operand = add(operands, mul(index, CC2_ASM_OPERAND_BYTES));
+        reg = ri32(add(operand, CC2_ASM_OPERAND_REGISTER_OFFSET));
+        value = ri32(add(operand, CC2_ASM_OPERAND_VALUE_OFFSET));
+        if (and(le(0, reg), and(eq(and(ri32(add(value,
+            CC2_SVALUE_REGISTER_OFFSET)), CC2_VALUE_LOCATION_MASK),
+            CC2_VALUE_LOCAL_LVALUE), eq(ri32(add(operand,
+            CC2_ASM_OPERAND_MEMORY_OFFSET)), 0)))) {
+            reg = cc2_asm_allocate_general_register(allocated, 0,
+                CC2_ASM_REGISTER_COUNT, 1);
+            if (lt(reg, 0)) {
+                tcc_error(mks("could not find free output register for reloading"), 0);
+            }
+            wi32(output_register, reg);
+            index = operand_count;
+        } else {
+            index = add(index, 1);
+        }
+    }
+    free(allocated);
+    free(sorted);
     return 0;
 }
 
@@ -24709,6 +25039,11 @@ function cc2_init_constants()
     CC2_ASM_OPERAND_VALUE_OFFSET = 24;
     CC2_ASM_OPERAND_REGISTER_OFFSET = 40;
     CC2_ASM_OPERAND_MEMORY_OFFSET = 48;
+    CC2_ASM_OPERAND_REFERENCE_OFFSET = 28;
+    CC2_ASM_OPERAND_INPUT_OFFSET = 32;
+    CC2_ASM_OPERAND_PRIORITY_OFFSET = 36;
+    CC2_ASM_OPERAND_LONG_LONG_OFFSET = 44;
+    CC2_ASM_OPERAND_READ_WRITE_OFFSET = 52;
     CC2_ASM_OPERAND_LIMIT = 30;
     CC2_ASM_REGISTER_COUNT = 8;
     CC2_CHARACTER_IDENTIFIER_FLAG = 2;

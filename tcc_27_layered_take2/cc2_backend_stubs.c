@@ -201,13 +201,6 @@ function cc2_i386_test_bit_table()
     return 0;
 }
 
-function asm_compute_constraints(operands, operand_count, output_count,
-    clobbers, output_register)
-{
-    wi32(output_register, 0);
-    return 0;
-}
-
 function case_sort(base, count)
 {
     return 0;
