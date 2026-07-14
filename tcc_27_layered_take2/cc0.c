@@ -352,6 +352,13 @@ var CC0_LINK_RELOCATION_TARGET_OFFSET;
 var CC0_LINK_RELOCATION_TYPE_OFFSET;
 var CC0_LINK_RELOCATION_SYMBOL_OFFSET;
 var CC0_LINK_ELF_SECTION_INFO_OFFSET;
+var CC0_LINK_IMPORTS;
+var CC0_LINK_IMPORT_COUNT;
+var CC0_LINK_IMPORT_CAPACITY;
+var CC0_LINK_IMPORT_SHIFT;
+var CC0_LINK_IMPORT_NAME_OFFSET;
+var CC0_LINK_IMPORT_LENGTH_OFFSET;
+var CC0_LINK_IMPORT_INDEX_OFFSET;
 var CC0_ELF_HEADER_BYTES;
 var CC0_ELF_SECTION_HEADER_BYTES;
 var CC0_ELF_TYPE_RELOCATABLE;
@@ -702,6 +709,13 @@ function cc0_init()
     CC0_LINK_RELOCATION_TYPE_OFFSET = 12;
     CC0_LINK_RELOCATION_SYMBOL_OFFSET = 16;
     CC0_LINK_ELF_SECTION_INFO_OFFSET = 28;
+    CC0_LINK_IMPORTS = 0;
+    CC0_LINK_IMPORT_COUNT = 0;
+    CC0_LINK_IMPORT_CAPACITY = 0;
+    CC0_LINK_IMPORT_SHIFT = 4;
+    CC0_LINK_IMPORT_NAME_OFFSET = 0;
+    CC0_LINK_IMPORT_LENGTH_OFFSET = 4;
+    CC0_LINK_IMPORT_INDEX_OFFSET = 8;
     CC0_ELF_HEADER_BYTES = 52;
     CC0_ELF_SECTION_HEADER_BYTES = 40;
     CC0_ELF_TYPE_RELOCATABLE = 1;
@@ -6105,6 +6119,130 @@ function cc0_link_collect_relocations_(object_index, object, image,
 function cc0_link_collect_relocations()
 {
     return cc0_link_collect_relocations_(0, 0, 0, 0, 0, 0);
+}
+
+function cc0_link_object_symbol_(object, index, image, symbols)
+{
+    image = ri32(add(object, CC0_LINK_OBJECT_IMAGE_OFFSET));
+    symbols = ri32(add(object, CC0_LINK_OBJECT_SYMBOLS_OFFSET));
+    return add(add(image, ri32(add(symbols,
+        CC0_LINK_ELF_SECTION_FILE_OFFSET))),
+        shl(index, CC0_ELF_SYMBOL_ADDRESS_SHIFT));
+}
+
+function cc0_link_object_symbol(object, index)
+{
+    return cc0_link_object_symbol_(object, index, 0, 0);
+}
+
+function cc0_link_object_symbol_name_(object, symbol, image, strings)
+{
+    image = ri32(add(object, CC0_LINK_OBJECT_IMAGE_OFFSET));
+    strings = ri32(add(object, CC0_LINK_OBJECT_STRINGS_OFFSET));
+    return add(add(image, ri32(add(strings,
+        CC0_LINK_ELF_SECTION_FILE_OFFSET))),
+        ri32(add(symbol, CC0_ELF_SYMBOL_NAME_OFFSET)));
+}
+
+function cc0_link_object_symbol_name(object, symbol)
+{
+    return cc0_link_object_symbol_name_(object, symbol, 0, 0);
+}
+
+function cc0_link_import_entry(index)
+{
+    return add(CC0_LINK_IMPORTS, shl(index, CC0_LINK_IMPORT_SHIFT));
+}
+
+function cc0_link_reserve_imports_(needed, needed_bytes, used_bytes, imports)
+{
+    needed_bytes = shl(needed, CC0_LINK_IMPORT_SHIFT);
+    used_bytes = shl(CC0_LINK_IMPORT_COUNT, CC0_LINK_IMPORT_SHIFT);
+    imports = cc0_compiler_grow_memory(CC0_LINK_IMPORTS, used_bytes,
+        CC0_LINK_IMPORT_CAPACITY, needed_bytes);
+    if (eq(imports, 0)) {
+        return CC0_TRUE;
+    }
+    CC0_LINK_IMPORTS = imports;
+    CC0_LINK_IMPORT_CAPACITY = cc0_compiler_grown_capacity(
+        CC0_LINK_IMPORT_CAPACITY, needed_bytes);
+    return CC0_FALSE;
+}
+
+function cc0_link_reserve_imports(needed)
+{
+    return cc0_link_reserve_imports_(needed, 0, 0, 0);
+}
+
+function cc0_link_find_import_(name, length, index, entry)
+{
+    index = 0;
+    while (lt(index, CC0_LINK_IMPORT_COUNT)) {
+        entry = cc0_link_import_entry(index);
+        if (cc0_compiler_slice_equal(name, length,
+            ri32(add(entry, CC0_LINK_IMPORT_NAME_OFFSET)),
+            ri32(add(entry, CC0_LINK_IMPORT_LENGTH_OFFSET)))) {
+            return entry;
+        }
+        index = add(index, 1);
+    }
+    return 0;
+}
+
+function cc0_link_find_import(name, length)
+{
+    return cc0_link_find_import_(name, length, 0, 0);
+}
+
+function cc0_link_add_import_(name, length, entry)
+{
+    entry = cc0_link_find_import(name, length);
+    if (not(eq(entry, 0))) {
+        return CC0_FALSE;
+    }
+    if (cc0_link_reserve_imports(add(CC0_LINK_IMPORT_COUNT, 1))) {
+        return CC0_TRUE;
+    }
+    entry = cc0_link_import_entry(CC0_LINK_IMPORT_COUNT);
+    wi32(add(entry, CC0_LINK_IMPORT_NAME_OFFSET), name);
+    wi32(add(entry, CC0_LINK_IMPORT_LENGTH_OFFSET), length);
+    wi32(add(entry, CC0_LINK_IMPORT_INDEX_OFFSET), CC0_LINK_IMPORT_COUNT);
+    CC0_LINK_IMPORT_COUNT = add(CC0_LINK_IMPORT_COUNT, 1);
+    return CC0_FALSE;
+}
+
+function cc0_link_add_import(name, length)
+{
+    return cc0_link_add_import_(name, length, 0);
+}
+
+function cc0_link_collect_imports_(index, relocation, object, symbol, name,
+    length)
+{
+    index = 0;
+    while (lt(index, CC0_LINK_RELOCATION_COUNT)) {
+        relocation = cc0_link_relocation_entry(index);
+        object = cc0_link_object_entry(ri32(add(relocation,
+            CC0_LINK_RELOCATION_OBJECT_OFFSET)));
+        symbol = cc0_link_object_symbol(object, ri32(add(relocation,
+            CC0_LINK_RELOCATION_SYMBOL_OFFSET)));
+        if (eq(cc0_link_read_half(add(symbol,
+            CC0_ELF_SYMBOL_SECTION_OFFSET)), CC0_LINK_ELF_UNDEFINED_SECTION)) {
+            name = cc0_link_object_symbol_name(object, symbol);
+            length = cc0_c_string_length(name);
+            if (and(eq(cc0_link_find_global(name, length), 0),
+                cc0_link_add_import(name, length))) {
+                return CC0_TRUE;
+            }
+        }
+        index = add(index, 1);
+    }
+    return cc0_link_add_import(mks("exit"), 4);
+}
+
+function cc0_link_collect_imports()
+{
+    return cc0_link_collect_imports_(0, 0, 0, 0, 0, 0);
 }
 
 function cc0_write_object_(name, descriptor, index)
