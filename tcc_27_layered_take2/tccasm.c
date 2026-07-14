@@ -21,37 +21,9 @@
 #include "tcc.h"
 #ifdef CONFIG_TCC_ASM
 
-ST_FUNC int asm_get_local_label_name(TCCState *s1, unsigned int n)
-{
-    char buf[64];
-    TokenSym *ts;
-
-    snprintf(buf, sizeof(buf), "L..%u", n);
-    ts = tok_alloc(buf, strlen(buf));
-    return ts->tok;
-}
-
 static int tcc_assemble_internal(TCCState *s1, int do_preprocess, int global);
 static Sym* asm_new_label(TCCState *s1, int label, int is_local);
 static Sym* asm_new_label1(TCCState *s1, int label, int is_local, int sh_num, int value);
-
-static Sym *asm_label_find(int v)
-{
-    Sym *sym = sym_find(v);
-    while (sym && sym->sym_scope)
-        sym = sym->prev_tok;
-    return sym;
-}
-
-static Sym *asm_label_push(int v)
-{
-    /* We always add VT_EXTERN, for sym definition that's tentative
-       (for .set, removed for real defs), for mere references it's correct
-       as is.  */
-    Sym *sym = global_identifier_push(v, VT_ASM | VT_EXTERN | VT_STATIC, 0);
-    sym->r = VT_CONST | VT_SYM;
-    return sym;
-}
 
 /* Return a symbol we can use inside the assembler, having name NAME.
    Symbols from asm and C source share a namespace.  If we generate
@@ -63,17 +35,6 @@ static Sym *asm_label_push(int v)
    are anonymous in C, in this case CSYM can be used to transfer
    all information from that symbol to the (possibly newly created)
    asm symbol.  */
-ST_FUNC Sym* get_asm_sym(int name, Sym *csym)
-{
-    Sym *sym = asm_label_find(name);
-    if (!sym) {
-	sym = asm_label_push(name);
-	if (csym)
-	  sym->c = csym->c;
-    }
-    return sym;
-}
-
 static Sym* asm_section_sym(TCCState *s1, Section *sec)
 {
     char buf[100];

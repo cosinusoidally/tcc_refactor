@@ -1710,7 +1710,10 @@ void asm_instr(void);
 void asm_global_instr(void);
 #ifdef CONFIG_TCC_ASM
 ST_FUNC int find_constraint(ASMOperand *operands, int nb_operands, const char *name, const char **pp);
-ST_FUNC Sym* get_asm_sym(int name, Sym *csym);
+extern int asm_get_local_label_name(TCCState *s1, unsigned int n);
+extern Sym *asm_label_find(int v);
+extern Sym *asm_label_push(int v);
+extern Sym *get_asm_sym(int name, Sym *csym);
 ST_FUNC void asm_expr(TCCState *s1, ExprValue *pe);
 ST_FUNC int asm_int_expr(TCCState *s1);
 ST_FUNC int tcc_assemble(TCCState *s1, int do_preprocess);

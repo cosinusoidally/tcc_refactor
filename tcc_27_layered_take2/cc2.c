@@ -828,6 +828,8 @@ var CC2_LINKER_TOKEN_EOF;
 var CC2_LINKER_COMMAND_BYTES;
 var CC2_LINKER_FILENAME_BYTES;
 var CC2_BINARY_FILE_FLAG;
+var CC2_ASM_SYMBOL_TYPE;
+var CC2_ASM_SYMBOL_REGISTER;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
 var CC2_ARCHIVE_GID_OFFSET;
@@ -6220,6 +6222,53 @@ function cc2_ar_usage(result)
     puts(mks("usage: tcc -ar [rcsv] lib file..."));
     puts(mks("create library ([abdioptxN] not supported)."));
     return result;
+}
+
+function asm_get_local_label_name(state, number)
+{
+    var buffer;
+    var token_symbol;
+    var token;
+    buffer = malloc(32);
+    snprintf(buffer, 32, mks("L..%u"), number);
+    token_symbol = tok_alloc(buffer, strlen(buffer));
+    token = ri32(add(token_symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET));
+    free(buffer);
+    return token;
+}
+
+function asm_label_find(value)
+{
+    var symbol;
+    symbol = sym_find(value);
+    while (and(not(eq(symbol, 0)), not(eq(ri32(add(symbol,
+        CC2_SYM_SCOPE_OFFSET)), 0)))) {
+        symbol = ri32(add(symbol, CC2_SYM_PREVIOUS_TOKEN_OFFSET));
+    }
+    return symbol;
+}
+
+function asm_label_push(value)
+{
+    var symbol;
+    symbol = global_identifier_push(value, CC2_ASM_SYMBOL_TYPE, 0);
+    cc2_write_little_u16(add(symbol, CC2_SYM_REGISTER_OFFSET),
+        CC2_ASM_SYMBOL_REGISTER);
+    return symbol;
+}
+
+function get_asm_sym(name, c_symbol)
+{
+    var symbol;
+    symbol = asm_label_find(name);
+    if (eq(symbol, 0)) {
+        symbol = asm_label_push(name);
+        if (not(eq(c_symbol, 0))) {
+            wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET), ri32(add(c_symbol,
+                CC2_SYM_CONSTANT_OFFSET)));
+        }
+    }
+    return symbol;
 }
 
 /* Build a Unix archive and its big-endian ELF symbol index without GNU ar. */
@@ -21396,6 +21445,8 @@ function cc2_init_constants()
     CC2_LINKER_COMMAND_BYTES = 64;
     CC2_LINKER_FILENAME_BYTES = 1024;
     CC2_BINARY_FILE_FLAG = 64;
+    CC2_ASM_SYMBOL_TYPE = 12304;
+    CC2_ASM_SYMBOL_REGISTER = 560;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;
     CC2_ARCHIVE_GID_OFFSET = 34;
