@@ -1101,10 +1101,6 @@ function cc0_elf_external_symbol(name, length)
         mks("sym_redeclaration_error"), 23)) {
         return cc0_elf_put_undefined_function(name, length);
     }
-    if (cc0_compiler_slice_equal(name, length,
-        mks("vstack_overflow_error"), 21)) {
-        return cc0_elf_put_undefined_function(name, length);
-    }
     if (cc0_compiler_slice_equal(name, length, mks("gv"), 2)) {
         return cc0_elf_put_undefined_function(name, length);
     }
@@ -3663,9 +3659,6 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("sym_redeclaration_error"))) {
         return 1;
     }
-    if (cc0_text_equal(name, length, mks("vstack_overflow_error"))) {
-        return 2;
-    }
     if (cc0_text_equal(name, length, mks("gv"))) {
         return 1;
     }
@@ -3967,9 +3960,6 @@ function cc0_compiler_external_arity(name, length)
     }
     if (cc0_text_equal(name, length, mks("sym_redeclaration_error"))) {
         return 1;
-    }
-    if (cc0_text_equal(name, length, mks("vstack_overflow_error"))) {
-        return 2;
     }
     if (cc0_text_equal(name, length, mks("gv"))) {
         return 1;

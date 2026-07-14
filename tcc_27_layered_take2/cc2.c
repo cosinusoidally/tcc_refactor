@@ -615,7 +615,6 @@ var local_label_stack_address;
 var vtop;
 var pvtop;
 var vstack_base;
-var vstack_limit;
 var funcname;
 var cur_switch;
 var tok_ident;
@@ -13835,9 +13834,6 @@ function cc2_materialize_top_flags()
 
 function vsetc(type, reg, constant)
 {
-    if (not(lt(vtop, vstack_limit))) {
-        vstack_overflow_error(vtop, vstack_limit);
-    }
     cc2_materialize_top_flags();
     vtop = add(vtop, CC2_SVALUE_BYTES);
     cc2_copy_bytes(vtop, type, 8);
@@ -23970,20 +23966,11 @@ function external_sym(value, type, reg, attributes)
     return external_sym_(value, type, reg, attributes, 0, 0, 0);
 }
 
-function vpushv_(value, limit)
+function vpushv(value)
 {
-    limit = vstack_limit;
-    if (not(lt(vtop, limit))) {
-        vstack_overflow_error(vtop, limit);
-    }
     vtop = add(vtop, CC2_SVALUE_BYTES);
     cc2_copy_svalue(vtop, value);
     return 0;
-}
-
-function vpushv(value)
-{
-    return vpushv_(value, 0);
 }
 
 function vdup()
@@ -26151,12 +26138,6 @@ function cc2_abort_diagnostic(state)
         cc2_longjmp_error(state);
     }
     exit(1);
-    return 0;
-}
-
-function vstack_overflow_error(top, limit)
-{
-    tcc_error(mks("memory full (vstack: top 0x%x, limit 0x%x)"), top, limit);
     return 0;
 }
 

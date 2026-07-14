@@ -1290,9 +1290,10 @@ extern Section **stab_section_address;
 extern Section **stabstr_section_address;
 extern TCCState *tcc_state_address;
 extern CValue *tokc_address;
-extern SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE];
+/* The leading slot is the empty-stack sentinel immediately below vstack. */
+extern SValue __vstack[1 + VSTACK_SIZE];
 extern SValue *vtop, *pvtop;
-extern SValue *vstack_base, *vstack_limit;
+extern SValue *vstack_base;
 #define vstack  (__vstack + 1)
 extern int rsym, anon_sym, ind, loc;
 
@@ -1353,7 +1354,6 @@ extern void vrote(SValue *e, int n);
 extern void vrott(int n);
 extern void vrotb(int n);
 extern void vdup(void);
-extern void vstack_overflow_error(int top, int limit);
 #ifdef TCC_TARGET_ARM
 ST_FUNC int get_reg_ex(int rc, int rc2);
 ST_FUNC void lexpand_nr(void);

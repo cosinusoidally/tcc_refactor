@@ -414,7 +414,6 @@ int cc2_bind_preprocess_types(TCCState *state)
 {
     pvtop = vtop = vstack - 1;
     vstack_base = vstack;
-    vstack_limit = vstack + (VSTACK_SIZE - 1);
     int_type_address = &int_type;
     size_type_address = &size_type;
     func_old_type_address = &func_old_type;
