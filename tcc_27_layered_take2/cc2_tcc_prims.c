@@ -459,9 +459,25 @@ ST_FUNC void preprocess_start(TCCState *state, int is_asm)
 
 ST_FUNC void tccpp_new(TCCState *state)
 {
+    cc2_tccpp_new_bridge(state);
+}
+
+int cc2_tccpp_new_bridge(TCCState *state)
+{
     cc2_bind_preprocessor_state();
     cc2_preprocessor_set_stdout(state);
     cc2_tccpp_new((int)state, (int)tcc_keywords);
+    return 0;
+}
+
+int cc2_tcc_state_slot(void)
+{
+    return (int)&tcc_state;
+}
+
+int cc2_tcc_state_count_slot(void)
+{
+    return (int)&nb_states;
 }
 
 int cc2_tcc_preprocess_bridge(TCCState *state)

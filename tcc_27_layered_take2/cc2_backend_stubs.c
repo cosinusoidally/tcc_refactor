@@ -61,6 +61,21 @@ function cc2_tcc_preprocess_bridge(state)
     return 0;
 }
 
+function cc2_tccpp_new_bridge(state)
+{
+    return 0;
+}
+
+function cc2_tcc_state_slot()
+{
+    return 0;
+}
+
+function cc2_tcc_state_count_slot()
+{
+    return 0;
+}
+
 function u64_mul_add(words, base, digit)
 {
     return 0;

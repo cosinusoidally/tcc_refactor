@@ -504,6 +504,7 @@ var CC2_TCC_STATE_FILE_TYPE_OFFSET;
 var CC2_TCC_STATE_ERROR_OPAQUE_OFFSET;
 var CC2_TCC_STATE_ERROR_FUNCTION_OFFSET;
 var CC2_TCC_STATE_ERROR_JUMP_ENABLED_OFFSET;
+var CC2_TCC_STATE_BYTES;
 var CC2_TCC_STATE_INCLUDE_STACK_OFFSET;
 var CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET;
 var CC2_INCLUDE_STACK_ENTRIES;
@@ -24025,6 +24026,89 @@ function tcc_compile_string(state, text)
     return result;
 }
 
+function tcc_cleanup()
+{
+    var index;
+    if (eq(tcc_state_address, 0)) {
+        return 0;
+    }
+    while (ri32(file_address)) {
+        tcc_close();
+    }
+    tccpp_delete(tcc_state_address);
+    wi32(cc2_tcc_state_slot(), 0);
+    tcc_state_address = 0;
+    index = 0;
+    while (lt(index, nb_sym_pools)) {
+        free(ri32(add(sym_pools, shl(index, 2))));
+        index = add(index, 1);
+    }
+    free(sym_pools);
+    sym_pools = 0;
+    nb_sym_pools = 0;
+    sym_free_first = 0;
+    return 0;
+}
+
+function cc2_define_default_symbols(state)
+{
+    define_push(CC2_TOKEN_BUILTIN_LINE, 0, 0, 0);
+    define_push(CC2_TOKEN_BUILTIN_FILE, 0, 0, 0);
+    define_push(CC2_TOKEN_BUILTIN_DATE, 0, 0, 0);
+    define_push(CC2_TOKEN_BUILTIN_TIME, 0, 0, 0);
+    define_push(CC2_TOKEN_BUILTIN_COUNTER, 0, 0, 0);
+    tcc_define_symbol(state, mks("__TINYC__"), mks("927"));
+    tcc_define_symbol(state, mks("__STDC__"), 0);
+    tcc_define_symbol(state, mks("__STDC_VERSION__"), mks("199901L"));
+    tcc_define_symbol(state, mks("__STDC_HOSTED__"), 0);
+    tcc_define_symbol(state, mks("__i386__"), 0);
+    tcc_define_symbol(state, mks("__i386"), 0);
+    tcc_define_symbol(state, mks("i386"), 0);
+    tcc_define_symbol(state, mks("__unix__"), 0);
+    tcc_define_symbol(state, mks("__unix"), 0);
+    tcc_define_symbol(state, mks("unix"), 0);
+    tcc_define_symbol(state, mks("__linux__"), 0);
+    tcc_define_symbol(state, mks("__linux"), 0);
+    tcc_define_symbol(state, mks("__SIZE_TYPE__"), mks("unsigned int"));
+    tcc_define_symbol(state, mks("__PTRDIFF_TYPE__"), mks("int"));
+    tcc_define_symbol(state, mks("__ILP32__"), 0);
+    tcc_define_symbol(state, mks("__WCHAR_TYPE__"), mks("int"));
+    tcc_define_symbol(state, mks("__WINT_TYPE__"), mks("unsigned int"));
+    tcc_define_symbol(state, mks("__REDIRECT(name, proto, alias)"),
+        mks("name proto __asm__ (#alias)"));
+    tcc_define_symbol(state, mks("__REDIRECT_NTH(name, proto, alias)"),
+        mks("name proto __asm__ (#alias) __THROW"));
+    tcc_define_symbol(state, mks("__builtin_extract_return_addr(x)"),
+        mks("x"));
+    return 0;
+}
+
+function tcc_new()
+{
+    var state;
+    var count_slot;
+    cc2_init_constants();
+    tcc_cleanup();
+    state = tcc_mallocz(CC2_TCC_STATE_BYTES);
+    if (eq(state, 0)) {
+        return 0;
+    }
+    wi32(cc2_tcc_state_slot(), state);
+    tcc_state_address = state;
+    count_slot = cc2_tcc_state_count_slot();
+    wi32(count_slot, add(ri32(count_slot), 1));
+    wi32(add(state, CC2_TCC_STATE_ALACARTE_OFFSET), 1);
+    wi32(add(state, CC2_TCC_STATE_NOCOMMON_OFFSET), 1);
+    wi32(add(state, CC2_TCC_STATE_WARN_IMPLICIT_FUNCTION_OFFSET), 1);
+    wi32(add(state, CC2_TCC_STATE_MS_EXTENSIONS_OFFSET), 1);
+    wi32(add(state, CC2_TCC_STATE_SEGMENT_SIZE_OFFSET), 32);
+    tcc_set_lib_path(state, mks("/usr/local/lib/tcc"));
+    tccelf_new(state);
+    cc2_tccpp_new_bridge(state);
+    cc2_define_default_symbols(state);
+    return state;
+}
+
 function tcc_memcheck()
 {
     return 0;
@@ -25743,6 +25827,7 @@ function cc2_init_constants()
     CC2_TCC_STATE_ERROR_OPAQUE_OFFSET = 184;
     CC2_TCC_STATE_ERROR_FUNCTION_OFFSET = 188;
     CC2_TCC_STATE_ERROR_JUMP_ENABLED_OFFSET = 192;
+    CC2_TCC_STATE_BYTES = 1060;
     CC2_TCC_STATE_INCLUDE_STACK_OFFSET = 376;
     CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET = 504;
     CC2_INCLUDE_STACK_ENTRIES = 32;
