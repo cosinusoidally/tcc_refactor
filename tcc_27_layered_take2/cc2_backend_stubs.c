@@ -126,11 +126,6 @@ function initializer_rewind(stream)
     return 0;
 }
 
-function asm_parse_regvar(label)
-{
-    return sub(0, 1);
-}
-
 function vpush_bitfield_mask(type, size, position, invert)
 {
     return 0;

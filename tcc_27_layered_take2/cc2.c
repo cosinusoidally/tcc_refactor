@@ -890,6 +890,32 @@ var CC2_I386_OPERAND_INDEX_REGISTER_OFFSET;
 var CC2_I386_OPERAND_SHIFT_OFFSET;
 var CC2_I386_OPERAND_EXPRESSION_OFFSET;
 var CC2_I386_OPERAND_REGISTER_TYPE_MASK;
+var CC2_I386_OPERAND_BYTES;
+var CC2_I386_TOKEN_REGISTER_AL_FIRST;
+var CC2_I386_TOKEN_REGISTER_DB7_LAST;
+var CC2_I386_TOKEN_REGISTER_DR_FIRST;
+var CC2_I386_TOKEN_REGISTER_DR_LAST;
+var CC2_I386_TOKEN_REGISTER_SEGMENT_FIRST;
+var CC2_I386_TOKEN_REGISTER_SEGMENT_LAST;
+var CC2_I386_TOKEN_REGISTER_ST;
+var CC2_I386_TOKEN_PREPROCESS_NUMBER;
+var CC2_I386_TYPE_REGISTER_8;
+var CC2_I386_TYPE_REGISTER_16;
+var CC2_I386_TYPE_REGISTER_32;
+var CC2_I386_TYPE_DEBUG_REGISTER;
+var CC2_I386_TYPE_SEGMENT_REGISTER;
+var CC2_I386_TYPE_FPU_REGISTER;
+var CC2_I386_TYPE_IMMEDIATE_8;
+var CC2_I386_TYPE_IMMEDIATE_SIGNED_8;
+var CC2_I386_TYPE_IMMEDIATE_16;
+var CC2_I386_TYPE_IMMEDIATE_32;
+var CC2_I386_TYPE_ACCUMULATOR;
+var CC2_I386_TYPE_FPU_TOP;
+var CC2_I386_TYPE_COUNT_REGISTER;
+var CC2_I386_TYPE_DATA_REGISTER;
+var CC2_I386_TYPE_ADDRESS;
+var CC2_I386_TYPE_INDIRECT;
+var CC2_I386_TYPE_EFFECTIVE_ADDRESS;
 var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
@@ -8049,6 +8075,240 @@ function cc2_read_signed_byte(address)
         value = sub(value, 256);
     }
     return value;
+}
+
+function cc2_i386_register_shift(state)
+{
+    var scale;
+    scale = asm_int_expr(state);
+    if (eq(scale, 1)) {
+        return 0;
+    }
+    if (eq(scale, 2)) {
+        return 1;
+    }
+    if (eq(scale, 4)) {
+        return 2;
+    }
+    if (eq(scale, 8)) {
+        return 3;
+    }
+    expect(mks("1, 2, 4 or 8 constant"));
+    return 0;
+}
+
+function cc2_i386_parse_address_register()
+{
+    var token;
+    var reg;
+    if (not(eq(ri32(tok_address), mkC("%")))) {
+        expect(mks("register"));
+    }
+    next();
+    token = ri32(tok_address);
+    if (and(le(CC2_ASM_REGISTER_EAX_FIRST, token),
+        le(token, CC2_ASM_REGISTER_EAX_LAST))) {
+        reg = sub(token, CC2_ASM_REGISTER_EAX_FIRST);
+    } else {
+        expect(mks("register"));
+        reg = 0;
+    }
+    next();
+    return reg;
+}
+
+function cc2_i386_unknown_register()
+{
+    tcc_error(mks("unknown register %%%s"),
+        get_tok_str(ri32(tok_address), tokc_address));
+    return 0;
+}
+
+/* Decode one AT&T i386 operand into TCC's Operand representation. */
+function parse_operand_(state, operand, expression, token, reg, type_value,
+    indirect, text)
+{
+    expression = malloc(16);
+    cc2_asm_expression_clear(expression);
+    indirect = 0;
+    token = ri32(tok_address);
+    if (eq(token, mkC("*"))) {
+        next();
+        indirect = CC2_I386_TYPE_INDIRECT;
+        token = ri32(tok_address);
+    }
+    if (eq(token, mkC("%"))) {
+        next();
+        token = ri32(tok_address);
+        if (and(le(CC2_I386_TOKEN_REGISTER_AL_FIRST, token),
+            le(token, CC2_I386_TOKEN_REGISTER_DB7_LAST))) {
+            reg = sub(token, CC2_I386_TOKEN_REGISTER_AL_FIRST);
+            type_value = shl(1, shr(reg, 3));
+            reg = and(reg, 7);
+            if (and(not(eq(and(type_value,
+                CC2_I386_OPERAND_REGISTER_TYPE_MASK), 0)), eq(reg, 0))) {
+                type_value = or(type_value, CC2_I386_TYPE_ACCUMULATOR);
+            } else if (and(eq(type_value, CC2_I386_TYPE_REGISTER_8),
+                eq(reg, 1))) {
+                type_value = or(type_value, CC2_I386_TYPE_COUNT_REGISTER);
+            } else if (and(eq(type_value, CC2_I386_TYPE_REGISTER_16),
+                eq(reg, 2))) {
+                type_value = or(type_value, CC2_I386_TYPE_DATA_REGISTER);
+            }
+        } else if (and(le(CC2_I386_TOKEN_REGISTER_DR_FIRST, token),
+            le(token, CC2_I386_TOKEN_REGISTER_DR_LAST))) {
+            type_value = CC2_I386_TYPE_DEBUG_REGISTER;
+            reg = sub(token, CC2_I386_TOKEN_REGISTER_DR_FIRST);
+        } else if (and(le(CC2_I386_TOKEN_REGISTER_SEGMENT_FIRST, token),
+            le(token, CC2_I386_TOKEN_REGISTER_SEGMENT_LAST))) {
+            type_value = CC2_I386_TYPE_SEGMENT_REGISTER;
+            reg = sub(token, CC2_I386_TOKEN_REGISTER_SEGMENT_FIRST);
+        } else if (eq(token, CC2_I386_TOKEN_REGISTER_ST)) {
+            type_value = CC2_I386_TYPE_FPU_REGISTER;
+            reg = 0;
+            next();
+            if (eq(ri32(tok_address), mkC("("))) {
+                next();
+                if (not(eq(ri32(tok_address),
+                    CC2_I386_TOKEN_PREPROCESS_NUMBER))) {
+                    cc2_i386_unknown_register();
+                }
+                text = ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET));
+                reg = sub(ri8(text), mkC("0"));
+                if (or(not(lt(reg, 8)), not(eq(ri8(add(text, 1)), 0)))) {
+                    cc2_i386_unknown_register();
+                }
+                next();
+                skip(mkC(")"));
+            }
+            if (eq(reg, 0)) {
+                type_value = or(type_value, CC2_I386_TYPE_FPU_TOP);
+            }
+            wi32(operand, or(type_value, indirect));
+            wi8(add(operand, CC2_I386_OPERAND_REGISTER_OFFSET), reg);
+            free(expression);
+            return 0;
+        } else {
+            cc2_i386_unknown_register();
+            type_value = 0;
+            reg = 0;
+        }
+        wi32(operand, or(type_value, indirect));
+        wi8(add(operand, CC2_I386_OPERAND_REGISTER_OFFSET), reg);
+        next();
+        free(expression);
+        return 0;
+    }
+    if (eq(token, mkC("$"))) {
+        next();
+        asm_expr(state, expression);
+        type_value = CC2_I386_TYPE_IMMEDIATE_32;
+        if (eq(ri32(add(expression,
+            CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)) {
+            if (and(eq(ri32(add(expression,
+                CC2_ASM_EXPRESSION_HIGH_OFFSET)), 0),
+                eq(and(ri32(expression), 255), ri32(expression)))) {
+                type_value = or(type_value, CC2_I386_TYPE_IMMEDIATE_8);
+            }
+            if (eq(cc2_read_signed_byte(expression), ri32(expression))) {
+                type_value = or(type_value,
+                    CC2_I386_TYPE_IMMEDIATE_SIGNED_8);
+            }
+            if (and(eq(ri32(add(expression,
+                CC2_ASM_EXPRESSION_HIGH_OFFSET)), 0),
+                eq(and(ri32(expression), 65535), ri32(expression)))) {
+                type_value = or(type_value, CC2_I386_TYPE_IMMEDIATE_16);
+            }
+        }
+        wi32(operand, or(type_value, indirect));
+        memcpy(add(operand, CC2_I386_OPERAND_EXPRESSION_OFFSET), expression,
+            16);
+        free(expression);
+        return 0;
+    }
+    type_value = CC2_I386_TYPE_EFFECTIVE_ADDRESS;
+    wi8(add(operand, CC2_I386_OPERAND_REGISTER_OFFSET), sub(0, 1));
+    wi8(add(operand, CC2_I386_OPERAND_INDEX_REGISTER_OFFSET), sub(0, 1));
+    wi8(add(operand, CC2_I386_OPERAND_SHIFT_OFFSET), 0);
+    if (not(eq(token, mkC("(")))) {
+        asm_expr(state, expression);
+    } else {
+        next();
+        if (eq(ri32(tok_address), mkC("%"))) {
+            unget_tok(mkC("("));
+            cc2_asm_expression_clear(expression);
+        } else {
+            asm_expr(state, expression);
+            if (not(eq(ri32(tok_address), mkC(")")))) {
+                expect(mks(")"));
+            }
+            next();
+        }
+        wi32(add(expression, CC2_ASM_EXPRESSION_PCREL_OFFSET), 0);
+    }
+    memcpy(add(operand, CC2_I386_OPERAND_EXPRESSION_OFFSET), expression, 16);
+    free(expression);
+    if (eq(ri32(tok_address), mkC("("))) {
+        next();
+        if (not(eq(ri32(tok_address), mkC(",")))) {
+            reg = cc2_i386_parse_address_register();
+            wi8(add(operand, CC2_I386_OPERAND_REGISTER_OFFSET), reg);
+        }
+        if (eq(ri32(tok_address), mkC(","))) {
+            next();
+            if (not(eq(ri32(tok_address), mkC(",")))) {
+                reg = cc2_i386_parse_address_register();
+                wi8(add(operand,
+                    CC2_I386_OPERAND_INDEX_REGISTER_OFFSET), reg);
+            }
+            if (eq(ri32(tok_address), mkC(","))) {
+                next();
+                wi8(add(operand, CC2_I386_OPERAND_SHIFT_OFFSET),
+                    cc2_i386_register_shift(state));
+            }
+        }
+        skip(mkC(")"));
+    }
+    if (and(eq(cc2_read_signed_byte(add(operand,
+        CC2_I386_OPERAND_REGISTER_OFFSET)), sub(0, 1)),
+        eq(cc2_read_signed_byte(add(operand,
+        CC2_I386_OPERAND_INDEX_REGISTER_OFFSET)), sub(0, 1)))) {
+        type_value = or(type_value, CC2_I386_TYPE_ADDRESS);
+    }
+    wi32(operand, or(type_value, indirect));
+    return 0;
+}
+
+function parse_operand(state, operand)
+{
+    return parse_operand_(state, operand, 0, 0, 0, 0, 0, 0);
+}
+
+function asm_parse_regvar(token)
+{
+    var text;
+    var symbol;
+    var operand;
+    var reg;
+    if (lt(token, CC2_TOKEN_IDENTIFIER_FIRST)) {
+        return sub(0, 1);
+    }
+    text = get_tok_str(token, 0);
+    if (not(eq(ri8(text), mkC("%")))) {
+        return sub(0, 1);
+    }
+    symbol = tok_alloc(add(text, 1), sub(strlen(text), 1));
+    unget_tok(ri32(add(symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET)));
+    unget_tok(mkC("%"));
+    operand = malloc(CC2_I386_OPERAND_BYTES);
+    parse_operand(tcc_state_address, operand);
+    reg = sub(0, 1);
+    if (and(ri32(operand), CC2_I386_OPERAND_REGISTER_TYPE_MASK)) {
+        reg = cc2_read_signed_byte(add(operand,
+            CC2_I386_OPERAND_REGISTER_OFFSET));
+    }
+    free(operand);
+    return reg;
 }
 
 function gen_disp32_(expression, symbol, elf_symbol, section, value,
@@ -23577,6 +23837,32 @@ function cc2_init_constants()
     CC2_I386_OPERAND_SHIFT_OFFSET = 6;
     CC2_I386_OPERAND_EXPRESSION_OFFSET = 8;
     CC2_I386_OPERAND_REGISTER_TYPE_MASK = 31;
+    CC2_I386_OPERAND_BYTES = 24;
+    CC2_I386_TOKEN_REGISTER_AL_FIRST = 442;
+    CC2_I386_TOKEN_REGISTER_DB7_LAST = 505;
+    CC2_I386_TOKEN_REGISTER_DR_FIRST = 506;
+    CC2_I386_TOKEN_REGISTER_DR_LAST = 513;
+    CC2_I386_TOKEN_REGISTER_SEGMENT_FIRST = 514;
+    CC2_I386_TOKEN_REGISTER_SEGMENT_LAST = 519;
+    CC2_I386_TOKEN_REGISTER_ST = 520;
+    CC2_I386_TOKEN_PREPROCESS_NUMBER = 190;
+    CC2_I386_TYPE_REGISTER_8 = 1;
+    CC2_I386_TYPE_REGISTER_16 = 2;
+    CC2_I386_TYPE_REGISTER_32 = 4;
+    CC2_I386_TYPE_DEBUG_REGISTER = 128;
+    CC2_I386_TYPE_SEGMENT_REGISTER = 256;
+    CC2_I386_TYPE_FPU_REGISTER = 512;
+    CC2_I386_TYPE_IMMEDIATE_8 = 1024;
+    CC2_I386_TYPE_IMMEDIATE_SIGNED_8 = 2048;
+    CC2_I386_TYPE_IMMEDIATE_16 = 4096;
+    CC2_I386_TYPE_IMMEDIATE_32 = 8192;
+    CC2_I386_TYPE_ACCUMULATOR = 16384;
+    CC2_I386_TYPE_FPU_TOP = 32768;
+    CC2_I386_TYPE_COUNT_REGISTER = 65536;
+    CC2_I386_TYPE_DATA_REGISTER = 131072;
+    CC2_I386_TYPE_ADDRESS = 262144;
+    CC2_I386_TYPE_INDIRECT = 524288;
+    CC2_I386_TYPE_EFFECTIVE_ADDRESS = 1073741824;
     CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;
