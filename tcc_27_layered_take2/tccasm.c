@@ -209,26 +209,12 @@ static void asm_parse_directive(TCCState *s1, int global)
 	next();
 	pop_section(s1);
 	break;
-#ifdef TCC_TARGET_I386
     case TOK_ASMDIR_code16:
-        {
-            next();
-            s1->seg_size = 16;
-        }
+        asm_parse_code_mode(s1, 16);
         break;
     case TOK_ASMDIR_code32:
-        {
-            next();
-            s1->seg_size = 32;
-        }
+        asm_parse_code_mode(s1, 32);
         break;
-#endif
-#ifdef TCC_TARGET_X86_64
-    /* added for compatibility with GAS */
-    case TOK_ASMDIR_code64:
-        next();
-        break;
-#endif
     default:
         tcc_error("unknown assembler directive '.%s'", get_tok_str(tok, NULL));
         break;

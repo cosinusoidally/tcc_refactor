@@ -836,6 +836,7 @@ var CC2_TOKEN_IDENTIFIER_FIRST;
 var CC2_ASM_DIRECTIVE_ALIGN;
 var CC2_ASM_DIRECTIVE_BALIGN;
 var CC2_ASM_DIRECTIVE_P2ALIGN;
+var CC2_TCC_STATE_SEGMENT_SIZE_OFFSET;
 var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
@@ -7304,6 +7305,13 @@ function asm_parse_symbol_binding_(is_weak, is_hidden, symbol, attributes,
 function asm_parse_symbol_binding(is_weak, is_hidden)
 {
     return asm_parse_symbol_binding_(is_weak, is_hidden, 0, 0, 0);
+}
+
+function asm_parse_code_mode(state, bits)
+{
+    next();
+    wi32(add(state, CC2_TCC_STATE_SEGMENT_SIZE_OFFSET), bits);
+    return 0;
 }
 
 function use_section1(state, section)
@@ -22680,6 +22688,7 @@ function cc2_init_constants()
     CC2_ASM_DIRECTIVE_ALIGN = 408;
     CC2_ASM_DIRECTIVE_BALIGN = 409;
     CC2_ASM_DIRECTIVE_P2ALIGN = 410;
+    CC2_TCC_STATE_SEGMENT_SIZE_OFFSET = 132;
     CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;
