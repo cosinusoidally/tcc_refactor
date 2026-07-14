@@ -178,58 +178,6 @@ PUB_FUNC void tcc_warning(const char *fmt, ...)
 /********************************************************/
 /* I/O layer */
 
-ST_FUNC void tcc_open_bf(TCCState *s1, const char *filename, int initlen)
-{
-    BufferedFile *bf;
-    int buflen = initlen ? initlen : IO_BUF_SIZE;
-
-    bf = tcc_mallocz(sizeof(BufferedFile) + buflen);
-    bf->buf_ptr = bf->buffer;
-    bf->buf_end = bf->buffer + initlen;
-    bf->buf_end[0] = CH_EOB; /* put eob symbol */
-    pstrcpy(bf->filename, sizeof(bf->filename), filename);
-    bf->true_filename = bf->filename;
-    bf->line_num = 1;
-    bf->ifdef_stack_ptr = s1->ifdef_stack_ptr;
-    bf->fd = -1;
-    bf->prev = file;
-    file = bf;
-    tok_flags = TOK_FLAG_BOL | TOK_FLAG_BOF;
-}
-
-ST_FUNC void tcc_close(void)
-{
-    BufferedFile *bf = file;
-    if (bf->fd > 0) {
-        close(bf->fd);
-        total_lines += bf->line_num;
-    }
-    if (bf->true_filename != bf->filename)
-        tcc_free(bf->true_filename);
-    file = bf->prev;
-    tcc_free(bf);
-}
-
-ST_FUNC int tcc_open(TCCState *s1, const char *filename)
-{
-    int fd;
-    if (strcmp(filename, "-") == 0)
-        fd = 0, filename = "<stdin>";
-    else
-        fd = open(filename, O_RDONLY | O_BINARY);
-    if ((s1->verbose == 2 && fd >= 0) || s1->verbose == 3)
-        printf("%s %*s%s\n", fd < 0 ? "nf":"->",
-               (int)(s1->include_stack_ptr - s1->include_stack), "", filename);
-    if (fd < 0)
-        return -1;
-    tcc_open_bf(s1, filename, 0);
-#ifdef _WIN32
-    normalize_slashes(file->filename);
-#endif
-    file->fd = fd;
-    return fd;
-}
-
 /* compile the file opened in 'file'. Return non zero if errors. */
 static int tcc_compile(TCCState *s1)
 {

@@ -519,6 +519,8 @@ var CC2_TOKEN_SYMBOL_BYTES;
 var CC2_TOKEN_ALLOC_INCREMENT;
 var CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET;
 var CC2_BUFFERED_FILE_FILENAME_CAPACITY;
+var CC2_BUFFERED_FILE_BYTES;
+var CC2_BUFFERED_FILE_PREVIOUS_OFFSET;
 var CC2_STABS_INCLUDE_TYPE;
 var CC2_STABS_END_INCLUDE_TYPE;
 var CC2_TOKEN_CHARACTER;
@@ -1963,7 +1965,7 @@ function cc2_lex_end_of_buffer_(pointer, character, state, source_file,
     if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
         put_stabs(0, CC2_STABS_END_INCLUDE_TYPE, 0, 0, 0);
     }
-    cc2_tcc_close();
+    tcc_close();
     wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
         sub(include_pointer, CC2_I386_WORD_BYTES));
     source_file = ri32(file_address);
@@ -2266,7 +2268,7 @@ function cc2_preprocess_start(state, is_asm)
         wi32(include_pointer, source_file);
         wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
             add(include_pointer, CC2_I386_WORD_BYTES));
-        cc2_open_buffer(state, mks("<command line>"),
+        tcc_open_bf(state, mks("<command line>"),
             ri32(add(string, CC2_CSTRING_SIZE_OFFSET)));
         source_file = ri32(file_address);
         memcpy(add(source_file, CC2_BUFFERED_FILE_BUFFER_OFFSET),
@@ -2646,7 +2648,7 @@ function paste_tokens(first_token, first_value, second_token, second_value)
         cstr_cat(string, get_tok_str(second_token, second_value), sub(0, 1));
     }
     cstr_ccat(string, 0);
-    cc2_open_buffer(tcc_state_address, mks(":paste:"),
+    tcc_open_bf(tcc_state_address, mks(":paste:"),
         ri32(add(string, CC2_CSTRING_SIZE_OFFSET)));
     source_file = ri32(file_address);
     memcpy(add(source_file, CC2_BUFFERED_FILE_BUFFER_OFFSET),
@@ -2670,7 +2672,7 @@ function paste_tokens(first_token, first_value, second_token, second_value)
         result = 0;
         break;
     }
-    cc2_tcc_close();
+    tcc_close();
     cstr_free(string);
     free(string);
     return result;
@@ -4868,7 +4870,7 @@ function preprocess_include(state, directive)
                 return 0;
             }
         }
-        if (not(lt(cc2_tcc_open(state, candidate), 0))) {
+        if (not(lt(tcc_open(state, candidate), 0))) {
             source_file = ri32(file_address);
             wi32(add(source_file, CC2_BUFFERED_FILE_INCLUDE_NEXT_INDEX_OFFSET),
                 add(index, 1));
@@ -7759,12 +7761,12 @@ function tcc_assemble_inline_(state, text, length, global, saved_macro,
     saved_macro = macro_ptr;
     previous_dot = cc0_set_idnum(isidnum_table_address, mkC("."),
         CC2_CHARACTER_IDENTIFIER_FLAG);
-    cc2_open_buffer(state, mks(":asm:"), length);
+    tcc_open_bf(state, mks(":asm:"), length);
     source_file = ri32(file_address);
     memcpy(add(source_file, CC2_BUFFERED_FILE_BUFFER_OFFSET), text, length);
     macro_ptr = 0;
     tcc_assemble_internal(state, 0, global);
-    cc2_tcc_close();
+    tcc_close();
     cc0_set_idnum(isidnum_table_address, mkC("."), previous_dot);
     macro_ptr = saved_macro;
     return 0;
@@ -23748,6 +23750,92 @@ function tcc_set_error_func(state, opaque, error_function)
     return 0;
 }
 
+function tcc_open_bf(state, filename, initial_length)
+{
+    var buffer_length;
+    var source_file;
+    var buffer;
+    if (initial_length) {
+        buffer_length = initial_length;
+    } else {
+        buffer_length = CC2_INPUT_BUFFER_BYTES;
+    }
+    source_file = tcc_mallocz(add(CC2_BUFFERED_FILE_BYTES, buffer_length));
+    buffer = add(source_file, CC2_BUFFERED_FILE_BUFFER_OFFSET);
+    wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET), buffer);
+    wi32(add(source_file, CC2_BUFFERED_FILE_END_OFFSET),
+        add(buffer, initial_length));
+    wi8(add(buffer, initial_length), CC2_CHARACTER_END_OF_BUFFER);
+    strcpy(add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET), filename);
+    wi32(add(source_file, CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET),
+        add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET));
+    wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), 1);
+    wi32(add(source_file, CC2_BUFFERED_FILE_IFDEF_STACK_POINTER_OFFSET),
+        ri32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET)));
+    wi32(add(source_file, CC2_BUFFERED_FILE_DESCRIPTOR_OFFSET), sub(0, 1));
+    wi32(add(source_file, CC2_BUFFERED_FILE_PREVIOUS_OFFSET),
+        ri32(file_address));
+    wi32(file_address, source_file);
+    wi32(tok_flags_address, or(CC2_TOKEN_FLAG_BEGINNING_OF_LINE,
+        CC2_TOKEN_FLAG_BEGINNING_OF_FILE));
+    return 0;
+}
+
+function tcc_close()
+{
+    var source_file;
+    var descriptor;
+    var true_filename;
+    source_file = ri32(file_address);
+    descriptor = ri32(add(source_file, CC2_BUFFERED_FILE_DESCRIPTOR_OFFSET));
+    if (lt(0, descriptor)) {
+        close(descriptor);
+        wi32(total_lines_address, add(ri32(total_lines_address),
+            ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET))));
+    }
+    true_filename = ri32(add(source_file,
+        CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET));
+    if (not(eq(true_filename, add(source_file,
+        CC2_BUFFERED_FILE_FILENAME_OFFSET)))) {
+        tcc_free(true_filename);
+    }
+    wi32(file_address, ri32(add(source_file,
+        CC2_BUFFERED_FILE_PREVIOUS_OFFSET)));
+    tcc_free(source_file);
+    return 0;
+}
+
+function tcc_open(state, filename)
+{
+    var descriptor;
+    var verbose;
+    var depth;
+    if (eq(strcmp(filename, mks("-")), 0)) {
+        descriptor = 0;
+        filename = mks("<stdin>");
+    } else {
+        descriptor = open(filename, 0);
+    }
+    verbose = ri32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET));
+    if (or(and(eq(verbose, 2), le(0, descriptor)), eq(verbose, 3))) {
+        depth = sdiv(sub(ri32(add(state,
+            CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET)), add(state,
+            CC2_TCC_STATE_INCLUDE_STACK_OFFSET)), CC2_I386_WORD_BYTES);
+        if (lt(descriptor, 0)) {
+            printf(mks("nf %*s%s\n"), depth, mks(""), filename);
+        } else {
+            printf(mks("-> %*s%s\n"), depth, mks(""), filename);
+        }
+    }
+    if (lt(descriptor, 0)) {
+        return sub(0, 1);
+    }
+    tcc_open_bf(state, filename, 0);
+    wi32(add(ri32(file_address), CC2_BUFFERED_FILE_DESCRIPTOR_OFFSET),
+        descriptor);
+    return descriptor;
+}
+
 function tcc_add_symbol(state, name, value)
 {
     set_elf_sym(ri32(symtab_section_address), value, 0, 16, 0, 65521,
@@ -23766,7 +23854,7 @@ function tcc_define_symbol(state, name, value)
     }
     name_length = strlen(name);
     value_length = strlen(value);
-    cc2_open_buffer(state, mks("<define>"),
+    tcc_open_bf(state, mks("<define>"),
         add(add(name_length, value_length), 1));
     source_file = ri32(file_address);
     buffer = add(source_file, CC2_BUFFERED_FILE_BUFFER_OFFSET);
@@ -23775,7 +23863,7 @@ function tcc_define_symbol(state, name, value)
     memcpy(add(buffer, add(name_length, 1)), value, value_length);
     next_nomacro();
     parse_define();
-    cc2_tcc_close();
+    tcc_close();
     return 0;
 }
 
@@ -25525,6 +25613,8 @@ function cc2_init_constants()
     CC2_TOKEN_ALLOC_INCREMENT = 512;
     CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET = 1064;
     CC2_BUFFERED_FILE_FILENAME_CAPACITY = 1024;
+    CC2_BUFFERED_FILE_BYTES = 1076;
+    CC2_BUFFERED_FILE_PREVIOUS_OFFSET = 12;
     CC2_STABS_INCLUDE_TYPE = 130;
     CC2_STABS_END_INCLUDE_TYPE = 162;
     return 0;

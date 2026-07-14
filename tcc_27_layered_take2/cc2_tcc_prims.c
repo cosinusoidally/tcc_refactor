@@ -415,16 +415,6 @@ void initializer_copy_string(Section *sec, unsigned long offset,
     memcpy(sec->data + offset, source, count);
 }
 
-int cc2_tcc_open(TCCState *state, const char *filename)
-{
-    return tcc_open(state, filename);
-}
-
-void cc2_tcc_close(void)
-{
-    tcc_close();
-}
-
 /* Bind legacy typed storage while cc2 owns its initialization policy. */
 int cc2_bind_preprocessor_state(void)
 {
@@ -504,12 +494,6 @@ int cc2_bind_preprocess_types(TCCState *state)
     local_label_stack_address = &local_label_stack;
     ptrdiff_type_address = &ptrdiff_type;
     cc2_bind_tcc_globals(state);
-    return 0;
-}
-
-int cc2_open_buffer(TCCState *state, const char *name, int size)
-{
-    tcc_open_bf(state, name, size);
     return 0;
 }
 

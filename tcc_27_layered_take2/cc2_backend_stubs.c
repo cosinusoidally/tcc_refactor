@@ -41,21 +41,6 @@ function tcc_set_options(state, text)
     return 0;
 }
 
-function cc2_tcc_open(state, filename)
-{
-    return sub(0, 1);
-}
-
-function cc2_tcc_close()
-{
-    return 0;
-}
-
-function cc2_open_buffer(state, name, size)
-{
-    return 0;
-}
-
 function cc2_local_time(fields)
 {
     return 0;
