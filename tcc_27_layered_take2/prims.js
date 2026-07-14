@@ -105,7 +105,7 @@ function open(path, flags, mode) {
     var descriptor = cc0_prims_next_file++;
     var writing = (flags & 1) !== 0;
     cc0_prims_files[descriptor] = {
-        data: writing ? [] : os.file.readFile(cc0_prims_path(path)),
+        data: writing ? [] : os.file.readFile(cc0_prims_path(path), "binary"),
         path: cc0_prims_path(path),
         position: 0,
         output: writing
@@ -127,7 +127,7 @@ function read(descriptor, buffer, count) {
     var file = cc0_prims_files[descriptor];
     var index = 0;
     while (index < count && file.position < file.data.length) {
-        wi8(buffer + index, file.data.charCodeAt(file.position));
+        wi8(buffer + index, file.data[file.position]);
         file.position++;
         index++;
     }
@@ -162,10 +162,6 @@ function close(descriptor) {
     }
     delete cc0_prims_files[descriptor];
     return 0;
-}
-
-function system(command) {
-    return os.system(cc0_prims_path(command));
 }
 
 function chmod(path, mode) {

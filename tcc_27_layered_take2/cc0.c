@@ -277,7 +277,6 @@ var CC0_ELF_LSEEK_SYMBOL;
 var CC0_ELF_READ_SYMBOL;
 var CC0_ELF_WRITE_SYMBOL;
 var CC0_ELF_CLOSE_SYMBOL;
-var CC0_ELF_SYSTEM_SYMBOL;
 var CC0_ELF_CC1_LINK_SYMBOL;
 var CC0_ELF_CHMOD_SYMBOL;
 var CC0_ELF_LEXER_START_SYMBOL;
@@ -404,6 +403,8 @@ var CC0_LINK_ELF_DYNAMIC_REL_BYTES;
 var CC0_LINK_ELF_DYNAMIC_REL_ENTRY_BYTES;
 var CC0_LINK_ELF_DYNAMIC_NULL;
 var CC0_LINK_ELF_RELOCATION_GLOBAL_DATA;
+var CC0_LINK_DYNAMIC_ABSOLUTE_COUNT;
+var CC0_LINK_ELF_DYNAMIC_TEXTREL;
 var CC0_ELF_HEADER_BYTES;
 var CC0_ELF_SECTION_HEADER_BYTES;
 var CC0_ELF_TYPE_RELOCATABLE;
@@ -679,7 +680,6 @@ function cc0_init()
     CC0_ELF_READ_SYMBOL = 0;
     CC0_ELF_WRITE_SYMBOL = 0;
     CC0_ELF_CLOSE_SYMBOL = 0;
-    CC0_ELF_SYSTEM_SYMBOL = 0;
     CC0_ELF_CC1_LINK_SYMBOL = 0;
     CC0_ELF_CHMOD_SYMBOL = 0;
     CC0_ELF_LEXER_START_SYMBOL = 0;
@@ -769,7 +769,7 @@ function cc0_init()
     CC0_LINK_INTERPRETER = mks("/lib/ld-linux.so.2");
     CC0_LINK_INTERPRETER_BYTES = 19;
     CC0_LINK_DYNAMIC_RECORD_BYTES = 8;
-    CC0_LINK_DYNAMIC_RECORD_COUNT = 10;
+    CC0_LINK_DYNAMIC_RECORD_COUNT = 12;
     CC0_LINK_STARTUP_BYTES = 19;
     CC0_LINK_PLT_ENTRY_BYTES = 6;
     CC0_LINK_GOT_ENTRY_BYTES = 4;
@@ -806,6 +806,8 @@ function cc0_init()
     CC0_LINK_ELF_DYNAMIC_REL_ENTRY_BYTES = 19;
     CC0_LINK_ELF_DYNAMIC_NULL = 0;
     CC0_LINK_ELF_RELOCATION_GLOBAL_DATA = 6;
+    CC0_LINK_DYNAMIC_ABSOLUTE_COUNT = 0;
+    CC0_LINK_ELF_DYNAMIC_TEXTREL = 22;
     CC0_ELF_HEADER_BYTES = 52;
     CC0_ELF_SECTION_HEADER_BYTES = 40;
     CC0_ELF_TYPE_RELOCATABLE = 1;
@@ -1274,7 +1276,6 @@ function cc0_elf_emit_external_symbols()
     CC0_ELF_READ_SYMBOL = 0;
     CC0_ELF_WRITE_SYMBOL = 0;
     CC0_ELF_CLOSE_SYMBOL = 0;
-    CC0_ELF_SYSTEM_SYMBOL = 0;
     CC0_ELF_CC1_LINK_SYMBOL = 0;
     CC0_ELF_CHMOD_SYMBOL = 0;
     CC0_ELF_LEXER_START_SYMBOL = 0;
@@ -1562,13 +1563,6 @@ function cc0_elf_external_symbol(name, length)
                 mks("close"), 5);
         }
         return CC0_ELF_CLOSE_SYMBOL;
-    }
-    if (cc0_compiler_slice_equal(name, length, mks("system"), 6)) {
-        if (eq(CC0_ELF_SYSTEM_SYMBOL, 0)) {
-            CC0_ELF_SYSTEM_SYMBOL = cc0_elf_put_undefined_function(
-                mks("system"), 6);
-        }
-        return CC0_ELF_SYSTEM_SYMBOL;
     }
     if (cc0_compiler_slice_equal(name, length, mks("cc1_link"), 8)) {
         if (eq(CC0_ELF_CC1_LINK_SYMBOL, 0)) {
@@ -3729,9 +3723,6 @@ function cc0_compiler_builtin_arity(name, length)
     if (cc0_text_equal(name, length, mks("alloc"))) {
         return 1;
     }
-    if (cc0_text_equal(name, length, mks("system"))) {
-        return 1;
-    }
     if (cc0_text_equal(name, length, mks("cc0_lexer_field"))) {
         return 1;
     }
@@ -4095,9 +4086,6 @@ function cc0_compiler_external_arity(name, length)
         return 1;
     }
     if (cc0_text_equal(name, length, mks("alloc"))) {
-        return 1;
-    }
-    if (cc0_text_equal(name, length, mks("system"))) {
         return 1;
     }
     if (cc0_text_equal(name, length, mks("cc0_lexer_field"))) {
@@ -6320,9 +6308,16 @@ function cc0_link_collect_imports_(index, relocation, object, symbol, name,
             CC0_ELF_SYMBOL_SECTION_OFFSET)), CC0_LINK_ELF_UNDEFINED_SECTION)) {
             name = cc0_link_object_symbol_name(object, symbol);
             length = cc0_c_string_length(name);
-            if (and(eq(cc0_link_find_global(name, length), 0),
-                cc0_link_add_import(name, length))) {
-                return CC0_TRUE;
+            if (eq(cc0_link_find_global(name, length), 0)) {
+                if (cc0_link_add_import(name, length)) {
+                    return CC0_TRUE;
+                }
+                if (eq(ri32(add(relocation,
+                    CC0_LINK_RELOCATION_TYPE_OFFSET)),
+                    CC0_ELF_RELOCATION_ABSOLUTE)) {
+                    CC0_LINK_DYNAMIC_ABSOLUTE_COUNT = add(
+                        CC0_LINK_DYNAMIC_ABSOLUTE_COUNT, 1);
+                }
             }
         }
         index = add(index, 1);
@@ -6342,7 +6337,7 @@ function cc0_link_layout_(offset, index, entry, name_bytes, symbol_count,
         CC0_LINK_PROGRAM_HEADER_BYTES));
     offset = add(offset, CC0_LINK_INTERPRETER_BYTES);
     CC0_LINK_DYNSTR_OFFSET = cc0_elf_align(offset, 4);
-    name_bytes = 11;
+    name_bytes = 25;
     index = 0;
     while (lt(index, CC0_LINK_IMPORT_COUNT)) {
         entry = cc0_link_import_entry(index);
@@ -6359,7 +6354,8 @@ function cc0_link_layout_(offset, index, entry, name_bytes, symbol_count,
         mul(symbol_count, CC0_ELF_SYMBOL_BYTES));
     hash_bytes = shl(add(symbol_count, 3), 2);
     CC0_LINK_REL_OFFSET = add(CC0_LINK_HASH_OFFSET, hash_bytes);
-    relocation_bytes = mul(CC0_LINK_IMPORT_COUNT,
+    relocation_bytes = mul(add(CC0_LINK_IMPORT_COUNT,
+        CC0_LINK_DYNAMIC_ABSOLUTE_COUNT),
         CC0_ELF_RELOCATION_BYTES);
     CC0_LINK_STARTUP_OFFSET = cc0_elf_align(add(CC0_LINK_REL_OFFSET,
         relocation_bytes), 16);
@@ -6491,12 +6487,56 @@ function cc0_link_put_dynamic(index, tag, value)
     return cc0_link_put_dynamic_(index, tag, value, 0);
 }
 
+function cc0_link_write_absolute_dynamic_(index, written, relocation,
+    object, symbol, name, length, entry, record)
+{
+    index = 0;
+    written = 0;
+    while (lt(index, CC0_LINK_RELOCATION_COUNT)) {
+        relocation = cc0_link_relocation_entry(index);
+        if (eq(ri32(add(relocation, CC0_LINK_RELOCATION_TYPE_OFFSET)),
+            CC0_ELF_RELOCATION_ABSOLUTE)) {
+            object = cc0_link_object_entry(ri32(add(relocation,
+                CC0_LINK_RELOCATION_OBJECT_OFFSET)));
+            symbol = cc0_link_object_symbol(object, ri32(add(relocation,
+                CC0_LINK_RELOCATION_SYMBOL_OFFSET)));
+            if (eq(cc0_link_read_half(add(symbol,
+                CC0_ELF_SYMBOL_SECTION_OFFSET)),
+                CC0_LINK_ELF_UNDEFINED_SECTION)) {
+                name = cc0_link_object_symbol_name(object, symbol);
+                length = cc0_c_string_length(name);
+                if (eq(cc0_link_find_global(name, length), 0)) {
+                    entry = cc0_link_find_import(name, length);
+                    record = add(CC0_LINK_OUTPUT, add(CC0_LINK_REL_OFFSET,
+                        shl(add(CC0_LINK_IMPORT_COUNT, written), 3)));
+                    wi32(record, cc0_link_target_address(ri32(add(relocation,
+                        CC0_LINK_RELOCATION_REGION_OFFSET)), ri32(add(
+                        relocation, CC0_LINK_RELOCATION_TARGET_OFFSET))));
+                    wi32(add(record, 4), or(shl(add(ri32(add(entry,
+                        CC0_LINK_IMPORT_INDEX_OFFSET)), 1), 8),
+                        CC0_ELF_RELOCATION_ABSOLUTE));
+                    written = add(written, 1);
+                }
+            }
+        }
+        index = add(index, 1);
+    }
+    return written;
+}
+
+function cc0_link_write_absolute_dynamic()
+{
+    return cc0_link_write_absolute_dynamic_(0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 function cc0_link_write_dynamic_(index, entry, name, length, symbol,
     relocation, symbol_count, chain)
 {
     wi8(add(CC0_LINK_OUTPUT, CC0_LINK_DYNSTR_OFFSET), 0);
     cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT,
         add(CC0_LINK_DYNSTR_OFFSET, 1)), mks("libc.so.6"), 10);
+    cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT,
+        add(CC0_LINK_DYNSTR_OFFSET, 11)), mks("libgcc_s.so.1"), 14);
     index = 0;
     while (lt(index, CC0_LINK_IMPORT_COUNT)) {
         entry = cc0_link_import_entry(index);
@@ -6518,6 +6558,10 @@ function cc0_link_write_dynamic_(index, entry, name, length, symbol,
             CC0_LINK_ELF_RELOCATION_GLOBAL_DATA));
         index = add(index, 1);
     }
+    if (not(eq(cc0_link_write_absolute_dynamic(),
+        CC0_LINK_DYNAMIC_ABSOLUTE_COUNT))) {
+        return CC0_TRUE;
+    }
     symbol_count = add(CC0_LINK_IMPORT_COUNT, 1);
     wi32(add(CC0_LINK_OUTPUT, CC0_LINK_HASH_OFFSET), 1);
     wi32(add(CC0_LINK_OUTPUT, add(CC0_LINK_HASH_OFFSET, 4)), symbol_count);
@@ -6535,23 +6579,26 @@ function cc0_link_write_dynamic_(index, entry, name, length, symbol,
         index = add(index, 1);
     }
     cc0_link_put_dynamic(0, CC0_LINK_ELF_DYNAMIC_NEEDED, 1);
-    cc0_link_put_dynamic(1, CC0_LINK_ELF_DYNAMIC_HASH,
+    cc0_link_put_dynamic(1, CC0_LINK_ELF_DYNAMIC_NEEDED, 11);
+    cc0_link_put_dynamic(2, CC0_LINK_ELF_DYNAMIC_HASH,
         cc0_link_address(CC0_LINK_HASH_OFFSET));
-    cc0_link_put_dynamic(2, CC0_LINK_ELF_DYNAMIC_STRING_TABLE,
+    cc0_link_put_dynamic(3, CC0_LINK_ELF_DYNAMIC_STRING_TABLE,
         cc0_link_address(CC0_LINK_DYNSTR_OFFSET));
-    cc0_link_put_dynamic(3, CC0_LINK_ELF_DYNAMIC_SYMBOL_TABLE,
+    cc0_link_put_dynamic(4, CC0_LINK_ELF_DYNAMIC_SYMBOL_TABLE,
         cc0_link_address(CC0_LINK_DYNSYM_OFFSET));
-    cc0_link_put_dynamic(4, CC0_LINK_ELF_DYNAMIC_STRING_BYTES,
+    cc0_link_put_dynamic(5, CC0_LINK_ELF_DYNAMIC_STRING_BYTES,
         CC0_LINK_DYNSTR_BYTES);
-    cc0_link_put_dynamic(5, CC0_LINK_ELF_DYNAMIC_SYMBOL_BYTES,
+    cc0_link_put_dynamic(6, CC0_LINK_ELF_DYNAMIC_SYMBOL_BYTES,
         CC0_ELF_SYMBOL_BYTES);
-    cc0_link_put_dynamic(6, CC0_LINK_ELF_DYNAMIC_REL,
+    cc0_link_put_dynamic(7, CC0_LINK_ELF_DYNAMIC_REL,
         cc0_link_address(CC0_LINK_REL_OFFSET));
-    cc0_link_put_dynamic(7, CC0_LINK_ELF_DYNAMIC_REL_BYTES,
-        mul(CC0_LINK_IMPORT_COUNT, CC0_ELF_RELOCATION_BYTES));
-    cc0_link_put_dynamic(8, CC0_LINK_ELF_DYNAMIC_REL_ENTRY_BYTES,
+    cc0_link_put_dynamic(8, CC0_LINK_ELF_DYNAMIC_REL_BYTES,
+        mul(add(CC0_LINK_IMPORT_COUNT, CC0_LINK_DYNAMIC_ABSOLUTE_COUNT),
+        CC0_ELF_RELOCATION_BYTES));
+    cc0_link_put_dynamic(9, CC0_LINK_ELF_DYNAMIC_REL_ENTRY_BYTES,
         CC0_ELF_RELOCATION_BYTES);
-    return cc0_link_put_dynamic(9, CC0_LINK_ELF_DYNAMIC_NULL, 0);
+    cc0_link_put_dynamic(10, CC0_LINK_ELF_DYNAMIC_TEXTREL, 0);
+    return cc0_link_put_dynamic(11, CC0_LINK_ELF_DYNAMIC_NULL, 0);
 }
 
 function cc0_link_write_dynamic()
@@ -6650,12 +6697,40 @@ function cc0_link_target_address(region, offset)
     return 0;
 }
 
+function cc0_link_relocation_is_dynamic_(relocation, object, symbol, name,
+    length)
+{
+    if (not(eq(ri32(add(relocation, CC0_LINK_RELOCATION_TYPE_OFFSET)),
+        CC0_ELF_RELOCATION_ABSOLUTE))) {
+        return CC0_FALSE;
+    }
+    object = cc0_link_object_entry(ri32(add(relocation,
+        CC0_LINK_RELOCATION_OBJECT_OFFSET)));
+    symbol = cc0_link_object_symbol(object, ri32(add(relocation,
+        CC0_LINK_RELOCATION_SYMBOL_OFFSET)));
+    if (not(eq(cc0_link_read_half(add(symbol,
+        CC0_ELF_SYMBOL_SECTION_OFFSET)), CC0_LINK_ELF_UNDEFINED_SECTION))) {
+        return CC0_FALSE;
+    }
+    name = cc0_link_object_symbol_name(object, symbol);
+    length = cc0_c_string_length(name);
+    return eq(cc0_link_find_global(name, length), 0);
+}
+
+function cc0_link_relocation_is_dynamic(relocation)
+{
+    return cc0_link_relocation_is_dynamic_(relocation, 0, 0, 0, 0);
+}
+
 function cc0_link_apply_relocations_(index, relocation, object, target,
     target_address, symbol_address, value)
 {
     index = 0;
     while (lt(index, CC0_LINK_RELOCATION_COUNT)) {
         relocation = cc0_link_relocation_entry(index);
+        if (cc0_link_relocation_is_dynamic(relocation)) {
+            index = add(index, 1);
+        } else {
         object = cc0_link_object_entry(ri32(add(relocation,
             CC0_LINK_RELOCATION_OBJECT_OFFSET)));
         target = cc0_link_target(ri32(add(relocation,
@@ -6679,6 +6754,7 @@ function cc0_link_apply_relocations_(index, relocation, object, target,
         }
         wi32(target, value);
         index = add(index, 1);
+        }
     }
     return CC0_FALSE;
 }
@@ -6759,6 +6835,78 @@ function cc0_link_build_image()
     cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT, CC0_LINK_DATA_OFFSET),
         CC0_LINK_DATA, CC0_LINK_DATA_LENGTH);
     return cc0_link_apply_relocations();
+}
+
+function cc0_link_write_executable_(name, descriptor, index)
+{
+    descriptor = file_open_write(name);
+    if (lt(descriptor, 0)) {
+        return CC0_TRUE;
+    }
+    index = 0;
+    while (lt(index, CC0_LINK_OUTPUT_BYTES)) {
+        if (not(eq(file_write_byte(descriptor,
+            ri8(add(CC0_LINK_OUTPUT, index))), 1))) {
+            file_close(descriptor);
+            return CC0_TRUE;
+        }
+        index = add(index, 1);
+    }
+    file_close(descriptor);
+    return not(eq(chmod(name, 493), 0));
+}
+
+function cc0_link_write_executable(name)
+{
+    return cc0_link_write_executable_(name, 0, 0);
+}
+
+function cc0_link_(argc, argv, index, argument, output)
+{
+    index = 1;
+    output = 0;
+    while (lt(index, argc)) {
+        argument = ri32(add(argv, shl(index, 2)));
+        if (cc0_c_string_equal(argument, mks("-o"))) {
+            index = add(index, 1);
+            if (not(lt(index, argc))) {
+                return CC0_TRUE;
+            }
+            output = ri32(add(argv, shl(index, 2)));
+        } else {
+            if (cc0_link_add_object(argument)) {
+                return CC0_TRUE;
+            }
+        }
+        index = add(index, 1);
+    }
+    if (or(eq(output, 0), eq(CC0_LINK_OBJECT_COUNT, 0))) {
+        return CC0_TRUE;
+    }
+    if (cc0_link_merge_objects()) {
+        return CC0_TRUE;
+    }
+    if (cc0_link_collect_symbols()) {
+        return CC0_TRUE;
+    }
+    if (cc0_link_collect_relocations()) {
+        return CC0_TRUE;
+    }
+    if (cc0_link_collect_imports()) {
+        return CC0_TRUE;
+    }
+    if (cc0_link_layout()) {
+        return CC0_TRUE;
+    }
+    if (cc0_link_build_image()) {
+        return CC0_TRUE;
+    }
+    return cc0_link_write_executable(output);
+}
+
+function cc0_link(argc, argv)
+{
+    return cc0_link_(argc, argv, 0, 0, 0);
 }
 
 function cc0_write_object_(name, descriptor, index)
