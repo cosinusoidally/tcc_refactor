@@ -6559,6 +6559,208 @@ function cc0_link_write_dynamic()
     return cc0_link_write_dynamic_(0, 0, 0, 0, 0, 0, 0, 0);
 }
 
+function cc0_link_region_address(region, value)
+{
+    if (eq(region, CC0_LINK_REGION_TEXT)) {
+        return cc0_link_address(add(CC0_LINK_TEXT_OFFSET, value));
+    }
+    if (eq(region, CC0_LINK_REGION_DATA)) {
+        return cc0_link_address(add(CC0_LINK_DATA_OFFSET, value));
+    }
+    if (eq(region, CC0_LINK_REGION_BSS)) {
+        return cc0_link_address(add(CC0_LINK_BSS_OFFSET, value));
+    }
+    return value;
+}
+
+function cc0_link_global_address(symbol)
+{
+    return cc0_link_region_address(ri32(add(symbol,
+        CC0_LINK_SYMBOL_REGION_OFFSET)), ri32(add(symbol,
+        CC0_LINK_SYMBOL_VALUE_OFFSET)));
+}
+
+function cc0_link_import_address_(name, length, entry, index)
+{
+    entry = cc0_link_find_import(name, length);
+    if (eq(entry, 0)) {
+        return 0;
+    }
+    index = ri32(add(entry, CC0_LINK_IMPORT_INDEX_OFFSET));
+    return cc0_link_address(add(CC0_LINK_PLT_OFFSET,
+        mul(index, CC0_LINK_PLT_ENTRY_BYTES)));
+}
+
+function cc0_link_import_address(name, length)
+{
+    return cc0_link_import_address_(name, length, 0, 0);
+}
+
+function cc0_link_resolve_symbol_(object, symbol_index, symbol, binding,
+    section_index, name, length, global_symbol, map, region, value)
+{
+    symbol = cc0_link_object_symbol(object, symbol_index);
+    binding = ushr(ri8(add(symbol, CC0_ELF_SYMBOL_INFO_OFFSET)), 4);
+    section_index = cc0_link_read_half(add(symbol,
+        CC0_ELF_SYMBOL_SECTION_OFFSET));
+    if (not(eq(binding, 0))) {
+        name = cc0_link_object_symbol_name(object, symbol);
+        length = cc0_c_string_length(name);
+        global_symbol = cc0_link_find_global(name, length);
+        if (not(eq(global_symbol, 0))) {
+            return cc0_link_global_address(global_symbol);
+        }
+        return cc0_link_import_address(name, length);
+    }
+    value = ri32(add(symbol, CC0_ELF_SYMBOL_VALUE_OFFSET));
+    if (not(lt(section_index, CC0_LINK_ELF_RESERVED_SECTION))) {
+        return value;
+    }
+    map = add(ri32(add(object, CC0_LINK_OBJECT_SECTION_MAP_OFFSET)),
+        shl(section_index, 3));
+    region = ri32(map);
+    return cc0_link_region_address(region, add(ri32(add(map, 4)), value));
+}
+
+function cc0_link_resolve_symbol(object, symbol_index)
+{
+    return cc0_link_resolve_symbol_(object, symbol_index, 0, 0, 0, 0, 0,
+        0, 0, 0, 0);
+}
+
+function cc0_link_target(region, offset)
+{
+    if (eq(region, CC0_LINK_REGION_TEXT)) {
+        return add(CC0_LINK_OUTPUT, add(CC0_LINK_TEXT_OFFSET, offset));
+    }
+    if (eq(region, CC0_LINK_REGION_DATA)) {
+        return add(CC0_LINK_OUTPUT, add(CC0_LINK_DATA_OFFSET, offset));
+    }
+    return 0;
+}
+
+function cc0_link_target_address(region, offset)
+{
+    if (eq(region, CC0_LINK_REGION_TEXT)) {
+        return cc0_link_address(add(CC0_LINK_TEXT_OFFSET, offset));
+    }
+    if (eq(region, CC0_LINK_REGION_DATA)) {
+        return cc0_link_address(add(CC0_LINK_DATA_OFFSET, offset));
+    }
+    return 0;
+}
+
+function cc0_link_apply_relocations_(index, relocation, object, target,
+    target_address, symbol_address, value)
+{
+    index = 0;
+    while (lt(index, CC0_LINK_RELOCATION_COUNT)) {
+        relocation = cc0_link_relocation_entry(index);
+        object = cc0_link_object_entry(ri32(add(relocation,
+            CC0_LINK_RELOCATION_OBJECT_OFFSET)));
+        target = cc0_link_target(ri32(add(relocation,
+            CC0_LINK_RELOCATION_REGION_OFFSET)), ri32(add(relocation,
+            CC0_LINK_RELOCATION_TARGET_OFFSET)));
+        if (eq(target, 0)) {
+            return CC0_TRUE;
+        }
+        target_address = cc0_link_target_address(ri32(add(relocation,
+            CC0_LINK_RELOCATION_REGION_OFFSET)), ri32(add(relocation,
+            CC0_LINK_RELOCATION_TARGET_OFFSET)));
+        symbol_address = cc0_link_resolve_symbol(object, ri32(add(relocation,
+            CC0_LINK_RELOCATION_SYMBOL_OFFSET)));
+        if (eq(symbol_address, 0)) {
+            return CC0_TRUE;
+        }
+        value = add(ri32(target), symbol_address);
+        if (eq(ri32(add(relocation, CC0_LINK_RELOCATION_TYPE_OFFSET)),
+            CC0_ELF_RELOCATION_PC_RELATIVE)) {
+            value = sub(value, target_address);
+        }
+        wi32(target, value);
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_link_apply_relocations()
+{
+    return cc0_link_apply_relocations_(0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc0_link_write_plt_(index, entry, stub, got_address)
+{
+    index = 0;
+    while (lt(index, CC0_LINK_IMPORT_COUNT)) {
+        entry = cc0_link_import_entry(index);
+        stub = add(CC0_LINK_OUTPUT, add(CC0_LINK_PLT_OFFSET,
+            mul(index, CC0_LINK_PLT_ENTRY_BYTES)));
+        wi8(stub, 255);
+        wi8(add(stub, 1), 37);
+        got_address = cc0_link_address(add(CC0_LINK_GOT_OFFSET,
+            shl(index, 2)));
+        wi32(add(stub, 2), got_address);
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_link_write_plt()
+{
+    return cc0_link_write_plt_(0, 0, 0, 0);
+}
+
+/* libc supplies process teardown; cc0 only adapts the i386 entry stack. */
+function cc0_link_write_startup_(startup, main_symbol, main_address,
+    exit_address, startup_address)
+{
+    main_symbol = cc0_link_find_global(mks("main"), 4);
+    if (eq(main_symbol, 0)) {
+        return CC0_TRUE;
+    }
+    main_address = cc0_link_global_address(main_symbol);
+    exit_address = cc0_link_import_address(mks("exit"), 4);
+    if (eq(exit_address, 0)) {
+        return CC0_TRUE;
+    }
+    startup = add(CC0_LINK_OUTPUT, CC0_LINK_STARTUP_OFFSET);
+    startup_address = cc0_link_address(CC0_LINK_STARTUP_OFFSET);
+    wi8(startup, 49);
+    wi8(add(startup, 1), 237);
+    wi8(add(startup, 2), 88);
+    wi8(add(startup, 3), 137);
+    wi8(add(startup, 4), 226);
+    wi8(add(startup, 5), 82);
+    wi8(add(startup, 6), 80);
+    wi8(add(startup, 7), 232);
+    wi32(add(startup, 8), sub(main_address, add(startup_address, 12)));
+    wi8(add(startup, 12), 80);
+    wi8(add(startup, 13), 232);
+    wi32(add(startup, 14), sub(exit_address, add(startup_address, 18)));
+    wi8(add(startup, 18), 244);
+    return CC0_FALSE;
+}
+
+function cc0_link_write_startup()
+{
+    return cc0_link_write_startup_(0, 0, 0, 0, 0);
+}
+
+function cc0_link_build_image()
+{
+    cc0_link_write_elf_header();
+    cc0_link_write_dynamic();
+    cc0_link_write_plt();
+    if (cc0_link_write_startup()) {
+        return CC0_TRUE;
+    }
+    cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT, CC0_LINK_TEXT_OFFSET),
+        CC0_LINK_TEXT, CC0_LINK_TEXT_LENGTH);
+    cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT, CC0_LINK_DATA_OFFSET),
+        CC0_LINK_DATA, CC0_LINK_DATA_LENGTH);
+    return cc0_link_apply_relocations();
+}
+
 function cc0_write_object_(name, descriptor, index)
 {
     descriptor = file_open_write(name);
