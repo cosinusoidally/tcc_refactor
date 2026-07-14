@@ -829,6 +829,10 @@ var CC2_BINARY_FILE_FLAG;
 var CC2_ASM_SYMBOL_TYPE;
 var CC2_ASM_SYMBOL_REGISTER;
 var CC2_ASM_OPERAND_BYTES;
+var CC2_ASM_EXPRESSION_HIGH_OFFSET;
+var CC2_ASM_EXPRESSION_SYMBOL_OFFSET;
+var CC2_ASM_EXPRESSION_PCREL_OFFSET;
+var CC2_TOKEN_IDENTIFIER_FIRST;
 var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
@@ -6393,6 +6397,486 @@ function find_constraint(operands, operand_count, name, end_pointer)
 {
     return find_constraint_(operands, operand_count, name, end_pointer,
         0, 0, 0, 0, 0);
+}
+
+function cc2_asm_expression_clear(expression)
+{
+    wi32(expression, 0);
+    wi32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET), 0);
+    wi32(add(expression, CC2_ASM_EXPRESSION_SYMBOL_OFFSET), 0);
+    wi32(add(expression, CC2_ASM_EXPRESSION_PCREL_OFFSET), 0);
+    return 0;
+}
+
+function cc2_unsigned_less(left, right)
+{
+    return lt(xor(left, 2147483648), xor(right, 2147483648));
+}
+
+function cc2_asm_number_digit(character)
+{
+    if (and(le(mkC("0"), character), le(character, mkC("9")))) {
+        return sub(character, mkC("0"));
+    }
+    if (and(le(mkC("a"), character), le(character, mkC("f")))) {
+        return add(sub(character, mkC("a")), 10);
+    }
+    if (and(le(mkC("A"), character), le(character, mkC("F")))) {
+        return add(sub(character, mkC("A")), 10);
+    }
+    return sub(0, 1);
+}
+
+function cc2_asm_parse_number_(text, words, end_pointer, current, base,
+    digit)
+{
+    cc2_asm_expression_clear(words);
+    current = text;
+    base = 10;
+    if (eq(ri8(current), mkC("0"))) {
+        if (or(eq(ri8(add(current, 1)), mkC("x")),
+            eq(ri8(add(current, 1)), mkC("X")))) {
+            base = 16;
+            current = add(current, 2);
+        } else {
+            base = 8;
+        }
+    }
+    digit = cc2_asm_number_digit(ri8(current));
+    while (and(le(0, digit), lt(digit, base))) {
+        u64_mul_add(words, base, digit);
+        current = add(current, 1);
+        digit = cc2_asm_number_digit(ri8(current));
+    }
+    wi32(end_pointer, current);
+    return ri32(words);
+}
+
+function cc2_asm_parse_number(text, words, end_pointer)
+{
+    return cc2_asm_parse_number_(text, words, end_pointer, 0, 0, 0);
+}
+
+function cc2_asm_negate(expression, low, high)
+{
+    low = ri32(expression);
+    high = bnot(ri32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET)));
+    low = add(bnot(low), 1);
+    if (eq(low, 0)) {
+        high = add(high, 1);
+    }
+    wi32(expression, low);
+    wi32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET), high);
+    return 0;
+}
+
+function cc2_asm_add(expression, right, old_low, new_low, high)
+{
+    old_low = ri32(expression);
+    new_low = add(old_low, ri32(right));
+    high = add(ri32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET)),
+        ri32(add(right, CC2_ASM_EXPRESSION_HIGH_OFFSET)));
+    if (cc2_unsigned_less(new_low, old_low)) {
+        high = add(high, 1);
+    }
+    wi32(expression, new_low);
+    wi32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET), high);
+    return 0;
+}
+
+function cc2_asm_subtract(expression, right, old_low, new_low, high)
+{
+    old_low = ri32(expression);
+    new_low = sub(old_low, ri32(right));
+    high = sub(ri32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET)),
+        ri32(add(right, CC2_ASM_EXPRESSION_HIGH_OFFSET)));
+    if (cc2_unsigned_less(old_low, ri32(right))) {
+        high = sub(high, 1);
+    }
+    wi32(expression, new_low);
+    wi32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET), high);
+    return 0;
+}
+
+function cc2_asm_shift_left(expression, count, low, high)
+{
+    low = ri32(expression);
+    high = ri32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET));
+    if (le(32, count)) {
+        high = shl(low, sub(count, 32));
+        low = 0;
+    } else if (not(eq(count, 0))) {
+        high = or(shl(high, count), ushr(low, sub(32, count)));
+        low = shl(low, count);
+    }
+    wi32(expression, low);
+    wi32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET), high);
+    return 0;
+}
+
+function cc2_asm_shift_right(expression, count, low, high)
+{
+    low = ri32(expression);
+    high = ri32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET));
+    if (le(32, count)) {
+        low = ushr(high, sub(count, 32));
+        high = 0;
+    } else if (not(eq(count, 0))) {
+        low = or(ushr(low, count), shl(high, sub(32, count)));
+        high = ushr(high, count);
+    }
+    wi32(expression, low);
+    wi32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET), high);
+    return 0;
+}
+
+function cc2_asm_expression_unary_(state, expression, token, text,
+    end_pointer, end, number, label, symbol, elf_symbol, operation)
+{
+    token = ri32(tok_address);
+    if (eq(token, CC2_TOKEN_PREPROCESSOR_NUMBER)) {
+        text = ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET));
+        end_pointer = malloc(CC2_I386_WORD_BYTES);
+        number = cc2_asm_parse_number(text, expression, end_pointer);
+        end = ri32(end_pointer);
+        free(end_pointer);
+        if (or(eq(ri8(end), mkC("b")), eq(ri8(end), mkC("f")))) {
+            label = asm_get_local_label_name(state, number);
+            symbol = asm_label_find(label);
+            if (eq(ri8(end), mkC("b"))) {
+                if (not(eq(symbol, 0))) {
+                    if (eq(ri32(add(symbol,
+                        CC2_SYM_CONSTANT_OFFSET)), 0)) {
+                        symbol = ri32(add(symbol,
+                            CC2_SYM_PREVIOUS_TOKEN_OFFSET));
+                    } else {
+                        elf_symbol = elfsym(symbol);
+                        if (and(not(eq(elf_symbol, 0)), eq(
+                            cc2_read_little_u16(add(elf_symbol,
+                            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)),
+                            CC2_ELF_UNDEFINED_SECTION))) {
+                            symbol = ri32(add(symbol,
+                                CC2_SYM_PREVIOUS_TOKEN_OFFSET));
+                        }
+                    }
+                }
+                if (eq(symbol, 0)) {
+                    tcc_error(mks("local label '%d' not found backward"),
+                        number);
+                }
+            } else {
+                if (eq(symbol, 0)) {
+                    symbol = asm_label_push(label);
+                } else if (not(eq(ri32(add(symbol,
+                    CC2_SYM_CONSTANT_OFFSET)), 0))) {
+                    elf_symbol = elfsym(symbol);
+                    if (and(not(eq(elf_symbol, 0)), not(eq(
+                        cc2_read_little_u16(add(elf_symbol,
+                        CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)),
+                        CC2_ELF_UNDEFINED_SECTION)))) {
+                        symbol = asm_label_push(label);
+                    }
+                }
+            }
+            cc2_asm_expression_clear(expression);
+            wi32(add(expression, CC2_ASM_EXPRESSION_SYMBOL_OFFSET), symbol);
+        } else if (eq(ri8(end), 0)) {
+            number = ri32(expression);
+        } else {
+            tcc_error(mks("invalid number syntax"), 0);
+        }
+        next();
+        return 0;
+    }
+    if (eq(token, CC2_ASCII_PLUS)) {
+        next();
+        return cc2_asm_expression_unary(state, expression);
+    }
+    if (or(eq(token, CC2_ASCII_MINUS), eq(token, mkC("~")))) {
+        operation = token;
+        next();
+        cc2_asm_expression_unary(state, expression);
+        if (not(eq(ri32(add(expression,
+            CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0))) {
+            tcc_error(mks("invalid operation with label"), 0);
+        }
+        if (eq(operation, CC2_ASCII_MINUS)) {
+            cc2_asm_negate(expression, 0, 0);
+        } else {
+            wi32(expression, bnot(ri32(expression)));
+            wi32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET), bnot(ri32(
+                add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET))));
+        }
+        return 0;
+    }
+    if (or(eq(token, CC2_TOKEN_CHARACTER),
+        eq(token, CC2_TOKEN_WIDE_CHARACTER))) {
+        cc2_asm_expression_clear(expression);
+        wi32(expression, ri32(tokc_address));
+        next();
+        return 0;
+    }
+    if (eq(token, mkC("("))) {
+        next();
+        asm_expr(state, expression);
+        skip(mkC(")"));
+        return 0;
+    }
+    if (eq(token, mkC("."))) {
+        cc2_asm_expression_clear(expression);
+        wi32(expression, ind);
+        wi32(add(expression, CC2_ASM_EXPRESSION_SYMBOL_OFFSET),
+            asm_section_sym(state, ri32(cur_text_section_address)));
+        next();
+        return 0;
+    }
+    if (le(CC2_TOKEN_IDENTIFIER_FIRST, token)) {
+        symbol = get_asm_sym(token, 0);
+        elf_symbol = elfsym(symbol);
+        cc2_asm_expression_clear(expression);
+        if (eq(elf_symbol, 0)) {
+            wi32(add(expression, CC2_ASM_EXPRESSION_SYMBOL_OFFSET), symbol);
+        } else if (eq(cc2_read_little_u16(add(elf_symbol,
+            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)),
+            CC2_ELF_ABSOLUTE_SECTION)) {
+            wi32(expression, ri32(add(elf_symbol,
+                CC2_ELF_SYMBOL_VALUE_OFFSET)));
+        } else {
+            wi32(add(expression, CC2_ASM_EXPRESSION_SYMBOL_OFFSET), symbol);
+        }
+        next();
+        return 0;
+    }
+    tcc_error(mks("bad expression syntax [%s]"),
+        get_tok_str(token, tokc_address));
+    return 0;
+}
+
+function cc2_asm_expression_unary(state, expression)
+{
+    return cc2_asm_expression_unary_(state, expression,
+        0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_asm_expression_product_(state, expression, right, operation,
+    right_value)
+{
+    cc2_asm_expression_unary(state, expression);
+    right = malloc(16);
+    while (or(or(eq(ri32(tok_address), CC2_ASCII_ASTERISK),
+        eq(ri32(tok_address), CC2_ASCII_SLASH)), or(
+        eq(ri32(tok_address), CC2_ASCII_PERCENT), or(
+        eq(ri32(tok_address), CC2_TOKEN_SHIFT_LEFT),
+        eq(ri32(tok_address), CC2_TOKEN_SHIFT_RIGHT))))) {
+        operation = ri32(tok_address);
+        next();
+        cc2_asm_expression_unary(state, right);
+        if (or(not(eq(ri32(add(expression,
+            CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)), not(eq(ri32(add(right,
+            CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)))) {
+            tcc_error(mks("invalid operation with label"), 0);
+        }
+        right_value = ri32(right);
+        if (eq(operation, CC2_ASCII_ASTERISK)) {
+            wi32(expression, mul(ri32(expression), right_value));
+        } else if (eq(operation, CC2_ASCII_SLASH)) {
+            if (eq(right_value, 0)) {
+                tcc_error(mks("division by zero"), 0);
+            }
+            wi32(expression, sdiv(ri32(expression), right_value));
+        } else if (eq(operation, CC2_ASCII_PERCENT)) {
+            if (eq(right_value, 0)) {
+                tcc_error(mks("division by zero"), 0);
+            }
+            wi32(expression, mod(ri32(expression), right_value));
+        } else if (eq(operation, CC2_TOKEN_SHIFT_LEFT)) {
+            cc2_asm_shift_left(expression, right_value, 0, 0);
+        } else {
+            cc2_asm_shift_right(expression, right_value, 0, 0);
+        }
+    }
+    free(right);
+    return 0;
+}
+
+function cc2_asm_expression_product(state, expression)
+{
+    return cc2_asm_expression_product_(state, expression, 0, 0, 0);
+}
+
+function cc2_asm_expression_logic_(state, expression, right, operation)
+{
+    cc2_asm_expression_product(state, expression);
+    right = malloc(16);
+    while (or(eq(ri32(tok_address), CC2_ASCII_AMPERSAND), or(
+        eq(ri32(tok_address), CC2_ASCII_VERTICAL_BAR),
+        eq(ri32(tok_address), CC2_ASCII_CARET)))) {
+        operation = ri32(tok_address);
+        next();
+        cc2_asm_expression_product(state, right);
+        if (or(not(eq(ri32(add(expression,
+            CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)), not(eq(ri32(add(right,
+            CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)))) {
+            tcc_error(mks("invalid operation with label"), 0);
+        }
+        if (eq(operation, CC2_ASCII_AMPERSAND)) {
+            wi32(expression, and(ri32(expression), ri32(right)));
+            wi32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET), and(ri32(add(
+                expression, CC2_ASM_EXPRESSION_HIGH_OFFSET)), ri32(add(right,
+                CC2_ASM_EXPRESSION_HIGH_OFFSET))));
+        } else if (eq(operation, CC2_ASCII_VERTICAL_BAR)) {
+            wi32(expression, or(ri32(expression), ri32(right)));
+            wi32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET), or(ri32(add(
+                expression, CC2_ASM_EXPRESSION_HIGH_OFFSET)), ri32(add(right,
+                CC2_ASM_EXPRESSION_HIGH_OFFSET))));
+        } else {
+            wi32(expression, xor(ri32(expression), ri32(right)));
+            wi32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET), xor(ri32(add(
+                expression, CC2_ASM_EXPRESSION_HIGH_OFFSET)), ri32(add(right,
+                CC2_ASM_EXPRESSION_HIGH_OFFSET))));
+        }
+    }
+    free(right);
+    return 0;
+}
+
+function cc2_asm_expression_logic(state, expression)
+{
+    return cc2_asm_expression_logic_(state, expression, 0, 0);
+}
+
+function cc2_asm_expression_sum_(state, expression, right, operation,
+    left_symbol, right_symbol, left_elf, right_elf, section)
+{
+    cc2_asm_expression_logic(state, expression);
+    right = malloc(16);
+    while (or(eq(ri32(tok_address), CC2_ASCII_PLUS),
+        eq(ri32(tok_address), CC2_ASCII_MINUS))) {
+        operation = ri32(tok_address);
+        next();
+        cc2_asm_expression_logic(state, right);
+        left_symbol = ri32(add(expression,
+            CC2_ASM_EXPRESSION_SYMBOL_OFFSET));
+        right_symbol = ri32(add(right, CC2_ASM_EXPRESSION_SYMBOL_OFFSET));
+        if (eq(operation, CC2_ASCII_PLUS)) {
+            if (and(not(eq(left_symbol, 0)), not(eq(right_symbol, 0)))) {
+                tcc_error(mks("invalid operation with label"), 0);
+            }
+            cc2_asm_add(expression, right, 0, 0, 0);
+            if (and(eq(left_symbol, 0), not(eq(right_symbol, 0)))) {
+                wi32(add(expression, CC2_ASM_EXPRESSION_SYMBOL_OFFSET),
+                    right_symbol);
+            }
+        } else {
+            cc2_asm_subtract(expression, right, 0, 0, 0);
+            if (eq(right_symbol, 0)) {
+                section = 0;
+            } else if (eq(left_symbol, right_symbol)) {
+                wi32(add(expression, CC2_ASM_EXPRESSION_SYMBOL_OFFSET), 0);
+            } else {
+                left_elf = elfsym(left_symbol);
+                right_elf = elfsym(right_symbol);
+                if (eq(left_elf, 0)) {
+                    tcc_error(mks("invalid operation with label"), 0);
+                } else if (eq(right_elf, 0)) {
+                    tcc_error(mks("invalid operation with label"), 0);
+                } else if (and(eq(cc2_read_little_u16(add(left_elf,
+                    CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)),
+                    cc2_read_little_u16(add(right_elf,
+                    CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET))), not(eq(
+                    cc2_read_little_u16(add(left_elf,
+                    CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)),
+                    CC2_ELF_UNDEFINED_SECTION)))) {
+                    wi32(expression, add(ri32(expression), sub(ri32(add(
+                        left_elf, CC2_ELF_SYMBOL_VALUE_OFFSET)), ri32(add(
+                        right_elf, CC2_ELF_SYMBOL_VALUE_OFFSET)))));
+                    wi32(add(expression,
+                        CC2_ASM_EXPRESSION_SYMBOL_OFFSET), 0);
+                } else if (eq(cc2_read_little_u16(add(right_elf,
+                    CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), ri32(add(
+                    ri32(cur_text_section_address),
+                    CC2_SECTION_NUMBER_OFFSET)))) {
+                    wi32(expression, sub(ri32(expression), sub(sub(ri32(add(
+                        right_elf, CC2_ELF_SYMBOL_VALUE_OFFSET)), ind), 4)));
+                    wi32(add(expression,
+                        CC2_ASM_EXPRESSION_PCREL_OFFSET), 1);
+                } else {
+                    tcc_error(mks("invalid operation with label"), 0);
+                }
+            }
+        }
+    }
+    free(right);
+    return 0;
+}
+
+function cc2_asm_expression_sum(state, expression)
+{
+    return cc2_asm_expression_sum_(state, expression, 0, 0, 0, 0,
+        0, 0, 0);
+}
+
+function cc2_asm_expression_compare_(state, expression, right, operation,
+    result)
+{
+    cc2_asm_expression_sum(state, expression);
+    right = malloc(16);
+    while (or(or(eq(ri32(tok_address), CC2_TOKEN_EQUAL),
+        eq(ri32(tok_address), CC2_TOKEN_NOT_EQUAL)), and(
+        le(CC2_TOKEN_UNSIGNED_LESS_EQUAL, ri32(tok_address)),
+        le(ri32(tok_address), CC2_TOKEN_GREATER)))) {
+        operation = ri32(tok_address);
+        next();
+        cc2_asm_expression_sum(state, right);
+        if (or(not(eq(ri32(add(expression,
+            CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)), not(eq(ri32(add(right,
+            CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)))) {
+            tcc_error(mks("invalid operation with label"), 0);
+        }
+        if (eq(operation, CC2_TOKEN_EQUAL)) {
+            result = eq(ri32(expression), ri32(right));
+        } else if (eq(operation, CC2_TOKEN_NOT_EQUAL)) {
+            result = not(eq(ri32(expression), ri32(right)));
+        } else if (eq(operation, CC2_TOKEN_SIGNED_LESS)) {
+            result = lt(ri32(expression), ri32(right));
+        } else if (eq(operation, CC2_TOKEN_SIGNED_GREATER_EQUAL)) {
+            result = le(ri32(right), ri32(expression));
+        } else if (eq(operation, CC2_TOKEN_SIGNED_LESS_EQUAL)) {
+            result = le(ri32(expression), ri32(right));
+        } else if (eq(operation, CC2_TOKEN_GREATER)) {
+            result = lt(ri32(right), ri32(expression));
+        } else {
+            result = 0;
+        }
+        wi32(expression, sub(0, result));
+        wi32(add(expression, CC2_ASM_EXPRESSION_HIGH_OFFSET),
+            sub(0, result));
+    }
+    free(right);
+    return 0;
+}
+
+function asm_expr(state, expression)
+{
+    return cc2_asm_expression_compare_(state, expression, 0, 0, 0);
+}
+
+function asm_int_expr_(state, expression, value)
+{
+    expression = malloc(16);
+    asm_expr(state, expression);
+    if (not(eq(ri32(add(expression,
+        CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0))) {
+        expect(mks("constant"));
+    }
+    value = ri32(expression);
+    free(expression);
+    return value;
+}
+
+function asm_int_expr(state)
+{
+    return asm_int_expr_(state, 0, 0);
 }
 
 function use_section1(state, section)
@@ -21762,6 +22246,10 @@ function cc2_init_constants()
     CC2_ASM_SYMBOL_TYPE = 12304;
     CC2_ASM_SYMBOL_REGISTER = 560;
     CC2_ASM_OPERAND_BYTES = 56;
+    CC2_ASM_EXPRESSION_HIGH_OFFSET = 4;
+    CC2_ASM_EXPRESSION_SYMBOL_OFFSET = 8;
+    CC2_ASM_EXPRESSION_PCREL_OFFSET = 12;
+    CC2_TOKEN_IDENTIFIER_FIRST = 256;
     CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;
