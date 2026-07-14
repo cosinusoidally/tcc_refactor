@@ -878,47 +878,6 @@ static void tcc_assemble_inline(TCCState *s1, char *str, int len, int global)
     macro_ptr = saved_macro_ptr;
 }
 
-/* find a constraint by its number or id (gcc 3 extended
-   syntax). return -1 if not found. Return in *pp in char after the
-   constraint */
-ST_FUNC int find_constraint(ASMOperand *operands, int nb_operands, 
-                           const char *name, const char **pp)
-{
-    int index;
-    TokenSym *ts;
-    const char *p;
-
-    if (isnum(*name)) {
-        index = 0;
-        while (isnum(*name)) {
-            index = (index * 10) + (*name) - '0';
-            name++;
-        }
-        if ((unsigned)index >= nb_operands)
-            index = -1;
-    } else if (*name == '[') {
-        name++;
-        p = strchr(name, ']');
-        if (p) {
-            ts = tok_alloc(name, p - name);
-            for(index = 0; index < nb_operands; index++) {
-                if (operands[index].id == ts->tok)
-                    goto found;
-            }
-            index = -1;
-        found:
-            name = p + 1;
-        } else {
-            index = -1;
-        }
-    } else {
-        index = -1;
-    }
-    if (pp)
-        *pp = name;
-    return index;
-}
-
 static void subst_asm_operands(ASMOperand *operands, int nb_operands, 
                                CString *out_str, CString *in_str)
 {

@@ -828,6 +828,7 @@ var CC2_LINKER_FILENAME_BYTES;
 var CC2_BINARY_FILE_FLAG;
 var CC2_ASM_SYMBOL_TYPE;
 var CC2_ASM_SYMBOL_REGISTER;
+var CC2_ASM_OPERAND_BYTES;
 var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
@@ -6338,6 +6339,60 @@ function asm_section_sym(state, section)
             CC2_SECTION_NUMBER_OFFSET)), 0);
     }
     return symbol;
+}
+
+/* Resolve GCC inline-asm operand references by number or bracketed name. */
+function find_constraint_(operands, operand_count, name, end_pointer,
+    index, character, closing, token_symbol, operand)
+{
+    character = ri8(name);
+    if (and(le(mkC("0"), character), le(character, mkC("9")))) {
+        index = 0;
+        while (and(le(mkC("0"), ri8(name)), le(ri8(name), mkC("9")))) {
+            index = add(mul(index, 10), sub(ri8(name), mkC("0")));
+            name = add(name, 1);
+        }
+        if (not(lt(index, operand_count))) {
+            index = sub(0, 1);
+        }
+    } else if (eq(character, mkC("["))) {
+        name = add(name, 1);
+        closing = name;
+        while (and(not(eq(ri8(closing), 0)),
+            not(eq(ri8(closing), mkC("]"))))) {
+            closing = add(closing, 1);
+        }
+        if (eq(ri8(closing), mkC("]"))) {
+            token_symbol = tok_alloc(name, sub(closing, name));
+            index = 0;
+            while (lt(index, operand_count)) {
+                operand = add(operands, mul(index, CC2_ASM_OPERAND_BYTES));
+                if (eq(ri32(operand),
+                    ri32(add(token_symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET)))) {
+                    name = add(closing, 1);
+                    if (not(eq(end_pointer, 0))) {
+                        wi32(end_pointer, name);
+                    }
+                    return index;
+                }
+                index = add(index, 1);
+            }
+            name = add(closing, 1);
+        }
+        index = sub(0, 1);
+    } else {
+        index = sub(0, 1);
+    }
+    if (not(eq(end_pointer, 0))) {
+        wi32(end_pointer, name);
+    }
+    return index;
+}
+
+function find_constraint(operands, operand_count, name, end_pointer)
+{
+    return find_constraint_(operands, operand_count, name, end_pointer,
+        0, 0, 0, 0, 0);
 }
 
 function use_section1(state, section)
@@ -21706,6 +21761,7 @@ function cc2_init_constants()
     CC2_BINARY_FILE_FLAG = 64;
     CC2_ASM_SYMBOL_TYPE = 12304;
     CC2_ASM_SYMBOL_REGISTER = 560;
+    CC2_ASM_OPERAND_BYTES = 56;
     CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;

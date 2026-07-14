@@ -1691,7 +1691,8 @@ ST_FUNC int tcc_load_coff(TCCState * s1, int fd);
 void asm_instr(void);
 void asm_global_instr(void);
 #ifdef CONFIG_TCC_ASM
-ST_FUNC int find_constraint(ASMOperand *operands, int nb_operands, const char *name, const char **pp);
+extern int find_constraint(ASMOperand *operands, int nb_operands,
+                           const char *name, const char **pp);
 extern int asm_get_local_label_name(TCCState *s1, unsigned int n);
 extern Sym *asm_label_find(int v);
 extern Sym *asm_label_push(int v);
