@@ -1016,6 +1016,14 @@ var CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET;
 var CC2_TCC_STATE_LIBRARY_ROOT_OFFSET;
 var CC2_TCC_STATE_CRT_PATHS_OFFSET;
 var CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET;
+var CC2_TCC_STATE_INIT_SYMBOL_OFFSET;
+var CC2_TCC_STATE_FINI_SYMBOL_OFFSET;
+var CC2_TCC_STATE_FILES_OFFSET;
+var CC2_TCC_STATE_FILE_COUNT_OFFSET;
+var CC2_TCC_STATE_OUTFILE_OFFSET;
+var CC2_TCC_STATE_DEPS_OUTFILE_OFFSET;
+var CC2_TCC_STATE_ARGC_OFFSET;
+var CC2_TCC_STATE_ARGV_OFFSET;
 var CC2_TCC_OUTPUT_MEMORY;
 var CC2_RUNTIME_SUPPORT_LIBRARY;
 var CC2_TOKEN_GENERIC;
@@ -24109,6 +24117,47 @@ function tcc_new()
     return state;
 }
 
+function tcc_delete(state)
+{
+    var count_slot;
+    tcc_cleanup();
+    tccelf_delete(state);
+    dynarray_reset(add(state, CC2_TCC_STATE_LIBRARY_PATHS_OFFSET),
+        add(state, CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET));
+    dynarray_reset(add(state, CC2_TCC_STATE_CRT_PATHS_OFFSET),
+        add(state, CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET));
+    dynarray_reset(add(state, CC2_TCC_STATE_INCLUDES_OFFSET),
+        add(state, CC2_TCC_STATE_INCLUDE_COUNT_OFFSET));
+    dynarray_reset(add(state, CC2_TCC_STATE_INCLUDE_PATHS_OFFSET),
+        add(state, CC2_TCC_STATE_INCLUDE_PATH_COUNT_OFFSET));
+    dynarray_reset(add(state, CC2_TCC_STATE_SYSTEM_INCLUDE_PATHS_OFFSET),
+        add(state, CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET));
+    dynarray_reset(add(state, CC2_TCC_STATE_COMMAND_INCLUDE_FILES_OFFSET),
+        add(state, CC2_TCC_STATE_COMMAND_INCLUDE_COUNT_OFFSET));
+    tcc_free(ri32(add(state, CC2_TCC_STATE_LIBRARY_ROOT_OFFSET)));
+    tcc_free(ri32(add(state, CC2_TCC_STATE_SONAME_OFFSET)));
+    tcc_free(ri32(add(state, CC2_TCC_STATE_RPATH_OFFSET)));
+    tcc_free(ri32(add(state, CC2_TCC_STATE_INIT_SYMBOL_OFFSET)));
+    tcc_free(ri32(add(state, CC2_TCC_STATE_FINI_SYMBOL_OFFSET)));
+    tcc_free(ri32(add(state, CC2_TCC_STATE_OUTFILE_OFFSET)));
+    tcc_free(ri32(add(state, CC2_TCC_STATE_DEPS_OUTFILE_OFFSET)));
+    dynarray_reset(add(state, CC2_TCC_STATE_FILES_OFFSET),
+        add(state, CC2_TCC_STATE_FILE_COUNT_OFFSET));
+    dynarray_reset(add(state, CC2_TCC_STATE_TARGET_DEPENDENCIES_OFFSET),
+        add(state, CC2_TCC_STATE_TARGET_DEPENDENCY_COUNT_OFFSET));
+    dynarray_reset(add(state, CC2_TCC_STATE_PRAGMA_LIBRARIES_OFFSET),
+        add(state, CC2_TCC_STATE_PRAGMA_LIBRARY_COUNT_OFFSET));
+    dynarray_reset(add(state, CC2_TCC_STATE_ARGV_OFFSET),
+        add(state, CC2_TCC_STATE_ARGC_OFFSET));
+    tcc_free(state);
+    count_slot = cc2_tcc_state_count_slot();
+    wi32(count_slot, sub(ri32(count_slot), 1));
+    if (eq(ri32(count_slot), 0)) {
+        tcc_memcheck();
+    }
+    return 0;
+}
+
 function tcc_memcheck()
 {
     return 0;
@@ -25726,6 +25775,14 @@ function cc2_init_constants()
     CC2_TCC_STATE_LIBRARY_ROOT_OFFSET = 32;
     CC2_TCC_STATE_CRT_PATHS_OFFSET = 168;
     CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET = 172;
+    CC2_TCC_STATE_INIT_SYMBOL_OFFSET = 124;
+    CC2_TCC_STATE_FINI_SYMBOL_OFFSET = 128;
+    CC2_TCC_STATE_FILES_OFFSET = 1012;
+    CC2_TCC_STATE_FILE_COUNT_OFFSET = 1016;
+    CC2_TCC_STATE_OUTFILE_OFFSET = 1028;
+    CC2_TCC_STATE_DEPS_OUTFILE_OFFSET = 1044;
+    CC2_TCC_STATE_ARGC_OFFSET = 1052;
+    CC2_TCC_STATE_ARGV_OFFSET = 1056;
     CC2_TCC_OUTPUT_MEMORY = 1;
     CC2_RUNTIME_SUPPORT_LIBRARY = mks("libtcc1.a");
     CC2_TOKEN_GENERIC = 292;
