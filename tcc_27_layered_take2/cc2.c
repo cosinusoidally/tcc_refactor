@@ -838,6 +838,41 @@ var CC2_ASM_DIRECTIVE_ALIGN;
 var CC2_ASM_DIRECTIVE_BALIGN;
 var CC2_ASM_DIRECTIVE_P2ALIGN;
 var CC2_TCC_STATE_SEGMENT_SIZE_OFFSET;
+var CC2_ASM_DIRECTIVE_FIRST;
+var CC2_ASM_DIRECTIVE_LAST;
+var CC2_ASM_DIRECTIVE_BYTE;
+var CC2_ASM_DIRECTIVE_WORD;
+var CC2_ASM_DIRECTIVE_SET;
+var CC2_ASM_DIRECTIVE_SKIP;
+var CC2_ASM_DIRECTIVE_SPACE;
+var CC2_ASM_DIRECTIVE_STRING;
+var CC2_ASM_DIRECTIVE_ASCIZ;
+var CC2_ASM_DIRECTIVE_ASCII;
+var CC2_ASM_DIRECTIVE_FILE;
+var CC2_ASM_DIRECTIVE_GLOBAL;
+var CC2_ASM_DIRECTIVE_GLOBAL_ALT;
+var CC2_ASM_DIRECTIVE_WEAK;
+var CC2_ASM_DIRECTIVE_HIDDEN;
+var CC2_ASM_DIRECTIVE_IDENT;
+var CC2_ASM_DIRECTIVE_SIZE;
+var CC2_ASM_DIRECTIVE_TYPE;
+var CC2_ASM_DIRECTIVE_TEXT;
+var CC2_ASM_DIRECTIVE_DATA;
+var CC2_ASM_DIRECTIVE_BSS;
+var CC2_ASM_DIRECTIVE_PREVIOUS;
+var CC2_ASM_DIRECTIVE_PUSH_SECTION;
+var CC2_ASM_DIRECTIVE_POP_SECTION;
+var CC2_ASM_DIRECTIVE_FILL;
+var CC2_ASM_DIRECTIVE_REPEAT;
+var CC2_ASM_DIRECTIVE_END_REPEAT;
+var CC2_ASM_DIRECTIVE_ORG;
+var CC2_ASM_DIRECTIVE_QUAD;
+var CC2_ASM_DIRECTIVE_CODE16;
+var CC2_ASM_DIRECTIVE_CODE32;
+var CC2_ASM_DIRECTIVE_SHORT;
+var CC2_ASM_DIRECTIVE_LONG;
+var CC2_ASM_DIRECTIVE_INT;
+var CC2_ASM_DIRECTIVE_SECTION;
 var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
@@ -7424,6 +7459,243 @@ function asm_parse_popsection(state)
     next();
     pop_section(state);
     return 0;
+}
+
+function asm_parse_repeat_(state, global, repeat, stream)
+{
+    next();
+    repeat = asm_int_expr(state);
+    stream = tok_str_alloc();
+    next();
+    while (not(eq(ri32(tok_address), CC2_ASM_DIRECTIVE_END_REPEAT))) {
+        if (eq(ri32(tok_address), CC2_CHARACTER_END_OF_FILE)) {
+            tcc_error(mks("we at end of file, .endr not found"), 0);
+        }
+        tok_str_add_tok(stream);
+        next();
+    }
+    tok_str_add(stream, CC2_CHARACTER_END_OF_FILE);
+    tok_str_add(stream, 0);
+    begin_macro(stream, 1);
+    while (lt(0, repeat)) {
+        tcc_assemble_internal(state, and(ri32(parse_flags_address),
+            CC2_PARSE_FLAG_PREPROCESS), global);
+        macro_ptr = ri32(add(stream, CC2_TOKEN_STRING_DATA_OFFSET));
+        repeat = sub(repeat, 1);
+    }
+    end_macro();
+    next();
+    return 0;
+}
+
+function asm_parse_repeat(state, global)
+{
+    return asm_parse_repeat_(state, global, 0, 0);
+}
+
+function asm_parse_directive_(state, global, directive)
+{
+    directive = ri32(tok_address);
+    if (or(or(eq(directive, CC2_ASM_DIRECTIVE_ALIGN),
+        eq(directive, CC2_ASM_DIRECTIVE_BALIGN)), or(
+        eq(directive, CC2_ASM_DIRECTIVE_P2ALIGN), or(
+        eq(directive, CC2_ASM_DIRECTIVE_SKIP),
+        eq(directive, CC2_ASM_DIRECTIVE_SPACE))))) {
+        return asm_parse_align_space(state);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_QUAD)) {
+        return asm_parse_quad(state);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_BYTE)) {
+        return asm_parse_data(state, 1);
+    }
+    if (or(eq(directive, CC2_ASM_DIRECTIVE_WORD),
+        eq(directive, CC2_ASM_DIRECTIVE_SHORT))) {
+        return asm_parse_data(state, 2);
+    }
+    if (or(eq(directive, CC2_ASM_DIRECTIVE_LONG),
+        eq(directive, CC2_ASM_DIRECTIVE_INT))) {
+        return asm_parse_data(state, 4);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_FILL)) {
+        return asm_parse_fill(state);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_REPEAT)) {
+        return asm_parse_repeat(state, global);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_ORG)) {
+        return asm_parse_org(state);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_SET)) {
+        return asm_parse_set(state, 0);
+    }
+    if (or(or(eq(directive, CC2_ASM_DIRECTIVE_GLOBAL),
+        eq(directive, CC2_ASM_DIRECTIVE_GLOBAL_ALT)), or(
+        eq(directive, CC2_ASM_DIRECTIVE_WEAK),
+        eq(directive, CC2_ASM_DIRECTIVE_HIDDEN)))) {
+        return asm_parse_symbol_binding(
+            eq(directive, CC2_ASM_DIRECTIVE_WEAK),
+            eq(directive, CC2_ASM_DIRECTIVE_HIDDEN));
+    }
+    if (or(or(eq(directive, CC2_ASM_DIRECTIVE_STRING),
+        eq(directive, CC2_ASM_DIRECTIVE_ASCII)),
+        eq(directive, CC2_ASM_DIRECTIVE_ASCIZ))) {
+        return asm_parse_string(eq(directive, CC2_ASM_DIRECTIVE_ASCII));
+    }
+    if (or(or(eq(directive, CC2_ASM_DIRECTIVE_TEXT),
+        eq(directive, CC2_ASM_DIRECTIVE_DATA)),
+        eq(directive, CC2_ASM_DIRECTIVE_BSS))) {
+        return asm_parse_standard_section(state);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_FILE)) {
+        return asm_parse_file(state);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_IDENT)) {
+        return asm_parse_ident(state);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_SIZE)) {
+        return asm_parse_size(state);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_TYPE)) {
+        return asm_parse_type(state);
+    }
+    if (or(eq(directive, CC2_ASM_DIRECTIVE_PUSH_SECTION),
+        eq(directive, CC2_ASM_DIRECTIVE_SECTION))) {
+        return asm_parse_section(state,
+            eq(directive, CC2_ASM_DIRECTIVE_PUSH_SECTION));
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_PREVIOUS)) {
+        return asm_parse_previous(state);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_POP_SECTION)) {
+        return asm_parse_popsection(state);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_CODE16)) {
+        return asm_parse_code_mode(state, 16);
+    }
+    if (eq(directive, CC2_ASM_DIRECTIVE_CODE32)) {
+        return asm_parse_code_mode(state, 32);
+    }
+    tcc_error(mks("unknown assembler directive '.%s'"),
+        get_tok_str(directive, 0));
+    return 0;
+}
+
+function asm_parse_directive(state, global)
+{
+    return asm_parse_directive_(state, global, 0);
+}
+
+function cc2_asm_decimal_label_(text, value, character)
+{
+    value = 0;
+    character = ri8(text);
+    while (and(le(mkC("0"), character), le(character, mkC("9")))) {
+        value = add(mul(value, 10), sub(character, mkC("0")));
+        text = add(text, 1);
+        character = ri8(text);
+    }
+    if (not(eq(character, 0))) {
+        expect(mks("':'"));
+    }
+    return value;
+}
+
+function cc2_asm_decimal_label(text)
+{
+    return cc2_asm_decimal_label_(text, 0, 0);
+}
+
+function tcc_assemble_internal_(state, preprocess, global, saved_flags,
+    flags, token, opcode, number, redo, text)
+{
+    saved_flags = ri32(parse_flags_address);
+    flags = or(CC2_PARSE_FLAG_ASM_FILE, CC2_PARSE_FLAG_TOKEN_STRINGS);
+    if (preprocess) {
+        flags = or(flags, CC2_PARSE_FLAG_PREPROCESS);
+    }
+    wi32(parse_flags_address, flags);
+    while (1) {
+        next();
+        token = ri32(tok_address);
+        if (eq(token, CC2_CHARACTER_END_OF_FILE)) {
+            wi32(parse_flags_address, saved_flags);
+            return 0;
+        }
+        if (and(global,
+            ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET)))) {
+            tcc_debug_line(state);
+        }
+        wi32(parse_flags_address, or(ri32(parse_flags_address),
+            CC2_PARSE_FLAG_LINE_FEED));
+        redo = 1;
+        while (redo) {
+            redo = 0;
+            token = ri32(tok_address);
+            if (eq(token, mkC("#"))) {
+                while (not(eq(ri32(tok_address),
+                    CC2_CHARACTER_LINE_FEED))) {
+                    next();
+                }
+            } else if (and(le(CC2_ASM_DIRECTIVE_FIRST, token),
+                le(token, CC2_ASM_DIRECTIVE_LAST))) {
+                asm_parse_directive(state, global);
+            } else if (eq(token, CC2_TOKEN_PREPROCESSOR_NUMBER)) {
+                text = ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET));
+                number = cc2_asm_decimal_label(text);
+                asm_new_label(state, asm_get_local_label_name(state, number),
+                    1);
+                next();
+                skip(mkC(":"));
+                redo = 1;
+            } else if (le(CC2_TOKEN_IDENTIFIER_FIRST, token)) {
+                opcode = token;
+                next();
+                if (eq(ri32(tok_address), mkC(":"))) {
+                    asm_new_label(state, opcode, 0);
+                    next();
+                    redo = 1;
+                } else if (eq(ri32(tok_address), mkC("="))) {
+                    set_symbol(state, opcode);
+                    redo = 1;
+                } else {
+                    asm_opcode(state, opcode);
+                }
+            }
+        }
+        token = ri32(tok_address);
+        if (and(not(eq(token, mkC(";"))),
+            not(eq(token, CC2_CHARACTER_LINE_FEED)))) {
+            expect(mks("end of line"));
+        }
+        wi32(parse_flags_address, and(ri32(parse_flags_address),
+            bnot(CC2_PARSE_FLAG_LINE_FEED)));
+    }
+}
+
+function tcc_assemble_internal(state, preprocess, global)
+{
+    return tcc_assemble_internal_(state, preprocess, global,
+        0, 0, 0, 0, 0, 0, 0);
+}
+
+function tcc_assemble_(state, preprocess, result, section)
+{
+    tcc_debug_start(state);
+    section = ri32(text_section_address);
+    wi32(cur_text_section_address, section);
+    ind = ri32(add(section, CC2_SECTION_DATA_OFFSET));
+    nocode_wanted = 0;
+    result = tcc_assemble_internal(state, preprocess, 1);
+    section = ri32(cur_text_section_address);
+    wi32(add(section, CC2_SECTION_DATA_OFFSET), ind);
+    tcc_debug_end(state);
+    return result;
+}
+
+function tcc_assemble(state, preprocess)
+{
+    return tcc_assemble_(state, preprocess, 0, 0);
 }
 
 function use_section1(state, section)
@@ -22801,6 +23073,41 @@ function cc2_init_constants()
     CC2_ASM_DIRECTIVE_BALIGN = 409;
     CC2_ASM_DIRECTIVE_P2ALIGN = 410;
     CC2_TCC_STATE_SEGMENT_SIZE_OFFSET = 132;
+    CC2_ASM_DIRECTIVE_FIRST = 406;
+    CC2_ASM_DIRECTIVE_LAST = 441;
+    CC2_ASM_DIRECTIVE_BYTE = 406;
+    CC2_ASM_DIRECTIVE_WORD = 407;
+    CC2_ASM_DIRECTIVE_SET = 411;
+    CC2_ASM_DIRECTIVE_SKIP = 412;
+    CC2_ASM_DIRECTIVE_SPACE = 413;
+    CC2_ASM_DIRECTIVE_STRING = 414;
+    CC2_ASM_DIRECTIVE_ASCIZ = 415;
+    CC2_ASM_DIRECTIVE_ASCII = 416;
+    CC2_ASM_DIRECTIVE_FILE = 417;
+    CC2_ASM_DIRECTIVE_GLOBAL = 418;
+    CC2_ASM_DIRECTIVE_GLOBAL_ALT = 419;
+    CC2_ASM_DIRECTIVE_WEAK = 420;
+    CC2_ASM_DIRECTIVE_HIDDEN = 421;
+    CC2_ASM_DIRECTIVE_IDENT = 422;
+    CC2_ASM_DIRECTIVE_SIZE = 423;
+    CC2_ASM_DIRECTIVE_TYPE = 424;
+    CC2_ASM_DIRECTIVE_TEXT = 425;
+    CC2_ASM_DIRECTIVE_DATA = 426;
+    CC2_ASM_DIRECTIVE_BSS = 427;
+    CC2_ASM_DIRECTIVE_PREVIOUS = 428;
+    CC2_ASM_DIRECTIVE_PUSH_SECTION = 429;
+    CC2_ASM_DIRECTIVE_POP_SECTION = 430;
+    CC2_ASM_DIRECTIVE_FILL = 431;
+    CC2_ASM_DIRECTIVE_REPEAT = 432;
+    CC2_ASM_DIRECTIVE_END_REPEAT = 433;
+    CC2_ASM_DIRECTIVE_ORG = 434;
+    CC2_ASM_DIRECTIVE_QUAD = 435;
+    CC2_ASM_DIRECTIVE_CODE16 = 436;
+    CC2_ASM_DIRECTIVE_CODE32 = 437;
+    CC2_ASM_DIRECTIVE_SHORT = 438;
+    CC2_ASM_DIRECTIVE_LONG = 439;
+    CC2_ASM_DIRECTIVE_INT = 440;
+    CC2_ASM_DIRECTIVE_SECTION = 441;
     CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;

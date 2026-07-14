@@ -1726,13 +1726,14 @@ extern int asm_parse_type(TCCState *s1);
 extern int asm_parse_section(TCCState *s1, int push);
 extern int asm_parse_previous(TCCState *s1);
 extern int asm_parse_popsection(TCCState *s1);
-ST_FUNC int tcc_assemble(TCCState *s1, int do_preprocess);
+extern int tcc_assemble_internal(TCCState *s1, int do_preprocess, int global);
+extern int tcc_assemble(TCCState *s1, int do_preprocess);
 /* ------------ i386-asm.c ------------ */
 extern void gen_expr32(ExprValue *pe);
 #ifdef TCC_TARGET_X86_64
 ST_FUNC void gen_expr64(ExprValue *pe);
 #endif
-ST_FUNC void asm_opcode(TCCState *s1, int opcode);
+extern void asm_opcode(TCCState *s1, int opcode);
 int asm_parse_regvar(int t);
 ST_FUNC void asm_compute_constraints(ASMOperand *operands, int nb_operands, int nb_outputs, const uint8_t *clobber_regs, int *pout_reg);
 ST_FUNC void subst_asm_operand(CString *add_str, SValue *sv, int modifier);

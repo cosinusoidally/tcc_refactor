@@ -196,6 +196,11 @@ function asm_instr()
     return 0;
 }
 
+function asm_opcode(state, opcode)
+{
+    return 0;
+}
+
 function case_sort(base, count)
 {
     return 0;

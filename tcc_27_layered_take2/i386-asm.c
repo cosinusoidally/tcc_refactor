@@ -665,7 +665,7 @@ static void maybe_print_stats (void)
     }
 }
 
-ST_FUNC void asm_opcode(TCCState *s1, int opcode)
+void asm_opcode(TCCState *s1, int opcode)
 {
     const ASMInstr *pa;
     int i, modrm_index, modreg_index, reg, v, op1, seg_prefix, pc;
