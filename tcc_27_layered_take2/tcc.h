@@ -1707,6 +1707,7 @@ extern void push_section(TCCState *s1, const char *name);
 extern void pop_section(TCCState *s1);
 extern void asm_expr(TCCState *s1, ExprValue *pe);
 extern int asm_int_expr(TCCState *s1);
+extern Sym *set_symbol(TCCState *s1, int label);
 ST_FUNC int tcc_assemble(TCCState *s1, int do_preprocess);
 /* ------------ i386-asm.c ------------ */
 ST_FUNC void gen_expr32(ExprValue *pe);

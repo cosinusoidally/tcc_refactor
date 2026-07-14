@@ -36,25 +36,6 @@ static int tcc_assemble_internal(TCCState *s1, int do_preprocess, int global);
 /* We do not use the C expression parser to handle symbols. Maybe the
    C expression parser could be tweaked to do so. */
 
-/* Set the value of LABEL to that of some expression (possibly
-   involving other symbols).  LABEL can be overwritten later still.  */
-static Sym* set_symbol(TCCState *s1, int label)
-{
-    long n;
-    ExprValue e;
-    Sym *sym;
-    ElfSym *esym;
-    next();
-    asm_expr(s1, &e);
-    n = e.v;
-    esym = elfsym(e.sym);
-    if (esym)
-	n += esym->st_value;
-    sym = asm_new_label1(s1, label, 2, esym ? esym->st_shndx : SHN_ABS, n);
-    elfsym(sym)->st_other |= ST_ASM_SET;
-    return sym;
-}
-
 static void asm_parse_directive(TCCState *s1, int global)
 {
     int n, offset, v, size, tok1;

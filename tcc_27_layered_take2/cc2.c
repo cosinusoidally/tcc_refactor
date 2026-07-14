@@ -6879,6 +6879,37 @@ function asm_int_expr(state)
     return asm_int_expr_(state, 0, 0);
 }
 
+/* Assign an absolute or section-relative assembler expression to a label. */
+function set_symbol_(state, label, expression, value, source_symbol,
+    source_elf, section_number, symbol, symbol_elf)
+{
+    next();
+    expression = malloc(16);
+    asm_expr(state, expression);
+    value = ri32(expression);
+    source_symbol = ri32(add(expression,
+        CC2_ASM_EXPRESSION_SYMBOL_OFFSET));
+    source_elf = elfsym(source_symbol);
+    section_number = CC2_ELF_ABSOLUTE_SECTION;
+    if (not(eq(source_elf, 0))) {
+        value = add(value, ri32(add(source_elf,
+            CC2_ELF_SYMBOL_VALUE_OFFSET)));
+        section_number = cc2_read_little_u16(add(source_elf,
+            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET));
+    }
+    free(expression);
+    symbol = asm_new_label1(state, label, 2, section_number, value);
+    symbol_elf = elfsym(symbol);
+    wi8(add(symbol_elf, CC2_ELF_SYMBOL_OTHER_OFFSET), or(ri8(add(symbol_elf,
+        CC2_ELF_SYMBOL_OTHER_OFFSET)), 4));
+    return symbol;
+}
+
+function set_symbol(state, label)
+{
+    return set_symbol_(state, label, 0, 0, 0, 0, 0, 0, 0);
+}
+
 function use_section1(state, section)
 {
     var current;
