@@ -340,6 +340,7 @@ var CC2_BUFFERED_FILE_FILENAME_OFFSET;
 var CC2_SECTION_NUMBER_OFFSET;
 var CC2_SECTION_DATA_POINTER_OFFSET;
 var CC2_SECTION_DATA_ALLOCATED_OFFSET;
+var CC2_SECTION_NAME_INDEX_OFFSET;
 var CC2_STABS_SOURCE_FILE;
 var CC2_STABS_FUNCTION;
 var CC2_STABS_SOURCE_LINE;
@@ -358,6 +359,7 @@ var CC2_TCC_STATE_GOT_OFFSET;
 var CC2_TCC_STATE_PLT_OFFSET;
 var CC2_TCC_STATE_SYMBOL_ATTRIBUTES_OFFSET;
 var CC2_TCC_OUTPUT_DLL;
+var CC2_TCC_OUTPUT_OBJECT;
 var CC2_TCC_OUTPUT_FORMAT_BINARY;
 var CC2_SECTION_ADDRESS_OFFSET;
 var CC2_SYMBOL_ATTRIBUTE_GOT_OFFSET;
@@ -7020,6 +7022,63 @@ function export_global_syms(state)
         symbol_index = add(symbol_index, 1);
     }
     return 0;
+}
+
+function alloc_sec_names(state, file_type, string_section)
+{
+    var sections;
+    var section_count;
+    var section_index;
+    var section;
+    var target_section;
+    var target_flags;
+    var flags;
+    var text_relocation;
+    var promoted_relocation;
+    sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    text_relocation = 0;
+    section_index = 1;
+    while (lt(section_index, section_count)) {
+        section = ri32(add(sections, mul(section_index,
+            CC2_I386_WORD_BYTES)));
+        flags = ri32(add(section, CC2_SECTION_FLAGS_OFFSET));
+        promoted_relocation = 0;
+        if (and(and(eq(file_type, CC2_TCC_OUTPUT_DLL), eq(ri32(add(section,
+            CC2_SECTION_TYPE_OFFSET)), CC2_ELF_SECTION_REL)), eq(and(flags,
+            CC2_ELF_ALLOCATE_SECTION_FLAG), 0))) {
+            target_section = ri32(add(sections, mul(ri32(add(section,
+                CC2_SECTION_INFO_OFFSET)), CC2_I386_WORD_BYTES)));
+            target_flags = ri32(add(target_section, CC2_SECTION_FLAGS_OFFSET));
+            if (and(target_flags, CC2_ELF_ALLOCATE_SECTION_FLAG)) {
+                if (prepare_dynamic_rel(state, section)) {
+                    promoted_relocation = 1;
+                    if (and(target_flags, CC2_ELF_EXECUTE_SECTION_FLAG)) {
+                        text_relocation = 1;
+                    }
+                }
+            }
+        }
+        if (not(promoted_relocation)) {
+            if (or(or(ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET)),
+                eq(file_type, CC2_TCC_OUTPUT_OBJECT)), or(not(eq(and(flags,
+                CC2_ELF_ALLOCATE_SECTION_FLAG), 0)), eq(section_index,
+                sub(section_count, 1))))) {
+                wi32(add(section, CC2_SECTION_SIZE_OFFSET),
+                    ri32(add(section, CC2_SECTION_DATA_OFFSET)));
+            }
+        }
+        if (or(ri32(add(section, CC2_SECTION_SIZE_OFFSET)), not(eq(and(flags,
+            CC2_ELF_ALLOCATE_SECTION_FLAG), 0)))) {
+            wi32(add(section, CC2_SECTION_NAME_INDEX_OFFSET),
+                put_elf_str(string_section,
+                add(section, CC2_SECTION_NAME_OFFSET)));
+        }
+        section_index = add(section_index, 1);
+    }
+    wi32(add(string_section, CC2_SECTION_SIZE_OFFSET),
+        ri32(add(string_section, CC2_SECTION_DATA_OFFSET)));
+    return text_relocation;
 }
 
 function put_dt(dynamic_section, tag, value)
@@ -18445,6 +18504,7 @@ function cc2_init_constants()
     CC2_SECTION_NUMBER_OFFSET = 16;
     CC2_SECTION_DATA_POINTER_OFFSET = 4;
     CC2_SECTION_DATA_ALLOCATED_OFFSET = 8;
+    CC2_SECTION_NAME_INDEX_OFFSET = 12;
     CC2_STABS_SOURCE_FILE = 100;
     CC2_STABS_FUNCTION = 36;
     CC2_STABS_SOURCE_LINE = 68;
@@ -18463,6 +18523,7 @@ function cc2_init_constants()
     CC2_TCC_STATE_PLT_OFFSET = 976;
     CC2_TCC_STATE_SYMBOL_ATTRIBUTES_OFFSET = 992;
     CC2_TCC_OUTPUT_DLL = 3;
+    CC2_TCC_OUTPUT_OBJECT = 4;
     CC2_TCC_OUTPUT_FORMAT_BINARY = 1;
     CC2_SECTION_ADDRESS_OFFSET = 44;
     CC2_SYMBOL_ATTRIBUTE_GOT_OFFSET = 0;

@@ -244,40 +244,6 @@ static void tcc_output_binary(TCCState *s1, FILE *f,
 }
 
 
-/* Allocate strings for section names and decide which sections are output.
-   The string section comes last, so its size is final here. */
-static int alloc_sec_names(TCCState *s1, int file_type, Section *strsec)
-{
-    int i;
-    Section *s;
-    int textrel = 0;
-
-    /* Allocate strings for section names */
-    for(i = 1; i < s1->nb_sections; i++) {
-        s = s1->sections[i];
-        /* when generating a DLL, we include relocations but we may
-           patch them */
-        if (file_type == TCC_OUTPUT_DLL &&
-            s->sh_type == SHT_RELX &&
-            !(s->sh_flags & SHF_ALLOC) &&
-            (s1->sections[s->sh_info]->sh_flags & SHF_ALLOC) &&
-            prepare_dynamic_rel(s1, s)) {
-                if (s1->sections[s->sh_info]->sh_flags & SHF_EXECINSTR)
-                    textrel = 1;
-        } else if (s1->do_debug ||
-            file_type == TCC_OUTPUT_OBJ ||
-            (s->sh_flags & SHF_ALLOC) ||
-	    i == (s1->nb_sections - 1)) {
-            /* we output all sections if debug or object file */
-            s->sh_size = s->data_offset;
-        }
-	if (s->sh_size || (s->sh_flags & SHF_ALLOC))
-            s->sh_name = put_elf_str(strsec, s->name);
-    }
-    strsec->sh_size = strsec->data_offset;
-    return textrel;
-}
-
 /* Info to be copied in dynamic section */
 struct dyn_inf {
     Section *dynamic;
