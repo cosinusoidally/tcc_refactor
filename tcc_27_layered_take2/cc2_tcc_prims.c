@@ -445,10 +445,16 @@ int cc2_preprocessor_set_stdout(TCCState *state)
     return 0;
 }
 
-ST_FUNC void preprocess_start(TCCState *state, int is_asm)
+int cc2_preprocess_start_bridge(TCCState *state, int is_asm)
 {
     cc2_bind_preprocess_types(state);
     cc2_preprocess_start((int)state, is_asm);
+    return 0;
+}
+
+ST_FUNC void preprocess_start(TCCState *state, int is_asm)
+{
+    cc2_preprocess_start_bridge(state, is_asm);
 }
 
 ST_FUNC void tccpp_new(TCCState *state)
@@ -458,9 +464,14 @@ ST_FUNC void tccpp_new(TCCState *state)
     cc2_tccpp_new((int)state, (int)tcc_keywords);
 }
 
-ST_FUNC int tcc_preprocess(TCCState *state)
+int cc2_tcc_preprocess_bridge(TCCState *state)
 {
     return cc2_tcc_preprocess((int)state);
+}
+
+ST_FUNC int tcc_preprocess(TCCState *state)
+{
+    return cc2_tcc_preprocess_bridge(state);
 }
 
 /* Address-taking for legacy typed globals is outside the cc0 dialect. */
@@ -509,6 +520,14 @@ int cc2_local_time(int *fields)
     fields[3] = local->tm_mday;
     fields[4] = local->tm_mon;
     fields[5] = local->tm_year;
+    return 0;
+}
+
+/* Keep the opaque setjmp frame alive while cc2 owns compilation policy. */
+int cc2_error_scope(TCCState *state, int is_assembler, int file_type)
+{
+    if (setjmp(state->error_jmp_buf) == 0)
+        return cc2_compile_body((int)state, is_assembler, file_type);
     return 0;
 }
 

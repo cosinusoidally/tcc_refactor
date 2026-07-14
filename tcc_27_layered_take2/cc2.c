@@ -503,6 +503,7 @@ var CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET;
 var CC2_TCC_STATE_FILE_TYPE_OFFSET;
 var CC2_TCC_STATE_ERROR_OPAQUE_OFFSET;
 var CC2_TCC_STATE_ERROR_FUNCTION_OFFSET;
+var CC2_TCC_STATE_ERROR_JUMP_ENABLED_OFFSET;
 var CC2_TCC_STATE_INCLUDE_STACK_OFFSET;
 var CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET;
 var CC2_INCLUDE_STACK_ENTRIES;
@@ -23880,6 +23881,97 @@ function tcc_undefine_symbol(state, name)
     return 0;
 }
 
+function cc2_sym_pop_global_(boundary, keep, symbol, next, value,
+    plain_value, token_symbol, slot)
+{
+    symbol = global_stack;
+    while (not(eq(symbol, boundary))) {
+        next = ri32(add(symbol, CC2_SYM_PREV_OFFSET));
+        value = ri32(add(symbol, CC2_SYM_VALUE_OFFSET));
+        plain_value = and(value, bnot(CC2_SYMBOL_STRUCT_FLAG));
+        if (eq(and(value, CC2_SYMBOL_FIELD_FLAG), 0)) {
+            if (lt(plain_value, CC2_FIRST_ANONYMOUS_SYMBOL)) {
+                token_symbol = cc2_token_symbol(plain_value);
+                slot = add(token_symbol, CC2_TOKEN_SYMBOL_IDENTIFIER_OFFSET);
+                if (not(eq(and(value, CC2_SYMBOL_STRUCT_FLAG), 0))) {
+                    slot = add(token_symbol, CC2_TOKEN_SYMBOL_STRUCT_OFFSET);
+                }
+                wi32(slot, ri32(add(symbol,
+                    CC2_SYM_PREVIOUS_TOKEN_OFFSET)));
+            }
+        }
+        if (eq(keep, 0)) {
+            sym_free(symbol);
+        }
+        symbol = next;
+    }
+    if (eq(keep, 0)) {
+        global_stack = boundary;
+    }
+    return 0;
+}
+
+function cc2_sym_pop_global(boundary, keep)
+{
+    return cc2_sym_pop_global_(boundary, keep, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_compile_body(state, is_assembler, file_type)
+{
+    wi32(add(state, CC2_TCC_STATE_ERROR_COUNT_OFFSET), 0);
+    wi32(add(state, CC2_TCC_STATE_ERROR_JUMP_ENABLED_OFFSET), 1);
+    cc2_preprocess_start_bridge(state, is_assembler);
+    if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+        CC2_OUTPUT_PREPROCESS)) {
+        cc2_tcc_preprocess_bridge(state);
+    } else if (is_assembler) {
+        tcc_assemble(state, eq(file_type, 3));
+    } else {
+        tccgen_compile(state);
+    }
+    return 0;
+}
+
+function tcc_compile(state)
+{
+    var define_boundary;
+    var file_type;
+    var is_assembler;
+    var result;
+    define_boundary = ri32(define_stack_address);
+    file_type = ri32(add(state, CC2_TCC_STATE_FILE_TYPE_OFFSET));
+    is_assembler = or(eq(file_type, 2), eq(file_type, 3));
+    tccelf_begin_file(state);
+    cc2_error_scope(state, is_assembler, file_type);
+    wi32(add(state, CC2_TCC_STATE_ERROR_JUMP_ENABLED_OFFSET), 0);
+    preprocess_end(state);
+    free_inline_functions(state);
+    free_defines(define_boundary);
+    cc2_sym_pop_global(0, 0);
+    sym_pop(local_stack_address, 0, 0);
+    tccelf_end_file(state);
+    if (ri32(add(state, CC2_TCC_STATE_ERROR_COUNT_OFFSET))) {
+        result = sub(0, 1);
+    } else {
+        result = 0;
+    }
+    return result;
+}
+
+function tcc_compile_string(state, text)
+{
+    var length;
+    var result;
+    var source_file;
+    length = strlen(text);
+    tcc_open_bf(state, mks("<string>"), length);
+    source_file = ri32(file_address);
+    memcpy(add(source_file, CC2_BUFFERED_FILE_BUFFER_OFFSET), text, length);
+    result = tcc_compile(state);
+    tcc_close();
+    return result;
+}
+
 function tcc_memcheck()
 {
     return 0;
@@ -25597,6 +25689,7 @@ function cc2_init_constants()
     CC2_TCC_STATE_FILE_TYPE_OFFSET = 1024;
     CC2_TCC_STATE_ERROR_OPAQUE_OFFSET = 184;
     CC2_TCC_STATE_ERROR_FUNCTION_OFFSET = 188;
+    CC2_TCC_STATE_ERROR_JUMP_ENABLED_OFFSET = 192;
     CC2_TCC_STATE_INCLUDE_STACK_OFFSET = 376;
     CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET = 504;
     CC2_INCLUDE_STACK_ENTRIES = 32;

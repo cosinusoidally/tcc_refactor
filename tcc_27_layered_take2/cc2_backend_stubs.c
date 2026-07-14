@@ -46,6 +46,21 @@ function cc2_local_time(fields)
     return 0;
 }
 
+function cc2_error_scope(state, is_assembler, file_type)
+{
+    return 0;
+}
+
+function cc2_preprocess_start_bridge(state, is_assembler)
+{
+    return 0;
+}
+
+function cc2_tcc_preprocess_bridge(state)
+{
+    return 0;
+}
+
 function u64_mul_add(words, base, digit)
 {
     return 0;

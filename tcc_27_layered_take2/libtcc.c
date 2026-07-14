@@ -178,58 +178,6 @@ PUB_FUNC void tcc_warning(const char *fmt, ...)
 /********************************************************/
 /* I/O layer */
 
-/* compile the file opened in 'file'. Return non zero if errors. */
-static int tcc_compile(TCCState *s1)
-{
-    Sym *define_start;
-    int filetype, is_asm;
-
-    define_start = define_stack;
-    filetype = s1->filetype;
-    is_asm = filetype == AFF_TYPE_ASM || filetype == AFF_TYPE_ASMPP;
-    tccelf_begin_file(s1);
-
-    if (setjmp(s1->error_jmp_buf) == 0) {
-        s1->nb_errors = 0;
-        s1->error_set_jmp_enabled = 1;
-
-        preprocess_start(s1, is_asm);
-        if (s1->output_type == TCC_OUTPUT_PREPROCESS) {
-            tcc_preprocess(s1);
-        } else if (is_asm) {
-#ifdef CONFIG_TCC_ASM
-            tcc_assemble(s1, filetype == AFF_TYPE_ASMPP);
-#else
-            tcc_error_noabort("asm not supported");
-#endif
-        } else {
-            tccgen_compile(s1);
-        }
-    }
-    s1->error_set_jmp_enabled = 0;
-
-    preprocess_end(s1);
-    free_inline_functions(s1);
-    /* reset define stack, but keep -D and built-ins */
-    free_defines(define_start);
-    sym_pop(&global_stack, NULL, 0);
-    sym_pop(&local_stack, NULL, 0);
-    tccelf_end_file(s1);
-    return s1->nb_errors != 0 ? -1 : 0;
-}
-
-LIBTCCAPI int tcc_compile_string(TCCState *s, const char *str)
-{
-    int len, ret;
-
-    len = strlen(str);
-    tcc_open_bf(s, "<string>", len);
-    memcpy(file->buffer, str, len);
-    ret = tcc_compile(s);
-    tcc_close();
-    return ret;
-}
-
 /* cleanup all static data used during compilation */
 static void tcc_cleanup(void)
 {
