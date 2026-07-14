@@ -13,13 +13,6 @@ function vpush64_words(type, low_word, high_word)
     return 0;
 }
 
-function expr_const64_words(words)
-{
-    wi32(words, 0);
-    wi32(add(words, 4), 0);
-    return 0;
-}
-
 function cc2_toksym_alloc(size)
 {
     return malloc(size);

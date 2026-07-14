@@ -16972,6 +16972,21 @@ function cc2_signed_wide_less(left_low, left_high, right_low, right_high)
     return cc2_unsigned_word_less(left_low, right_low);
 }
 
+function expr_const64_words(words)
+{
+    var registers;
+    expr_const1();
+    registers = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)), 65535);
+    if (not(eq(and(registers, CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT))) {
+        expect(mks("constant expression"));
+    }
+    wi32(words, ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET)));
+    wi32(add(words, 4), ri32(add(vtop,
+        add(CC2_SVALUE_CONSTANT_OFFSET, 4))));
+    vpop();
+    return 0;
+}
+
 function cc2_wide_fits_signed_word(low, high)
 {
     if (eq(high, 0)) {

@@ -282,25 +282,6 @@ void gen_cast_constant(CType *type)
     }
 }
 
-static inline int64_t expr_const64(void)
-{
-    int64_t c;
-    expr_const1();
-    if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) != VT_CONST)
-        expect("constant expression");
-    c = vtop->c.i;
-    vpop();
-    return c;
-}
-
-/* Expose the representation only; cc2 owns the 32-bit range policy. */
-void expr_const64_words(int *words)
-{
-    int64_t wc = expr_const64();
-    words[0] = wc;
-    words[1] = wc >> 32;
-}
-
 void initializer_repeat(Section *sec, unsigned long c, int elem_size,
                         int nb_elems)
 {
