@@ -7171,6 +7171,94 @@ function asm_parse_string(omit_terminator)
     return asm_parse_string_(omit_terminator, 0, 0, 0);
 }
 
+function asm_parse_standard_section_(state, directive, suffix, base,
+    name, length)
+{
+    directive = ri32(tok_address);
+    suffix = 0;
+    next();
+    if (and(not(eq(ri32(tok_address), mkC(";"))),
+        not(eq(ri32(tok_address), CC2_CHARACTER_LINE_FEED)))) {
+        suffix = asm_int_expr(state);
+        next();
+    }
+    base = get_tok_str(directive, 0);
+    length = strlen(base);
+    name = malloc(add(length, CC2_INTEGER_TEXT_BYTES));
+    if (not(eq(suffix, 0))) {
+        snprintf(name, add(length, CC2_INTEGER_TEXT_BYTES), mks("%s%d"),
+            base, suffix);
+    } else {
+        pstrcpy(name, add(length, 1), base);
+    }
+    use_section(state, name);
+    free(name);
+    return 0;
+}
+
+function asm_parse_standard_section(state)
+{
+    return asm_parse_standard_section_(state, 0, 0, 0, 0, 0);
+}
+
+function cc2_asm_current_token_text()
+{
+    if (eq(ri32(tok_address), CC2_TOKEN_STRING)) {
+        return ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET));
+    }
+    return get_tok_str(ri32(tok_address), 0);
+}
+
+function asm_parse_file(state)
+{
+    var text;
+    next();
+    text = cc2_asm_current_token_text();
+    if (ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
+        tcc_warning(mks("ignoring .file %s"), text);
+    }
+    next();
+    return 0;
+}
+
+function asm_parse_ident(state)
+{
+    var text;
+    next();
+    text = cc2_asm_current_token_text();
+    if (ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
+        tcc_warning(mks("ignoring .ident %s"), text);
+    }
+    next();
+    return 0;
+}
+
+function asm_parse_size_(state, symbol, name)
+{
+    next();
+    name = ri32(tok_address);
+    symbol = asm_label_find(name);
+    if (eq(symbol, 0)) {
+        tcc_error(mks("label not found: %s"), get_tok_str(name, 0));
+    }
+    if (ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
+        tcc_warning(mks("ignoring .size %s,*"), get_tok_str(name, 0));
+    }
+    next();
+    skip(mkC(","));
+    while (and(not(eq(ri32(tok_address), CC2_CHARACTER_LINE_FEED)), and(
+        not(eq(ri32(tok_address), mkC(";"))),
+        not(eq(ri32(tok_address), CC2_CHARACTER_END_OF_FILE))))) {
+        next();
+    }
+    return 0;
+}
+
+function asm_parse_size(state)
+{
+    return asm_parse_size_(state, 0, 0);
+}
+
 function use_section1(state, section)
 {
     var current;

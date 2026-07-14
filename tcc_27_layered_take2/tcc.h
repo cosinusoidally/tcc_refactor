@@ -1714,6 +1714,10 @@ extern int asm_parse_fill(TCCState *s1);
 extern int asm_parse_data(TCCState *s1, int size);
 extern int asm_parse_quad(TCCState *s1);
 extern int asm_parse_string(int omit_terminator);
+extern int asm_parse_standard_section(TCCState *s1);
+extern int asm_parse_file(TCCState *s1);
+extern int asm_parse_ident(TCCState *s1);
+extern int asm_parse_size(TCCState *s1);
 ST_FUNC int tcc_assemble(TCCState *s1, int do_preprocess);
 /* ------------ i386-asm.c ------------ */
 extern void gen_expr32(ExprValue *pe);

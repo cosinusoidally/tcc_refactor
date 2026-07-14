@@ -132,78 +132,16 @@ static void asm_parse_directive(TCCState *s1, int global)
     case TOK_ASMDIR_text:
     case TOK_ASMDIR_data:
     case TOK_ASMDIR_bss:
-	{ 
-            char sname[64];
-            tok1 = tok;
-            n = 0;
-            next();
-            if (tok != ';' && tok != TOK_LINEFEED) {
-		n = asm_int_expr(s1);
-		next();
-            }
-            if (n)
-                sprintf(sname, "%s%d", get_tok_str(tok1, NULL), n);
-            else
-                sprintf(sname, "%s", get_tok_str(tok1, NULL));
-            use_section(s1, sname);
-	}
+        asm_parse_standard_section(s1);
 	break;
     case TOK_ASMDIR_file:
-        {
-            char filename[512];
-
-            filename[0] = '\0';
-            next();
-
-            if (tok == TOK_STR)
-                pstrcat(filename, sizeof(filename), tokc.str.data);
-            else
-                pstrcat(filename, sizeof(filename), get_tok_str(tok, NULL));
-
-            if (s1->warn_unsupported)
-                tcc_warning("ignoring .file %s", filename);
-
-            next();
-        }
+        asm_parse_file(s1);
         break;
     case TOK_ASMDIR_ident:
-        {
-            char ident[256];
-
-            ident[0] = '\0';
-            next();
-
-            if (tok == TOK_STR)
-                pstrcat(ident, sizeof(ident), tokc.str.data);
-            else
-                pstrcat(ident, sizeof(ident), get_tok_str(tok, NULL));
-
-            if (s1->warn_unsupported)
-                tcc_warning("ignoring .ident %s", ident);
-
-            next();
-        }
+        asm_parse_ident(s1);
         break;
     case TOK_ASMDIR_size:
-        { 
-            Sym *sym;
-
-            next();
-            sym = asm_label_find(tok);
-            if (!sym) {
-                tcc_error("label not found: %s", get_tok_str(tok, NULL));
-            }
-
-            /* XXX .size name,label2-label1 */
-            if (s1->warn_unsupported)
-                tcc_warning("ignoring .size %s,*", get_tok_str(tok, NULL));
-
-            next();
-            skip(',');
-            while (tok != TOK_LINEFEED && tok != ';' && tok != CH_EOF) {
-                next();
-            }
-        }
+        asm_parse_size(s1);
         break;
     case TOK_ASMDIR_type:
         { 
