@@ -694,6 +694,8 @@ var CC2_TCC_STATE_SECTION_COUNT_OFFSET;
 var CC2_TCC_STATE_SYMBOL_TABLE_OFFSET;
 var CC2_TCC_STATE_SYMBOL_ATTRIBUTE_COUNT_OFFSET;
 var CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET;
+var CC2_TCC_STATE_LOADED_DYNAMIC_SYMBOL_TABLE_OFFSET;
+var CC2_TCC_STATE_EXPORT_DYNAMIC_OFFSET;
 var CC2_ELF_SECTION_PROGBITS;
 var CC2_ELF_SECTION_SYMBOL_TABLE;
 var CC2_ELF_SECTION_STRING_TABLE;
@@ -738,6 +740,8 @@ var CC2_SYMBOL_ATTRIBUTE_BYTES;
 var CC2_I386_RESERVED_GOT_WORDS;
 var CC2_GOT_FILL_RELAXED_TYPE_FIRST;
 var CC2_GOT_FILL_RELAXED_TYPE_SECOND;
+var CC2_ELF_SYMBOL_INDIRECT_FUNCTION_TYPE;
+var CC2_COPY_SYMBOL_ALIGNMENT;
 var CC2_ELF_DYNAMIC_RECORD_BYTES;
 var CC2_ELF_DYNAMIC_TAG_OFFSET;
 var CC2_ELF_DYNAMIC_VALUE_OFFSET;
@@ -6772,6 +6776,248 @@ function fill_local_got_entries(state)
         }
         relocation_offset = add(relocation_offset,
             CC2_ELF_RELOCATION_BYTES);
+    }
+    return 0;
+}
+
+function bind_exe_dynsyms(state)
+{
+    var symbol_table;
+    var dynamic_symbols;
+    var loaded_symbols;
+    var strings;
+    var loaded_strings;
+    var symbol_offset;
+    var symbol_index;
+    var symbol;
+    var section_index;
+    var name;
+    var loaded_index;
+    var loaded_symbol;
+    var symbol_type;
+    var dynamic_index;
+    var attributes;
+    var bss_section;
+    var offset;
+    var alias_offset;
+    var alias_symbol;
+    var alias_name;
+    var binding;
+    symbol_table = ri32(symtab_section_address);
+    dynamic_symbols = ri32(add(state,
+        CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
+    loaded_symbols = ri32(add(state,
+        CC2_TCC_STATE_LOADED_DYNAMIC_SYMBOL_TABLE_OFFSET));
+    strings = ri32(add(ri32(add(symbol_table, CC2_SECTION_LINK_OFFSET)),
+        CC2_SECTION_DATA_POINTER_OFFSET));
+    loaded_strings = ri32(add(ri32(add(loaded_symbols,
+        CC2_SECTION_LINK_OFFSET)), CC2_SECTION_DATA_POINTER_OFFSET));
+    bss_section = ri32(bss_section_address);
+    symbol_offset = CC2_ELF_SYMBOL_BYTES;
+    symbol_index = 1;
+    while (lt(symbol_offset, ri32(add(symbol_table,
+        CC2_SECTION_DATA_OFFSET)))) {
+        symbol = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
+            symbol_offset);
+        section_index = add(ri8(add(symbol,
+            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), shl(ri8(add(symbol,
+            add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1))), 8));
+        name = add(strings, ri32(add(symbol, CC2_ELF_SYMBOL_NAME_OFFSET)));
+        binding = ushr(ri8(add(symbol, CC2_ELF_SYMBOL_INFO_OFFSET)),
+            CC2_ELF_SYMBOL_BIND_SHIFT);
+        if (eq(section_index, CC2_ELF_UNDEFINED_SECTION)) {
+            loaded_index = find_elf_sym(loaded_symbols, name);
+            if (loaded_index) {
+                loaded_symbol = add(ri32(add(loaded_symbols,
+                    CC2_SECTION_DATA_POINTER_OFFSET)), mul(loaded_index,
+                    CC2_ELF_SYMBOL_BYTES));
+                symbol_type = and(ri8(add(loaded_symbol,
+                    CC2_ELF_SYMBOL_INFO_OFFSET)), CC2_ELF_SYMBOL_TYPE_MASK);
+                if (or(eq(symbol_type, CC2_ELF_SYMBOL_FUNCTION_TYPE),
+                    eq(symbol_type,
+                    CC2_ELF_SYMBOL_INDIRECT_FUNCTION_TYPE))) {
+                    dynamic_index = put_elf_sym(dynamic_symbols, 0, ri32(add(
+                        loaded_symbol, CC2_ELF_SYMBOL_SIZE_OFFSET)), or(shl(
+                        CC2_ELF_SYMBOL_GLOBAL_BINDING,
+                        CC2_ELF_SYMBOL_BIND_SHIFT),
+                        CC2_ELF_SYMBOL_FUNCTION_TYPE), 0,
+                        CC2_ELF_UNDEFINED_SECTION, name);
+                    attributes = get_sym_attr(state, symbol_index, 1);
+                    wi32(add(attributes,
+                        CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET),
+                        dynamic_index);
+                } else if (eq(symbol_type, CC2_ELF_SYMBOL_OBJECT_TYPE)) {
+                    offset = and(add(ri32(add(bss_section,
+                        CC2_SECTION_DATA_OFFSET)), sub(
+                        CC2_COPY_SYMBOL_ALIGNMENT, 1)), sub(0,
+                        CC2_COPY_SYMBOL_ALIGNMENT));
+                    set_elf_sym(symbol_table, offset, ri32(add(loaded_symbol,
+                        CC2_ELF_SYMBOL_SIZE_OFFSET)), ri8(add(loaded_symbol,
+                        CC2_ELF_SYMBOL_INFO_OFFSET)), 0, ri32(add(bss_section,
+                        CC2_SECTION_NUMBER_OFFSET)), name);
+                    dynamic_index = put_elf_sym(dynamic_symbols, offset,
+                        ri32(add(loaded_symbol, CC2_ELF_SYMBOL_SIZE_OFFSET)),
+                        ri8(add(loaded_symbol, CC2_ELF_SYMBOL_INFO_OFFSET)), 0,
+                        ri32(add(bss_section, CC2_SECTION_NUMBER_OFFSET)),
+                        name);
+                    if (eq(ushr(ri8(add(loaded_symbol,
+                        CC2_ELF_SYMBOL_INFO_OFFSET)),
+                        CC2_ELF_SYMBOL_BIND_SHIFT), CC2_ELF_WEAK_BINDING)) {
+                        alias_offset = CC2_ELF_SYMBOL_BYTES;
+                        while (lt(alias_offset, ri32(add(loaded_symbols,
+                            CC2_SECTION_DATA_OFFSET)))) {
+                            alias_symbol = add(ri32(add(loaded_symbols,
+                                CC2_SECTION_DATA_POINTER_OFFSET)),
+                                alias_offset);
+                            if (and(eq(ri32(add(alias_symbol,
+                                CC2_ELF_SYMBOL_VALUE_OFFSET)), ri32(add(
+                                loaded_symbol,
+                                CC2_ELF_SYMBOL_VALUE_OFFSET))), eq(ushr(ri8(
+                                add(alias_symbol,
+                                CC2_ELF_SYMBOL_INFO_OFFSET)),
+                                CC2_ELF_SYMBOL_BIND_SHIFT),
+                                CC2_ELF_SYMBOL_GLOBAL_BINDING))) {
+                                alias_name = add(loaded_strings, ri32(add(
+                                    alias_symbol,
+                                    CC2_ELF_SYMBOL_NAME_OFFSET)));
+                                put_elf_sym(dynamic_symbols, offset, ri32(add(
+                                    alias_symbol, CC2_ELF_SYMBOL_SIZE_OFFSET)),
+                                    ri8(add(alias_symbol,
+                                    CC2_ELF_SYMBOL_INFO_OFFSET)), 0, ri32(add(
+                                    bss_section, CC2_SECTION_NUMBER_OFFSET)),
+                                    alias_name);
+                                alias_offset = ri32(add(loaded_symbols,
+                                    CC2_SECTION_DATA_OFFSET));
+                            } else {
+                                alias_offset = add(alias_offset,
+                                    CC2_ELF_SYMBOL_BYTES);
+                            }
+                        }
+                    }
+                    put_elf_reloc(dynamic_symbols, bss_section, offset,
+                        CC2_I386_COPY_RELOCATION, dynamic_index);
+                    wi32(add(bss_section, CC2_SECTION_DATA_OFFSET), add(offset,
+                        ri32(add(loaded_symbol,
+                        CC2_ELF_SYMBOL_SIZE_OFFSET))));
+                }
+            } else if (and(not(eq(binding, CC2_ELF_WEAK_BINDING)),
+                not(eq(strcmp(name, mks("_fp_hw")), 0)))) {
+                tcc_error_noabort(mks("undefined symbol '%s'"), name);
+            }
+        } else if (and(ri32(add(state,
+            CC2_TCC_STATE_EXPORT_DYNAMIC_OFFSET)), not(eq(binding,
+            CC2_ELF_LOCAL_BINDING)))) {
+            set_elf_sym(dynamic_symbols, ri32(add(symbol,
+                CC2_ELF_SYMBOL_VALUE_OFFSET)), ri32(add(symbol,
+                CC2_ELF_SYMBOL_SIZE_OFFSET)), ri8(add(symbol,
+                CC2_ELF_SYMBOL_INFO_OFFSET)), 0, section_index, name);
+        }
+        symbol_offset = add(symbol_offset, CC2_ELF_SYMBOL_BYTES);
+        symbol_index = add(symbol_index, 1);
+    }
+    return 0;
+}
+
+function bind_libs_dynsyms(state)
+{
+    var symbol_table;
+    var dynamic_symbols;
+    var loaded_symbols;
+    var loaded_strings;
+    var loaded_offset;
+    var loaded_symbol;
+    var loaded_section_index;
+    var name;
+    var symbol_index;
+    var symbol;
+    var section_index;
+    var binding;
+    symbol_table = ri32(symtab_section_address);
+    dynamic_symbols = ri32(add(state,
+        CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
+    loaded_symbols = ri32(add(state,
+        CC2_TCC_STATE_LOADED_DYNAMIC_SYMBOL_TABLE_OFFSET));
+    loaded_strings = ri32(add(ri32(add(loaded_symbols,
+        CC2_SECTION_LINK_OFFSET)), CC2_SECTION_DATA_POINTER_OFFSET));
+    loaded_offset = CC2_ELF_SYMBOL_BYTES;
+    while (lt(loaded_offset, ri32(add(loaded_symbols,
+        CC2_SECTION_DATA_OFFSET)))) {
+        loaded_symbol = add(ri32(add(loaded_symbols,
+            CC2_SECTION_DATA_POINTER_OFFSET)), loaded_offset);
+        name = add(loaded_strings, ri32(add(loaded_symbol,
+            CC2_ELF_SYMBOL_NAME_OFFSET)));
+        symbol_index = find_elf_sym(symbol_table, name);
+        symbol = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
+            mul(symbol_index, CC2_ELF_SYMBOL_BYTES));
+        section_index = add(ri8(add(symbol,
+            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), shl(ri8(add(symbol,
+            add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1))), 8));
+        binding = ushr(ri8(add(symbol, CC2_ELF_SYMBOL_INFO_OFFSET)),
+            CC2_ELF_SYMBOL_BIND_SHIFT);
+        if (and(and(symbol_index, not(eq(section_index,
+            CC2_ELF_UNDEFINED_SECTION))), not(eq(binding,
+            CC2_ELF_LOCAL_BINDING)))) {
+            set_elf_sym(dynamic_symbols, ri32(add(symbol,
+                CC2_ELF_SYMBOL_VALUE_OFFSET)), ri32(add(symbol,
+                CC2_ELF_SYMBOL_SIZE_OFFSET)), ri8(add(symbol,
+                CC2_ELF_SYMBOL_INFO_OFFSET)), 0, section_index, name);
+        } else {
+            loaded_section_index = add(ri8(add(loaded_symbol,
+                CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), shl(ri8(add(
+                loaded_symbol, add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1))),
+                8));
+            if (and(eq(loaded_section_index,
+                CC2_ELF_UNDEFINED_SECTION), not(eq(ushr(ri8(add(
+                loaded_symbol, CC2_ELF_SYMBOL_INFO_OFFSET)),
+                CC2_ELF_SYMBOL_BIND_SHIFT), CC2_ELF_WEAK_BINDING)))) {
+                tcc_warning(mks("undefined dynamic symbol '%s'"), name);
+            }
+        }
+        loaded_offset = add(loaded_offset, CC2_ELF_SYMBOL_BYTES);
+    }
+    return 0;
+}
+
+function export_global_syms(state)
+{
+    var symbol_table;
+    var dynamic_symbols;
+    var strings;
+    var symbol_offset;
+    var symbol_index;
+    var symbol;
+    var name;
+    var dynamic_index;
+    var attributes;
+    var section_index;
+    symbol_table = ri32(symtab_section_address);
+    dynamic_symbols = ri32(add(state,
+        CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
+    strings = ri32(add(ri32(add(symbol_table, CC2_SECTION_LINK_OFFSET)),
+        CC2_SECTION_DATA_POINTER_OFFSET));
+    symbol_offset = CC2_ELF_SYMBOL_BYTES;
+    symbol_index = 1;
+    while (lt(symbol_offset, ri32(add(symbol_table,
+        CC2_SECTION_DATA_OFFSET)))) {
+        symbol = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
+            symbol_offset);
+        if (not(eq(ushr(ri8(add(symbol, CC2_ELF_SYMBOL_INFO_OFFSET)),
+            CC2_ELF_SYMBOL_BIND_SHIFT), CC2_ELF_LOCAL_BINDING))) {
+            name = add(strings, ri32(add(symbol,
+                CC2_ELF_SYMBOL_NAME_OFFSET)));
+            section_index = add(ri8(add(symbol,
+                CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), shl(ri8(add(symbol,
+                add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1))), 8));
+            dynamic_index = put_elf_sym(dynamic_symbols, ri32(add(symbol,
+                CC2_ELF_SYMBOL_VALUE_OFFSET)), ri32(add(symbol,
+                CC2_ELF_SYMBOL_SIZE_OFFSET)), ri8(add(symbol,
+                CC2_ELF_SYMBOL_INFO_OFFSET)), 0, section_index, name);
+            attributes = get_sym_attr(state, symbol_index, 1);
+            wi32(add(attributes, CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET),
+                dynamic_index);
+        }
+        symbol_offset = add(symbol_offset, CC2_ELF_SYMBOL_BYTES);
+        symbol_index = add(symbol_index, 1);
     }
     return 0;
 }
@@ -18367,6 +18613,8 @@ function cc2_init_constants()
     CC2_TCC_STATE_SYMBOL_TABLE_OFFSET = 988;
     CC2_TCC_STATE_SYMBOL_ATTRIBUTE_COUNT_OFFSET = 996;
     CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET = 984;
+    CC2_TCC_STATE_LOADED_DYNAMIC_SYMBOL_TABLE_OFFSET = 980;
+    CC2_TCC_STATE_EXPORT_DYNAMIC_OFFSET = 20;
     CC2_ELF_SECTION_PROGBITS = 1;
     CC2_ELF_SECTION_SYMBOL_TABLE = 2;
     CC2_ELF_SECTION_STRING_TABLE = 3;
@@ -18411,6 +18659,8 @@ function cc2_init_constants()
     CC2_I386_RESERVED_GOT_WORDS = 3;
     CC2_GOT_FILL_RELAXED_TYPE_FIRST = 41;
     CC2_GOT_FILL_RELAXED_TYPE_SECOND = 42;
+    CC2_ELF_SYMBOL_INDIRECT_FUNCTION_TYPE = 10;
+    CC2_COPY_SYMBOL_ALIGNMENT = 16;
     CC2_ELF_DYNAMIC_RECORD_BYTES = 8;
     CC2_ELF_DYNAMIC_TAG_OFFSET = 0;
     CC2_ELF_DYNAMIC_VALUE_OFFSET = 4;
