@@ -1519,9 +1519,9 @@ ST_FUNC void relocate_section(TCCState *s1, Section *s);
 
 extern void *load_data(int fd, unsigned long file_offset, unsigned long size);
 extern int tcc_object_type(int fd, ElfW(Ehdr) *h);
-ST_FUNC int tcc_load_object_file(TCCState *s1, int fd, unsigned long file_offset);
-ST_FUNC int tcc_load_archive(TCCState *s1, int fd);
-ST_FUNC void tcc_add_bcheck(TCCState *s1);
+extern int tcc_load_alacarte(TCCState *s1, int fd, int size, int entrysize);
+extern int tcc_load_archive(TCCState *s1, int fd);
+extern int tcc_load_object_file(TCCState *s1, int fd, unsigned long file_offset);
 ST_FUNC void tcc_add_runtime(TCCState *s1);
 
 ST_FUNC void build_got_entries(TCCState *s1);

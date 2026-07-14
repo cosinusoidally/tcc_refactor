@@ -153,7 +153,7 @@ typedef struct SectionMergeInfo {
 
 /* load an object file and merge it with current files */
 /* XXX: handle correctly stab (debug) info */
-ST_FUNC int tcc_load_object_file(TCCState *s1,
+int tcc_load_object_file(TCCState *s1,
                                 int fd, unsigned long file_offset)
 {
     ElfW(Ehdr) ehdr;
@@ -463,7 +463,7 @@ static long get_be64(const uint8_t *b)
 }
 
 /* load only the objects which resolve undefined symbols */
-static int tcc_load_alacarte(TCCState *s1, int fd, int size, int entrysize)
+int tcc_load_alacarte(TCCState *s1, int fd, int size, int entrysize)
 {
     long i, bound, nsyms, sym_index, off, ret;
     uint8_t *data;
@@ -503,58 +503,6 @@ static int tcc_load_alacarte(TCCState *s1, int fd, int size, int entrysize)
  the_end:
     tcc_free(data);
     return ret;
-}
-
-/* load a '.a' file */
-ST_FUNC int tcc_load_archive(TCCState *s1, int fd)
-{
-    ArchiveHeader hdr;
-    char ar_size[11];
-    char ar_name[17];
-    char magic[8];
-    int size, len, i;
-    unsigned long file_offset;
-
-    /* skip magic which was already checked */
-    read(fd, magic, sizeof(magic));
-
-    for(;;) {
-        len = read(fd, &hdr, sizeof(hdr));
-        if (len == 0)
-            break;
-        if (len != sizeof(hdr)) {
-            tcc_error_noabort("invalid archive");
-            return -1;
-        }
-        memcpy(ar_size, hdr.ar_size, sizeof(hdr.ar_size));
-        ar_size[sizeof(hdr.ar_size)] = '\0';
-        size = strtol(ar_size, NULL, 0);
-        memcpy(ar_name, hdr.ar_name, sizeof(hdr.ar_name));
-        for(i = sizeof(hdr.ar_name) - 1; i >= 0; i--) {
-            if (ar_name[i] != ' ')
-                break;
-        }
-        ar_name[i + 1] = '\0';
-        file_offset = lseek(fd, 0, SEEK_CUR);
-        /* align to even */
-        size = (size + 1) & ~1;
-        if (!strcmp(ar_name, "/")) {
-            /* coff symbol table : we handle it */
-            if(s1->alacarte_link)
-                return tcc_load_alacarte(s1, fd, size, 4);
-	} else if (!strcmp(ar_name, "/SYM64/")) {
-            if(s1->alacarte_link)
-                return tcc_load_alacarte(s1, fd, size, 8);
-        } else {
-            ElfW(Ehdr) ehdr;
-            if (tcc_object_type(fd, &ehdr) == AFF_BINTYPE_REL) {
-                if (tcc_load_object_file(s1, fd, file_offset) < 0)
-                    return -1;
-            }
-        }
-        lseek(fd, file_offset + size, SEEK_SET);
-    }
-    return 0;
 }
 
 #ifndef TCC_TARGET_PE

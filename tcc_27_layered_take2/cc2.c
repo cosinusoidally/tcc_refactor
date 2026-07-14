@@ -809,6 +809,12 @@ var CC2_BINARY_TYPE_RELOCATABLE;
 var CC2_BINARY_TYPE_SHARED;
 var CC2_BINARY_TYPE_ARCHIVE;
 var CC2_ARCHIVE_MAGIC_BYTES;
+var CC2_ARCHIVE_HEADER_BYTES;
+var CC2_ARCHIVE_NAME_BYTES;
+var CC2_ARCHIVE_SIZE_OFFSET;
+var CC2_ARCHIVE_SIZE_BYTES;
+var CC2_TCC_STATE_ALACARTE_OFFSET;
+var CC2_SEEK_CURRENT;
 var CC2_ELF_I386_MACHINE;
 var CC2_ELF_CURRENT_VERSION;
 var CC2_ELF_CLASS_32;
@@ -7591,6 +7597,80 @@ function tcc_object_type(file_descriptor, header)
         }
     }
     return 0;
+}
+
+/* Traverse a Unix archive and pass each selected i386 object to the loader. */
+function tcc_load_archive(state, file_descriptor)
+{
+    var header;
+    var name;
+    var size_text;
+    var object_header;
+    var length;
+    var size;
+    var index;
+    var file_offset;
+    var result;
+    header = malloc(CC2_ARCHIVE_HEADER_BYTES);
+    name = malloc(add(CC2_ARCHIVE_NAME_BYTES, 1));
+    size_text = malloc(add(CC2_ARCHIVE_SIZE_BYTES, 1));
+    object_header = malloc(CC2_ELF_HEADER_BYTES);
+    read(file_descriptor, header, CC2_ARCHIVE_MAGIC_BYTES);
+    result = 0;
+    length = read(file_descriptor, header, CC2_ARCHIVE_HEADER_BYTES);
+    while (not(eq(length, 0))) {
+        if (not(eq(length, CC2_ARCHIVE_HEADER_BYTES))) {
+            tcc_error_noabort(mks("invalid archive"));
+            result = sub(0, 1);
+            length = 0;
+        } else {
+            memcpy(size_text, add(header, CC2_ARCHIVE_SIZE_OFFSET),
+                CC2_ARCHIVE_SIZE_BYTES);
+            wi8(add(size_text, CC2_ARCHIVE_SIZE_BYTES), 0);
+            size = strtol(size_text, 0, 0);
+            memcpy(name, header, CC2_ARCHIVE_NAME_BYTES);
+            index = sub(CC2_ARCHIVE_NAME_BYTES, 1);
+            while (and(not(lt(index, 0)), eq(ri8(add(name, index)), mkC(" ")))) {
+                index = sub(index, 1);
+            }
+            wi8(add(name, add(index, 1)), 0);
+            file_offset = lseek(file_descriptor, 0, CC2_SEEK_CURRENT);
+            size = and(add(size, 1), sub(0, 2));
+            if (eq(strcmp(name, mks("/")), 0)) {
+                if (ri32(add(state, CC2_TCC_STATE_ALACARTE_OFFSET))) {
+                    result = tcc_load_alacarte(state, file_descriptor, size, 4);
+                    length = 0;
+                }
+            } else {
+                if (eq(strcmp(name, mks("/SYM64/")), 0)) {
+                    if (ri32(add(state, CC2_TCC_STATE_ALACARTE_OFFSET))) {
+                        result = tcc_load_alacarte(state, file_descriptor,
+                            size, 8);
+                        length = 0;
+                    }
+                } else {
+                    if (eq(tcc_object_type(file_descriptor, object_header),
+                        CC2_BINARY_TYPE_RELOCATABLE)) {
+                        result = tcc_load_object_file(state, file_descriptor,
+                            file_offset);
+                        if (lt(result, 0)) {
+                            length = 0;
+                        }
+                    }
+                }
+            }
+            if (not(eq(length, 0))) {
+                lseek(file_descriptor, add(file_offset, size), 0);
+                length = read(file_descriptor, header,
+                    CC2_ARCHIVE_HEADER_BYTES);
+            }
+        }
+    }
+    free(object_header);
+    free(size_text);
+    free(name);
+    free(header);
+    return result;
 }
 
 function cc2_output_padding(output, offset, target)
@@ -19870,6 +19950,12 @@ function cc2_init_constants()
     CC2_BINARY_TYPE_SHARED = 2;
     CC2_BINARY_TYPE_ARCHIVE = 3;
     CC2_ARCHIVE_MAGIC_BYTES = 8;
+    CC2_ARCHIVE_HEADER_BYTES = 60;
+    CC2_ARCHIVE_NAME_BYTES = 16;
+    CC2_ARCHIVE_SIZE_OFFSET = 48;
+    CC2_ARCHIVE_SIZE_BYTES = 10;
+    CC2_TCC_STATE_ALACARTE_OFFSET = 28;
+    CC2_SEEK_CURRENT = 1;
     CC2_ELF_I386_MACHINE = 3;
     CC2_ELF_CURRENT_VERSION = 1;
     CC2_ELF_CLASS_32 = 1;
