@@ -6293,6 +6293,128 @@ function relocate_syms(state, symbol_table, resolve_from_process)
     return 0;
 }
 
+function relocate_section(state, section)
+{
+    var relocation_section;
+    var relocation_offset;
+    var relocation;
+    var relocation_information;
+    var symbol_index;
+    var symbol;
+    var type;
+    var pointer;
+    var value;
+    var address;
+    relocation_section = ri32(add(section, CC2_SECTION_RELOCATION_OFFSET));
+    relocate_init(relocation_section);
+    relocation_offset = 0;
+    while (lt(relocation_offset, ri32(add(relocation_section,
+        CC2_SECTION_DATA_OFFSET)))) {
+        relocation = add(ri32(add(relocation_section,
+            CC2_SECTION_DATA_POINTER_OFFSET)), relocation_offset);
+        relocation_information = ri32(add(relocation,
+            CC2_ELF_RELOCATION_INFO_OFFSET));
+        symbol_index = ushr(relocation_information,
+            CC2_ELF_RELOCATION_SYMBOL_SHIFT);
+        symbol = add(ri32(add(ri32(symtab_section_address),
+            CC2_SECTION_DATA_POINTER_OFFSET)), mul(symbol_index,
+            CC2_ELF_SYMBOL_BYTES));
+        type = and(relocation_information, CC2_ELF_RELOCATION_TYPE_MASK);
+        pointer = add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)),
+            ri32(add(relocation, CC2_ELF_RELOCATION_OFFSET_OFFSET)));
+        value = ri32(add(symbol, CC2_ELF_SYMBOL_VALUE_OFFSET));
+        address = add(ri32(add(section, CC2_SECTION_ADDRESS_OFFSET)),
+            ri32(add(relocation, CC2_ELF_RELOCATION_OFFSET_OFFSET)));
+        relocate(state, relocation, type, pointer, address, value);
+        relocation_offset = add(relocation_offset,
+            CC2_ELF_RELOCATION_BYTES);
+    }
+    if (and(ri32(add(relocation_section, CC2_SECTION_FLAGS_OFFSET)),
+        CC2_ELF_ALLOCATE_SECTION_FLAG)) {
+        wi32(add(relocation_section, CC2_SECTION_LINK_OFFSET), ri32(add(state,
+            CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET)));
+    }
+    return 0;
+}
+
+function relocate_rel(state, relocation_section)
+{
+    var sections;
+    var section;
+    var section_address;
+    var relocation_offset;
+    var relocation;
+    sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+    section = ri32(add(sections, mul(ri32(add(relocation_section,
+        CC2_SECTION_INFO_OFFSET)), CC2_I386_WORD_BYTES)));
+    section_address = ri32(add(section, CC2_SECTION_ADDRESS_OFFSET));
+    relocation_offset = 0;
+    while (lt(relocation_offset, ri32(add(relocation_section,
+        CC2_SECTION_DATA_OFFSET)))) {
+        relocation = add(ri32(add(relocation_section,
+            CC2_SECTION_DATA_POINTER_OFFSET)), relocation_offset);
+        wi32(add(relocation, CC2_ELF_RELOCATION_OFFSET_OFFSET), add(ri32(add(
+            relocation, CC2_ELF_RELOCATION_OFFSET_OFFSET)), section_address));
+        relocation_offset = add(relocation_offset,
+            CC2_ELF_RELOCATION_BYTES);
+    }
+    return 0;
+}
+
+function prepare_dynamic_rel(state, relocation_section)
+{
+    var relocation_offset;
+    var relocation;
+    var information;
+    var symbol_index;
+    var type;
+    var count;
+    var attributes;
+    var symbol;
+    count = 0;
+    relocation_offset = 0;
+    while (lt(relocation_offset, ri32(add(relocation_section,
+        CC2_SECTION_DATA_OFFSET)))) {
+        relocation = add(ri32(add(relocation_section,
+            CC2_SECTION_DATA_POINTER_OFFSET)), relocation_offset);
+        information = ri32(add(relocation, CC2_ELF_RELOCATION_INFO_OFFSET));
+        symbol_index = ushr(information, CC2_ELF_RELOCATION_SYMBOL_SHIFT);
+        type = and(information, CC2_ELF_RELOCATION_TYPE_MASK);
+        attributes = get_sym_attr(state, symbol_index, 0);
+        if (eq(type, CC2_I386_DATA_POINTER_RELOCATION)) {
+            symbol = add(ri32(add(ri32(symtab_section_address),
+                CC2_SECTION_DATA_POINTER_OFFSET)), mul(symbol_index,
+                CC2_ELF_SYMBOL_BYTES));
+            if (and(eq(ri32(add(attributes,
+                CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET)), 0), and(eq(ri8(
+                add(symbol, CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), 0), eq(ri8(
+                add(symbol, add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1))),
+                0)))) {
+                wi32(add(relocation, CC2_ELF_RELOCATION_INFO_OFFSET), or(
+                    shl(symbol_index, CC2_ELF_RELOCATION_SYMBOL_SHIFT),
+                    CC2_I386_RELATIVE_RELOCATION));
+            } else {
+                count = add(count, 1);
+            }
+        } else if (eq(type, CC2_I386_PC_RELATIVE_RELOCATION)) {
+            if (ri32(add(attributes,
+                CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET))) {
+                count = add(count, 1);
+            }
+        }
+        relocation_offset = add(relocation_offset,
+            CC2_ELF_RELOCATION_BYTES);
+    }
+    if (count) {
+        wi32(add(relocation_section, CC2_SECTION_FLAGS_OFFSET), or(ri32(add(
+            relocation_section, CC2_SECTION_FLAGS_OFFSET)),
+            CC2_ELF_ALLOCATE_SECTION_FLAG));
+        wi32(add(relocation_section, CC2_SECTION_SIZE_OFFSET),
+            mul(count, CC2_ELF_RELOCATION_BYTES));
+    }
+    return count;
+}
+
 /* Grow the pool pointer vector with the same power-of-two rule as TCC. */
 function cc2_add_sym_pool_(pool, count, capacity, pools)
 {
