@@ -747,6 +747,20 @@ var CC2_COPY_SYMBOL_ALIGNMENT;
 var CC2_ELF_DYNAMIC_RECORD_BYTES;
 var CC2_ELF_DYNAMIC_TAG_OFFSET;
 var CC2_ELF_DYNAMIC_VALUE_OFFSET;
+var CC2_DYNAMIC_INFO_DYNAMIC_OFFSET;
+var CC2_DYNAMIC_INFO_STRING_TABLE_OFFSET;
+var CC2_DYNAMIC_INFO_RELOCATION_ADDRESS_OFFSET;
+var CC2_DYNAMIC_INFO_RELOCATION_SIZE_OFFSET;
+var CC2_ELF_DYNAMIC_NULL_TAG;
+var CC2_ELF_DYNAMIC_HASH_TAG;
+var CC2_ELF_DYNAMIC_STRING_TABLE_TAG;
+var CC2_ELF_DYNAMIC_SYMBOL_TABLE_TAG;
+var CC2_ELF_DYNAMIC_STRING_SIZE_TAG;
+var CC2_ELF_DYNAMIC_SYMBOL_ENTRY_SIZE_TAG;
+var CC2_ELF_DYNAMIC_REL_TAG;
+var CC2_ELF_DYNAMIC_REL_SIZE_TAG;
+var CC2_ELF_DYNAMIC_REL_ENTRY_SIZE_TAG;
+var CC2_ELF_DYNAMIC_DEBUG_TAG;
 var CC2_TOKEN_GENERIC;
 var CC2_TOKEN_DEFAULT;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD;
@@ -7087,6 +7101,43 @@ function put_dt(dynamic_section, tag, value)
     record = section_ptr_add(dynamic_section, CC2_ELF_DYNAMIC_RECORD_BYTES);
     wi32(add(record, CC2_ELF_DYNAMIC_TAG_OFFSET), tag);
     wi32(add(record, CC2_ELF_DYNAMIC_VALUE_OFFSET), value);
+    return 0;
+}
+
+/* Append the address-dependent i386 dynamic tags after layout is known. */
+function fill_dynamic(state, dynamic_info)
+{
+    var dynamic_section;
+    var string_section;
+    var symbol_section;
+    var hash_section;
+    dynamic_section = ri32(add(dynamic_info,
+        CC2_DYNAMIC_INFO_DYNAMIC_OFFSET));
+    string_section = ri32(add(dynamic_info,
+        CC2_DYNAMIC_INFO_STRING_TABLE_OFFSET));
+    symbol_section = ri32(add(state,
+        CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
+    hash_section = ri32(add(symbol_section, CC2_SECTION_HASH_OFFSET));
+    put_dt(dynamic_section, CC2_ELF_DYNAMIC_HASH_TAG,
+        ri32(add(hash_section, CC2_SECTION_ADDRESS_OFFSET)));
+    put_dt(dynamic_section, CC2_ELF_DYNAMIC_STRING_TABLE_TAG,
+        ri32(add(string_section, CC2_SECTION_ADDRESS_OFFSET)));
+    put_dt(dynamic_section, CC2_ELF_DYNAMIC_SYMBOL_TABLE_TAG,
+        ri32(add(symbol_section, CC2_SECTION_ADDRESS_OFFSET)));
+    put_dt(dynamic_section, CC2_ELF_DYNAMIC_STRING_SIZE_TAG,
+        ri32(add(string_section, CC2_SECTION_DATA_OFFSET)));
+    put_dt(dynamic_section, CC2_ELF_DYNAMIC_SYMBOL_ENTRY_SIZE_TAG,
+        CC2_ELF_SYMBOL_BYTES);
+    put_dt(dynamic_section, CC2_ELF_DYNAMIC_REL_TAG, ri32(add(dynamic_info,
+        CC2_DYNAMIC_INFO_RELOCATION_ADDRESS_OFFSET)));
+    put_dt(dynamic_section, CC2_ELF_DYNAMIC_REL_SIZE_TAG, ri32(add(dynamic_info,
+        CC2_DYNAMIC_INFO_RELOCATION_SIZE_OFFSET)));
+    put_dt(dynamic_section, CC2_ELF_DYNAMIC_REL_ENTRY_SIZE_TAG,
+        CC2_ELF_RELOCATION_BYTES);
+    if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
+        put_dt(dynamic_section, CC2_ELF_DYNAMIC_DEBUG_TAG, 0);
+    }
+    put_dt(dynamic_section, CC2_ELF_DYNAMIC_NULL_TAG, 0);
     return 0;
 }
 
@@ -18725,6 +18776,20 @@ function cc2_init_constants()
     CC2_ELF_DYNAMIC_RECORD_BYTES = 8;
     CC2_ELF_DYNAMIC_TAG_OFFSET = 0;
     CC2_ELF_DYNAMIC_VALUE_OFFSET = 4;
+    CC2_DYNAMIC_INFO_DYNAMIC_OFFSET = 0;
+    CC2_DYNAMIC_INFO_STRING_TABLE_OFFSET = 4;
+    CC2_DYNAMIC_INFO_RELOCATION_ADDRESS_OFFSET = 12;
+    CC2_DYNAMIC_INFO_RELOCATION_SIZE_OFFSET = 16;
+    CC2_ELF_DYNAMIC_NULL_TAG = 0;
+    CC2_ELF_DYNAMIC_HASH_TAG = 4;
+    CC2_ELF_DYNAMIC_STRING_TABLE_TAG = 5;
+    CC2_ELF_DYNAMIC_SYMBOL_TABLE_TAG = 6;
+    CC2_ELF_DYNAMIC_STRING_SIZE_TAG = 10;
+    CC2_ELF_DYNAMIC_SYMBOL_ENTRY_SIZE_TAG = 11;
+    CC2_ELF_DYNAMIC_REL_TAG = 17;
+    CC2_ELF_DYNAMIC_REL_SIZE_TAG = 18;
+    CC2_ELF_DYNAMIC_REL_ENTRY_SIZE_TAG = 19;
+    CC2_ELF_DYNAMIC_DEBUG_TAG = 21;
     CC2_TOKEN_GENERIC = 292;
     CC2_TOKEN_DEFAULT = 300;
     CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;

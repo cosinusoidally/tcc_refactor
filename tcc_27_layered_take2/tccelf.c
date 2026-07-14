@@ -480,41 +480,6 @@ static void fill_unloadable_phdr(ElfW(Phdr) *phdr, int phnum, Section *interp,
     }
 }
 
-/* Fill the dynamic section with tags describing the address and size of
-   sections */
-static void fill_dynamic(TCCState *s1, struct dyn_inf *dyninf)
-{
-    Section *dynamic = dyninf->dynamic;
-
-    /* put dynamic section entries */
-    put_dt(dynamic, DT_HASH, s1->dynsym->hash->sh_addr);
-    put_dt(dynamic, DT_STRTAB, dyninf->dynstr->sh_addr);
-    put_dt(dynamic, DT_SYMTAB, s1->dynsym->sh_addr);
-    put_dt(dynamic, DT_STRSZ, dyninf->dynstr->data_offset);
-    put_dt(dynamic, DT_SYMENT, sizeof(ElfW(Sym)));
-#if PTR_SIZE == 8
-    put_dt(dynamic, DT_RELA, dyninf->rel_addr);
-    put_dt(dynamic, DT_RELASZ, dyninf->rel_size);
-    put_dt(dynamic, DT_RELAENT, sizeof(ElfW_Rel));
-#else
-#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
-    put_dt(dynamic, DT_PLTGOT, s1->got->sh_addr);
-    put_dt(dynamic, DT_PLTRELSZ, dyninf->rel_size);
-    put_dt(dynamic, DT_JMPREL, dyninf->rel_addr);
-    put_dt(dynamic, DT_PLTREL, DT_REL);
-    put_dt(dynamic, DT_REL, dyninf->bss_addr);
-    put_dt(dynamic, DT_RELSZ, dyninf->bss_size);
-#else
-    put_dt(dynamic, DT_REL, dyninf->rel_addr);
-    put_dt(dynamic, DT_RELSZ, dyninf->rel_size);
-    put_dt(dynamic, DT_RELENT, sizeof(ElfW_Rel));
-#endif
-#endif
-    if (s1->do_debug)
-        put_dt(dynamic, DT_DEBUG, 0);
-    put_dt(dynamic, DT_NULL, 0);
-}
-
 /* Relocate remaining sections and symbols (that is those not related to
    dynamic linking) */
 static int final_sections_reloc(TCCState *s1)
