@@ -673,6 +673,37 @@ var CC2_TOKEN_WIDE_STRING;
 var CC2_TOKEN_FUNCTION_NAME_GNU;
 var CC2_TOKEN_FUNCTION_NAME_STANDARD;
 var CC2_SECTION_DATA_OFFSET;
+var CC2_SECTION_TYPE_OFFSET;
+var CC2_SECTION_FLAGS_OFFSET;
+var CC2_SECTION_INFO_OFFSET;
+var CC2_SECTION_ALIGNMENT_OFFSET;
+var CC2_SECTION_ENTRY_SIZE_OFFSET;
+var CC2_SECTION_SIZE_OFFSET;
+var CC2_SECTION_FILE_OFFSET_OFFSET;
+var CC2_SECTION_HASHED_SYMBOL_COUNT_OFFSET;
+var CC2_SECTION_LINK_OFFSET;
+var CC2_SECTION_HASH_OFFSET;
+var CC2_SECTION_NAME_OFFSET;
+var CC2_SECTION_BYTES;
+var CC2_TCC_STATE_PRIVATE_SECTIONS_OFFSET;
+var CC2_TCC_STATE_PRIVATE_SECTION_COUNT_OFFSET;
+var CC2_TCC_STATE_SECTION_COUNT_OFFSET;
+var CC2_ELF_SECTION_PROGBITS;
+var CC2_ELF_SECTION_SYMBOL_TABLE;
+var CC2_ELF_SECTION_STRING_TABLE;
+var CC2_ELF_SECTION_RELA;
+var CC2_ELF_SECTION_HASH;
+var CC2_ELF_SECTION_DYNAMIC;
+var CC2_ELF_SECTION_NOBITS;
+var CC2_ELF_SECTION_REL;
+var CC2_ELF_SECTION_DYNAMIC_SYMBOLS;
+var CC2_ELF_PRIVATE_SECTION_FLAG;
+var CC2_ELF_ALLOCATE_SECTION_FLAG;
+var CC2_ELF_HASH_HIGH_MASK;
+var CC2_ELF_SYMBOL_BYTES;
+var CC2_ELF_SYMBOL_NAME_OFFSET;
+var CC2_ELF_SYMBOL_INFO_OFFSET;
+var CC2_ELF_LOCAL_BINDING;
 var CC2_TOKEN_GENERIC;
 var CC2_TOKEN_DEFAULT;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD;
@@ -5321,6 +5352,288 @@ function dynarray_reset(table_pointer, count_pointer)
     free(table);
     wi32(table_pointer, 0);
     wi32(count_pointer, 0);
+    return 0;
+}
+
+function section_realloc(section, new_size)
+{
+    var size;
+    var data;
+    size = ri32(add(section, CC2_SECTION_DATA_ALLOCATED_OFFSET));
+    if (eq(size, 0)) {
+        size = 1;
+    }
+    while (lt(size, new_size)) {
+        size = mul(size, 2);
+    }
+    data = tcc_realloc(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)),
+        size);
+    memset(add(data, ri32(add(section, CC2_SECTION_DATA_ALLOCATED_OFFSET))),
+        0, sub(size, ri32(add(section,
+        CC2_SECTION_DATA_ALLOCATED_OFFSET))));
+    wi32(add(section, CC2_SECTION_DATA_POINTER_OFFSET), data);
+    wi32(add(section, CC2_SECTION_DATA_ALLOCATED_OFFSET), size);
+    return 0;
+}
+
+function section_add(section, size, alignment)
+{
+    var offset;
+    var end;
+    offset = and(add(add(ri32(add(section, CC2_SECTION_DATA_OFFSET)),
+        alignment), sub(0, 1)), sub(0, alignment));
+    end = add(offset, size);
+    if (and(not(eq(ri32(add(section, CC2_SECTION_TYPE_OFFSET)),
+        CC2_ELF_SECTION_NOBITS)), lt(ri32(add(section,
+        CC2_SECTION_DATA_ALLOCATED_OFFSET)), end))) {
+        section_realloc(section, end);
+    }
+    wi32(add(section, CC2_SECTION_DATA_OFFSET), end);
+    if (lt(ri32(add(section, CC2_SECTION_ALIGNMENT_OFFSET)), alignment)) {
+        wi32(add(section, CC2_SECTION_ALIGNMENT_OFFSET), alignment);
+    }
+    return offset;
+}
+
+function section_ptr_add(section, size)
+{
+    var offset;
+
+    /* Grow the section before reading its possibly relocated data pointer. */
+    offset = section_add(section, size, 1);
+    return add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)), offset);
+}
+
+function section_reserve(section, size)
+{
+    if (lt(ri32(add(section, CC2_SECTION_DATA_ALLOCATED_OFFSET)), size)) {
+        section_realloc(section, size);
+    }
+    if (lt(ri32(add(section, CC2_SECTION_DATA_OFFSET)), size)) {
+        wi32(add(section, CC2_SECTION_DATA_OFFSET), size);
+    }
+    return 0;
+}
+
+function new_section(state, name, section_type, flags)
+{
+    var section;
+    section = tcc_mallocz(add(CC2_SECTION_BYTES, strlen(name)));
+    strcpy(add(section, CC2_SECTION_NAME_OFFSET), name);
+    wi32(add(section, CC2_SECTION_TYPE_OFFSET), section_type);
+    wi32(add(section, CC2_SECTION_FLAGS_OFFSET), flags);
+    if (or(or(or(eq(section_type, CC2_ELF_SECTION_HASH),
+        eq(section_type, CC2_ELF_SECTION_REL)), or(eq(section_type,
+        CC2_ELF_SECTION_RELA), eq(section_type,
+        CC2_ELF_SECTION_DYNAMIC_SYMBOLS))), or(eq(section_type,
+        CC2_ELF_SECTION_SYMBOL_TABLE), eq(section_type,
+        CC2_ELF_SECTION_DYNAMIC)))) {
+        wi32(add(section, CC2_SECTION_ALIGNMENT_OFFSET), CC2_I386_WORD_BYTES);
+    } else if (eq(section_type, CC2_ELF_SECTION_STRING_TABLE)) {
+        wi32(add(section, CC2_SECTION_ALIGNMENT_OFFSET), 1);
+    } else {
+        wi32(add(section, CC2_SECTION_ALIGNMENT_OFFSET), CC2_I386_WORD_BYTES);
+    }
+    if (and(flags, CC2_ELF_PRIVATE_SECTION_FLAG)) {
+        dynarray_add(add(state, CC2_TCC_STATE_PRIVATE_SECTIONS_OFFSET),
+            add(state, CC2_TCC_STATE_PRIVATE_SECTION_COUNT_OFFSET), section);
+    } else {
+        wi32(add(section, CC2_SECTION_NUMBER_OFFSET),
+            ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET)));
+        dynarray_add(add(state, CC2_TCC_STATE_SECTIONS_OFFSET),
+            add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET), section);
+    }
+    return section;
+}
+
+function find_section(state, name)
+{
+    var index;
+    var section;
+    var sections;
+    sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+    index = 1;
+    while (lt(index, ri32(add(state,
+        CC2_TCC_STATE_SECTION_COUNT_OFFSET)))) {
+        section = ri32(add(sections, mul(index, CC2_I386_WORD_BYTES)));
+        if (eq(strcmp(name, add(section, CC2_SECTION_NAME_OFFSET)), 0)) {
+            return section;
+        }
+        index = add(index, 1);
+    }
+    return new_section(state, name, CC2_ELF_SECTION_PROGBITS,
+        CC2_ELF_ALLOCATE_SECTION_FLAG);
+}
+
+function put_elf_str(section, text)
+{
+    var offset;
+    var length;
+    var pointer;
+    length = add(strlen(text), 1);
+    offset = ri32(add(section, CC2_SECTION_DATA_OFFSET));
+    pointer = section_ptr_add(section, length);
+    memmove(pointer, text, length);
+    return offset;
+}
+
+function elf_hash(name)
+{
+    var hash;
+    var high;
+    hash = 0;
+    while (ri8(name)) {
+        hash = add(shl(hash, 4), ri8(name));
+        name = add(name, 1);
+        high = and(hash, CC2_ELF_HASH_HIGH_MASK);
+        if (high) {
+            hash = xor(hash, ushr(high, 24));
+        }
+        hash = and(hash, bnot(high));
+    }
+    return hash;
+}
+
+function rebuild_hash(section, bucket_count)
+{
+    var symbol;
+    var pointer;
+    var buckets;
+    var symbol_count;
+    var symbol_index;
+    var hash_value;
+    var strings;
+    var hash_section;
+    strings = ri32(add(ri32(add(section, CC2_SECTION_LINK_OFFSET)),
+        CC2_SECTION_DATA_POINTER_OFFSET));
+    symbol_count = sdiv(ri32(add(section, CC2_SECTION_DATA_OFFSET)),
+        CC2_ELF_SYMBOL_BYTES);
+    hash_section = ri32(add(section, CC2_SECTION_HASH_OFFSET));
+    if (eq(bucket_count, 0)) {
+        bucket_count = ri32(ri32(add(hash_section,
+            CC2_SECTION_DATA_POINTER_OFFSET)));
+    }
+    wi32(add(hash_section, CC2_SECTION_DATA_OFFSET), 0);
+    pointer = section_ptr_add(hash_section, mul(add(add(2, bucket_count),
+        symbol_count), CC2_I386_WORD_BYTES));
+    wi32(pointer, bucket_count);
+    wi32(add(pointer, CC2_I386_WORD_BYTES), symbol_count);
+    buckets = add(pointer, mul(2, CC2_I386_WORD_BYTES));
+    memset(buckets, 0, mul(add(bucket_count, 1), CC2_I386_WORD_BYTES));
+    pointer = add(buckets, mul(add(bucket_count, 1), CC2_I386_WORD_BYTES));
+    symbol = add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)),
+        CC2_ELF_SYMBOL_BYTES);
+    symbol_index = 1;
+    while (lt(symbol_index, symbol_count)) {
+        if (not(eq(ushr(ri8(add(symbol, CC2_ELF_SYMBOL_INFO_OFFSET)), 4),
+            CC2_ELF_LOCAL_BINDING))) {
+            hash_value = mod(elf_hash(add(strings, ri32(add(symbol,
+                CC2_ELF_SYMBOL_NAME_OFFSET)))), bucket_count);
+            wi32(pointer, ri32(add(buckets,
+                mul(hash_value, CC2_I386_WORD_BYTES))));
+            wi32(add(buckets, mul(hash_value, CC2_I386_WORD_BYTES)),
+                symbol_index);
+        } else {
+            wi32(pointer, 0);
+        }
+        pointer = add(pointer, CC2_I386_WORD_BYTES);
+        symbol = add(symbol, CC2_ELF_SYMBOL_BYTES);
+        symbol_index = add(symbol_index, 1);
+    }
+    return 0;
+}
+
+function put_elf_sym(section, value, size, information, other,
+    section_index, name)
+{
+    var name_offset;
+    var symbol_index;
+    var bucket_count;
+    var hash_value;
+    var symbol;
+    var hash_section;
+    var pointer;
+    var base;
+    symbol = section_ptr_add(section, CC2_ELF_SYMBOL_BYTES);
+    name_offset = 0;
+    if (name) {
+        if (ri8(name)) {
+            name_offset = put_elf_str(ri32(add(section,
+                CC2_SECTION_LINK_OFFSET)), name);
+        }
+    }
+    wi32(add(symbol, CC2_ELF_SYMBOL_NAME_OFFSET), name_offset);
+    wi32(add(symbol, CC2_ELF_SYMBOL_VALUE_OFFSET), value);
+    wi32(add(symbol, CC2_ELF_SYMBOL_SIZE_OFFSET), size);
+    wi8(add(symbol, CC2_ELF_SYMBOL_INFO_OFFSET), information);
+    wi8(add(symbol, add(CC2_ELF_SYMBOL_INFO_OFFSET, 1)), other);
+    wi8(add(symbol, CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET),
+        and(section_index, 255));
+    wi8(add(symbol, add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1)),
+        and(ushr(section_index, 8), 255));
+    symbol_index = sdiv(sub(symbol, ri32(add(section,
+        CC2_SECTION_DATA_POINTER_OFFSET))), CC2_ELF_SYMBOL_BYTES);
+    hash_section = ri32(add(section, CC2_SECTION_HASH_OFFSET));
+    if (hash_section) {
+        pointer = section_ptr_add(hash_section, CC2_I386_WORD_BYTES);
+        base = ri32(add(hash_section, CC2_SECTION_DATA_POINTER_OFFSET));
+        if (not(eq(ushr(information, 4), CC2_ELF_LOCAL_BINDING))) {
+            bucket_count = ri32(base);
+            hash_value = mod(elf_hash(add(ri32(add(ri32(add(section,
+                CC2_SECTION_LINK_OFFSET)), CC2_SECTION_DATA_POINTER_OFFSET)),
+                name_offset)), bucket_count);
+            wi32(pointer, ri32(add(base, mul(add(2, hash_value),
+                CC2_I386_WORD_BYTES))));
+            wi32(add(base, mul(add(2, hash_value), CC2_I386_WORD_BYTES)),
+                symbol_index);
+            wi32(add(base, CC2_I386_WORD_BYTES),
+                add(ri32(add(base, CC2_I386_WORD_BYTES)), 1));
+            wi32(add(hash_section, CC2_SECTION_HASHED_SYMBOL_COUNT_OFFSET),
+                add(ri32(add(hash_section,
+                CC2_SECTION_HASHED_SYMBOL_COUNT_OFFSET)), 1));
+            if (lt(mul(2, bucket_count), ri32(add(hash_section,
+                CC2_SECTION_HASHED_SYMBOL_COUNT_OFFSET)))) {
+                rebuild_hash(section, mul(2, bucket_count));
+            }
+        } else {
+            wi32(pointer, 0);
+            wi32(add(base, CC2_I386_WORD_BYTES),
+                add(ri32(add(base, CC2_I386_WORD_BYTES)), 1));
+        }
+    }
+    return symbol_index;
+}
+
+function find_elf_sym(section, name)
+{
+    var symbol;
+    var hash_section;
+    var bucket_count;
+    var symbol_index;
+    var hash_value;
+    var base;
+    var strings;
+    hash_section = ri32(add(section, CC2_SECTION_HASH_OFFSET));
+    if (eq(hash_section, 0)) {
+        return 0;
+    }
+    base = ri32(add(hash_section, CC2_SECTION_DATA_POINTER_OFFSET));
+    bucket_count = ri32(base);
+    hash_value = mod(elf_hash(name), bucket_count);
+    symbol_index = ri32(add(base, mul(add(2, hash_value),
+        CC2_I386_WORD_BYTES)));
+    strings = ri32(add(ri32(add(section, CC2_SECTION_LINK_OFFSET)),
+        CC2_SECTION_DATA_POINTER_OFFSET));
+    while (symbol_index) {
+        symbol = add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)),
+            mul(symbol_index, CC2_ELF_SYMBOL_BYTES));
+        if (eq(strcmp(name, add(strings, ri32(add(symbol,
+            CC2_ELF_SYMBOL_NAME_OFFSET)))), 0)) {
+            return symbol_index;
+        }
+        symbol_index = ri32(add(base, mul(add(add(2, bucket_count),
+            symbol_index), CC2_I386_WORD_BYTES)));
+    }
     return 0;
 }
 
@@ -16716,6 +17029,37 @@ function cc2_init_constants()
     CC2_TOKEN_FUNCTION_NAME_GNU = 331;
     CC2_TOKEN_FUNCTION_NAME_STANDARD = 334;
     CC2_SECTION_DATA_OFFSET = 0;
+    CC2_SECTION_TYPE_OFFSET = 20;
+    CC2_SECTION_FLAGS_OFFSET = 24;
+    CC2_SECTION_INFO_OFFSET = 28;
+    CC2_SECTION_ALIGNMENT_OFFSET = 32;
+    CC2_SECTION_ENTRY_SIZE_OFFSET = 36;
+    CC2_SECTION_SIZE_OFFSET = 40;
+    CC2_SECTION_FILE_OFFSET_OFFSET = 48;
+    CC2_SECTION_HASHED_SYMBOL_COUNT_OFFSET = 52;
+    CC2_SECTION_LINK_OFFSET = 56;
+    CC2_SECTION_HASH_OFFSET = 64;
+    CC2_SECTION_NAME_OFFSET = 72;
+    CC2_SECTION_BYTES = 76;
+    CC2_TCC_STATE_PRIVATE_SECTIONS_OFFSET = 964;
+    CC2_TCC_STATE_PRIVATE_SECTION_COUNT_OFFSET = 968;
+    CC2_TCC_STATE_SECTION_COUNT_OFFSET = 960;
+    CC2_ELF_SECTION_PROGBITS = 1;
+    CC2_ELF_SECTION_SYMBOL_TABLE = 2;
+    CC2_ELF_SECTION_STRING_TABLE = 3;
+    CC2_ELF_SECTION_RELA = 4;
+    CC2_ELF_SECTION_HASH = 5;
+    CC2_ELF_SECTION_DYNAMIC = 6;
+    CC2_ELF_SECTION_NOBITS = 8;
+    CC2_ELF_SECTION_REL = 9;
+    CC2_ELF_SECTION_DYNAMIC_SYMBOLS = 11;
+    CC2_ELF_PRIVATE_SECTION_FLAG = 2147483648;
+    CC2_ELF_ALLOCATE_SECTION_FLAG = 2;
+    CC2_ELF_HASH_HIGH_MASK = 4026531840;
+    CC2_ELF_SYMBOL_BYTES = 16;
+    CC2_ELF_SYMBOL_NAME_OFFSET = 0;
+    CC2_ELF_SYMBOL_INFO_OFFSET = 12;
+    CC2_ELF_LOCAL_BINDING = 0;
     CC2_TOKEN_GENERIC = 292;
     CC2_TOKEN_DEFAULT = 300;
     CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;
