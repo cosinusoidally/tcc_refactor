@@ -5522,5 +5522,5 @@ function main_(argc, argv, input_name, output_name, source_size_pointer,
 
 function main(argc, argv)
 {
-    return main_(argc, argv, 0, 0, 0, 0, 0, 0, 0);
+    return cc2_driver(argc, argv);
 }

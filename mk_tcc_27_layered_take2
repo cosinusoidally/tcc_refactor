@@ -25,7 +25,7 @@ ln -s "$HOST_LIBGCC" libgcc.a
 
 # Build the initial compiler from unconditional layer and remainder objects.
 gcc -O0 -m32 -c ../tcc_27_layered_take2/prims.c -o host_prims.o
-gcc -O0 -m32 -std=gnu89 -Dfunction=int -Dvar=int -Dmain=cc0_main \
+gcc -O0 -m32 -std=gnu89 -Dfunction=int -Dvar=int \
     -c ../tcc_27_layered_take2/cc0.c -o host_cc0.o
 gcc -O0 -m32 -std=gnu89 -Dfunction=int -Dvar=int \
     -c ../tcc_27_layered_take2/cc1.c -o host_cc1.o
@@ -41,7 +41,7 @@ gcc -m32 host_prims.o host_cc0.o host_cc1.o host_cc2.o host_tcc_rest.o \
 
 ./tcc_27_layered_take2_gcc -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ -o tcc_27_layered_take2.o
 ./tcc_27_layered_take2_gcc -c ../tcc_27_layered_take2/prims.c -o prims_layered_take2.o
-./tcc_27_layered_take2_gcc -Dfunction=int -Dvar=int -Dmain=cc0_main \
+./tcc_27_layered_take2_gcc -Dfunction=int -Dvar=int \
     -c ../tcc_27_layered_take2/cc0.c -o cc0_layered_take2.o
 ./tcc_27_layered_take2_gcc -Dfunction=int -Dvar=int \
     -c ../tcc_27_layered_take2/cc1.c -o cc1_layered_take2.o
@@ -60,7 +60,7 @@ chmod +x tcc_27_layered_take2
 
 ./tcc_27_layered_take2 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ -o tcc_27_layered_take2_2.o
 ./tcc_27_layered_take2 -c ../tcc_27_layered_take2/prims.c -o prims_layered_take2_2.o
-./tcc_27_layered_take2 -Dfunction=int -Dvar=int -Dmain=cc0_main \
+./tcc_27_layered_take2 -Dfunction=int -Dvar=int \
     -c ../tcc_27_layered_take2/cc0.c -o cc0_layered_take2_2.o
 ./tcc_27_layered_take2 -Dfunction=int -Dvar=int \
     -c ../tcc_27_layered_take2/cc1.c -o cc1_layered_take2_2.o
@@ -158,25 +158,42 @@ diff -u -s cc1_stubs.o cc1_stubs_self.o
 ./cc1.exe -c ../tcc_27_layered_take2/cc2.c -o cc2.o
 ./cc1.exe -c ../tcc_27_layered_take2/cc2_backend_stubs.c \
     -o cc2_backend_stubs.o
-./cc1.exe cc0.o cc1.o cc2.o cc2_backend_stubs.o -o cc2.exe
-./cc2.exe -c ../tcc_27_layered_take2/cc2.c -o cc2_self.o
-diff -u -s cc2.o cc2_self.o
-./cc2.exe -c ../tcc_27_layered_take2/tests/layered/cc1_compile_smoke.c \
-    -o cc2_compile_smoke.o
-./cc2.exe cc2_compile_smoke.o -o cc2_compile_smoke.exe
-./cc2_compile_smoke.exe
-./cc2.exe -c ../tcc_27_layered_take2/tests/layered/cc2_compile_smoke.c \
-    -o cc2_typed_smoke.o
-./cc2.exe cc2_typed_smoke.o -o cc2_typed_smoke.exe
-./cc2_typed_smoke.exe
-
-# The compiler under compatibility test is a real component link.  tcc_rest.o
-# contains only code not yet compiled through the explicit layer chain.
 ./tcc_27_layered_take2 \
     -I ../../tcc_bootstrap_alt/woody/usr/include/ \
     -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ \
+    -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ \
+    -o tcc_rest_boot.o
+./cc1.exe cc0.o cc1.o cc2.o tcc_rest_boot.o -o cc2_boot.exe
+./cc2_boot.exe -std=cc0 -c ../tcc_27_layered_take2/cc2.c \
+    -o cc2_self.o
+./cc2_boot.exe \
+    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
+    -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ \
     -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ -o tcc_rest.o
-./tcc_27_layered_take2 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+./cc2_boot.exe -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    cc0.o cc1.o cc2.o tcc_rest.o "$HOST_LIBC" "$HOST_LIBGCC" \
+    "$CRTEND" "$CRTN" -o cc2.exe
+chmod +x cc2.exe
+./cc2.exe -std=cc0 -c ../tcc_27_layered_take2/cc2.c -o cc2_self_2.o
+diff -u -s cc2_self.o cc2_self_2.o
+./cc2.exe -c ../tcc_27_layered_take2/tests/layered/cc1_compile_smoke.c \
+    -o cc2_compile_smoke.o
+./cc2.exe -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    cc2_compile_smoke.o "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    -o cc2_compile_smoke.exe
+chmod +x cc2_compile_smoke.exe
+./cc2_compile_smoke.exe
+./cc2.exe -c ../tcc_27_layered_take2/tests/layered/cc2_compile_smoke.c \
+    -o cc2_typed_smoke.o
+./cc2.exe -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    cc2_typed_smoke.o "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    -o cc2_typed_smoke.exe
+chmod +x cc2_typed_smoke.exe
+./cc2_typed_smoke.exe
+
+# The compiler under compatibility test is a real component link.  cc2 built
+# every compiler-owned object used here; only the low-level runtime is native C.
+./cc2.exe -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
     cc0.o cc1.o cc2.o tcc_rest.o libtcc1_layered_take2_2.o \
     "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
     -o tcc_layered.exe
@@ -187,7 +204,7 @@ cp tcc_layered.exe tcc_27_layered_take2
 # Both front ends expose help and source locations without host-side parsing.
 ./cc0.exe --help >cc0_help.txt
 ./cc1.exe --help >cc1_help.txt
-./cc2.exe --help >cc2_help.txt
+./cc2.exe --help >cc2_help.txt || test "$?" -eq 1
 test -s cc0_help.txt
 test -s cc1_help.txt
 test -s cc2_help.txt

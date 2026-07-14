@@ -346,11 +346,6 @@ int cc2_clock_ms(void)
     return value.tv_sec * 1000 + (value.tv_usec + 500) / 1000;
 }
 
-int main(int argument_count, char **arguments)
-{
-    return tcc_driver_main(argument_count, (int)arguments);
-}
-
 static char *cc2_format_diagnostic(const char *format, va_list arguments)
 {
     char *message;

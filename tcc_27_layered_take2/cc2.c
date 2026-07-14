@@ -28043,3 +28043,9 @@ function vla_sp_restore_root()
     }
     return 0;
 }
+
+/* cc0 owns main; the highest linked layer owns the command-line policy. */
+function cc2_driver(argc, argv)
+{
+    return tcc_driver_main(argc, argv);
+}
