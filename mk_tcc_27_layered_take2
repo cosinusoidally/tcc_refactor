@@ -179,7 +179,10 @@ diff -u -s cc1_stubs.o cc1_stubs_self.o
     -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ \
     -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ \
     -o tcc_rest_boot.o
-./cc1.exe cc0.o cc1.o cc2.o tcc_rest_boot.o -o cc2_boot.exe
+./tcc_27_layered_take2 -nostdinc \
+    -c ../tcc_27_layered_take2/cc2_runtime.c -o cc2_runtime_boot.o
+./cc1.exe cc0.o cc1.o cc2.o tcc_rest_boot.o cc2_runtime_boot.o \
+    -o cc2_boot.exe
 ./cc2_boot.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take2/cc2.c \
     -o cc2_self.o
 ./cc2_boot.exe \

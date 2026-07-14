@@ -138,6 +138,9 @@ var CC0_X86_POP_EBP;
 var CC0_X86_RETURN;
 var CC0_X86_MOV_EAX_IMMEDIATE;
 var CC0_X86_PUSH_EAX;
+var CC0_X86_POP_EAX;
+var CC0_X86_PUSH_ESP;
+var CC0_X86_PUSH_IMMEDIATE_BYTE;
 var CC0_X86_POP_EBX;
 var CC0_X86_LOAD_EAX_FROM_FRAME;
 var CC0_X86_STORE_REGISTER_OPCODE;
@@ -541,6 +544,9 @@ function cc0_init()
     CC0_X86_RETURN = 195;
     CC0_X86_MOV_EAX_IMMEDIATE = 184;
     CC0_X86_PUSH_EAX = 80;
+    CC0_X86_POP_EAX = 88;
+    CC0_X86_PUSH_ESP = 84;
+    CC0_X86_PUSH_IMMEDIATE_BYTE = 106;
     CC0_X86_POP_EBX = 91;
     CC0_X86_LOAD_EAX_FROM_FRAME = 69;
     CC0_X86_STORE_REGISTER_OPCODE = 137;
@@ -769,7 +775,7 @@ function cc0_init()
     CC0_LINK_INTERPRETER = mks("/lib/ld-linux.so.2");
     CC0_LINK_INTERPRETER_BYTES = 19;
     CC0_LINK_DYNAMIC_RECORD_BYTES = 8;
-    CC0_LINK_DYNAMIC_RECORD_COUNT = 12;
+    CC0_LINK_DYNAMIC_RECORD_COUNT = 13;
     CC0_LINK_STARTUP_BYTES = 19;
     CC0_LINK_PLT_ENTRY_BYTES = 6;
     CC0_LINK_GOT_ENTRY_BYTES = 4;
@@ -3004,6 +3010,20 @@ function cc0_compiler_emit_prologue(local_count)
         cc0_compiler_emit_word(shl(local_count, CC0_WORD_ADDRESS_SHIFT));
     }
     return CC0_FALSE;
+}
+
+/*
+ * Linux enters _start with argc followed by argv on the stack, not with a C
+ * return address.  Insert a zero return address and ordinary C arguments so
+ * the auditable crt1.c body can use the same function ABI as all cc0 code.
+ */
+function cc0_compiler_emit_process_entry()
+{
+    cc0_compiler_emit_byte(CC0_X86_POP_EAX);
+    cc0_compiler_emit_byte(CC0_X86_PUSH_ESP);
+    cc0_compiler_emit_byte(CC0_X86_PUSH_EAX);
+    cc0_compiler_emit_byte(CC0_X86_PUSH_IMMEDIATE_BYTE);
+    return cc0_compiler_emit_byte(0);
 }
 
 function cc0_compiler_emit_epilogue()
@@ -5250,6 +5270,10 @@ function cc0_compiler_parse_function_(local_count)
             CC0_CURRENT_NAME_START, CC0_CURRENT_NAME_LENGTH);
         cc0_compiler_set_function_code(CC0_CURRENT_NAME_START,
             CC0_CURRENT_NAME_LENGTH);
+        if (cc0_text_equal(CC0_CURRENT_NAME_START, CC0_CURRENT_NAME_LENGTH,
+            mks("_start"))) {
+            cc0_compiler_emit_process_entry();
+        }
         cc0_compiler_emit_prologue(local_count);
     }
     if (cc0_compiler_parse_block_()) {
@@ -6337,7 +6361,7 @@ function cc0_link_layout_(offset, index, entry, name_bytes, symbol_count,
         CC0_LINK_PROGRAM_HEADER_BYTES));
     offset = add(offset, CC0_LINK_INTERPRETER_BYTES);
     CC0_LINK_DYNSTR_OFFSET = cc0_elf_align(offset, 4);
-    name_bytes = 25;
+    name_bytes = 32;
     index = 0;
     while (lt(index, CC0_LINK_IMPORT_COUNT)) {
         entry = cc0_link_import_entry(index);
@@ -6536,7 +6560,9 @@ function cc0_link_write_dynamic_(index, entry, name, length, symbol,
     cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT,
         add(CC0_LINK_DYNSTR_OFFSET, 1)), mks("libc.so.6"), 10);
     cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT,
-        add(CC0_LINK_DYNSTR_OFFSET, 11)), mks("libgcc_s.so.1"), 14);
+        add(CC0_LINK_DYNSTR_OFFSET, 11)), mks("libm.so.6"), 10);
+    cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT,
+        add(CC0_LINK_DYNSTR_OFFSET, 21)), mks("libdl.so.2"), 11);
     index = 0;
     while (lt(index, CC0_LINK_IMPORT_COUNT)) {
         entry = cc0_link_import_entry(index);
@@ -6580,25 +6606,26 @@ function cc0_link_write_dynamic_(index, entry, name, length, symbol,
     }
     cc0_link_put_dynamic(0, CC0_LINK_ELF_DYNAMIC_NEEDED, 1);
     cc0_link_put_dynamic(1, CC0_LINK_ELF_DYNAMIC_NEEDED, 11);
-    cc0_link_put_dynamic(2, CC0_LINK_ELF_DYNAMIC_HASH,
+    cc0_link_put_dynamic(2, CC0_LINK_ELF_DYNAMIC_NEEDED, 21);
+    cc0_link_put_dynamic(3, CC0_LINK_ELF_DYNAMIC_HASH,
         cc0_link_address(CC0_LINK_HASH_OFFSET));
-    cc0_link_put_dynamic(3, CC0_LINK_ELF_DYNAMIC_STRING_TABLE,
+    cc0_link_put_dynamic(4, CC0_LINK_ELF_DYNAMIC_STRING_TABLE,
         cc0_link_address(CC0_LINK_DYNSTR_OFFSET));
-    cc0_link_put_dynamic(4, CC0_LINK_ELF_DYNAMIC_SYMBOL_TABLE,
+    cc0_link_put_dynamic(5, CC0_LINK_ELF_DYNAMIC_SYMBOL_TABLE,
         cc0_link_address(CC0_LINK_DYNSYM_OFFSET));
-    cc0_link_put_dynamic(5, CC0_LINK_ELF_DYNAMIC_STRING_BYTES,
+    cc0_link_put_dynamic(6, CC0_LINK_ELF_DYNAMIC_STRING_BYTES,
         CC0_LINK_DYNSTR_BYTES);
-    cc0_link_put_dynamic(6, CC0_LINK_ELF_DYNAMIC_SYMBOL_BYTES,
+    cc0_link_put_dynamic(7, CC0_LINK_ELF_DYNAMIC_SYMBOL_BYTES,
         CC0_ELF_SYMBOL_BYTES);
-    cc0_link_put_dynamic(7, CC0_LINK_ELF_DYNAMIC_REL,
+    cc0_link_put_dynamic(8, CC0_LINK_ELF_DYNAMIC_REL,
         cc0_link_address(CC0_LINK_REL_OFFSET));
-    cc0_link_put_dynamic(8, CC0_LINK_ELF_DYNAMIC_REL_BYTES,
+    cc0_link_put_dynamic(9, CC0_LINK_ELF_DYNAMIC_REL_BYTES,
         mul(add(CC0_LINK_IMPORT_COUNT, CC0_LINK_DYNAMIC_ABSOLUTE_COUNT),
         CC0_ELF_RELOCATION_BYTES));
-    cc0_link_put_dynamic(9, CC0_LINK_ELF_DYNAMIC_REL_ENTRY_BYTES,
+    cc0_link_put_dynamic(10, CC0_LINK_ELF_DYNAMIC_REL_ENTRY_BYTES,
         CC0_ELF_RELOCATION_BYTES);
-    cc0_link_put_dynamic(10, CC0_LINK_ELF_DYNAMIC_TEXTREL, 0);
-    return cc0_link_put_dynamic(11, CC0_LINK_ELF_DYNAMIC_NULL, 0);
+    cc0_link_put_dynamic(11, CC0_LINK_ELF_DYNAMIC_TEXTREL, 0);
+    return cc0_link_put_dynamic(12, CC0_LINK_ELF_DYNAMIC_NULL, 0);
 }
 
 function cc0_link_write_dynamic()

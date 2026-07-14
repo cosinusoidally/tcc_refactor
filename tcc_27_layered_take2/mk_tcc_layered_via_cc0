@@ -8,25 +8,21 @@ cd artifacts
 
 test -x cc0.exe
 
-# Use the installed i386 ABI objects directly; invoking gcc to discover them
-# would make gcc part of the bootstrap path.
-CRT1=/usr/lib32/crt1.o
-CRTI=/usr/lib32/crti.o
-CRTN=/usr/lib32/crtn.o
-HOST_LIBC=/usr/lib32/libc.so
-set -- /usr/lib/gcc/*/*/32/crtbegin.o
-CRTBEGIN=$1
-set -- /usr/lib/gcc/*/*/32/crtend.o
-CRTEND=$1
-set -- /usr/lib/gcc/*/*/32/libgcc.a
-HOST_LIBGCC=$1
-test -f "$CRT1" -a -f "$CRTI" -a -f "$CRTBEGIN"
-test -f "$CRTEND" -a -f "$CRTN" -a -f "$HOST_LIBC"
-test -f "$HOST_LIBGCC"
+# Only runtime DSOs are required.  In particular, a minbase installation does
+# not need libc development files, GCC startup objects, or static libgcc.
+RUNTIME_LIBDIR=/lib/i386-linux-gnu
+if test ! -f "$RUNTIME_LIBDIR/libc.so.6"; then
+    RUNTIME_LIBDIR=/usr/lib/i386-linux-gnu
+fi
+HOST_LIBC=$RUNTIME_LIBDIR/libc.so.6
+HOST_LIBM=$RUNTIME_LIBDIR/libm.so.6
+HOST_LIBDL=$RUNTIME_LIBDIR/libdl.so.2
+test -f "$HOST_LIBC" -a -f "$HOST_LIBM" -a -f "$HOST_LIBDL"
 
 ./cc0.exe -c ../tcc_27_layered_take2/cc0.c -o cc0.o
 ./cc0.exe -c ../tcc_27_layered_take2/cc1.c -o cc1.o
 ./cc0.exe -c ../tcc_27_layered_take2/cc2_stubs.c -o cc2_stubs.o
+./cc0.exe -c ../tcc_27_layered_take2/crt1.c -o crt1.o
 ./cc0.exe cc0.o cc1.o cc2_stubs.o -o cc1.exe
 
 ./cc1.exe -c ../tcc_27_layered_take2/cc2_boot_unified.c \
@@ -44,9 +40,11 @@ test -f "$HOST_LIBGCC"
     -I ../tcc_27_layered_take2/bootstrap_include/ \
     -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ \
     -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ -o tcc_rest.o
-./cc2_boot.exe -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
-    cc0.o cc1.o cc2.o tcc_rest.o "$HOST_LIBC" "$HOST_LIBGCC" \
-    "$CRTEND" "$CRTN" -o cc2.exe
+./cc2_boot.exe -nostdinc -c ../tcc_27_layered_take2/cc2_runtime.c \
+    -o cc2_runtime_boot.o
+# The transitional executable still uses the lower linker, which owns the
+# base-case ELF entry adapter.  The resulting full cc2 performs the final link.
+./cc0.exe cc0.o cc1.o cc2.o tcc_rest.o cc2_runtime_boot.o -o cc2.exe
 chmod +x cc2.exe
 
 # cc2 is the full TCC layer.  It rebuilds every final compiler-owned object.
@@ -57,15 +55,18 @@ chmod +x cc2.exe
     -o cc1_final.o
 ./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take2/cc2.c \
     -o cc2_final.o
+./cc2.exe -nostdinc -c ../tcc_27_layered_take2/cc2_runtime.c \
+    -o cc2_runtime_final.o
 ./cc2.exe \
     -nostdinc \
     -I ../../tcc_bootstrap_alt/woody/usr/include/ \
     -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ \
     -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ \
     -o tcc_rest_final.o
-./cc2.exe -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+./cc2.exe -nostdlib crt1.o \
     prims_final.o cc0_final.o cc1_final.o cc2_final.o tcc_rest_final.o \
-    "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    cc2_runtime_final.o \
+    "$HOST_LIBC" "$HOST_LIBM" "$HOST_LIBDL" \
     -o tcc_layered.exe
 chmod +x tcc_layered.exe
 
