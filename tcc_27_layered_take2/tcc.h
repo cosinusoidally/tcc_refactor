@@ -1711,9 +1711,11 @@ extern Sym *set_symbol(TCCState *s1, int label);
 extern int asm_parse_align_space(TCCState *s1);
 extern int asm_parse_org(TCCState *s1);
 extern int asm_parse_fill(TCCState *s1);
+extern int asm_parse_data(TCCState *s1, int size);
+extern int asm_parse_quad(TCCState *s1);
 ST_FUNC int tcc_assemble(TCCState *s1, int do_preprocess);
 /* ------------ i386-asm.c ------------ */
-ST_FUNC void gen_expr32(ExprValue *pe);
+extern void gen_expr32(ExprValue *pe);
 #ifdef TCC_TARGET_X86_64
 ST_FUNC void gen_expr64(ExprValue *pe);
 #endif

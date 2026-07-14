@@ -478,17 +478,6 @@ static void parse_operand(TCCState *s1, Operand *op)
     op->type |= indir;
 }
 
-/* XXX: unify with C code output ? */
-ST_FUNC void gen_expr32(ExprValue *pe)
-{
-    if (pe->pcrel)
-        /* If PC-relative, always set VT_SYM, even without symbol,
-	   so as to force a relocation to be emitted.  */
-	gen_addrpc32(VT_SYM, pe->sym, pe->v);
-    else
-	gen_addr32(pe->sym ? VT_SYM : 0, pe->sym, pe->v);
-}
-
 #ifdef TCC_TARGET_X86_64
 ST_FUNC void gen_expr64(ExprValue *pe)
 {

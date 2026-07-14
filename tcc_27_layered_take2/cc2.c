@@ -6882,6 +6882,22 @@ function asm_int_expr(state)
     return asm_int_expr_(state, 0, 0);
 }
 
+function gen_expr32(expression, symbol, registers)
+{
+    symbol = ri32(add(expression, CC2_ASM_EXPRESSION_SYMBOL_OFFSET));
+    registers = 0;
+    if (not(eq(symbol, 0))) {
+        registers = CC2_TCC_SYMBOL_VALUE;
+    }
+    if (not(eq(ri32(add(expression,
+        CC2_ASM_EXPRESSION_PCREL_OFFSET)), 0))) {
+        gen_addrpc32(CC2_TCC_SYMBOL_VALUE, symbol, ri32(expression));
+    } else {
+        gen_addr32(registers, symbol, ri32(expression));
+    }
+    return 0;
+}
+
 /* Assign an absolute or section-relative assembler expression to a label. */
 function set_symbol_(state, label, expression, value, source_symbol,
     source_elf, section_number, symbol, symbol_elf)
@@ -7046,6 +7062,82 @@ function asm_parse_fill_(state, repeat, size, value, repeat_index,
 function asm_parse_fill(state)
 {
     return asm_parse_fill_(state, 0, 0, 0, 0, 0, 0);
+}
+
+function asm_parse_data_(state, size, section, expression)
+{
+    section = ri32(cur_text_section_address);
+    next();
+    expression = malloc(16);
+    while (1) {
+        asm_expr(state, expression);
+        if (not(eq(ri32(add(section, CC2_SECTION_TYPE_OFFSET)),
+            CC2_ELF_SECTION_NOBITS))) {
+            if (eq(size, 4)) {
+                gen_expr32(expression, 0, 0);
+            } else {
+                if (not(eq(ri32(add(expression,
+                    CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0))) {
+                    expect(mks("constant"));
+                }
+                if (eq(size, 1)) {
+                    g(ri32(expression));
+                } else {
+                    gen_le16(ri32(expression));
+                }
+            }
+        } else {
+            ind = add(ind, size);
+        }
+        if (not(eq(ri32(tok_address), mkC(",")))) {
+            free(expression);
+            return 0;
+        }
+        next();
+    }
+}
+
+function asm_parse_data(state, size)
+{
+    return asm_parse_data_(state, size, 0, 0);
+}
+
+function asm_parse_quad_(state, section, text, end_pointer, end, words)
+{
+    section = ri32(cur_text_section_address);
+    next();
+    end_pointer = malloc(CC2_I386_WORD_BYTES);
+    words = malloc(16);
+    while (1) {
+        if (not(eq(ri32(tok_address), CC2_TOKEN_PREPROCESSOR_NUMBER))) {
+            tcc_error(mks("64 bit constant"), 0);
+        }
+        text = ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET));
+        cc2_asm_parse_number(text, words, end_pointer);
+        end = ri32(end_pointer);
+        if (not(eq(ri8(end), 0))) {
+            tcc_error(mks("64 bit constant"), 0);
+        }
+        next();
+        if (not(eq(ri32(add(section, CC2_SECTION_TYPE_OFFSET)),
+            CC2_ELF_SECTION_NOBITS))) {
+            gen_le32(ri32(words));
+            gen_le32(ri32(add(words, CC2_ASM_EXPRESSION_HIGH_OFFSET)));
+        } else {
+            ind = add(ind, 8);
+        }
+        if (not(eq(ri32(tok_address), mkC(",")))) {
+            free(words);
+            free(end_pointer);
+            return 0;
+        }
+        next();
+    }
+}
+
+function asm_parse_quad(state)
+{
+    return asm_parse_quad_(state, 0, 0, 0, 0, 0);
 }
 
 function use_section1(state, section)

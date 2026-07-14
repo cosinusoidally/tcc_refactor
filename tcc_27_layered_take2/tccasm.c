@@ -53,74 +53,18 @@ static void asm_parse_directive(TCCState *s1, int global)
         asm_parse_align_space(s1);
         break;
     case TOK_ASMDIR_quad:
-#ifdef TCC_TARGET_X86_64
-	size = 8;
-	goto asm_data;
-#else
-        next();
-        for(;;) {
-            uint64_t vl;
-            const char *p;
-
-            p = tokc.str.data;
-            if (tok != TOK_PPNUM) {
-            error_constant:
-                tcc_error("64 bit constant");
-            }
-            vl = strtoll(p, (char **)&p, 0);
-            if (*p != '\0')
-                goto error_constant;
-            next();
-            if (sec->sh_type != SHT_NOBITS) {
-                /* XXX: endianness */
-                gen_le32(vl);
-                gen_le32(vl >> 32);
-            } else {
-                ind += 8;
-            }
-            if (tok != ',')
-                break;
-            next();
-        }
+        asm_parse_quad(s1);
         break;
-#endif
     case TOK_ASMDIR_byte:
-        size = 1;
-        goto asm_data;
+        asm_parse_data(s1, 1);
+        break;
     case TOK_ASMDIR_word:
     case TOK_ASMDIR_short:
-        size = 2;
-        goto asm_data;
+        asm_parse_data(s1, 2);
+        break;
     case TOK_ASMDIR_long:
     case TOK_ASMDIR_int:
-        size = 4;
-    asm_data:
-        next();
-        for(;;) {
-            ExprValue e;
-            asm_expr(s1, &e);
-            if (sec->sh_type != SHT_NOBITS) {
-                if (size == 4) {
-                    gen_expr32(&e);
-#ifdef TCC_TARGET_X86_64
-		} else if (size == 8) {
-		    gen_expr64(&e);
-#endif
-                } else {
-                    if (e.sym)
-                        expect("constant");
-                    if (size == 1)
-                        g(e.v);
-                    else
-                        gen_le16(e.v);
-                }
-            } else {
-                ind += size;
-            }
-            if (tok != ',')
-                break;
-            next();
-        }
+        asm_parse_data(s1, 4);
         break;
     case TOK_ASMDIR_fill:
         asm_parse_fill(s1);
