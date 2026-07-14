@@ -149,27 +149,6 @@ ST_FUNC void* tcc_get_symbol_err(TCCState *s, const char *name)
 }
 #endif
 
-ST_FUNC struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc)
-{
-    int n;
-    struct sym_attr *tab;
-
-    if (index >= s1->nb_sym_attrs) {
-        if (!alloc)
-            return s1->sym_attrs;
-        /* find immediately bigger power of 2 and reallocate array */
-        n = 1;
-        while (index >= n)
-            n *= 2;
-        tab = tcc_realloc(s1->sym_attrs, n * sizeof(*s1->sym_attrs));
-        s1->sym_attrs = tab;
-        memset(s1->sym_attrs + s1->nb_sym_attrs, 0,
-               (n - s1->nb_sym_attrs) * sizeof(*s1->sym_attrs));
-        s1->nb_sym_attrs = n;
-    }
-    return &s1->sym_attrs[index];
-}
-
 /* Browse each elem of type <type> in section <sec> starting at elem <startoff>
    using variable <elem> */
 #define for_each_elem(sec, startoff, elem, type) \
@@ -180,64 +159,6 @@ ST_FUNC struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc)
    the global and weak ones. Since TCC cannot sort it while generating
    the code, we must do it after. All the relocation tables are also
    modified to take into account the symbol table sorting */
-static void sort_syms(TCCState *s1, Section *s)
-{
-    int *old_to_new_syms;
-    ElfW(Sym) *new_syms;
-    int nb_syms, i;
-    ElfW(Sym) *p, *q;
-    ElfW_Rel *rel;
-    Section *sr;
-    int type, sym_index;
-
-    nb_syms = s->data_offset / sizeof(ElfW(Sym));
-    new_syms = tcc_malloc(nb_syms * sizeof(ElfW(Sym)));
-    old_to_new_syms = tcc_malloc(nb_syms * sizeof(int));
-
-    /* first pass for local symbols */
-    p = (ElfW(Sym) *)s->data;
-    q = new_syms;
-    for(i = 0; i < nb_syms; i++) {
-        if (ELFW(ST_BIND)(p->st_info) == STB_LOCAL) {
-            old_to_new_syms[i] = q - new_syms;
-            *q++ = *p;
-        }
-        p++;
-    }
-    /* save the number of local symbols in section header */
-    if( s->sh_size )    /* this 'if' makes IDA happy */
-        s->sh_info = q - new_syms;
-
-    /* then second pass for non local symbols */
-    p = (ElfW(Sym) *)s->data;
-    for(i = 0; i < nb_syms; i++) {
-        if (ELFW(ST_BIND)(p->st_info) != STB_LOCAL) {
-            old_to_new_syms[i] = q - new_syms;
-            *q++ = *p;
-        }
-        p++;
-    }
-
-    /* we copy the new symbols to the old */
-    memcpy(s->data, new_syms, nb_syms * sizeof(ElfW(Sym)));
-    tcc_free(new_syms);
-
-    /* now we modify all the relocations */
-    for(i = 1; i < s1->nb_sections; i++) {
-        sr = s1->sections[i];
-        if (sr->sh_type == SHT_RELX && sr->link == s) {
-            for_each_elem(sr, 0, rel, ElfW_Rel) {
-                sym_index = ELFW(R_SYM)(rel->r_info);
-                type = ELFW(R_TYPE)(rel->r_info);
-                sym_index = old_to_new_syms[sym_index];
-                rel->r_info = ELFW(R_INFO)(sym_index, type);
-            }
-        }
-    }
-
-    tcc_free(old_to_new_syms);
-}
-
 /* relocate symbol table, resolve undefined symbols if do_resolve is
    true and output error if undefined symbol. */
 ST_FUNC void relocate_syms(TCCState *s1, Section *symtab, int do_resolve)

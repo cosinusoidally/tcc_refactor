@@ -360,7 +360,6 @@ var CC2_TCC_STATE_SYMBOL_ATTRIBUTES_OFFSET;
 var CC2_TCC_OUTPUT_DLL;
 var CC2_TCC_OUTPUT_FORMAT_BINARY;
 var CC2_SECTION_ADDRESS_OFFSET;
-var CC2_SYMBOL_ATTRIBUTE_BYTES;
 var CC2_SYMBOL_ATTRIBUTE_GOT_OFFSET;
 var CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET;
 var CC2_ELF_RELOCATION_BYTES;
@@ -691,6 +690,7 @@ var CC2_TCC_STATE_PRIVATE_SECTIONS_OFFSET;
 var CC2_TCC_STATE_PRIVATE_SECTION_COUNT_OFFSET;
 var CC2_TCC_STATE_SECTION_COUNT_OFFSET;
 var CC2_TCC_STATE_SYMBOL_TABLE_OFFSET;
+var CC2_TCC_STATE_SYMBOL_ATTRIBUTE_COUNT_OFFSET;
 var CC2_ELF_SECTION_PROGBITS;
 var CC2_ELF_SECTION_SYMBOL_TABLE;
 var CC2_ELF_SECTION_STRING_TABLE;
@@ -729,6 +729,7 @@ var CC2_STABS_OTHER_OFFSET;
 var CC2_STABS_DESCRIPTION_OFFSET;
 var CC2_STABS_VALUE_OFFSET;
 var CC2_I386_ABSOLUTE_RELOCATION;
+var CC2_SYMBOL_ATTRIBUTE_BYTES;
 var CC2_TOKEN_GENERIC;
 var CC2_TOKEN_DEFAULT;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD;
@@ -6111,6 +6112,122 @@ function put_stabn(type, other, description, value)
 function put_stabd(type, other, description)
 {
     return put_stabs(0, type, other, description, 0);
+}
+
+function get_sym_attr(state, index, allocate)
+{
+    var count;
+    var attributes;
+    var new_count;
+    count = ri32(add(state, CC2_TCC_STATE_SYMBOL_ATTRIBUTE_COUNT_OFFSET));
+    attributes = ri32(add(state, CC2_TCC_STATE_SYMBOL_ATTRIBUTES_OFFSET));
+    if (not(lt(index, count))) {
+        if (not(allocate)) {
+            return attributes;
+        }
+        new_count = 1;
+        while (not(lt(index, new_count))) {
+            new_count = mul(new_count, 2);
+        }
+        attributes = tcc_realloc(attributes, mul(new_count,
+            CC2_SYMBOL_ATTRIBUTE_BYTES));
+        memset(add(attributes, mul(count, CC2_SYMBOL_ATTRIBUTE_BYTES)), 0,
+            mul(sub(new_count, count), CC2_SYMBOL_ATTRIBUTE_BYTES));
+        wi32(add(state, CC2_TCC_STATE_SYMBOL_ATTRIBUTES_OFFSET), attributes);
+        wi32(add(state, CC2_TCC_STATE_SYMBOL_ATTRIBUTE_COUNT_OFFSET),
+            new_count);
+    }
+    return add(attributes, mul(index, CC2_SYMBOL_ATTRIBUTE_BYTES));
+}
+
+function sort_syms(state, symbol_table)
+{
+    var symbol_count;
+    var sorted_symbols;
+    var old_to_new;
+    var source_index;
+    var destination_index;
+    var source_symbol;
+    var destination_symbol;
+    var pass;
+    var binding;
+    var sections;
+    var section_count;
+    var section_index;
+    var relocation_section;
+    var relocation_offset;
+    var relocation_information;
+    var old_symbol_index;
+    var new_symbol_index;
+    symbol_count = sdiv(ri32(add(symbol_table, CC2_SECTION_DATA_OFFSET)),
+        CC2_ELF_SYMBOL_BYTES);
+    sorted_symbols = malloc(mul(symbol_count, CC2_ELF_SYMBOL_BYTES));
+    old_to_new = malloc(mul(symbol_count, CC2_I386_WORD_BYTES));
+    destination_index = 0;
+    pass = 0;
+    while (lt(pass, 2)) {
+        source_index = 0;
+        while (lt(source_index, symbol_count)) {
+            source_symbol = add(ri32(add(symbol_table,
+                CC2_SECTION_DATA_POINTER_OFFSET)), mul(source_index,
+                CC2_ELF_SYMBOL_BYTES));
+            binding = ushr(ri8(add(source_symbol,
+                CC2_ELF_SYMBOL_INFO_OFFSET)), CC2_ELF_SYMBOL_BIND_SHIFT);
+            if (eq(eq(binding, CC2_ELF_LOCAL_BINDING), eq(pass, 0))) {
+                wi32(add(old_to_new, mul(source_index,
+                    CC2_I386_WORD_BYTES)), destination_index);
+                destination_symbol = add(sorted_symbols, mul(
+                    destination_index, CC2_ELF_SYMBOL_BYTES));
+                memcpy(destination_symbol, source_symbol,
+                    CC2_ELF_SYMBOL_BYTES);
+                destination_index = add(destination_index, 1);
+            }
+            source_index = add(source_index, 1);
+        }
+        if (eq(pass, 0)) {
+            if (ri32(add(symbol_table, CC2_SECTION_SIZE_OFFSET))) {
+                wi32(add(symbol_table, CC2_SECTION_INFO_OFFSET),
+                    destination_index);
+            }
+        }
+        pass = add(pass, 1);
+    }
+    memcpy(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
+        sorted_symbols, mul(symbol_count, CC2_ELF_SYMBOL_BYTES));
+    free(sorted_symbols);
+
+    sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    section_index = 1;
+    while (lt(section_index, section_count)) {
+        relocation_section = ri32(add(sections, mul(section_index,
+            CC2_I386_WORD_BYTES)));
+        if (and(eq(ri32(add(relocation_section, CC2_SECTION_TYPE_OFFSET)),
+            CC2_ELF_SECTION_REL), eq(ri32(add(relocation_section,
+            CC2_SECTION_LINK_OFFSET)), symbol_table))) {
+            relocation_offset = 0;
+            while (lt(relocation_offset, ri32(add(relocation_section,
+                CC2_SECTION_DATA_OFFSET)))) {
+                relocation_information = ri32(add(add(ri32(add(
+                    relocation_section, CC2_SECTION_DATA_POINTER_OFFSET)),
+                    relocation_offset), CC2_ELF_RELOCATION_INFO_OFFSET));
+                old_symbol_index = ushr(relocation_information,
+                    CC2_ELF_RELOCATION_SYMBOL_SHIFT);
+                new_symbol_index = ri32(add(old_to_new, mul(
+                    old_symbol_index, CC2_I386_WORD_BYTES)));
+                wi32(add(add(ri32(add(relocation_section,
+                    CC2_SECTION_DATA_POINTER_OFFSET)), relocation_offset),
+                    CC2_ELF_RELOCATION_INFO_OFFSET), or(shl(new_symbol_index,
+                    CC2_ELF_RELOCATION_SYMBOL_SHIFT), and(
+                    relocation_information, CC2_ELF_RELOCATION_TYPE_MASK)));
+                relocation_offset = add(relocation_offset,
+                    CC2_ELF_RELOCATION_BYTES);
+            }
+        }
+        section_index = add(section_index, 1);
+    }
+    free(old_to_new);
+    return 0;
 }
 
 /* Grow the pool pointer vector with the same power-of-two rule as TCC. */
@@ -17376,7 +17493,6 @@ function cc2_init_constants()
     CC2_TCC_OUTPUT_DLL = 3;
     CC2_TCC_OUTPUT_FORMAT_BINARY = 1;
     CC2_SECTION_ADDRESS_OFFSET = 44;
-    CC2_SYMBOL_ATTRIBUTE_BYTES = 16;
     CC2_SYMBOL_ATTRIBUTE_GOT_OFFSET = 0;
     CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET = 12;
     CC2_ELF_RELOCATION_BYTES = 8;
@@ -17521,6 +17637,7 @@ function cc2_init_constants()
     CC2_TCC_STATE_PRIVATE_SECTION_COUNT_OFFSET = 968;
     CC2_TCC_STATE_SECTION_COUNT_OFFSET = 960;
     CC2_TCC_STATE_SYMBOL_TABLE_OFFSET = 988;
+    CC2_TCC_STATE_SYMBOL_ATTRIBUTE_COUNT_OFFSET = 996;
     CC2_ELF_SECTION_PROGBITS = 1;
     CC2_ELF_SECTION_SYMBOL_TABLE = 2;
     CC2_ELF_SECTION_STRING_TABLE = 3;
@@ -17559,6 +17676,7 @@ function cc2_init_constants()
     CC2_STABS_DESCRIPTION_OFFSET = 6;
     CC2_STABS_VALUE_OFFSET = 8;
     CC2_I386_ABSOLUTE_RELOCATION = 1;
+    CC2_SYMBOL_ATTRIBUTE_BYTES = 16;
     CC2_TOKEN_GENERIC = 292;
     CC2_TOKEN_DEFAULT = 300;
     CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;
