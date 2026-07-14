@@ -1013,6 +1013,7 @@ var CC2_ELF_DYNAMIC_TEXTREL_TAG;
 var CC2_ELF_DYNAMIC_RUNPATH_TAG;
 var CC2_DEFAULT_INTERPRETER;
 var CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET;
+var CC2_TCC_STATE_NO_STANDARD_INCLUDES_OFFSET;
 var CC2_TCC_STATE_LIBRARY_ROOT_OFFSET;
 var CC2_TCC_STATE_CRT_PATHS_OFFSET;
 var CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET;
@@ -24158,6 +24159,37 @@ function tcc_delete(state)
     return 0;
 }
 
+function tcc_set_output_type(state, output_type)
+{
+    wi32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET), output_type);
+    if (eq(output_type, CC2_TCC_OUTPUT_OBJECT)) {
+        wi32(add(state, CC2_TCC_STATE_OUTPUT_FORMAT_OFFSET),
+            CC2_TCC_OUTPUT_FORMAT_ELF);
+    }
+    if (ri32(add(state, CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET))) {
+        tcc_define_symbol(state, mks("__CHAR_UNSIGNED__"), 0);
+    }
+    if (eq(ri32(add(state, CC2_TCC_STATE_NO_STANDARD_INCLUDES_OFFSET)), 0)) {
+        tcc_add_sysinclude_path(state,
+            mks("{B}/include:/usr/local/include:/usr/include"));
+    }
+    if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
+        tccelf_stab_new(state);
+    }
+    tcc_add_library_path(state, mks("/usr/lib:/lib:/usr/local/lib"));
+    tcc_split_path(state, add(state, CC2_TCC_STATE_CRT_PATHS_OFFSET),
+        add(state, CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET), mks("/usr/lib"));
+    if (and(or(eq(output_type, CC2_TCC_OUTPUT_EXE),
+        eq(output_type, CC2_TCC_OUTPUT_DLL)), eq(ri32(add(state,
+        CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET)), 0))) {
+        if (not(eq(output_type, CC2_TCC_OUTPUT_DLL))) {
+            tcc_add_crt(state, mks("crt1.o"));
+        }
+        tcc_add_crt(state, mks("crti.o"));
+    }
+    return 0;
+}
+
 function tcc_memcheck()
 {
     return 0;
@@ -25772,6 +25804,7 @@ function cc2_init_constants()
     CC2_ELF_DYNAMIC_RUNPATH_TAG = 29;
     CC2_DEFAULT_INTERPRETER = mks("/lib/ld-linux.so.2");
     CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET = 8;
+    CC2_TCC_STATE_NO_STANDARD_INCLUDES_OFFSET = 4;
     CC2_TCC_STATE_LIBRARY_ROOT_OFFSET = 32;
     CC2_TCC_STATE_CRT_PATHS_OFFSET = 168;
     CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET = 172;
