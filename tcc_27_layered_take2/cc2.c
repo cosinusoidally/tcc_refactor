@@ -24190,6 +24190,69 @@ function tcc_set_output_type(state, output_type)
     return 0;
 }
 
+function cc2_no_flag(text_pointer)
+{
+    var text;
+    text = ri32(text_pointer);
+    if (or(not(eq(ri8(text), mkC("n"))), or(not(eq(ri8(add(text, 1)),
+        mkC("o"))), not(eq(ri8(add(text, 2)), mkC("-")))))) {
+        return 0;
+    }
+    wi32(text_pointer, add(text, 3));
+    return 1;
+}
+
+function set_flag(state, flags, name)
+{
+    var value;
+    var result;
+    var current;
+    var text_slot;
+    var text;
+    var offset;
+    var attributes;
+    value = 1;
+    text_slot = malloc(4);
+    wi32(text_slot, name);
+    if (cc2_no_flag(text_slot)) {
+        value = 0;
+    }
+    text = ri32(text_slot);
+    free(text_slot);
+    result = sub(0, 1);
+    current = flags;
+    while (ri32(add(current, 4))) {
+        attributes = or(ri8(add(current, 2)),
+            shl(ri8(add(current, 3)), 8));
+        if (result) {
+            if (strcmp(text, ri32(add(current, 4)))) {
+                current = add(current, 8);
+                continue;
+            }
+        } else {
+            if (eq(and(attributes, 1), 0)) {
+                current = add(current, 8);
+                continue;
+            }
+        }
+        offset = or(ri8(current), shl(ri8(add(current, 1)), 8));
+        if (offset) {
+            if (and(attributes, 2)) {
+                wi32(add(state, offset), not(value));
+            } else {
+                wi32(add(state, offset), value);
+            }
+            if (result) {
+                return 0;
+            }
+        } else {
+            result = 0;
+        }
+        current = add(current, 8);
+    }
+    return result;
+}
+
 function tcc_memcheck()
 {
     return 0;

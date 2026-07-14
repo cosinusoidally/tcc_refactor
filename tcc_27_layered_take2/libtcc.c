@@ -187,46 +187,6 @@ typedef struct FlagDef {
     const char *name;
 } FlagDef;
 
-static int no_flag(const char **pp)
-{
-    const char *p = *pp;
-    if (*p != 'n' || *++p != 'o' || *++p != '-')
-        return 0;
-    *pp = p + 1;
-    return 1;
-}
-
-ST_FUNC int set_flag(TCCState *s, const FlagDef *flags, const char *name)
-{
-    int value, ret;
-    const FlagDef *p;
-    const char *r;
-
-    value = 1;
-    r = name;
-    if (no_flag(&r))
-        value = 0;
-
-    for (ret = -1, p = flags; p->name; ++p) {
-        if (ret) {
-            if (strcmp(r, p->name))
-                continue;
-        } else {
-            if (0 == (p->flags & WD_ALL))
-                continue;
-        }
-        if (p->offset) {
-            *(int*)((char *)s + p->offset) =
-                p->flags & FD_INVERT ? !value : value;
-            if (ret)
-                return 0;
-        } else {
-            ret = 0;
-        }
-    }
-    return ret;
-}
-
 static int strstart(const char *val, const char **str)
 {
     const char *p, *q;

@@ -480,6 +480,12 @@ int cc2_tcc_state_count_slot(void)
     return (int)&nb_states;
 }
 
+/* Preserve the pointer-to-pointer shape while cc2 owns flag semantics. */
+int no_flag(const char **text)
+{
+    return cc2_no_flag((int)text);
+}
+
 int cc2_tcc_preprocess_bridge(TCCState *state)
 {
     return cc2_tcc_preprocess((int)state);
