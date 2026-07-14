@@ -328,85 +328,7 @@ void asm_opcode(TCCState *s1, int opcode)
                                                 op_type, &s);
     if (!pa)
         return;
-    /* if the size is unknown, then evaluate it (OPC_B or OPC_WL case) */
-    autosize = NBWLX-1;
-#ifdef TCC_TARGET_X86_64
-    /* XXX the autosize should rather be zero, to not have to adjust this
-       all the time.  */
-    if ((pa->instr_type & OPC_BWLQ) == OPC_B)
-        autosize = NBWLX-2;
-#endif
-    if (s == autosize) {
-	/* Check for register operands providing hints about the size.
-	   Start from the end, i.e. destination operands.  This matters
-	   only for opcodes accepting different sized registers, lar and lsl
-	   are such opcodes.  */
-        for(i = nb_ops - 1; s == autosize && i >= 0; i--) {
-            if ((ops[i].type & OP_REG) && !(op_type[i] & (OP_CL | OP_DX)))
-                s = reg_to_size[ops[i].type & OP_REG];
-        }
-        if (s == autosize) {
-            if ((opcode == TOK_ASM_push || opcode == TOK_ASM_pop) &&
-                (ops[0].type & (OP_SEG | OP_IM8S | OP_IM32)))
-                s = 2;
-	    else if ((opcode == TOK_ASM_push || opcode == TOK_ASM_pop) &&
-		     (ops[0].type & OP_EA))
-	        s = NBWLX - 2;
-            else
-                tcc_error("cannot infer opcode suffix");
-        }
-    }
-
-#ifdef TCC_TARGET_X86_64
-    /* Generate addr32 prefix if needed */
-    for(i = 0; i < nb_ops; i++) {
-        if (ops[i].type & OP_EA32) {
-	    g(0x67);
-	    break;
-        }
-    }
-#endif
-    /* generate data16 prefix if needed */
-    p66 = 0;
-    if (s == 1)
-        p66 = 1;
-    else {
-	/* accepting mmx+sse in all operands --> needs 0x66 to
-	   switch to sse mode.  Accepting only sse in an operand --> is
-	   already SSE insn and needs 0x66/f2/f3 handling.  */
-        for (i = 0; i < nb_ops; i++)
-            if ((op_type[i] & (OP_MMX | OP_SSE)) == (OP_MMX | OP_SSE)
-	        && ops[i].type & OP_SSE)
-	        p66 = 1;
-    }
-    if (p66)
-        g(0x66);
-#ifdef TCC_TARGET_X86_64
-    rex64 = 0;
-    if (pa->instr_type & OPC_48)
-        rex64 = 1;
-    else if (s == 3 || (alltypes & OP_REG64)) {
-        /* generate REX prefix */
-	int default64 = 0;
-	for(i = 0; i < nb_ops; i++) {
-	    if (op_type[i] == OP_REG64 && pa->opcode != 0xb8) {
-		/* If only 64bit regs are accepted in one operand
-		   this is a default64 instruction without need for
-		   REX prefixes, except for movabs(0xb8).  */
-		default64 = 1;
-		break;
-	    }
-	}
-	/* XXX find better encoding for the default64 instructions.  */
-        if (((opcode != TOK_ASM_push && opcode != TOK_ASM_pop
-	      && opcode != TOK_ASM_pushw && opcode != TOK_ASM_pushl
-	      && opcode != TOK_ASM_pushq && opcode != TOK_ASM_popw
-	      && opcode != TOK_ASM_popl && opcode != TOK_ASM_popq
-	      && opcode != TOK_ASM_call && opcode != TOK_ASM_jmp))
-	    && !default64)
-            rex64 = 1;
-    }
-#endif
+    s = cc2_i386_infer_size(opcode, pa, ops, nb_ops, op_type, s);
 
     /* now generates the operation */
     if (OPCT_IS(pa->instr_type, OPC_FWAIT))
@@ -480,10 +402,6 @@ void asm_opcode(TCCState *s1, int opcode)
             }
         }
     }
-#ifdef TCC_TARGET_X86_64
-    asm_rex (rex64, ops, nb_ops, op_type, modreg_index, modrm_index);
-#endif
-
     if (pa->instr_type & OPC_REG) {
         /* mov $im, %reg case */
         if (v == 0xb0 && s >= 1)

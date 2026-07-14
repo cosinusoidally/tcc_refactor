@@ -942,6 +942,8 @@ var CC2_I386_TOKEN_ZERO_OPERAND_LAST;
 var CC2_I386_TOKEN_OPCODE_LAST;
 var CC2_I386_OPCODE_SIZE_COUNT;
 var CC2_I386_TEST_OPCODE_COUNT;
+var CC2_I386_TOKEN_PUSH;
+var CC2_I386_TOKEN_POP;
 var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
@@ -8527,6 +8529,80 @@ function cc2_i386_find_instruction(opcode_pointer, operands, operand_count,
     return cc2_i386_find_instruction_(opcode_pointer, operands,
         operand_count, operand_types, size_pointer, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_i386_infer_size_(opcode, instruction, operands, operand_count,
+    operand_types, size, instruction_type, autosize, index, operand,
+    register_type, accepted_type, prefix)
+{
+    instruction_type = cc2_read_little_u16(add(instruction,
+        CC2_I386_INSTRUCTION_TYPE_OFFSET));
+    autosize = sub(CC2_I386_OPCODE_SIZE_COUNT, 1);
+    if (eq(size, autosize)) {
+        index = sub(operand_count, 1);
+        while (and(eq(size, autosize), le(0, index))) {
+            operand = add(operands, mul(index, CC2_I386_OPERAND_BYTES));
+            register_type = and(ri32(operand),
+                CC2_I386_OPERAND_REGISTER_TYPE_MASK);
+            accepted_type = ri32(add(operand_types, shl(index, 2)));
+            if (and(not(eq(register_type, 0)), eq(and(accepted_type,
+                or(CC2_I386_TYPE_COUNT_REGISTER,
+                CC2_I386_TYPE_DATA_REGISTER)), 0))) {
+                if (eq(register_type, CC2_I386_TYPE_REGISTER_8)) {
+                    size = 0;
+                } else if (eq(register_type,
+                    CC2_I386_TYPE_REGISTER_16)) {
+                    size = 1;
+                } else if (eq(register_type,
+                    CC2_I386_TYPE_REGISTER_32)) {
+                    size = 2;
+                }
+            }
+            index = sub(index, 1);
+        }
+        if (eq(size, autosize)) {
+            operand = operands;
+            if (and(or(eq(opcode, CC2_I386_TOKEN_PUSH),
+                eq(opcode, CC2_I386_TOKEN_POP)), not(eq(and(ri32(operand),
+                or(CC2_I386_TYPE_SEGMENT_REGISTER,
+                or(CC2_I386_TYPE_IMMEDIATE_SIGNED_8,
+                CC2_I386_TYPE_IMMEDIATE_32))), 0)))) {
+                size = 2;
+            } else if (and(or(eq(opcode, CC2_I386_TOKEN_PUSH),
+                eq(opcode, CC2_I386_TOKEN_POP)), not(eq(and(ri32(operand),
+                CC2_I386_TYPE_EFFECTIVE_ADDRESS), 0)))) {
+                size = sub(CC2_I386_OPCODE_SIZE_COUNT, 2);
+            } else {
+                tcc_error(mks("cannot infer opcode suffix"), 0);
+            }
+        }
+    }
+    prefix = 0;
+    if (eq(size, 1)) {
+        prefix = 1;
+    } else {
+        index = 0;
+        while (lt(index, operand_count)) {
+            accepted_type = ri32(add(operand_types, shl(index, 2)));
+            operand = add(operands, mul(index, CC2_I386_OPERAND_BYTES));
+            if (and(eq(and(accepted_type, or(8, 16)), or(8, 16)),
+                not(eq(and(ri32(operand), 16), 0)))) {
+                prefix = 1;
+            }
+            index = add(index, 1);
+        }
+    }
+    if (prefix) {
+        g(102);
+    }
+    return size;
+}
+
+function cc2_i386_infer_size(opcode, instruction, operands, operand_count,
+    operand_types, size)
+{
+    return cc2_i386_infer_size_(opcode, instruction, operands,
+        operand_count, operand_types, size, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function gen_disp32_(expression, symbol, elf_symbol, section, value,
@@ -24108,6 +24184,8 @@ function cc2_init_constants()
     /* b, w, l, and the unsuffixed spelling are consecutive tokens. */
     CC2_I386_OPCODE_SIZE_COUNT = 4;
     CC2_I386_TEST_OPCODE_COUNT = 30;
+    CC2_I386_TOKEN_PUSH = 634;
+    CC2_I386_TOKEN_POP = 637;
     CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;
