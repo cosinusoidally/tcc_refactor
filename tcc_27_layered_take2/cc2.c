@@ -828,6 +828,22 @@ var CC2_LINKER_TOKEN_EOF;
 var CC2_LINKER_COMMAND_BYTES;
 var CC2_LINKER_FILENAME_BYTES;
 var CC2_BINARY_FILE_FLAG;
+var CC2_ELF_SECTION_HEADER_NAME_OFFSET;
+var CC2_ELF_SECTION_HEADER_FLAGS_OFFSET;
+var CC2_ELF_SECTION_HEADER_INFO_OFFSET;
+var CC2_ELF_SECTION_HEADER_ALIGNMENT_OFFSET;
+var CC2_ELF_SECTION_HEADER_ENTRY_SIZE_OFFSET;
+var CC2_ELF_SECTION_INIT_ARRAY;
+var CC2_ELF_SECTION_FINI_ARRAY;
+var CC2_ELF_SECTION_PREINIT_ARRAY;
+var CC2_ELF_COMPRESSED_SECTION_FLAG;
+var CC2_ELF_GROUP_SECTION_FLAG;
+var CC2_SECTION_MERGE_BYTES;
+var CC2_SECTION_MERGE_SECTION_OFFSET;
+var CC2_SECTION_MERGE_DATA_OFFSET;
+var CC2_SECTION_MERGE_NEW_OFFSET;
+var CC2_SECTION_MERGE_LINK_ONCE_OFFSET;
+var CC2_STAB_RECORD_BYTES;
 var CC2_ELF_I386_MACHINE;
 var CC2_ELF_CURRENT_VERSION;
 var CC2_ELF_CLASS_32;
@@ -7610,6 +7626,427 @@ function tcc_object_type(file_descriptor, header)
         }
     }
     return 0;
+}
+
+function cc2_object_section_supported(type, name)
+{
+    return or(or(or(eq(type, CC2_ELF_SECTION_PROGBITS),
+        eq(type, CC2_ELF_SECTION_REL)), or(eq(type, CC2_ELF_SECTION_NOBITS),
+        eq(type, CC2_ELF_SECTION_PREINIT_ARRAY))), or(or(eq(type,
+        CC2_ELF_SECTION_INIT_ARRAY), eq(type, CC2_ELF_SECTION_FINI_ARRAY)),
+        eq(strcmp(name, mks(".stabstr")), 0)));
+}
+
+function cc2_object_merge_entry(table, index)
+{
+    return add(table, mul(index, CC2_SECTION_MERGE_BYTES));
+}
+
+/* Merge one i386 ELF32 relocatable object into TCC's live section graph. */
+function tcc_load_object_file(state, file_descriptor, file_offset)
+{
+    var header;
+    var section_headers;
+    var section_names;
+    var string_table;
+    var input_symbols;
+    var symbol_map;
+    var merge_table;
+    var section_count;
+    var section_name_index;
+    var symbol_count;
+    var compressed;
+    var stab_index;
+    var stab_string_index;
+    var index;
+    var search_index;
+    var section_header;
+    var target_header;
+    var merge;
+    var target_merge;
+    var section;
+    var sections;
+    var name;
+    var type;
+    var flags;
+    var alignment;
+    var size;
+    var offset;
+    var target_offset;
+    var pointer;
+    var end;
+    var input_symbol;
+    var symbol_index;
+    var section_index;
+    var information;
+    var relocation;
+    var relocation_type;
+    var result;
+    header = malloc(CC2_ELF_HEADER_BYTES);
+    section_headers = 0;
+    section_names = 0;
+    string_table = 0;
+    input_symbols = 0;
+    symbol_map = 0;
+    merge_table = 0;
+    result = 0;
+    lseek(file_descriptor, file_offset, 0);
+    if (not(eq(tcc_object_type(file_descriptor, header),
+        CC2_BINARY_TYPE_RELOCATABLE))) {
+        result = sub(0, 1);
+    }
+    if (and(eq(result, 0), or(not(eq(ri8(add(header,
+        CC2_ELF_HEADER_DATA_ENCODING_OFFSET)), CC2_ELF_LITTLE_ENDIAN)),
+        not(eq(cc2_read_little_u16(add(header,
+        CC2_ELF_HEADER_MACHINE_OFFSET)), CC2_ELF_I386_MACHINE))))) {
+        result = sub(0, 1);
+    }
+    if (not(eq(result, 0))) {
+        tcc_error_noabort(mks("invalid object file"));
+    } else {
+        section_count = cc2_read_little_u16(add(header,
+            CC2_ELF_HEADER_SECTION_COUNT_OFFSET));
+        section_name_index = cc2_read_little_u16(add(header,
+            CC2_ELF_HEADER_STRING_SECTION_OFFSET));
+        section_headers = load_data(file_descriptor, add(file_offset, ri32(add(
+            header, CC2_ELF_HEADER_SECTION_OFFSET_OFFSET))), mul(section_count,
+            CC2_ELF_SECTION_HEADER_BYTES));
+        merge_table = calloc(section_count, CC2_SECTION_MERGE_BYTES);
+        section_header = add(section_headers, mul(section_name_index,
+            CC2_ELF_SECTION_HEADER_BYTES));
+        section_names = load_data(file_descriptor, add(file_offset, ri32(add(
+            section_header, CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET))),
+            ri32(add(section_header, CC2_ELF_SECTION_HEADER_SIZE_OFFSET)));
+        symbol_count = 0;
+        compressed = 0;
+        index = 1;
+        while (and(lt(index, section_count), eq(result, 0))) {
+            section_header = add(section_headers, mul(index,
+                CC2_ELF_SECTION_HEADER_BYTES));
+            type = ri32(add(section_header,
+                CC2_ELF_SECTION_HEADER_TYPE_OFFSET));
+            if (eq(type, CC2_ELF_SECTION_SYMBOL_TABLE)) {
+                if (not(eq(input_symbols, 0))) {
+                    tcc_error_noabort(mks(
+                        "object must contain only one symtab"));
+                    result = sub(0, 1);
+                } else {
+                    size = ri32(add(section_header,
+                        CC2_ELF_SECTION_HEADER_SIZE_OFFSET));
+                    symbol_count = sdiv(size, CC2_ELF_SYMBOL_BYTES);
+                    input_symbols = load_data(file_descriptor, add(file_offset,
+                        ri32(add(section_header,
+                        CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET))), size);
+                    merge = cc2_object_merge_entry(merge_table, index);
+                    wi32(add(merge, CC2_SECTION_MERGE_SECTION_OFFSET),
+                        ri32(symtab_section_address));
+                    target_header = add(section_headers, mul(ri32(add(
+                        section_header, CC2_ELF_SECTION_HEADER_LINK_OFFSET)),
+                        CC2_ELF_SECTION_HEADER_BYTES));
+                    string_table = load_data(file_descriptor, add(file_offset,
+                        ri32(add(target_header,
+                        CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET))), ri32(add(
+                        target_header, CC2_ELF_SECTION_HEADER_SIZE_OFFSET)));
+                }
+            }
+            if (not(eq(and(ri32(add(section_header,
+                CC2_ELF_SECTION_HEADER_FLAGS_OFFSET)),
+                CC2_ELF_COMPRESSED_SECTION_FLAG), 0))) {
+                compressed = 1;
+            }
+            index = add(index, 1);
+        }
+        stab_index = 0;
+        stab_string_index = 0;
+        index = 1;
+        while (and(lt(index, section_count), eq(result, 0))) {
+            section_header = add(section_headers, mul(index,
+                CC2_ELF_SECTION_HEADER_BYTES));
+            name = add(section_names, ri32(add(section_header,
+                CC2_ELF_SECTION_HEADER_NAME_OFFSET)));
+            type = ri32(add(section_header,
+                CC2_ELF_SECTION_HEADER_TYPE_OFFSET));
+            information = 1;
+            if (eq(index, section_name_index)) {
+                information = 0;
+            }
+            if (and(information,
+                not(cc2_object_section_supported(type, name)))) {
+                information = 0;
+            }
+            if (and(information, compressed)) {
+                if (eq(strncmp(name, mks(".debug_"), 7), 0)) {
+                    information = 0;
+                }
+                if (and(information, eq(type, CC2_ELF_SECTION_REL))) {
+                    target_header = add(section_headers, mul(ri32(add(
+                        section_header, CC2_ELF_SECTION_HEADER_INFO_OFFSET)),
+                        CC2_ELF_SECTION_HEADER_BYTES));
+                    if (eq(strncmp(add(section_names, ri32(add(target_header,
+                        CC2_ELF_SECTION_HEADER_NAME_OFFSET))),
+                        mks(".debug_"), 7), 0)) {
+                        information = 0;
+                    }
+                }
+            }
+            if (information) {
+                alignment = ri32(add(section_header,
+                    CC2_ELF_SECTION_HEADER_ALIGNMENT_OFFSET));
+                if (lt(alignment, 1)) {
+                    alignment = 1;
+                    wi32(add(section_header,
+                        CC2_ELF_SECTION_HEADER_ALIGNMENT_OFFSET), alignment);
+                }
+                section = 0;
+                sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+                search_index = 1;
+                while (and(lt(search_index, ri32(add(state,
+                    CC2_TCC_STATE_SECTION_COUNT_OFFSET))), eq(section, 0))) {
+                    pointer = ri32(add(sections, shl(search_index, 2)));
+                    if (eq(strcmp(add(pointer, CC2_SECTION_NAME_OFFSET), name),
+                        0)) {
+                        section = pointer;
+                    }
+                    search_index = add(search_index, 1);
+                }
+                merge = cc2_object_merge_entry(merge_table, index);
+                if (and(not(eq(section, 0)), eq(strncmp(name,
+                    mks(".gnu.linkonce"), 13), 0))) {
+                    wi8(add(merge, CC2_SECTION_MERGE_LINK_ONCE_OFFSET), 1);
+                    information = 0;
+                }
+                if (and(information, eq(section, 0))) {
+                    flags = and(ri32(add(section_header,
+                        CC2_ELF_SECTION_HEADER_FLAGS_OFFSET)),
+                        bnot(CC2_ELF_GROUP_SECTION_FLAG));
+                    section = new_section(state, name, type, flags);
+                    wi32(add(section, CC2_SECTION_ALIGNMENT_OFFSET), alignment);
+                    wi32(add(section, CC2_SECTION_ENTRY_SIZE_OFFSET), ri32(add(
+                        section_header,
+                        CC2_ELF_SECTION_HEADER_ENTRY_SIZE_OFFSET)));
+                    wi8(add(merge, CC2_SECTION_MERGE_NEW_OFFSET), 1);
+                }
+                if (information) {
+                    if (not(eq(type, ri32(add(section,
+                        CC2_SECTION_TYPE_OFFSET))))) {
+                        tcc_error_noabort(mks("invalid section type"));
+                        result = sub(0, 1);
+                    } else {
+                        offset = ri32(add(section, CC2_SECTION_DATA_OFFSET));
+                        if (eq(strcmp(name, mks(".stab")), 0)) {
+                            stab_index = index;
+                        } else {
+                            if (eq(strcmp(name, mks(".stabstr")), 0)) {
+                                stab_string_index = index;
+                            } else {
+                                size = sub(alignment, 1);
+                                offset = and(add(offset, size), bnot(size));
+                                if (lt(ri32(add(section,
+                                    CC2_SECTION_ALIGNMENT_OFFSET)), alignment)) {
+                                    wi32(add(section,
+                                        CC2_SECTION_ALIGNMENT_OFFSET),
+                                        alignment);
+                                }
+                                wi32(add(section, CC2_SECTION_DATA_OFFSET),
+                                    offset);
+                            }
+                        }
+                        wi32(add(merge, CC2_SECTION_MERGE_DATA_OFFSET), offset);
+                        wi32(add(merge, CC2_SECTION_MERGE_SECTION_OFFSET),
+                            section);
+                        size = ri32(add(section_header,
+                            CC2_ELF_SECTION_HEADER_SIZE_OFFSET));
+                        if (not(eq(type, CC2_ELF_SECTION_NOBITS))) {
+                            lseek(file_descriptor, add(file_offset, ri32(add(
+                                section_header,
+                                CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET))),
+                                0);
+                            pointer = section_ptr_add(section, size);
+                            read(file_descriptor, pointer, size);
+                        } else {
+                            wi32(add(section, CC2_SECTION_DATA_OFFSET),
+                                add(offset, size));
+                        }
+                    }
+                }
+            }
+            index = add(index, 1);
+        }
+        if (and(and(not(eq(stab_index, 0)),
+            not(eq(stab_string_index, 0))), eq(result, 0))) {
+            merge = cc2_object_merge_entry(merge_table, stab_index);
+            section = ri32(add(merge, CC2_SECTION_MERGE_SECTION_OFFSET));
+            pointer = add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)),
+                ri32(add(merge, CC2_SECTION_MERGE_DATA_OFFSET)));
+            end = add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)),
+                ri32(add(section, CC2_SECTION_DATA_OFFSET)));
+            offset = ri32(add(cc2_object_merge_entry(merge_table,
+                stab_string_index), CC2_SECTION_MERGE_DATA_OFFSET));
+            while (lt(pointer, end)) {
+                wi32(pointer, add(ri32(pointer), offset));
+                pointer = add(pointer, CC2_STAB_RECORD_BYTES);
+            }
+        }
+        index = 1;
+        while (and(lt(index, section_count), eq(result, 0))) {
+            merge = cc2_object_merge_entry(merge_table, index);
+            section = ri32(add(merge, CC2_SECTION_MERGE_SECTION_OFFSET));
+            if (and(not(eq(section, 0)), ri8(add(merge,
+                CC2_SECTION_MERGE_NEW_OFFSET)))) {
+                section_header = add(section_headers, mul(index,
+                    CC2_ELF_SECTION_HEADER_BYTES));
+                search_index = ri32(add(section_header,
+                    CC2_ELF_SECTION_HEADER_LINK_OFFSET));
+                if (lt(0, search_index)) {
+                    wi32(add(section, CC2_SECTION_LINK_OFFSET), ri32(add(
+                        cc2_object_merge_entry(merge_table, search_index),
+                        CC2_SECTION_MERGE_SECTION_OFFSET)));
+                }
+                if (eq(ri32(add(section_header,
+                    CC2_ELF_SECTION_HEADER_TYPE_OFFSET)),
+                    CC2_ELF_SECTION_REL)) {
+                    target_merge = cc2_object_merge_entry(merge_table,
+                        ri32(add(section_header,
+                        CC2_ELF_SECTION_HEADER_INFO_OFFSET)));
+                    target_offset = ri32(add(target_merge,
+                        CC2_SECTION_MERGE_SECTION_OFFSET));
+                    wi32(add(section, CC2_SECTION_INFO_OFFSET), ri32(add(
+                        target_offset, CC2_SECTION_NUMBER_OFFSET)));
+                    sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+                    target_offset = ri32(add(sections, shl(ri32(add(section,
+                        CC2_SECTION_INFO_OFFSET)), 2)));
+                    wi32(add(target_offset, CC2_SECTION_RELOCATION_OFFSET),
+                        section);
+                }
+            }
+            index = add(index, 1);
+        }
+        symbol_map = calloc(symbol_count, CC2_I386_WORD_BYTES);
+        index = 1;
+        while (and(lt(index, symbol_count), eq(result, 0))) {
+            input_symbol = add(input_symbols, mul(index,
+                CC2_ELF_SYMBOL_BYTES));
+            section_index = cc2_read_little_u16(add(input_symbol,
+                CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET));
+            information = 1;
+            if (and(not(eq(section_index, CC2_ELF_UNDEFINED_SECTION)),
+                lt(section_index, CC2_ELF_LOW_RESERVED_SECTION))) {
+                merge = cc2_object_merge_entry(merge_table, section_index);
+                if (ri8(add(merge, CC2_SECTION_MERGE_LINK_ONCE_OFFSET))) {
+                    if (not(eq(ushr(ri8(add(input_symbol,
+                        CC2_ELF_SYMBOL_INFO_OFFSET)),
+                        CC2_ELF_SYMBOL_BIND_SHIFT),
+                        CC2_ELF_SYMBOL_LOCAL_BINDING))) {
+                        name = add(string_table, ri32(add(input_symbol,
+                            CC2_ELF_SYMBOL_NAME_OFFSET)));
+                        symbol_index = find_elf_sym(ri32(
+                            symtab_section_address), name);
+                        if (not(eq(symbol_index, 0))) {
+                            wi32(add(symbol_map, shl(index, 2)), symbol_index);
+                        }
+                    }
+                    information = 0;
+                } else {
+                    section = ri32(add(merge,
+                        CC2_SECTION_MERGE_SECTION_OFFSET));
+                    if (eq(section, 0)) {
+                        information = 0;
+                    } else {
+                        cc2_write_little_u16(add(input_symbol,
+                            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET), ri32(add(
+                            section, CC2_SECTION_NUMBER_OFFSET)));
+                        wi32(add(input_symbol, CC2_ELF_SYMBOL_VALUE_OFFSET),
+                            add(ri32(add(input_symbol,
+                            CC2_ELF_SYMBOL_VALUE_OFFSET)), ri32(add(merge,
+                            CC2_SECTION_MERGE_DATA_OFFSET))));
+                    }
+                }
+            }
+            if (information) {
+                name = add(string_table, ri32(add(input_symbol,
+                    CC2_ELF_SYMBOL_NAME_OFFSET)));
+                symbol_index = set_elf_sym(ri32(symtab_section_address), ri32(
+                    add(input_symbol, CC2_ELF_SYMBOL_VALUE_OFFSET)), ri32(add(
+                    input_symbol, CC2_ELF_SYMBOL_SIZE_OFFSET)), ri8(add(
+                    input_symbol, CC2_ELF_SYMBOL_INFO_OFFSET)), ri8(add(
+                    input_symbol, CC2_ELF_SYMBOL_OTHER_OFFSET)),
+                    cc2_read_little_u16(add(input_symbol,
+                    CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), name);
+                wi32(add(symbol_map, shl(index, 2)), symbol_index);
+            }
+            index = add(index, 1);
+        }
+        index = 1;
+        while (and(lt(index, section_count), eq(result, 0))) {
+            merge = cc2_object_merge_entry(merge_table, index);
+            section = ri32(add(merge, CC2_SECTION_MERGE_SECTION_OFFSET));
+            if (not(eq(section, 0))) {
+                section_header = add(section_headers, mul(index,
+                    CC2_ELF_SECTION_HEADER_BYTES));
+                if (eq(ri32(add(section, CC2_SECTION_TYPE_OFFSET)),
+                    CC2_ELF_SECTION_REL)) {
+                    offset = ri32(add(merge,
+                        CC2_SECTION_MERGE_DATA_OFFSET));
+                    target_merge = cc2_object_merge_entry(merge_table,
+                        ri32(add(section_header,
+                        CC2_ELF_SECTION_HEADER_INFO_OFFSET)));
+                    target_offset = ri32(add(target_merge,
+                        CC2_SECTION_MERGE_DATA_OFFSET));
+                    relocation = add(ri32(add(section,
+                        CC2_SECTION_DATA_POINTER_OFFSET)), offset);
+                    end = add(ri32(add(section,
+                        CC2_SECTION_DATA_POINTER_OFFSET)), ri32(add(section,
+                        CC2_SECTION_DATA_OFFSET)));
+                    while (and(lt(relocation, end), eq(result, 0))) {
+                        information = ri32(add(relocation,
+                            CC2_ELF_RELOCATION_INFO_OFFSET));
+                        relocation_type = and(information,
+                            CC2_ELF_RELOCATION_TYPE_MASK);
+                        symbol_index = ushr(information,
+                            CC2_ELF_RELOCATION_SYMBOL_SHIFT);
+                        if (not(lt(symbol_index, symbol_count))) {
+                            result = sub(0, 1);
+                        } else {
+                            symbol_index = ri32(add(symbol_map,
+                                shl(symbol_index, 2)));
+                            if (and(eq(symbol_index, 0), not(ri8(add(merge,
+                                CC2_SECTION_MERGE_LINK_ONCE_OFFSET))))) {
+                                result = sub(0, 1);
+                            }
+                        }
+                        if (not(eq(result, 0))) {
+                            tcc_error_noabort(mks(
+                                "Invalid relocation entry [%2d] '%s' @ %.8x"),
+                                index, add(section_names, ri32(add(
+                                section_header,
+                                CC2_ELF_SECTION_HEADER_NAME_OFFSET))), ri32(add(
+                                relocation, CC2_ELF_RELOCATION_OFFSET_OFFSET)));
+                        } else {
+                            wi32(add(relocation,
+                                CC2_ELF_RELOCATION_INFO_OFFSET), or(shl(
+                                symbol_index, CC2_ELF_RELOCATION_SYMBOL_SHIFT),
+                                relocation_type));
+                            wi32(add(relocation,
+                                CC2_ELF_RELOCATION_OFFSET_OFFSET), add(ri32(add(
+                                relocation, CC2_ELF_RELOCATION_OFFSET_OFFSET)),
+                                target_offset));
+                        }
+                        relocation = add(relocation,
+                            CC2_ELF_RELOCATION_BYTES);
+                    }
+                }
+            }
+            index = add(index, 1);
+        }
+    }
+    free(input_symbols);
+    free(string_table);
+    free(symbol_map);
+    free(merge_table);
+    free(section_names);
+    free(section_headers);
+    free(header);
+    return result;
 }
 
 function cc2_read_big_u32(address)
@@ -20468,6 +20905,22 @@ function cc2_init_constants()
     CC2_LINKER_COMMAND_BYTES = 64;
     CC2_LINKER_FILENAME_BYTES = 1024;
     CC2_BINARY_FILE_FLAG = 64;
+    CC2_ELF_SECTION_HEADER_NAME_OFFSET = 0;
+    CC2_ELF_SECTION_HEADER_FLAGS_OFFSET = 8;
+    CC2_ELF_SECTION_HEADER_INFO_OFFSET = 28;
+    CC2_ELF_SECTION_HEADER_ALIGNMENT_OFFSET = 32;
+    CC2_ELF_SECTION_HEADER_ENTRY_SIZE_OFFSET = 36;
+    CC2_ELF_SECTION_INIT_ARRAY = 14;
+    CC2_ELF_SECTION_FINI_ARRAY = 15;
+    CC2_ELF_SECTION_PREINIT_ARRAY = 16;
+    CC2_ELF_COMPRESSED_SECTION_FLAG = 2048;
+    CC2_ELF_GROUP_SECTION_FLAG = 512;
+    CC2_SECTION_MERGE_BYTES = 12;
+    CC2_SECTION_MERGE_SECTION_OFFSET = 0;
+    CC2_SECTION_MERGE_DATA_OFFSET = 4;
+    CC2_SECTION_MERGE_NEW_OFFSET = 8;
+    CC2_SECTION_MERGE_LINK_ONCE_OFFSET = 9;
+    CC2_STAB_RECORD_BYTES = 12;
     CC2_ELF_I386_MACHINE = 3;
     CC2_ELF_CURRENT_VERSION = 1;
     CC2_ELF_CLASS_32 = 1;

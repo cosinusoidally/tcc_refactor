@@ -232,11 +232,6 @@ function tcc_add_library_err(state, library)
     return sub(0, 1);
 }
 
-function tcc_load_object_file(state, file_descriptor, file_offset)
-{
-    return 0;
-}
-
 function tcc_add_dll(state, filename, flags)
 {
     return sub(0, 1);
