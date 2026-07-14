@@ -13,11 +13,6 @@ function vpush64_words(type, low_word, high_word)
     return 0;
 }
 
-function vstack_overflow_error(top, limit)
-{
-    return 0;
-}
-
 function expr_const64_words(words)
 {
     wi32(words, 0);
@@ -77,6 +72,21 @@ function cc2_tcc_state_count_slot()
 }
 
 function cc2_stderr()
+{
+    return 0;
+}
+
+function cc2_stdout()
+{
+    return 0;
+}
+
+function cc2_call_error_function(function_pointer, opaque, message)
+{
+    return 0;
+}
+
+function cc2_longjmp_error(state)
 {
     return 0;
 }

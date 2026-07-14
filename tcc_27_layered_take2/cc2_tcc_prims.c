@@ -491,6 +491,66 @@ int cc2_stderr(void)
     return (int)stderr;
 }
 
+int cc2_stdout(void)
+{
+    return (int)stdout;
+}
+
+int cc2_call_error_function(int callback, int opaque, const char *message)
+{
+    ((void (*)(void *, const char *))callback)((void *)opaque, message);
+    return 0;
+}
+
+int cc2_longjmp_error(TCCState *state)
+{
+    longjmp(state->error_jmp_buf, 1);
+    return 0;
+}
+
+static char *cc2_format_diagnostic(const char *format, va_list arguments)
+{
+    char *message;
+    /* This retains TCC's existing diagnostic formatting capacity. */
+    message = tcc_malloc(2048);
+    vsnprintf(message, 2048, format, arguments);
+    return message;
+}
+
+PUB_FUNC void tcc_error_noabort(const char *format, ...)
+{
+    va_list arguments;
+    char *message;
+    va_start(arguments, format);
+    message = cc2_format_diagnostic(format, arguments);
+    va_end(arguments);
+    cc2_report_diagnostic((int)tcc_state, 0, (int)message);
+    tcc_free(message);
+}
+
+PUB_FUNC void tcc_error(const char *format, ...)
+{
+    va_list arguments;
+    char *message;
+    va_start(arguments, format);
+    message = cc2_format_diagnostic(format, arguments);
+    va_end(arguments);
+    cc2_report_diagnostic((int)tcc_state, 0, (int)message);
+    tcc_free(message);
+    cc2_abort_diagnostic((int)tcc_state);
+}
+
+PUB_FUNC void tcc_warning(const char *format, ...)
+{
+    va_list arguments;
+    char *message;
+    va_start(arguments, format);
+    message = cc2_format_diagnostic(format, arguments);
+    va_end(arguments);
+    cc2_report_diagnostic((int)tcc_state, 1, (int)message);
+    tcc_free(message);
+}
+
 int cc2_tcc_preprocess_bridge(TCCState *state)
 {
     return cc2_tcc_preprocess((int)state);

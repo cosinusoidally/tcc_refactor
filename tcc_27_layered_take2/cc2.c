@@ -25116,6 +25116,115 @@ function tcc_print_stats(state, elapsed_milliseconds)
     return 0;
 }
 
+function cc2_append_diagnostic_location(output, state)
+{
+    var source_file;
+    var include_pointer;
+    var include_end;
+    var included_file;
+    var temporary;
+    var line;
+    source_file = ri32(file_address);
+    while (and(source_file, eq(ri8(add(source_file,
+        CC2_BUFFERED_FILE_FILENAME_OFFSET)), mkC(":")))) {
+        source_file = ri32(add(source_file, CC2_BUFFERED_FILE_PREVIOUS_OFFSET));
+    }
+    if (eq(source_file, 0)) {
+        cstr_cat(output, mks("tcc: "), sub(0, 1));
+        return 0;
+    }
+    include_pointer = add(state, CC2_TCC_STATE_INCLUDE_STACK_OFFSET);
+    include_end = ri32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET));
+    while (lt(include_pointer, include_end)) {
+        included_file = ri32(include_pointer);
+        temporary = malloc(add(strlen(add(included_file,
+            CC2_BUFFERED_FILE_FILENAME_OFFSET)), 64));
+        sprintf(temporary, mks("In file included from %s:%d:"),
+            add(included_file, CC2_BUFFERED_FILE_FILENAME_OFFSET),
+            ri32(add(included_file, CC2_BUFFERED_FILE_LINE_OFFSET)));
+        cstr_cat(output, temporary, sub(0, 1));
+        cstr_ccat(output, mkC("\n"));
+        free(temporary);
+        include_pointer = add(include_pointer, CC2_I386_WORD_BYTES);
+    }
+    line = ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET));
+    if (and(ri32(add(state, CC2_TCC_STATE_ERROR_JUMP_ENABLED_OFFSET)),
+        and(ri32(tok_flags_address), CC2_TOKEN_FLAG_BEGINNING_OF_LINE))) {
+        line = sub(line, 1);
+    }
+    temporary = malloc(add(strlen(add(source_file,
+        CC2_BUFFERED_FILE_FILENAME_OFFSET)), 48));
+    if (ri32(add(state, CC2_TCC_STATE_ERROR_JUMP_ENABLED_OFFSET))) {
+        sprintf(temporary, mks("%s:%d: "), add(source_file,
+            CC2_BUFFERED_FILE_FILENAME_OFFSET), line);
+    } else {
+        sprintf(temporary, mks("%s: "), add(source_file,
+            CC2_BUFFERED_FILE_FILENAME_OFFSET));
+    }
+    cstr_cat(output, temporary, sub(0, 1));
+    free(temporary);
+    return 0;
+}
+
+function cc2_report_diagnostic(state, is_warning, message)
+{
+    var output;
+    var text;
+    var error_function;
+    if (and(is_warning, ri32(add(state, CC2_TCC_STATE_WARN_NONE_OFFSET)))) {
+        return 0;
+    }
+    output = malloc(CC2_CSTRING_BYTES);
+    cstr_new(output);
+    cc2_append_diagnostic_location(output, state);
+    if (is_warning) {
+        cstr_cat(output, mks("warning: "), sub(0, 1));
+    } else {
+        cstr_cat(output, mks("error: "), sub(0, 1));
+    }
+    cstr_cat(output, message, sub(0, 1));
+    cstr_ccat(output, 0);
+    text = ri32(add(output, CC2_CSTRING_DATA_OFFSET));
+    error_function = ri32(add(state, CC2_TCC_STATE_ERROR_FUNCTION_OFFSET));
+    if (error_function) {
+        cc2_call_error_function(error_function,
+            ri32(add(state, CC2_TCC_STATE_ERROR_OPAQUE_OFFSET)), text);
+    } else {
+        if (and(eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+            CC2_OUTPUT_PREPROCESS), eq(ri32(add(state,
+            CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET)), cc2_stdout()))) {
+            fputc(mkC("\n"), cc2_stdout());
+            fflush(cc2_stdout());
+        }
+        fflush(cc2_stdout());
+        fprintf(cc2_stderr(), mks("%s"), text);
+        fputc(mkC("\n"), cc2_stderr());
+        fflush(cc2_stderr());
+    }
+    cstr_free(output);
+    free(output);
+    if (or(not(is_warning), ri32(add(state, CC2_TCC_STATE_WARN_ERROR_OFFSET)))) {
+        wi32(add(state, CC2_TCC_STATE_ERROR_COUNT_OFFSET), add(ri32(add(state,
+            CC2_TCC_STATE_ERROR_COUNT_OFFSET)), 1));
+    }
+    return 0;
+}
+
+function cc2_abort_diagnostic(state)
+{
+    if (ri32(add(state, CC2_TCC_STATE_ERROR_JUMP_ENABLED_OFFSET))) {
+        cc2_longjmp_error(state);
+    }
+    exit(1);
+    return 0;
+}
+
+function vstack_overflow_error(top, limit)
+{
+    tcc_error(mks("memory full (vstack: top 0x%x, limit 0x%x)"), top, limit);
+    return 0;
+}
+
 function tcc_memcheck()
 {
     return 0;
