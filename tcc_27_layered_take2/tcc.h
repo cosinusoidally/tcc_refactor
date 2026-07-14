@@ -1310,6 +1310,7 @@ extern Section **common_section_address;
 extern Section **text_section_address;
 extern Section **stab_section_address;
 extern Section **stabstr_section_address;
+extern Section **bounds_section_address;
 extern TCCState *tcc_state_address;
 extern CValue *tokc_address;
 extern SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE];

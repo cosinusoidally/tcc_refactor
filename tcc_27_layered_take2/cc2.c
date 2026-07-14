@@ -617,6 +617,7 @@ var common_section_address;
 var text_section_address;
 var stab_section_address;
 var stabstr_section_address;
+var bounds_section_address;
 var tcc_state_address;
 var gnu_ext_address;
 var tcc_ext_address;
@@ -750,6 +751,7 @@ var CC2_ELF_DYNAMIC_TAG_OFFSET;
 var CC2_ELF_DYNAMIC_VALUE_OFFSET;
 var CC2_DYNAMIC_INFO_DYNAMIC_OFFSET;
 var CC2_DYNAMIC_INFO_STRING_TABLE_OFFSET;
+var CC2_DYNAMIC_INFO_DATA_OFFSET;
 var CC2_DYNAMIC_INFO_RELOCATION_ADDRESS_OFFSET;
 var CC2_DYNAMIC_INFO_RELOCATION_SIZE_OFFSET;
 var CC2_ELF_DYNAMIC_NULL_TAG;
@@ -808,6 +810,30 @@ var CC2_ELF_I386_MACHINE;
 var CC2_ELF_CURRENT_VERSION;
 var CC2_ELF_CLASS_32;
 var CC2_ELF_LITTLE_ENDIAN;
+var CC2_TCC_STATE_SYMBOLIC_OFFSET;
+var CC2_TCC_STATE_SONAME_OFFSET;
+var CC2_TCC_STATE_RPATH_OFFSET;
+var CC2_TCC_STATE_NEW_DTAGS_OFFSET;
+var CC2_TCC_STATE_LOADED_DLLS_OFFSET;
+var CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET;
+var CC2_DLL_REFERENCE_LEVEL_OFFSET;
+var CC2_DLL_REFERENCE_NAME_OFFSET;
+var CC2_TCC_OUTPUT_EXE;
+var CC2_ELF_DYNAMIC_NEEDED_TAG;
+var CC2_ELF_DYNAMIC_SONAME_TAG;
+var CC2_ELF_DYNAMIC_RPATH_TAG;
+var CC2_ELF_DYNAMIC_SYMBOLIC_TAG;
+var CC2_ELF_DYNAMIC_TEXTREL_TAG;
+var CC2_ELF_DYNAMIC_RUNPATH_TAG;
+var CC2_DEFAULT_INTERPRETER;
+var CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET;
+var CC2_TCC_STATE_LIBRARY_ROOT_OFFSET;
+var CC2_TCC_STATE_CRT_PATHS_OFFSET;
+var CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET;
+var CC2_TCC_OUTPUT_MEMORY;
+var CC2_RUNTIME_SUPPORT_LIBRARY;
+var CC2_TCC_STATE_BOUNDS_CHECK_OFFSET;
+var CC2_I386_CALL_RELATIVE_OPCODE;
 var CC2_TOKEN_GENERIC;
 var CC2_TOKEN_DEFAULT;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD;
@@ -6810,6 +6836,9 @@ function fill_local_got_entries(state)
     var expected_offset;
     got = ri32(add(state, CC2_TCC_STATE_GOT_OFFSET));
     relocation_section = ri32(add(got, CC2_SECTION_RELOCATION_OFFSET));
+    if (eq(relocation_section, 0)) {
+        return 0;
+    }
     relocation_offset = 0;
     while (lt(relocation_offset, ri32(add(relocation_section,
         CC2_SECTION_DATA_OFFSET)))) {
@@ -7808,6 +7837,333 @@ function tidy_section_headers(state, section_order)
     wi32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET), new_count);
     free(backmap);
     return 0;
+}
+
+function cc2_add_dynamic_options(state, file_type, dynamic_section,
+    string_section, text_relocation)
+{
+    var references;
+    var reference_count;
+    var reference_index;
+    var reference;
+    var path;
+    references = ri32(add(state, CC2_TCC_STATE_LOADED_DLLS_OFFSET));
+    reference_count = ri32(add(state,
+        CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET));
+    reference_index = 0;
+    while (lt(reference_index, reference_count)) {
+        reference = ri32(add(references, shl(reference_index, 2)));
+        if (eq(ri32(add(reference, CC2_DLL_REFERENCE_LEVEL_OFFSET)), 0)) {
+            put_dt(dynamic_section, CC2_ELF_DYNAMIC_NEEDED_TAG,
+                put_elf_str(string_section,
+                add(reference, CC2_DLL_REFERENCE_NAME_OFFSET)));
+        }
+        reference_index = add(reference_index, 1);
+    }
+    path = ri32(add(state, CC2_TCC_STATE_RPATH_OFFSET));
+    if (not(eq(path, 0))) {
+        if (ri32(add(state, CC2_TCC_STATE_NEW_DTAGS_OFFSET))) {
+            put_dt(dynamic_section, CC2_ELF_DYNAMIC_RUNPATH_TAG,
+                put_elf_str(string_section, path));
+        } else {
+            put_dt(dynamic_section, CC2_ELF_DYNAMIC_RPATH_TAG,
+                put_elf_str(string_section, path));
+        }
+    }
+    if (eq(file_type, CC2_TCC_OUTPUT_DLL)) {
+        path = ri32(add(state, CC2_TCC_STATE_SONAME_OFFSET));
+        if (not(eq(path, 0))) {
+            put_dt(dynamic_section, CC2_ELF_DYNAMIC_SONAME_TAG,
+                put_elf_str(string_section, path));
+        }
+        if (text_relocation) {
+            put_dt(dynamic_section, CC2_ELF_DYNAMIC_TEXTREL_TAG, 0);
+        }
+    }
+    if (ri32(add(state, CC2_TCC_STATE_SYMBOLIC_OFFSET))) {
+        put_dt(dynamic_section, CC2_ELF_DYNAMIC_SYMBOLIC_TAG, 0);
+    }
+    return 0;
+}
+
+function cc2_relocate_dynamic_symbols(state)
+{
+    var symbol_table;
+    var symbol;
+    var end;
+    var section_index;
+    var sections;
+    var section;
+    symbol_table = ri32(add(state, CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
+    symbol = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
+        CC2_ELF_SYMBOL_BYTES);
+    end = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
+        ri32(add(symbol_table, CC2_SECTION_DATA_OFFSET)));
+    while (lt(symbol, end)) {
+        section_index = cc2_read_little_u16(add(symbol,
+            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET));
+        if (and(not(eq(section_index, CC2_ELF_UNDEFINED_SECTION)),
+            lt(section_index, CC2_ELF_LOW_RESERVED_SECTION))) {
+            sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+            section = ri32(add(sections, shl(section_index, 2)));
+            wi32(add(symbol, CC2_ELF_SYMBOL_VALUE_OFFSET), add(ri32(add(symbol,
+                CC2_ELF_SYMBOL_VALUE_OFFSET)), ri32(add(section,
+                CC2_SECTION_ADDRESS_OFFSET))));
+        }
+        symbol = add(symbol, CC2_ELF_SYMBOL_BYTES);
+    }
+    return 0;
+}
+
+function cc2_add_file_below_directory(state, directory, filename)
+{
+    var path;
+    var result;
+    path = malloc(add(add(strlen(directory), strlen(filename)), 2));
+    strcpy(path, directory);
+    strcat(path, mks("/"));
+    strcat(path, filename);
+    result = tcc_add_file(state, path);
+    free(path);
+    return result;
+}
+
+function cc2_add_crt(state, filename)
+{
+    var paths;
+    var path_count;
+    var path_index;
+    var result;
+    paths = ri32(add(state, CC2_TCC_STATE_CRT_PATHS_OFFSET));
+    path_count = ri32(add(state, CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET));
+    path_index = 0;
+    result = sub(0, 1);
+    while (and(lt(path_index, path_count), not(eq(result, 0)))) {
+        result = cc2_add_file_below_directory(state,
+            ri32(add(paths, shl(path_index, 2))), filename);
+        path_index = add(path_index, 1);
+    }
+    if (not(eq(result, 0))) {
+        tcc_error_noabort(mks("file '%s' not found"), filename);
+    }
+    return 0;
+}
+
+/* Add the configured i386 runtime inputs needed after user objects. */
+function tcc_add_runtime(state)
+{
+    var libraries;
+    var library_count;
+    var library_index;
+    var library_root;
+    cc2_add_bounds_runtime(state);
+    libraries = ri32(add(state, CC2_TCC_STATE_PRAGMA_LIBRARIES_OFFSET));
+    library_count = ri32(add(state,
+        CC2_TCC_STATE_PRAGMA_LIBRARY_COUNT_OFFSET));
+    library_index = 0;
+    while (lt(library_index, library_count)) {
+        tcc_add_library_err(state,
+            ri32(add(libraries, shl(library_index, 2))));
+        library_index = add(library_index, 1);
+    }
+    if (eq(ri32(add(state,
+        CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET)), 0)) {
+        tcc_add_library_err(state, mks("c"));
+        library_root = ri32(add(state,
+            CC2_TCC_STATE_LIBRARY_ROOT_OFFSET));
+        cc2_add_file_below_directory(state, library_root,
+            CC2_RUNTIME_SUPPORT_LIBRARY);
+        if (not(eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+            CC2_TCC_OUTPUT_MEMORY))) {
+            cc2_add_crt(state, mks("crtn.o"));
+        }
+    }
+    return 0;
+}
+
+function cc2_add_bounds_runtime(state)
+{
+    var bounds_section;
+    var pointer;
+    var symbol_index;
+    var init_section;
+    if (eq(ri32(add(state, CC2_TCC_STATE_BOUNDS_CHECK_OFFSET)), 0)) {
+        return 0;
+    }
+    bounds_section = ri32(bounds_section_address);
+    pointer = section_ptr_add(bounds_section, CC2_I386_WORD_BYTES);
+    wi32(pointer, 0);
+    set_elf_sym(ri32(symtab_section_address), 0, 0,
+        shl(CC2_ELF_SYMBOL_GLOBAL_BINDING, CC2_ELF_SYMBOL_BIND_SHIFT), 0,
+        ri32(add(bounds_section, CC2_SECTION_NUMBER_OFFSET)),
+        mks("__bounds_start"));
+    symbol_index = set_elf_sym(ri32(symtab_section_address), 0, 0,
+        shl(CC2_ELF_SYMBOL_GLOBAL_BINDING, CC2_ELF_SYMBOL_BIND_SHIFT), 0,
+        CC2_ELF_UNDEFINED_SECTION, mks("__bound_init"));
+    if (not(eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+        CC2_TCC_OUTPUT_MEMORY))) {
+        init_section = find_section(state, mks(".init"));
+        pointer = section_ptr_add(init_section, 5);
+        wi8(pointer, CC2_I386_CALL_RELATIVE_OPCODE);
+        wi32(add(pointer, 1), sub(0, CC2_I386_WORD_BYTES));
+        put_elf_reloc(ri32(symtab_section_address), init_section, sub(ri32(add(
+            init_section, CC2_SECTION_DATA_OFFSET)), CC2_I386_WORD_BYTES),
+            CC2_I386_PC_RELATIVE_RELOCATION, symbol_index);
+    }
+    return 0;
+}
+
+/* Complete the i386 ELF link using only the layered linker implementation. */
+function elf_output_file(state, filename)
+{
+    var file_type;
+    var result;
+    var header_count;
+    var saved_section_count;
+    var file_offset;
+    var section_order;
+    var program_headers;
+    var dynamic_info;
+    var interpreter_section;
+    var dynamic_section;
+    var dynamic_string_section;
+    var section_name_table;
+    var symbol_table;
+    var interpreter;
+    var data;
+    var text_relocation;
+    file_type = ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET));
+    wi32(add(state, CC2_TCC_STATE_ERROR_COUNT_OFFSET), 0);
+    result = sub(0, 1);
+    interpreter_section = 0;
+    dynamic_section = 0;
+    dynamic_string_section = 0;
+    program_headers = 0;
+    section_order = 0;
+    dynamic_info = calloc(5, CC2_I386_WORD_BYTES);
+    if (not(eq(file_type, CC2_TCC_OUTPUT_OBJECT))) {
+        tcc_add_runtime(state);
+        resolve_common_syms(state);
+        if (eq(ri32(add(state, CC2_TCC_STATE_STATIC_LINK_OFFSET)), 0)) {
+            if (eq(file_type, CC2_TCC_OUTPUT_EXE)) {
+                interpreter = getenv(mks("LD_SO"));
+                if (eq(interpreter, 0)) {
+                    interpreter = CC2_DEFAULT_INTERPRETER;
+                }
+                interpreter_section = new_section(state, mks(".interp"),
+                    CC2_ELF_SECTION_PROGBITS,
+                    CC2_ELF_ALLOCATE_SECTION_FLAG);
+                wi32(add(interpreter_section, CC2_SECTION_ALIGNMENT_OFFSET), 1);
+                data = section_ptr_add(interpreter_section,
+                    add(strlen(interpreter), 1));
+                strcpy(data, interpreter);
+            }
+            symbol_table = new_symtab(state, mks(".dynsym"),
+                CC2_ELF_SECTION_DYNAMIC_SYMBOLS,
+                CC2_ELF_ALLOCATE_SECTION_FLAG, mks(".dynstr"), mks(".hash"),
+                CC2_ELF_ALLOCATE_SECTION_FLAG);
+            wi32(add(state, CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET),
+                symbol_table);
+            dynamic_string_section = ri32(add(symbol_table,
+                CC2_SECTION_LINK_OFFSET));
+            dynamic_section = new_section(state, mks(".dynamic"),
+                CC2_ELF_SECTION_DYNAMIC, or(CC2_ELF_ALLOCATE_SECTION_FLAG,
+                CC2_ELF_WRITE_SECTION_FLAG));
+            wi32(add(dynamic_section, CC2_SECTION_LINK_OFFSET),
+                dynamic_string_section);
+            wi32(add(dynamic_section, CC2_SECTION_ENTRY_SIZE_OFFSET),
+                CC2_ELF_DYNAMIC_RECORD_BYTES);
+            build_got(state);
+            if (eq(file_type, CC2_TCC_OUTPUT_EXE)) {
+                bind_exe_dynsyms(state);
+                if (not(eq(ri32(add(state,
+                    CC2_TCC_STATE_ERROR_COUNT_OFFSET)), 0))) {
+                    free(dynamic_info);
+                    return result;
+                }
+                bind_libs_dynsyms(state);
+            } else {
+                export_global_syms(state);
+            }
+        }
+        build_got_entries(state);
+    }
+    section_name_table = new_section(state, mks(".shstrtab"),
+        CC2_ELF_SECTION_STRING_TABLE, 0);
+    put_elf_str(section_name_table, mks(""));
+    text_relocation = alloc_sec_names(state, file_type, section_name_table);
+    if (not(eq(dynamic_section, 0))) {
+        cc2_add_dynamic_options(state, file_type, dynamic_section,
+            dynamic_string_section, text_relocation);
+        wi32(add(dynamic_info, CC2_DYNAMIC_INFO_DYNAMIC_OFFSET),
+            dynamic_section);
+        wi32(add(dynamic_info, CC2_DYNAMIC_INFO_STRING_TABLE_OFFSET),
+            dynamic_string_section);
+        wi32(add(dynamic_info, CC2_DYNAMIC_INFO_DATA_OFFSET), ri32(add(
+            dynamic_section, CC2_SECTION_DATA_OFFSET)));
+        fill_dynamic(state, dynamic_info);
+        wi32(add(dynamic_section, CC2_SECTION_SIZE_OFFSET), ri32(add(
+            dynamic_section, CC2_SECTION_DATA_OFFSET)));
+        wi32(add(dynamic_string_section, CC2_SECTION_SIZE_OFFSET), ri32(add(
+            dynamic_string_section, CC2_SECTION_DATA_OFFSET)));
+    }
+    if (eq(file_type, CC2_TCC_OUTPUT_OBJECT)) {
+        header_count = 0;
+    } else if (eq(file_type, CC2_TCC_OUTPUT_DLL)) {
+        header_count = 3;
+    } else if (ri32(add(state, CC2_TCC_STATE_STATIC_LINK_OFFSET))) {
+        header_count = 2;
+    } else {
+        header_count = 5;
+    }
+    program_headers = calloc(header_count, CC2_ELF_PROGRAM_HEADER_BYTES);
+    saved_section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    section_order = malloc(shl(saved_section_count, 2));
+    wi32(section_order, 0);
+    file_offset = layout_sections(state, program_headers, header_count,
+        interpreter_section, section_name_table, dynamic_info, section_order);
+    if (not(eq(file_type, CC2_TCC_OUTPUT_OBJECT))) {
+        fill_unloadable_phdr(program_headers, header_count,
+            interpreter_section, dynamic_section);
+        if (not(eq(dynamic_section, 0))) {
+            wi32(add(dynamic_section, CC2_SECTION_DATA_OFFSET), ri32(add(
+                dynamic_info, CC2_DYNAMIC_INFO_DATA_OFFSET)));
+            fill_dynamic(state, dynamic_info);
+            wi32(ri32(add(ri32(add(state, CC2_TCC_STATE_GOT_OFFSET)),
+                CC2_SECTION_DATA_POINTER_OFFSET)), ri32(add(dynamic_section,
+                CC2_SECTION_ADDRESS_OFFSET)));
+            if (eq(file_type, CC2_TCC_OUTPUT_EXE)) {
+                relocate_plt(state);
+            }
+            cc2_relocate_dynamic_symbols(state);
+        }
+        result = final_sections_reloc(state);
+        if (not(eq(result, 0))) {
+            free(section_order);
+            free(program_headers);
+            free(dynamic_info);
+            return result;
+        }
+        tidy_section_headers(state, section_order);
+        if (and(eq(file_type, CC2_TCC_OUTPUT_EXE), ri32(add(state,
+            CC2_TCC_STATE_STATIC_LINK_OFFSET)))) {
+            fill_got(state);
+        } else if (not(eq(ri32(add(state, CC2_TCC_STATE_GOT_OFFSET)), 0))) {
+            fill_local_got_entries(state);
+        }
+    }
+    result = tcc_write_elf_file(state, filename, header_count,
+        program_headers, file_offset, section_order);
+    wi32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET), saved_section_count);
+    free(section_order);
+    free(program_headers);
+    free(dynamic_info);
+    return result;
+}
+
+function tcc_output_file(state, filename)
+{
+    return elf_output_file(state, filename);
 }
 
 function add_init_array_defines(state, section_name)
@@ -19448,6 +19804,7 @@ function cc2_init_constants()
     CC2_ELF_DYNAMIC_VALUE_OFFSET = 4;
     CC2_DYNAMIC_INFO_DYNAMIC_OFFSET = 0;
     CC2_DYNAMIC_INFO_STRING_TABLE_OFFSET = 4;
+    CC2_DYNAMIC_INFO_DATA_OFFSET = 8;
     CC2_DYNAMIC_INFO_RELOCATION_ADDRESS_OFFSET = 12;
     CC2_DYNAMIC_INFO_RELOCATION_SIZE_OFFSET = 16;
     CC2_ELF_DYNAMIC_NULL_TAG = 0;
@@ -19477,9 +19834,9 @@ function cc2_init_constants()
     CC2_ELF_SEGMENT_WRITE_FLAG = 2;
     CC2_ELF_SEGMENT_EXECUTE_FLAG = 1;
     CC2_TCC_STATE_OUTPUT_FORMAT_OFFSET = 52;
-    CC2_TCC_STATE_TEXT_ADDRESS_OFFSET = 108;
-    CC2_TCC_STATE_HAS_TEXT_ADDRESS_OFFSET = 112;
-    CC2_TCC_STATE_SECTION_ALIGNMENT_OFFSET = 116;
+    CC2_TCC_STATE_TEXT_ADDRESS_OFFSET = 112;
+    CC2_TCC_STATE_HAS_TEXT_ADDRESS_OFFSET = 116;
+    CC2_TCC_STATE_SECTION_ALIGNMENT_OFFSET = 120;
     CC2_TCC_OUTPUT_FORMAT_ELF = 0;
     CC2_ELF_PAGE_BYTES = 4096;
     CC2_ELF_EXECUTABLE_START_ADDRESS = 134512640;
@@ -19506,6 +19863,30 @@ function cc2_init_constants()
     CC2_ELF_CURRENT_VERSION = 1;
     CC2_ELF_CLASS_32 = 1;
     CC2_ELF_LITTLE_ENDIAN = 1;
+    CC2_TCC_STATE_SYMBOLIC_OFFSET = 24;
+    CC2_TCC_STATE_SONAME_OFFSET = 36;
+    CC2_TCC_STATE_RPATH_OFFSET = 40;
+    CC2_TCC_STATE_NEW_DTAGS_OFFSET = 44;
+    CC2_TCC_STATE_LOADED_DLLS_OFFSET = 136;
+    CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET = 140;
+    CC2_DLL_REFERENCE_LEVEL_OFFSET = 0;
+    CC2_DLL_REFERENCE_NAME_OFFSET = 8;
+    CC2_TCC_OUTPUT_EXE = 2;
+    CC2_ELF_DYNAMIC_NEEDED_TAG = 1;
+    CC2_ELF_DYNAMIC_SONAME_TAG = 14;
+    CC2_ELF_DYNAMIC_RPATH_TAG = 15;
+    CC2_ELF_DYNAMIC_SYMBOLIC_TAG = 16;
+    CC2_ELF_DYNAMIC_TEXTREL_TAG = 22;
+    CC2_ELF_DYNAMIC_RUNPATH_TAG = 29;
+    CC2_DEFAULT_INTERPRETER = mks("/lib/ld-linux.so.2");
+    CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET = 8;
+    CC2_TCC_STATE_LIBRARY_ROOT_OFFSET = 32;
+    CC2_TCC_STATE_CRT_PATHS_OFFSET = 168;
+    CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET = 172;
+    CC2_TCC_OUTPUT_MEMORY = 1;
+    CC2_RUNTIME_SUPPORT_LIBRARY = mks("libtcc1.a");
+    CC2_TCC_STATE_BOUNDS_CHECK_OFFSET = 104;
+    CC2_I386_CALL_RELATIVE_OPCODE = 232;
     CC2_TOKEN_GENERIC = 292;
     CC2_TOKEN_DEFAULT = 300;
     CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;
