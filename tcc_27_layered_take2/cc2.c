@@ -787,6 +787,7 @@ var CC2_ELF_PAGE_BYTES;
 var CC2_ELF_EXECUTABLE_START_ADDRESS;
 var CC2_ELF_LOAD_TYPE;
 var CC2_TCC_STATE_VERBOSE_OFFSET;
+var CC2_TCC_STATE_STATIC_LINK_OFFSET;
 var CC2_ELF_SECTION_HEADER_BYTES;
 var CC2_ELF_HEADER_TYPE_OFFSET;
 var CC2_ELF_HEADER_MACHINE_OFFSET;
@@ -7518,6 +7519,11 @@ function cc2_write_little_u16(address, value)
     return 0;
 }
 
+function cc2_read_little_u16(address)
+{
+    return or(ri8(address), shl(ri8(add(address, 1)), 8));
+}
+
 function cc2_output_padding(output, offset, target)
 {
     while (lt(offset, target)) {
@@ -7708,6 +7714,99 @@ function tcc_write_elf_file(state, filename, header_count, program_headers,
         tcc_output_binary(state, output, section_order);
     }
     fclose(output);
+    return 0;
+}
+
+function cc2_remap_symbol_sections(symbol_table, backmap)
+{
+    var symbol;
+    var end;
+    var section_index;
+    symbol = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
+        CC2_ELF_SYMBOL_BYTES);
+    end = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
+        ri32(add(symbol_table, CC2_SECTION_DATA_OFFSET)));
+    while (lt(symbol, end)) {
+        section_index = cc2_read_little_u16(add(symbol,
+            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET));
+        if (and(not(eq(section_index, CC2_ELF_UNDEFINED_SECTION)),
+            lt(section_index, CC2_ELF_LOW_RESERVED_SECTION))) {
+            cc2_write_little_u16(add(symbol,
+                CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET), ri32(add(backmap,
+                shl(section_index, 2))));
+        }
+        symbol = add(symbol, CC2_ELF_SYMBOL_BYTES);
+    }
+    return 0;
+}
+
+/* Compact omitted section headers and repair every index into the old array. */
+function tidy_section_headers(state, section_order)
+{
+    var section_count;
+    var old_sections;
+    var new_sections;
+    var backmap;
+    var old_index;
+    var ordered_index;
+    var new_count;
+    var tail;
+    var section;
+    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    old_sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+    new_sections = malloc(shl(section_count, 2));
+    backmap = malloc(shl(section_count, 2));
+    old_index = 0;
+    new_count = 0;
+    tail = section_count;
+    while (lt(old_index, section_count)) {
+        ordered_index = ri32(add(section_order, shl(old_index, 2)));
+        section = ri32(add(old_sections, shl(ordered_index, 2)));
+        if (eq(old_index, 0)) {
+            wi32(add(backmap, shl(ordered_index, 2)), new_count);
+            wi32(add(new_sections, shl(new_count, 2)), section);
+            new_count = add(new_count, 1);
+        } else {
+            if (not(eq(ri32(add(section,
+                CC2_SECTION_NAME_INDEX_OFFSET)), 0))) {
+                wi32(add(backmap, shl(ordered_index, 2)), new_count);
+                wi32(add(new_sections, shl(new_count, 2)), section);
+                new_count = add(new_count, 1);
+            } else {
+                wi32(add(backmap, shl(ordered_index, 2)), 0);
+                tail = sub(tail, 1);
+                wi32(add(new_sections, shl(tail, 2)), section);
+            }
+        }
+        old_index = add(old_index, 1);
+    }
+    old_index = 0;
+    while (lt(old_index, new_count)) {
+        section = ri32(add(new_sections, shl(old_index, 2)));
+        if (not(eq(section, 0))) {
+            wi32(add(section, CC2_SECTION_NUMBER_OFFSET), old_index);
+            if (eq(ri32(add(section, CC2_SECTION_TYPE_OFFSET)),
+                CC2_ELF_SECTION_REL)) {
+                wi32(add(section, CC2_SECTION_INFO_OFFSET), ri32(add(backmap,
+                    shl(ri32(add(section, CC2_SECTION_INFO_OFFSET)), 2))));
+            }
+        }
+        old_index = add(old_index, 1);
+    }
+    cc2_remap_symbol_sections(ri32(symtab_section_address), backmap);
+    if (eq(ri32(add(state, CC2_TCC_STATE_STATIC_LINK_OFFSET)), 0)) {
+        cc2_remap_symbol_sections(ri32(add(state,
+            CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET)), backmap);
+    }
+    old_index = 0;
+    while (lt(old_index, section_count)) {
+        wi32(add(section_order, shl(old_index, 2)), old_index);
+        old_index = add(old_index, 1);
+    }
+    free(old_sections);
+    wi32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET), new_sections);
+    wi32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET), new_count);
+    free(backmap);
     return 0;
 }
 
@@ -19386,6 +19485,7 @@ function cc2_init_constants()
     CC2_ELF_EXECUTABLE_START_ADDRESS = 134512640;
     CC2_ELF_LOAD_TYPE = 1;
     CC2_TCC_STATE_VERBOSE_OFFSET = 0;
+    CC2_TCC_STATE_STATIC_LINK_OFFSET = 16;
     CC2_ELF_SECTION_HEADER_BYTES = 40;
     CC2_ELF_HEADER_TYPE_OFFSET = 16;
     CC2_ELF_HEADER_MACHINE_OFFSET = 18;
