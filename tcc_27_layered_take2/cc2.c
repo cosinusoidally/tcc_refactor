@@ -361,6 +361,8 @@ var CC2_TCC_OUTPUT_DLL;
 var CC2_TCC_OUTPUT_FORMAT_BINARY;
 var CC2_SECTION_ADDRESS_OFFSET;
 var CC2_SYMBOL_ATTRIBUTE_GOT_OFFSET;
+var CC2_SYMBOL_ATTRIBUTE_PLT_OFFSET;
+var CC2_SYMBOL_ATTRIBUTE_PLT_SYMBOL_OFFSET;
 var CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET;
 var CC2_ELF_RELOCATION_BYTES;
 var CC2_ELF_RELOCATION_OFFSET_OFFSET;
@@ -704,6 +706,7 @@ var CC2_ELF_SECTION_DYNAMIC_SYMBOLS;
 var CC2_ELF_PRIVATE_SECTION_FLAG;
 var CC2_ELF_ALLOCATE_SECTION_FLAG;
 var CC2_ELF_WRITE_SECTION_FLAG;
+var CC2_ELF_EXECUTE_SECTION_FLAG;
 var CC2_ELF_HASH_HIGH_MASK;
 var CC2_ELF_SYMBOL_BYTES;
 var CC2_ELF_SYMBOL_NAME_OFFSET;
@@ -6203,8 +6206,8 @@ function sort_syms(state, symbol_table)
     free(sorted_symbols);
 
     sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
-    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
     section_index = 1;
+    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
     while (lt(section_index, section_count)) {
         relocation_section = ri32(add(sections, mul(section_index,
             CC2_I386_WORD_BYTES)));
@@ -6434,6 +6437,225 @@ function build_got(state)
         mks("_GLOBAL_OFFSET_TABLE_"));
     section_ptr_add(got, mul(CC2_I386_RESERVED_GOT_WORDS,
         CC2_I386_WORD_BYTES));
+    return 0;
+}
+
+function put_got_entry(state, dynamic_relocation_type, size, information,
+    symbol_index)
+{
+    var need_plt_entry;
+    var attributes;
+    var got;
+    var got_offset;
+    var symbol_table;
+    var symbol;
+    var name;
+    var dynamic_symbols;
+    var dynamic_index;
+    var plt;
+    var plt_offset;
+    var plt_suffix;
+    var plt_name;
+    need_plt_entry = eq(dynamic_relocation_type,
+        CC2_I386_JUMP_SLOT_RELOCATION);
+    attributes = get_sym_attr(state, symbol_index, 1);
+    if (need_plt_entry) {
+        if (ri32(add(attributes, CC2_SYMBOL_ATTRIBUTE_PLT_OFFSET))) {
+            return attributes;
+        }
+    } else if (ri32(add(attributes, CC2_SYMBOL_ATTRIBUTE_GOT_OFFSET))) {
+        return attributes;
+    }
+    got = ri32(add(state, CC2_TCC_STATE_GOT_OFFSET));
+    got_offset = ri32(add(got, CC2_SECTION_DATA_OFFSET));
+    section_ptr_add(got, CC2_I386_WORD_BYTES);
+    symbol_table = ri32(symtab_section_address);
+    symbol = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
+        mul(symbol_index, CC2_ELF_SYMBOL_BYTES));
+    name = add(ri32(add(ri32(add(symbol_table, CC2_SECTION_LINK_OFFSET)),
+        CC2_SECTION_DATA_POINTER_OFFSET)), ri32(add(symbol,
+        CC2_ELF_SYMBOL_NAME_OFFSET)));
+    dynamic_symbols = ri32(add(state,
+        CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
+    if (dynamic_symbols) {
+        if (eq(ushr(ri8(add(symbol, CC2_ELF_SYMBOL_INFO_OFFSET)),
+            CC2_ELF_SYMBOL_BIND_SHIFT), CC2_ELF_LOCAL_BINDING)) {
+            put_elf_reloc(dynamic_symbols, got, got_offset,
+                CC2_I386_RELATIVE_RELOCATION, symbol_index);
+        } else {
+            dynamic_index = ri32(add(attributes,
+                CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET));
+            if (eq(dynamic_index, 0)) {
+                dynamic_index = set_elf_sym(dynamic_symbols, ri32(add(symbol,
+                    CC2_ELF_SYMBOL_VALUE_OFFSET)), size, information, 0,
+                    add(ri8(add(symbol, CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)),
+                    shl(ri8(add(symbol, add(
+                    CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1))), 8)), name);
+                wi32(add(attributes, CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET),
+                    dynamic_index);
+            }
+            put_elf_reloc(dynamic_symbols, got, got_offset,
+                dynamic_relocation_type, dynamic_index);
+        }
+    } else {
+        put_elf_reloc(symbol_table, got, got_offset, dynamic_relocation_type,
+            symbol_index);
+    }
+    if (need_plt_entry) {
+        plt = ri32(add(state, CC2_TCC_STATE_PLT_OFFSET));
+        if (eq(plt, 0)) {
+            plt = new_section(state, mks(".plt"), CC2_ELF_SECTION_PROGBITS,
+                or(CC2_ELF_ALLOCATE_SECTION_FLAG,
+                CC2_ELF_EXECUTE_SECTION_FLAG));
+            wi32(add(state, CC2_TCC_STATE_PLT_OFFSET), plt);
+            wi32(add(plt, CC2_SECTION_ENTRY_SIZE_OFFSET),
+                CC2_I386_WORD_BYTES);
+        }
+        plt_offset = create_plt_entry(state, got_offset, attributes);
+        wi32(add(attributes, CC2_SYMBOL_ATTRIBUTE_PLT_OFFSET), plt_offset);
+        plt_suffix = mks("@plt");
+        plt_name = malloc(add(add(strlen(name), strlen(plt_suffix)), 1));
+        strcpy(plt_name, name);
+        strcat(plt_name, plt_suffix);
+        wi32(add(attributes, CC2_SYMBOL_ATTRIBUTE_PLT_SYMBOL_OFFSET),
+            put_elf_sym(ri32(add(state, CC2_TCC_STATE_SYMBOL_TABLE_OFFSET)),
+            plt_offset, ri32(add(symbol, CC2_ELF_SYMBOL_SIZE_OFFSET)), or(shl(
+            CC2_ELF_SYMBOL_GLOBAL_BINDING, CC2_ELF_SYMBOL_BIND_SHIFT),
+            CC2_ELF_SYMBOL_FUNCTION_TYPE), 0, ri32(add(plt,
+            CC2_SECTION_NUMBER_OFFSET)), plt_name));
+        free(plt_name);
+    } else {
+        wi32(add(attributes, CC2_SYMBOL_ATTRIBUTE_GOT_OFFSET), got_offset);
+    }
+    return attributes;
+}
+
+function build_got_entries(state)
+{
+    var sections;
+    var section_count;
+    var section_index;
+    var relocation_section;
+    var relocation_offset;
+    var relocation;
+    var relocation_information;
+    var relocation_type;
+    var dynamic_relocation_type;
+    var entry_type;
+    var symbol_index;
+    var symbol_table;
+    var symbol;
+    var symbol_section_index;
+    var dynamic_symbols;
+    var dynamic_index;
+    var dynamic_symbol;
+    var force_jump_slot;
+    var process_entry;
+    var attributes;
+    symbol_table = ri32(symtab_section_address);
+    dynamic_symbols = ri32(add(state,
+        CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
+    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    section_index = 1;
+    while (lt(section_index, section_count)) {
+        /* Creating GOT/PLT sections can relocate the section pointer array. */
+        sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+        relocation_section = ri32(add(sections, mul(section_index,
+            CC2_I386_WORD_BYTES)));
+        if (and(eq(ri32(add(relocation_section, CC2_SECTION_TYPE_OFFSET)),
+            CC2_ELF_SECTION_REL), eq(ri32(add(relocation_section,
+            CC2_SECTION_LINK_OFFSET)), symbol_table))) {
+            relocation_offset = 0;
+            while (lt(relocation_offset, ri32(add(relocation_section,
+                CC2_SECTION_DATA_OFFSET)))) {
+                relocation = add(ri32(add(relocation_section,
+                    CC2_SECTION_DATA_POINTER_OFFSET)), relocation_offset);
+                relocation_information = ri32(add(relocation,
+                    CC2_ELF_RELOCATION_INFO_OFFSET));
+                relocation_type = and(relocation_information,
+                    CC2_ELF_RELOCATION_TYPE_MASK);
+                entry_type = gotplt_entry_type(relocation_type);
+                process_entry = not(eq(entry_type,
+                    CC2_NO_GOT_PLT_ENTRY));
+                force_jump_slot = 0;
+                symbol_index = ushr(relocation_information,
+                    CC2_ELF_RELOCATION_SYMBOL_SHIFT);
+                symbol = add(ri32(add(symbol_table,
+                    CC2_SECTION_DATA_POINTER_OFFSET)), mul(symbol_index,
+                    CC2_ELF_SYMBOL_BYTES));
+                if (and(process_entry, eq(entry_type,
+                    CC2_AUTO_GOT_PLT_ENTRY))) {
+                    symbol_section_index = add(ri8(add(symbol,
+                        CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), shl(ri8(add(
+                        symbol, add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1))),
+                        8));
+                    if (eq(symbol_section_index,
+                        CC2_ELF_UNDEFINED_SECTION)) {
+                        if (eq(ri32(add(state,
+                            CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+                            CC2_TCC_OUTPUT_DLL)) {
+                            process_entry = 0;
+                        } else if (dynamic_symbols) {
+                            attributes = get_sym_attr(state, symbol_index, 0);
+                            dynamic_index = ri32(add(attributes,
+                                CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET));
+                            if (dynamic_index) {
+                                dynamic_symbol = add(ri32(add(dynamic_symbols,
+                                    CC2_SECTION_DATA_POINTER_OFFSET)), mul(
+                                    dynamic_index, CC2_ELF_SYMBOL_BYTES));
+                                if (or(eq(and(ri8(add(dynamic_symbol,
+                                    CC2_ELF_SYMBOL_INFO_OFFSET)),
+                                    CC2_ELF_SYMBOL_TYPE_MASK),
+                                    CC2_ELF_SYMBOL_FUNCTION_TYPE), and(eq(and(
+                                    ri8(add(dynamic_symbol,
+                                    CC2_ELF_SYMBOL_INFO_OFFSET)),
+                                    CC2_ELF_SYMBOL_TYPE_MASK),
+                                    CC2_ELF_SYMBOL_NO_TYPE), eq(and(ri8(add(
+                                    symbol, CC2_ELF_SYMBOL_INFO_OFFSET)),
+                                    CC2_ELF_SYMBOL_TYPE_MASK),
+                                    CC2_ELF_SYMBOL_FUNCTION_TYPE)))) {
+                                    force_jump_slot = 1;
+                                }
+                            }
+                        }
+                    } else {
+                        process_entry = 0;
+                    }
+                }
+                if (process_entry) {
+                    if (or(force_jump_slot, code_reloc(relocation_type))) {
+                        dynamic_relocation_type =
+                            CC2_I386_JUMP_SLOT_RELOCATION;
+                    } else {
+                        dynamic_relocation_type =
+                            CC2_I386_GLOBAL_DATA_RELOCATION;
+                    }
+                    if (eq(ri32(add(state, CC2_TCC_STATE_GOT_OFFSET)), 0)) {
+                        build_got(state);
+                    }
+                    if (not(eq(entry_type, CC2_BUILD_GOT_ONLY))) {
+                        attributes = put_got_entry(state,
+                            dynamic_relocation_type, ri32(add(symbol,
+                            CC2_ELF_SYMBOL_SIZE_OFFSET)), ri8(add(symbol,
+                            CC2_ELF_SYMBOL_INFO_OFFSET)), symbol_index);
+                        if (eq(dynamic_relocation_type,
+                            CC2_I386_JUMP_SLOT_RELOCATION)) {
+                            wi32(add(relocation,
+                                CC2_ELF_RELOCATION_INFO_OFFSET), or(shl(ri32(
+                                add(attributes,
+                                CC2_SYMBOL_ATTRIBUTE_PLT_SYMBOL_OFFSET)),
+                                CC2_ELF_RELOCATION_SYMBOL_SHIFT),
+                                relocation_type));
+                        }
+                    }
+                }
+                relocation_offset = add(relocation_offset,
+                    CC2_ELF_RELOCATION_BYTES);
+            }
+        }
+        section_index = add(section_index, 1);
+        section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    }
     return 0;
 }
 
@@ -17881,6 +18103,8 @@ function cc2_init_constants()
     CC2_TCC_OUTPUT_FORMAT_BINARY = 1;
     CC2_SECTION_ADDRESS_OFFSET = 44;
     CC2_SYMBOL_ATTRIBUTE_GOT_OFFSET = 0;
+    CC2_SYMBOL_ATTRIBUTE_PLT_OFFSET = 4;
+    CC2_SYMBOL_ATTRIBUTE_PLT_SYMBOL_OFFSET = 8;
     CC2_SYMBOL_ATTRIBUTE_DYNAMIC_INDEX_OFFSET = 12;
     CC2_ELF_RELOCATION_BYTES = 8;
     CC2_ELF_RELOCATION_OFFSET_OFFSET = 0;
@@ -18038,6 +18262,7 @@ function cc2_init_constants()
     CC2_ELF_PRIVATE_SECTION_FLAG = 2147483648;
     CC2_ELF_ALLOCATE_SECTION_FLAG = 2;
     CC2_ELF_WRITE_SECTION_FLAG = 1;
+    CC2_ELF_EXECUTE_SECTION_FLAG = 4;
     CC2_ELF_HASH_HIGH_MASK = 4026531840;
     CC2_ELF_SYMBOL_BYTES = 16;
     CC2_ELF_SYMBOL_NAME_OFFSET = 0;
