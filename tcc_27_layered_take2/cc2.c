@@ -6126,6 +6126,58 @@ function tcc_get_symbol_err(state, name)
     return get_elf_sym_addr(state, name, 1);
 }
 
+function tcc_tool_cross(state, arguments, target)
+{
+    tcc_error(mks("-m%d not implemented."), target);
+    return 0;
+}
+
+function gen_makedeps(state, target, filename)
+{
+    var allocated_filename;
+    var extension;
+    var prefix_length;
+    var output;
+    var dependencies;
+    var dependency_count;
+    var index;
+    allocated_filename = 0;
+    if (eq(filename, 0)) {
+        extension = tcc_fileextension(target);
+        prefix_length = sub(extension, target);
+        allocated_filename = malloc(add(prefix_length, 3));
+        memcpy(allocated_filename, target, prefix_length);
+        strcpy(add(allocated_filename, prefix_length), mks(".d"));
+        filename = allocated_filename;
+    }
+    if (ri32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET))) {
+        printf(mks("<- %s\n"), filename);
+    }
+    output = fopen(filename, mks("w"));
+    if (eq(output, 0)) {
+        tcc_error(mks("could not open '%s'"), filename);
+    }
+    fprintf(output, mks("%s: "), target);
+    fputc(CC2_ASCII_BACKSLASH, output);
+    fputc(CC2_CHARACTER_LINE_FEED, output);
+    dependencies = ri32(add(state,
+        CC2_TCC_STATE_TARGET_DEPENDENCIES_OFFSET));
+    dependency_count = ri32(add(state,
+        CC2_TCC_STATE_TARGET_DEPENDENCY_COUNT_OFFSET));
+    index = 0;
+    while (lt(index, dependency_count)) {
+        fprintf(output, mks(" %s "),
+            ri32(add(dependencies, shl(index, 2))));
+        fputc(CC2_ASCII_BACKSLASH, output);
+        fputc(CC2_CHARACTER_LINE_FEED, output);
+        index = add(index, 1);
+    }
+    fputc(CC2_CHARACTER_LINE_FEED, output);
+    fclose(output);
+    free(allocated_filename);
+    return 0;
+}
+
 function tccelf_begin_file(state)
 {
     var sections;

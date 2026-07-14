@@ -251,3 +251,11 @@ function cc2_bind_tcc_globals(state)
 {
     return 0;
 }
+
+function tcc_fileextension(filename)
+{
+    while (not(eq(ri8(filename), 0))) {
+        filename = add(filename, 1);
+    }
+    return filename;
+}
