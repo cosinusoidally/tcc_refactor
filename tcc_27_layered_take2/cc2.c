@@ -23737,6 +23737,59 @@ function tcc_add_pragma_libs(state)
     return 0;
 }
 
+function tcc_add_file_internal(state, filename, flags)
+{
+    var result;
+    var source_file;
+    var descriptor;
+    var header;
+    var object_type;
+    result = tcc_open(state, filename);
+    if (lt(result, 0)) {
+        if (and(flags, 16)) {
+            tcc_error_noabort(mks("file '%s' not found"), filename);
+        }
+        return result;
+    }
+    dynarray_add(add(state, CC2_TCC_STATE_TARGET_DEPENDENCIES_OFFSET),
+        add(state, CC2_TCC_STATE_TARGET_DEPENDENCY_COUNT_OFFSET),
+        tcc_strdup(filename));
+    if (and(flags, 64)) {
+        source_file = ri32(file_address);
+        descriptor = ri32(add(source_file,
+            CC2_BUFFERED_FILE_DESCRIPTOR_OFFSET));
+        header = malloc(52);
+        object_type = tcc_object_type(descriptor, header);
+        free(header);
+        lseek(descriptor, 0, 0);
+        if (eq(object_type, 1)) {
+            result = tcc_load_object_file(state, descriptor, 0);
+        } else if (eq(object_type, 2)) {
+            if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+                CC2_TCC_OUTPUT_MEMORY)) {
+                result = 0;
+                if (eq(cc2_dlopen_global(filename), 0)) {
+                    result = sub(0, 1);
+                }
+            } else {
+                result = tcc_load_dll(state, descriptor, filename,
+                    not(eq(and(flags, 32), 0)));
+            }
+        } else if (eq(object_type, 3)) {
+            result = tcc_load_archive(state, descriptor);
+        } else {
+            result = tcc_load_ldscript(state);
+            if (lt(result, 0)) {
+                tcc_error_noabort(mks("unrecognized file type"), 0);
+            }
+        }
+    } else {
+        result = tcc_compile(state);
+    }
+    tcc_close();
+    return result;
+}
+
 function tcc_set_lib_path(state, path)
 {
     tcc_free(ri32(add(state, CC2_TCC_STATE_LIBRARY_ROOT_OFFSET)));

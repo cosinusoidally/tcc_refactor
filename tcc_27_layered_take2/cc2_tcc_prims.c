@@ -531,6 +531,11 @@ int cc2_error_scope(TCCState *state, int is_assembler, int file_type)
     return 0;
 }
 
+int cc2_dlopen_global(const char *filename)
+{
+    return (int)dlopen(filename, RTLD_GLOBAL | RTLD_LAZY);
+}
+
 /* These primitives expose representations that scalar cc2 code cannot
    express; all literal syntax, suffix, overflow, and type policy stays cc2. */
 int u64_mul_add(unsigned *words, unsigned base, unsigned digit)

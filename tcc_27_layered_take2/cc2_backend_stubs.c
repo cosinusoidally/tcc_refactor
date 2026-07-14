@@ -201,9 +201,9 @@ function case_sort(base, count)
     return 0;
 }
 
-function tcc_add_file_internal(state, filename, flags)
+function cc2_dlopen_global(filename)
 {
-    return sub(0, 1);
+    return 0;
 }
 
 function cc2_bind_tcc_globals(state)
