@@ -762,6 +762,22 @@ var CC2_ELF_DYNAMIC_REL_TAG;
 var CC2_ELF_DYNAMIC_REL_SIZE_TAG;
 var CC2_ELF_DYNAMIC_REL_ENTRY_SIZE_TAG;
 var CC2_ELF_DYNAMIC_DEBUG_TAG;
+var CC2_ELF_HEADER_BYTES;
+var CC2_ELF_PROGRAM_HEADER_BYTES;
+var CC2_PROGRAM_HEADER_TYPE_OFFSET;
+var CC2_PROGRAM_HEADER_FILE_OFFSET_OFFSET;
+var CC2_PROGRAM_HEADER_VIRTUAL_ADDRESS_OFFSET;
+var CC2_PROGRAM_HEADER_PHYSICAL_ADDRESS_OFFSET;
+var CC2_PROGRAM_HEADER_FILE_SIZE_OFFSET;
+var CC2_PROGRAM_HEADER_MEMORY_SIZE_OFFSET;
+var CC2_PROGRAM_HEADER_FLAGS_OFFSET;
+var CC2_PROGRAM_HEADER_ALIGNMENT_OFFSET;
+var CC2_ELF_PROGRAM_HEADER_TYPE;
+var CC2_ELF_INTERPRETER_TYPE;
+var CC2_ELF_DYNAMIC_TYPE;
+var CC2_ELF_SEGMENT_READ_FLAG;
+var CC2_ELF_SEGMENT_WRITE_FLAG;
+var CC2_ELF_SEGMENT_EXECUTE_FLAG;
 var CC2_TOKEN_GENERIC;
 var CC2_TOKEN_DEFAULT;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD;
@@ -7179,6 +7195,67 @@ function final_sections_reloc(state)
             relocate_rel(state, section);
         }
         section_index = add(section_index, 1);
+    }
+    return 0;
+}
+
+/* Complete headers for segments which do not own the normal load sections. */
+function fill_unloadable_phdr(program_headers, header_count,
+    interpreter_section, dynamic_section)
+{
+    var header;
+    var size;
+    var address;
+    if (not(eq(interpreter_section, 0))) {
+        header = program_headers;
+        wi32(add(header, CC2_PROGRAM_HEADER_TYPE_OFFSET),
+            CC2_ELF_PROGRAM_HEADER_TYPE);
+        wi32(add(header, CC2_PROGRAM_HEADER_FILE_OFFSET_OFFSET),
+            CC2_ELF_HEADER_BYTES);
+        size = mul(header_count, CC2_ELF_PROGRAM_HEADER_BYTES);
+        wi32(add(header, CC2_PROGRAM_HEADER_FILE_SIZE_OFFSET), size);
+        wi32(add(header, CC2_PROGRAM_HEADER_MEMORY_SIZE_OFFSET), size);
+        address = sub(ri32(add(interpreter_section,
+            CC2_SECTION_ADDRESS_OFFSET)), size);
+        wi32(add(header, CC2_PROGRAM_HEADER_VIRTUAL_ADDRESS_OFFSET), address);
+        wi32(add(header, CC2_PROGRAM_HEADER_PHYSICAL_ADDRESS_OFFSET), address);
+        wi32(add(header, CC2_PROGRAM_HEADER_FLAGS_OFFSET), or(
+            CC2_ELF_SEGMENT_READ_FLAG, CC2_ELF_SEGMENT_EXECUTE_FLAG));
+        wi32(add(header, CC2_PROGRAM_HEADER_ALIGNMENT_OFFSET),
+            CC2_I386_WORD_BYTES);
+        header = add(header, CC2_ELF_PROGRAM_HEADER_BYTES);
+        wi32(add(header, CC2_PROGRAM_HEADER_TYPE_OFFSET),
+            CC2_ELF_INTERPRETER_TYPE);
+        wi32(add(header, CC2_PROGRAM_HEADER_FILE_OFFSET_OFFSET), ri32(add(
+            interpreter_section, CC2_SECTION_FILE_OFFSET_OFFSET)));
+        address = ri32(add(interpreter_section, CC2_SECTION_ADDRESS_OFFSET));
+        wi32(add(header, CC2_PROGRAM_HEADER_VIRTUAL_ADDRESS_OFFSET), address);
+        wi32(add(header, CC2_PROGRAM_HEADER_PHYSICAL_ADDRESS_OFFSET), address);
+        size = ri32(add(interpreter_section, CC2_SECTION_SIZE_OFFSET));
+        wi32(add(header, CC2_PROGRAM_HEADER_FILE_SIZE_OFFSET), size);
+        wi32(add(header, CC2_PROGRAM_HEADER_MEMORY_SIZE_OFFSET), size);
+        wi32(add(header, CC2_PROGRAM_HEADER_FLAGS_OFFSET),
+            CC2_ELF_SEGMENT_READ_FLAG);
+        wi32(add(header, CC2_PROGRAM_HEADER_ALIGNMENT_OFFSET), ri32(add(
+            interpreter_section, CC2_SECTION_ALIGNMENT_OFFSET)));
+    }
+    if (not(eq(dynamic_section, 0))) {
+        header = add(program_headers, mul(sub(header_count, 1),
+            CC2_ELF_PROGRAM_HEADER_BYTES));
+        wi32(add(header, CC2_PROGRAM_HEADER_TYPE_OFFSET),
+            CC2_ELF_DYNAMIC_TYPE);
+        wi32(add(header, CC2_PROGRAM_HEADER_FILE_OFFSET_OFFSET), ri32(add(
+            dynamic_section, CC2_SECTION_FILE_OFFSET_OFFSET)));
+        address = ri32(add(dynamic_section, CC2_SECTION_ADDRESS_OFFSET));
+        wi32(add(header, CC2_PROGRAM_HEADER_VIRTUAL_ADDRESS_OFFSET), address);
+        wi32(add(header, CC2_PROGRAM_HEADER_PHYSICAL_ADDRESS_OFFSET), address);
+        size = ri32(add(dynamic_section, CC2_SECTION_SIZE_OFFSET));
+        wi32(add(header, CC2_PROGRAM_HEADER_FILE_SIZE_OFFSET), size);
+        wi32(add(header, CC2_PROGRAM_HEADER_MEMORY_SIZE_OFFSET), size);
+        wi32(add(header, CC2_PROGRAM_HEADER_FLAGS_OFFSET), or(
+            CC2_ELF_SEGMENT_READ_FLAG, CC2_ELF_SEGMENT_WRITE_FLAG));
+        wi32(add(header, CC2_PROGRAM_HEADER_ALIGNMENT_OFFSET), ri32(add(
+            dynamic_section, CC2_SECTION_ALIGNMENT_OFFSET)));
     }
     return 0;
 }
@@ -18833,6 +18910,22 @@ function cc2_init_constants()
     CC2_ELF_DYNAMIC_REL_SIZE_TAG = 18;
     CC2_ELF_DYNAMIC_REL_ENTRY_SIZE_TAG = 19;
     CC2_ELF_DYNAMIC_DEBUG_TAG = 21;
+    CC2_ELF_HEADER_BYTES = 52;
+    CC2_ELF_PROGRAM_HEADER_BYTES = 32;
+    CC2_PROGRAM_HEADER_TYPE_OFFSET = 0;
+    CC2_PROGRAM_HEADER_FILE_OFFSET_OFFSET = 4;
+    CC2_PROGRAM_HEADER_VIRTUAL_ADDRESS_OFFSET = 8;
+    CC2_PROGRAM_HEADER_PHYSICAL_ADDRESS_OFFSET = 12;
+    CC2_PROGRAM_HEADER_FILE_SIZE_OFFSET = 16;
+    CC2_PROGRAM_HEADER_MEMORY_SIZE_OFFSET = 20;
+    CC2_PROGRAM_HEADER_FLAGS_OFFSET = 24;
+    CC2_PROGRAM_HEADER_ALIGNMENT_OFFSET = 28;
+    CC2_ELF_PROGRAM_HEADER_TYPE = 6;
+    CC2_ELF_INTERPRETER_TYPE = 3;
+    CC2_ELF_DYNAMIC_TYPE = 2;
+    CC2_ELF_SEGMENT_READ_FLAG = 4;
+    CC2_ELF_SEGMENT_WRITE_FLAG = 2;
+    CC2_ELF_SEGMENT_EXECUTE_FLAG = 1;
     CC2_TOKEN_GENERIC = 292;
     CC2_TOKEN_DEFAULT = 300;
     CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;

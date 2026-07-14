@@ -437,49 +437,6 @@ static int layout_sections(TCCState *s1, ElfW(Phdr) *phdr, int phnum,
     return file_offset;
 }
 
-static void fill_unloadable_phdr(ElfW(Phdr) *phdr, int phnum, Section *interp,
-                                 Section *dynamic)
-{
-    ElfW(Phdr) *ph;
-
-    /* if interpreter, then add corresponding program header */
-    if (interp) {
-        ph = &phdr[0];
-
-        ph->p_type = PT_PHDR;
-        ph->p_offset = sizeof(ElfW(Ehdr));
-        ph->p_filesz = ph->p_memsz = phnum * sizeof(ElfW(Phdr));
-        ph->p_vaddr = interp->sh_addr - ph->p_filesz;
-        ph->p_paddr = ph->p_vaddr;
-        ph->p_flags = PF_R | PF_X;
-        ph->p_align = 4; /* interp->sh_addralign; */
-        ph++;
-
-        ph->p_type = PT_INTERP;
-        ph->p_offset = interp->sh_offset;
-        ph->p_vaddr = interp->sh_addr;
-        ph->p_paddr = ph->p_vaddr;
-        ph->p_filesz = interp->sh_size;
-        ph->p_memsz = interp->sh_size;
-        ph->p_flags = PF_R;
-        ph->p_align = interp->sh_addralign;
-    }
-
-    /* if dynamic section, then add corresponding program header */
-    if (dynamic) {
-        ph = &phdr[phnum - 1];
-
-        ph->p_type = PT_DYNAMIC;
-        ph->p_offset = dynamic->sh_offset;
-        ph->p_vaddr = dynamic->sh_addr;
-        ph->p_paddr = ph->p_vaddr;
-        ph->p_filesz = dynamic->sh_size;
-        ph->p_memsz = dynamic->sh_size;
-        ph->p_flags = PF_R | PF_W;
-        ph->p_align = dynamic->sh_addralign;
-    }
-}
-
 /* Create an ELF file on disk.
    This function handle ELF specific layout requirements */
 static void tcc_output_elf(TCCState *s1, FILE *f, int phnum, ElfW(Phdr) *phdr,
