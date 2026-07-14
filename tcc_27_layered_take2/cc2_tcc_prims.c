@@ -7,6 +7,15 @@
 
 CType func_vt; /* C storage for cc2's current function return type. */
 
+int tcc_driver_main(int argc, char **argv);
+int cc2_bind_preprocess_types(TCCState *state);
+int cc2_preprocess_start(TCCState *state, int is_assembler);
+int cc2_tccpp_new(TCCState *state, const char *keywords);
+int cc2_report_diagnostic(int state, int is_warning, int message);
+int cc2_abort_diagnostic(int state);
+int cc2_tcc_preprocess(int state);
+int cc2_compile_body(int state, int is_assembler, int file_type);
+
 /* Typed global storage; cc2 initializes its compiler policy. */
 ST_DATA int gnu_ext;
 ST_DATA int tcc_ext;
@@ -69,6 +78,17 @@ int cc2_dlsym_default(const char *name)
     return (int)dlsym(RTLD_DEFAULT, name);
 }
 
+/* The full bridge exposes TCC's normal command-line policy. */
+int cc2_driver_bridge(int argc, char **argv)
+{
+    return tcc_driver_main(argc, argv);
+}
+
+int cc2_storage_init(void)
+{
+    return 0;
+}
+
 /* The cc2 dialect cannot pass its comparator as a C function pointer. */
 void case_sort(void **base, int count)
 {
@@ -113,12 +133,13 @@ void vpush64_words(int type, unsigned int low_word, unsigned int high_word)
 void neg_zero(int basic_type)
 {
     vpush(&vtop->type);
+    memset(&vtop->c, 0, sizeof(vtop->c));
     if (basic_type == VT_FLOAT) {
-        vtop->c.f = -1.0 * 0.0;
+        ((unsigned char *)&vtop->c)[3] = 128;
     } else if (basic_type == VT_DOUBLE) {
-        vtop->c.d = -1.0 * 0.0;
+        ((unsigned char *)&vtop->c)[7] = 128;
     } else {
-        vtop->c.ld = -1.0 * 0.0;
+        ((unsigned char *)&vtop->c)[9] = 128;
     }
 }
 
@@ -152,10 +173,10 @@ int cc2_float_finite(int value, int basic_type)
 int cc2_float_zero(int value, int basic_type)
 {
     if (basic_type == VT_FLOAT)
-        return *(float *)value == 0.0;
+        return !*(float *)value;
     if (basic_type == VT_DOUBLE)
-        return *(double *)value == 0.0;
-    return *(long double *)value == 0.0;
+        return !*(double *)value;
+    return !*(long double *)value;
 }
 
 int cc2_float_add(int left, int right, int basic_type)
@@ -289,7 +310,7 @@ int cc2_preprocessor_set_stdout(TCCState *state)
 int cc2_preprocess_start_bridge(TCCState *state, int is_asm)
 {
     cc2_bind_preprocess_types(state);
-    cc2_preprocess_start((int)state, is_asm);
+    cc2_preprocess_start(state, is_asm);
     return 0;
 }
 
@@ -297,7 +318,7 @@ int cc2_tccpp_new_bridge(TCCState *state)
 {
     cc2_bind_preprocessor_state();
     cc2_preprocessor_set_stdout(state);
-    cc2_tccpp_new((int)state, (int)tcc_keywords);
+    cc2_tccpp_new(state, tcc_keywords);
     return 0;
 }
 
@@ -493,7 +514,7 @@ int store_strtold(void *destination, const char *text)
 int store_ldexp_float(void *destination, const unsigned *words, int exponent)
 {
     double value;
-    value = (double)words[1] * 4294967296.0 + (double)words[0];
+    value = ldexp((double)words[1], 32) + (double)words[0];
     *(float *)destination = (float)ldexp(value, exponent);
     return 0;
 }
@@ -501,7 +522,7 @@ int store_ldexp_float(void *destination, const unsigned *words, int exponent)
 int store_ldexp_double(void *destination, const unsigned *words, int exponent)
 {
     double value;
-    value = (double)words[1] * 4294967296.0 + (double)words[0];
+    value = ldexp((double)words[1], 32) + (double)words[0];
     *(double *)destination = ldexp(value, exponent);
     return 0;
 }
@@ -510,7 +531,7 @@ int store_ldexp_long_double(void *destination, const unsigned *words,
                             int exponent)
 {
     double value;
-    value = (double)words[1] * 4294967296.0 + (double)words[0];
+    value = ldexp((double)words[1], 32) + (double)words[0];
     *(long double *)destination = (long double)ldexp(value, exponent);
     return 0;
 }

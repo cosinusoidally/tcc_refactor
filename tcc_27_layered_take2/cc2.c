@@ -13544,9 +13544,10 @@ function define_undef(symbol)
 
 function free_defines_(boundary, symbol, value, token_symbol)
 {
-    while (not(eq(define_stack, boundary))) {
-        symbol = define_stack;
-        define_stack = ri32(add(symbol, CC2_SYM_PREV_OFFSET));
+    while (not(eq(ri32(define_stack_address), boundary))) {
+        symbol = ri32(define_stack_address);
+        wi32(define_stack_address,
+            ri32(add(symbol, CC2_SYM_PREV_OFFSET)));
         tok_str_free_str(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)));
         define_undef(symbol);
         sym_free(symbol);
@@ -13683,9 +13684,10 @@ function cc2_push_selected_stack_(value, type, constant, symbol)
     wi32(add(symbol, CC2_SYM_VALUE_OFFSET), value);
     wi32(add(symbol, CC2_SYM_TYPE_OFFSET), type);
     wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET), constant);
-    if (not(eq(local_stack, 0))) {
-        wi32(add(symbol, CC2_SYM_PREV_OFFSET), local_stack);
-        local_stack = symbol;
+    if (not(eq(ri32(local_stack_address), 0))) {
+        wi32(add(symbol, CC2_SYM_PREV_OFFSET),
+            ri32(local_stack_address));
+        wi32(local_stack_address, symbol);
     } else {
         wi32(add(symbol, CC2_SYM_PREV_OFFSET), global_stack);
         global_stack = symbol;
@@ -17162,7 +17164,7 @@ function struct_decl_enum_(type, symbol, words, member_type, member,
             expect(mks("identifier"));
         }
         member = sym_find(name);
-        if (and(not(not(member)), not(local_stack))) {
+        if (and(not(not(member)), not(ri32(local_stack_address)))) {
             tcc_error(mks("redefinition of enumerator '%s'"),
                 get_tok_str(name, 0));
         }
@@ -21315,7 +21317,7 @@ function block_for()
     nocode_wanted = and(nocode_wanted, bnot(536870912));
     next();
     skip(40);
-    saved_symbols = local_stack;
+    saved_symbols = ri32(local_stack_address);
     local_scope = add(local_scope, 1);
     if (not(eq(ri32(tok_address), 59))) {
         if (eq(decl0(CC2_VALUE_LOCAL, 1, 0), 0)) {
@@ -21579,8 +21581,8 @@ function block_compound(break_symbol, continue_symbol, is_expression)
     saved_vla_location = vla_sp_loc;
     saved_vla_count = vlas_in_scope;
     next();
-    saved_symbols = local_stack;
-    saved_labels = local_label_stack;
+    saved_symbols = ri32(local_stack_address);
+    saved_labels = ri32(local_label_stack_address);
     local_scope = add(local_scope, 1);
     if (eq(ri32(tok_address), 310)) {
         next();
@@ -23370,7 +23372,7 @@ function post_type_(type, attributes, storage, mode, parameter_type,
         size = sub(0, 1);
         array_kind = 0;
         if (not(eq(ri32(tok_address), 93))) {
-            if (or(not(local_stack),
+            if (or(not(ri32(local_stack_address)),
                 and(storage, CC2_TCC_STATIC_STORAGE))) {
                 vpushi(expr_const());
             } else {
@@ -24706,6 +24708,7 @@ function tcc_new()
     var state;
     var count_slot;
     cc2_init_constants();
+    cc2_storage_init();
     tcc_cleanup();
     state = tcc_mallocz(CC2_TCC_STATE_BYTES);
     if (eq(state, 0)) {
@@ -26036,8 +26039,11 @@ function cc2_append_diagnostic_location(output, state)
     var temporary;
     var line;
     source_file = ri32(file_address);
-    while (and(source_file, eq(ri8(add(source_file,
-        CC2_BUFFERED_FILE_FILENAME_OFFSET)), mkC(":")))) {
+    while (source_file) {
+        if (not(eq(ri8(add(source_file,
+            CC2_BUFFERED_FILE_FILENAME_OFFSET)), mkC(":")))) {
+            break;
+        }
         source_file = ri32(add(source_file, CC2_BUFFERED_FILE_PREVIOUS_OFFSET));
     }
     if (eq(source_file, 0)) {
@@ -28017,5 +28023,5 @@ function vla_sp_restore_root()
 /* cc0 owns main; the highest linked layer owns the command-line policy. */
 function cc2_driver(argc, argv)
 {
-    return tcc_driver_main(argc, argv);
+    return cc2_driver_bridge(argc, argv);
 }

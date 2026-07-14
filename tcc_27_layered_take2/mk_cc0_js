@@ -1,0 +1,14 @@
+#!/bin/sh
+
+# Run from tcc_27_layered_take2.  SpiderMonkey is the only compiler seed.
+set -eu
+cd ..
+mkdir -p artifacts
+cd artifacts
+
+js ../tcc_27_layered_take2/tests/layered/cc0_js_bootstrap.js
+mv -f cc0_js.o cc0.o
+mv -f cc1_stubs_js.o cc1_stubs.o
+mv -f cc0_js.exe cc0.exe
+chmod +x cc0.exe
+
