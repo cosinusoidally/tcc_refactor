@@ -22232,6 +22232,41 @@ function gen_opic(operation)
     return 0;
 }
 
+function gen_opif_fold_constant(operation)
+{
+    var first;
+    var basic_type;
+    var first_value;
+    var second_value;
+    first = sub(vtop, CC2_SVALUE_BYTES);
+    basic_type = and(ri32(first), CC2_TCC_BASIC_TYPE_MASK);
+    first_value = add(first, CC2_SVALUE_CONSTANT_OFFSET);
+    second_value = add(vtop, CC2_SVALUE_CONSTANT_OFFSET);
+    if (or(not(cc2_float_finite(first_value, basic_type)),
+        not(cc2_float_finite(second_value, basic_type)))) {
+        return 0;
+    }
+    if (eq(operation, CC2_ASCII_PLUS)) {
+        cc2_float_add(first_value, second_value, basic_type);
+    } else if (eq(operation, CC2_ASCII_MINUS)) {
+        cc2_float_subtract(first_value, second_value, basic_type);
+    } else if (eq(operation, CC2_ASCII_ASTERISK)) {
+        cc2_float_multiply(first_value, second_value, basic_type);
+    } else if (eq(operation, CC2_ASCII_SLASH)) {
+        if (cc2_float_zero(second_value, basic_type)) {
+            if (const_wanted) {
+                tcc_error(mks("division by zero in constant"), 0);
+            }
+            return 0;
+        }
+        cc2_float_divide(first_value, second_value, basic_type);
+    } else {
+        return 0;
+    }
+    vtop = first;
+    return 1;
+}
+
 function gen_opif(operation)
 {
     var first;

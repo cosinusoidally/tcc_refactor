@@ -206,7 +206,32 @@ function gen_opic_merge_addend(operation)
     return 0;
 }
 
-function gen_opif_fold_constant(operation)
+function cc2_float_finite(value, basic_type)
+{
+    return 0;
+}
+
+function cc2_float_zero(value, basic_type)
+{
+    return 0;
+}
+
+function cc2_float_add(left, right, basic_type)
+{
+    return 0;
+}
+
+function cc2_float_subtract(left, right, basic_type)
+{
+    return 0;
+}
+
+function cc2_float_multiply(left, right, basic_type)
+{
+    return 0;
+}
+
+function cc2_float_divide(left, right, basic_type)
 {
     return 0;
 }

@@ -83,7 +83,7 @@ ElfSym *elfsym(Sym *s)
     return &((ElfSym *)symtab_section->data)[s->c];
 }
 
-ST_FUNC int ieee_finite(double d)
+static int cc2_ieee_finite(double d)
 {
     int p[4];
     memcpy(p, &d, sizeof(double));
@@ -146,47 +146,66 @@ void vpush_bitfield_mask(int basic_type, int bit_size, int bit_pos, int invert)
         vpushi((unsigned)mask);
 }
 
-int gen_opif_fold_constant(int op)
+int cc2_float_finite(int value, int basic_type)
 {
-    SValue *v1 = vtop - 1;
-    SValue *v2 = vtop;
-    long double f1, f2;
+    if (basic_type == VT_FLOAT)
+        return cc2_ieee_finite(*(float *)value);
+    if (basic_type == VT_DOUBLE)
+        return cc2_ieee_finite(*(double *)value);
+    return cc2_ieee_finite(*(long double *)value);
+}
 
-    if (v1->type.t == VT_FLOAT) {
-        f1 = v1->c.f;
-        f2 = v2->c.f;
-    } else if (v1->type.t == VT_DOUBLE) {
-        f1 = v1->c.d;
-        f2 = v2->c.d;
-    } else {
-        f1 = v1->c.ld;
-        f2 = v2->c.ld;
-    }
-    if (!ieee_finite(f1) || !ieee_finite(f2))
-        return 0;
-    switch (op) {
-    case '+': f1 += f2; break;
-    case '-': f1 -= f2; break;
-    case '*': f1 *= f2; break;
-    case '/':
-        if (f2 == 0.0) {
-            if (const_wanted)
-                tcc_error("division by zero in constant");
-            return 0;
-        }
-        f1 /= f2;
-        break;
-    default:
-        return 0;
-    }
-    if (v1->type.t == VT_FLOAT)
-        v1->c.f = f1;
-    else if (v1->type.t == VT_DOUBLE)
-        v1->c.d = f1;
+int cc2_float_zero(int value, int basic_type)
+{
+    if (basic_type == VT_FLOAT)
+        return *(float *)value == 0.0;
+    if (basic_type == VT_DOUBLE)
+        return *(double *)value == 0.0;
+    return *(long double *)value == 0.0;
+}
+
+int cc2_float_add(int left, int right, int basic_type)
+{
+    if (basic_type == VT_FLOAT)
+        *(float *)left += *(float *)right;
+    else if (basic_type == VT_DOUBLE)
+        *(double *)left += *(double *)right;
     else
-        v1->c.ld = f1;
-    vtop--;
-    return 1;
+        *(long double *)left += *(long double *)right;
+    return 0;
+}
+
+int cc2_float_subtract(int left, int right, int basic_type)
+{
+    if (basic_type == VT_FLOAT)
+        *(float *)left -= *(float *)right;
+    else if (basic_type == VT_DOUBLE)
+        *(double *)left -= *(double *)right;
+    else
+        *(long double *)left -= *(long double *)right;
+    return 0;
+}
+
+int cc2_float_multiply(int left, int right, int basic_type)
+{
+    if (basic_type == VT_FLOAT)
+        *(float *)left *= *(float *)right;
+    else if (basic_type == VT_DOUBLE)
+        *(double *)left *= *(double *)right;
+    else
+        *(long double *)left *= *(long double *)right;
+    return 0;
+}
+
+int cc2_float_divide(int left, int right, int basic_type)
+{
+    if (basic_type == VT_FLOAT)
+        *(float *)left /= *(float *)right;
+    else if (basic_type == VT_DOUBLE)
+        *(double *)left /= *(double *)right;
+    else
+        *(long double *)left /= *(long double *)right;
+    return 0;
 }
 /* Convert an already-classified constant without generating target code.
    cc2 owns cast policy; this primitive only accesses C's 64-bit and floating
