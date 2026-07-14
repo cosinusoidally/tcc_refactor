@@ -48,7 +48,7 @@ ST_DATA const int reg_classes[NB_REGS] = {
     (RC_INT | RC_EBX) * USE_EBX,
     RC_FLOAT | RC_ST0,
 };
-#include "i386-asm.c"
+#include "cc2_i386_tables.c"
 #endif /* ONE_SOURCE */
 
 /********************************************************/

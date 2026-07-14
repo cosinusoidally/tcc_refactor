@@ -1728,7 +1728,7 @@ extern int asm_parse_previous(TCCState *s1);
 extern int asm_parse_popsection(TCCState *s1);
 extern int tcc_assemble_internal(TCCState *s1, int do_preprocess, int global);
 extern int tcc_assemble(TCCState *s1, int do_preprocess);
-/* ------------ i386-asm.c ------------ */
+/* ------------ cc2 i386 assembler ------------ */
 extern void gen_expr32(ExprValue *pe);
 extern void gen_disp32(ExprValue *pe);
 #ifdef TCC_TARGET_X86_64
