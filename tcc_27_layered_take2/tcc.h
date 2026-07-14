@@ -1124,7 +1124,7 @@ ST_FUNC int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
 
 
 ST_FUNC int tcc_add_crt(TCCState *s, const char *filename);
-ST_FUNC int tcc_add_dll(TCCState *s, const char *filename, int flags);
+extern int tcc_add_dll(TCCState *s, const char *filename, int flags);
 ST_FUNC void tcc_add_pragma_libs(TCCState *s1);
 PUB_FUNC int tcc_add_library_err(TCCState *s, const char *f);
 PUB_FUNC void tcc_print_stats(TCCState *s, unsigned total_time);
@@ -1534,7 +1534,7 @@ ST_FUNC void *tcc_get_symbol_err(TCCState *s, const char *name);
 #endif
 
 #ifndef TCC_TARGET_PE
-ST_FUNC int tcc_load_dll(TCCState *s1, int fd, const char *filename, int level);
+extern int tcc_load_dll(TCCState *s1, int fd, const char *filename, int level);
 ST_FUNC int tcc_load_ldscript(TCCState *s1);
 uint8_t *parse_comment(uint8_t *p);
 void minp(void);

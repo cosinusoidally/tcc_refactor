@@ -815,6 +815,14 @@ var CC2_ARCHIVE_SIZE_OFFSET;
 var CC2_ARCHIVE_SIZE_BYTES;
 var CC2_TCC_STATE_ALACARTE_OFFSET;
 var CC2_SEEK_CURRENT;
+var CC2_ELF_HEADER_DATA_ENCODING_OFFSET;
+var CC2_ELF_SECTION_HEADER_TYPE_OFFSET;
+var CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET;
+var CC2_ELF_SECTION_HEADER_SIZE_OFFSET;
+var CC2_ELF_SECTION_HEADER_LINK_OFFSET;
+var CC2_ELF_SYMBOL_OTHER_OFFSET;
+var CC2_DLL_REFERENCE_BYTES;
+var CC2_REFERENCED_DLL_FLAG;
 var CC2_ELF_I386_MACHINE;
 var CC2_ELF_CURRENT_VERSION;
 var CC2_ELF_CLASS_32;
@@ -7740,6 +7748,161 @@ function tcc_load_archive(state, file_descriptor)
     free(object_header);
     free(size_text);
     free(name);
+    free(header);
+    return result;
+}
+
+function cc2_dll_is_loaded(state, name)
+{
+    var references;
+    var count;
+    var index;
+    var reference;
+    references = ri32(add(state, CC2_TCC_STATE_LOADED_DLLS_OFFSET));
+    count = ri32(add(state, CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET));
+    index = 0;
+    while (lt(index, count)) {
+        reference = ri32(add(references, shl(index, 2)));
+        if (eq(strcmp(name, add(reference, CC2_DLL_REFERENCE_NAME_OFFSET)), 0)) {
+            return reference;
+        }
+        index = add(index, 1);
+    }
+    return 0;
+}
+
+/* Import one ELF32 shared library and recursively load its dependencies. */
+function tcc_load_dll(state, file_descriptor, filename, level)
+{
+    var header;
+    var section_headers;
+    var section_count;
+    var section_index;
+    var section_header;
+    var linked_section;
+    var dynamic_records;
+    var dynamic_count;
+    var dynamic_symbols;
+    var symbol_count;
+    var dynamic_strings;
+    var record;
+    var symbol;
+    var soname;
+    var name;
+    var reference;
+    var result;
+    header = malloc(CC2_ELF_HEADER_BYTES);
+    read(file_descriptor, header, CC2_ELF_HEADER_BYTES);
+    if (or(not(eq(ri8(add(header, CC2_ELF_HEADER_DATA_ENCODING_OFFSET)),
+        CC2_ELF_LITTLE_ENDIAN)), not(eq(cc2_read_little_u16(add(header,
+        CC2_ELF_HEADER_MACHINE_OFFSET)), CC2_ELF_I386_MACHINE)))) {
+        tcc_error_noabort(mks("bad architecture"));
+        free(header);
+        return sub(0, 1);
+    }
+    section_count = cc2_read_little_u16(add(header,
+        CC2_ELF_HEADER_SECTION_COUNT_OFFSET));
+    section_headers = load_data(file_descriptor, ri32(add(header,
+        CC2_ELF_HEADER_SECTION_OFFSET_OFFSET)), mul(section_count,
+        CC2_ELF_SECTION_HEADER_BYTES));
+    dynamic_records = 0;
+    dynamic_count = 0;
+    dynamic_symbols = 0;
+    symbol_count = 0;
+    dynamic_strings = 0;
+    section_index = 0;
+    while (lt(section_index, section_count)) {
+        section_header = add(section_headers, mul(section_index,
+            CC2_ELF_SECTION_HEADER_BYTES));
+        if (eq(ri32(add(section_header, CC2_ELF_SECTION_HEADER_TYPE_OFFSET)),
+            CC2_ELF_SECTION_DYNAMIC)) {
+            dynamic_count = sdiv(ri32(add(section_header,
+                CC2_ELF_SECTION_HEADER_SIZE_OFFSET)),
+                CC2_ELF_DYNAMIC_RECORD_BYTES);
+            dynamic_records = load_data(file_descriptor, ri32(add(
+                section_header, CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET)),
+                ri32(add(section_header, CC2_ELF_SECTION_HEADER_SIZE_OFFSET)));
+        }
+        if (eq(ri32(add(section_header, CC2_ELF_SECTION_HEADER_TYPE_OFFSET)),
+            CC2_ELF_SECTION_DYNAMIC_SYMBOLS)) {
+            symbol_count = sdiv(ri32(add(section_header,
+                CC2_ELF_SECTION_HEADER_SIZE_OFFSET)), CC2_ELF_SYMBOL_BYTES);
+            dynamic_symbols = load_data(file_descriptor, ri32(add(
+                section_header, CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET)),
+                ri32(add(section_header, CC2_ELF_SECTION_HEADER_SIZE_OFFSET)));
+            linked_section = add(section_headers, mul(ri32(add(section_header,
+                CC2_ELF_SECTION_HEADER_LINK_OFFSET)),
+                CC2_ELF_SECTION_HEADER_BYTES));
+            dynamic_strings = load_data(file_descriptor, ri32(add(
+                linked_section, CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET)),
+                ri32(add(linked_section, CC2_ELF_SECTION_HEADER_SIZE_OFFSET)));
+        }
+        section_index = add(section_index, 1);
+    }
+    soname = tcc_basename(filename);
+    section_index = 0;
+    while (lt(section_index, dynamic_count)) {
+        record = add(dynamic_records, mul(section_index,
+            CC2_ELF_DYNAMIC_RECORD_BYTES));
+        if (eq(ri32(add(record, CC2_ELF_DYNAMIC_TAG_OFFSET)),
+            CC2_ELF_DYNAMIC_SONAME_TAG)) {
+            soname = add(dynamic_strings, ri32(add(record,
+                CC2_ELF_DYNAMIC_VALUE_OFFSET)));
+        }
+        section_index = add(section_index, 1);
+    }
+    reference = cc2_dll_is_loaded(state, soname);
+    result = 0;
+    if (not(eq(reference, 0))) {
+        if (lt(level, ri32(add(reference, CC2_DLL_REFERENCE_LEVEL_OFFSET)))) {
+            wi32(add(reference, CC2_DLL_REFERENCE_LEVEL_OFFSET), level);
+        }
+    } else {
+        reference = calloc(1, add(CC2_DLL_REFERENCE_BYTES, strlen(soname)));
+        wi32(add(reference, CC2_DLL_REFERENCE_LEVEL_OFFSET), level);
+        strcpy(add(reference, CC2_DLL_REFERENCE_NAME_OFFSET), soname);
+        dynarray_add(add(state, CC2_TCC_STATE_LOADED_DLLS_OFFSET), add(state,
+            CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET), reference);
+        section_index = 1;
+        while (lt(section_index, symbol_count)) {
+            symbol = add(dynamic_symbols, mul(section_index,
+                CC2_ELF_SYMBOL_BYTES));
+            if (not(eq(ushr(ri8(add(symbol, CC2_ELF_SYMBOL_INFO_OFFSET)),
+                CC2_ELF_SYMBOL_BIND_SHIFT), CC2_ELF_SYMBOL_LOCAL_BINDING))) {
+                name = add(dynamic_strings, ri32(add(symbol,
+                    CC2_ELF_SYMBOL_NAME_OFFSET)));
+                set_elf_sym(ri32(add(state,
+                    CC2_TCC_STATE_LOADED_DYNAMIC_SYMBOL_TABLE_OFFSET)), ri32(add(
+                    symbol, CC2_ELF_SYMBOL_VALUE_OFFSET)), ri32(add(symbol,
+                    CC2_ELF_SYMBOL_SIZE_OFFSET)), ri8(add(symbol,
+                    CC2_ELF_SYMBOL_INFO_OFFSET)), ri8(add(symbol,
+                    CC2_ELF_SYMBOL_OTHER_OFFSET)), cc2_read_little_u16(add(
+                    symbol, CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), name);
+            }
+            section_index = add(section_index, 1);
+        }
+        section_index = 0;
+        while (and(lt(section_index, dynamic_count), eq(result, 0))) {
+            record = add(dynamic_records, mul(section_index,
+                CC2_ELF_DYNAMIC_RECORD_BYTES));
+            if (eq(ri32(add(record, CC2_ELF_DYNAMIC_TAG_OFFSET)),
+                CC2_ELF_DYNAMIC_NEEDED_TAG)) {
+                name = add(dynamic_strings, ri32(add(record,
+                    CC2_ELF_DYNAMIC_VALUE_OFFSET)));
+                if (and(eq(cc2_dll_is_loaded(state, name), 0), lt(tcc_add_dll(
+                    state, name, CC2_REFERENCED_DLL_FLAG), 0))) {
+                    tcc_error_noabort(mks("referenced dll '%s' not found"),
+                        name);
+                    result = sub(0, 1);
+                }
+            }
+            section_index = add(section_index, 1);
+        }
+    }
+    free(dynamic_strings);
+    free(dynamic_symbols);
+    free(dynamic_records);
+    free(section_headers);
     free(header);
     return result;
 }
@@ -15973,7 +16136,7 @@ function cc2_type_string_decimal(buffer, buffer_size, value)
     while (value) {
         wi8(add(digits, count), add(48, mod(value, 10)));
         count = add(count, 1);
-        value = div(value, 10);
+        value = sdiv(value, 10);
     }
     if (negative) {
         cc2_type_string_append(buffer, buffer_size, mks("-"));
@@ -20027,6 +20190,14 @@ function cc2_init_constants()
     CC2_ARCHIVE_SIZE_BYTES = 10;
     CC2_TCC_STATE_ALACARTE_OFFSET = 28;
     CC2_SEEK_CURRENT = 1;
+    CC2_ELF_HEADER_DATA_ENCODING_OFFSET = 5;
+    CC2_ELF_SECTION_HEADER_TYPE_OFFSET = 4;
+    CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET = 16;
+    CC2_ELF_SECTION_HEADER_SIZE_OFFSET = 20;
+    CC2_ELF_SECTION_HEADER_LINK_OFFSET = 24;
+    CC2_ELF_SYMBOL_OTHER_OFFSET = 13;
+    CC2_DLL_REFERENCE_BYTES = 12;
+    CC2_REFERENCED_DLL_FLAG = 32;
     CC2_ELF_I386_MACHINE = 3;
     CC2_ELF_CURRENT_VERSION = 1;
     CC2_ELF_CLASS_32 = 1;
