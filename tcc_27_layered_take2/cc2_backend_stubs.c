@@ -154,7 +154,37 @@ function cc2_dlsym_default(name)
     return 0;
 }
 
-function gen_cast_constant(type)
+function cc2_float_promote(value, source_basic)
+{
+    return 0;
+}
+
+function cc2_integer64_to_long_double(value, is_unsigned)
+{
+    return 0;
+}
+
+function cc2_integer32_to_long_double(value, is_unsigned)
+{
+    return 0;
+}
+
+function cc2_float_narrow(value, destination_basic)
+{
+    return 0;
+}
+
+function cc2_long_double_to_unsigned64(value)
+{
+    return 0;
+}
+
+function cc2_long_double_to_signed64(value)
+{
+    return 0;
+}
+
+function cc2_long_double_nonzero(value)
 {
     return 0;
 }

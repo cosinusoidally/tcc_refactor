@@ -15850,6 +15850,108 @@ function force_charshort_cast(type)
     return force_charshort_cast_(type, 0, 0, 0);
 }
 
+function gen_cast_constant(type)
+{
+    var destination_type;
+    var source_type;
+    var destination_basic;
+    var source_basic;
+    var destination_float;
+    var source_float;
+    var value;
+    var low;
+    var high;
+    var mask;
+    var sign_bit;
+    destination_type = and(ri32(type), or(CC2_TCC_BASIC_TYPE_MASK,
+        CC2_TCC_UNSIGNED_TYPE));
+    source_type = and(ri32(vtop), or(CC2_TCC_BASIC_TYPE_MASK,
+        CC2_TCC_UNSIGNED_TYPE));
+    destination_basic = and(destination_type, CC2_TCC_BASIC_TYPE_MASK);
+    source_basic = and(source_type, CC2_TCC_BASIC_TYPE_MASK);
+    destination_float = is_float(destination_type);
+    source_float = is_float(source_type);
+    value = add(vtop, CC2_SVALUE_CONSTANT_OFFSET);
+    if (or(eq(source_basic, CC2_TCC_FLOAT_TYPE),
+        eq(source_basic, CC2_TCC_DOUBLE_TYPE))) {
+        cc2_float_promote(value, source_basic);
+    }
+    if (destination_float) {
+        if (eq(source_basic, CC2_TCC_LONG_LONG_TYPE)) {
+            cc2_integer64_to_long_double(value,
+                not(eq(and(source_type, CC2_TCC_UNSIGNED_TYPE), 0)));
+        } else if (not(source_float)) {
+            cc2_integer32_to_long_double(value,
+                not(eq(and(source_type, CC2_TCC_UNSIGNED_TYPE), 0)));
+        }
+        if (or(eq(destination_basic, CC2_TCC_FLOAT_TYPE),
+            eq(destination_basic, CC2_TCC_DOUBLE_TYPE))) {
+            cc2_float_narrow(value, destination_basic);
+        }
+        return 0;
+    }
+    if (source_float) {
+        if (and(eq(destination_basic, CC2_TCC_LONG_LONG_TYPE),
+            and(destination_type, CC2_TCC_UNSIGNED_TYPE))) {
+            cc2_long_double_to_unsigned64(value);
+        } else if (eq(destination_type, CC2_TCC_BOOLEAN_TYPE)) {
+            low = cc2_long_double_nonzero(value);
+            wi32(value, low);
+            wi32(add(value, 4), 0);
+            return 0;
+        } else {
+            cc2_long_double_to_signed64(value);
+        }
+    } else {
+        low = ri32(value);
+        if (eq(source_basic, CC2_TCC_LONG_LONG_TYPE)) {
+            high = ri32(add(value, 4));
+        } else if (and(source_type, CC2_TCC_UNSIGNED_TYPE)) {
+            high = 0;
+        } else if (lt(low, 0)) {
+            high = sub(0, 1);
+        } else {
+            high = 0;
+        }
+        wi32(value, low);
+        wi32(add(value, 4), high);
+    }
+    low = ri32(value);
+    high = ri32(add(value, 4));
+    if (and(eq(destination_basic, CC2_TCC_LONG_LONG_TYPE),
+        and(destination_type, CC2_TCC_UNSIGNED_TYPE))) {
+        return 0;
+    }
+    if (eq(destination_type, CC2_TCC_BOOLEAN_TYPE)) {
+        wi32(value, not(eq(or(low, high), 0)));
+        wi32(add(value, 4), 0);
+        return 0;
+    }
+    if (not(eq(destination_basic, CC2_TCC_LONG_LONG_TYPE))) {
+        if (eq(destination_basic, CC2_TCC_BYTE_TYPE)) {
+            mask = sub(shl(1, 8), 1);
+            sign_bit = shl(1, 7);
+        } else if (eq(destination_basic, CC2_TCC_SHORT_TYPE)) {
+            mask = CC2_UNSIGNED_SHORT_MASK;
+            sign_bit = shl(1, 15);
+        } else {
+            mask = sub(0, 1);
+            sign_bit = CC2_SIGNED_INT_LIMIT_LOW;
+        }
+        low = and(low, mask);
+        if (and(eq(and(destination_type, CC2_TCC_UNSIGNED_TYPE), 0),
+            and(low, sign_bit))) {
+            low = or(low, bnot(mask));
+            high = sub(0, 1);
+        } else {
+            high = 0;
+        }
+        wi32(value, low);
+        wi32(add(value, 4), high);
+    }
+    return 0;
+}
+
 function gen_cast_s_(type_value, type)
 {
     type = malloc(8);

@@ -207,79 +207,57 @@ int cc2_float_divide(int left, int right, int basic_type)
         *(long double *)left /= *(long double *)right;
     return 0;
 }
-/* Convert an already-classified constant without generating target code.
-   cc2 owns cast policy; this primitive only accesses C's 64-bit and floating
-   representations, which the scalar cc0 dialect cannot express directly. */
-void gen_cast_constant(CType *type)
+int cc2_float_promote(int value, int source_basic)
 {
-    int sbt, dbt, sf, df;
+    if (source_basic == VT_FLOAT)
+        *(long double *)value = *(float *)value;
+    else
+        *(long double *)value = *(double *)value;
+    return 0;
+}
 
-    dbt = type->t & (VT_BTYPE | VT_UNSIGNED);
-    sbt = vtop->type.t & (VT_BTYPE | VT_UNSIGNED);
-    sf = is_float(sbt);
-    df = is_float(dbt);
-#if !defined TCC_IS_NATIVE && !defined TCC_IS_NATIVE_387
-    if (dbt == VT_LDOUBLE)
-        tcc_error("long double constant conversion is unavailable");
-#endif
-    if (sbt == VT_FLOAT)
-        vtop->c.ld = vtop->c.f;
-    else if (sbt == VT_DOUBLE)
-        vtop->c.ld = vtop->c.d;
+int cc2_integer64_to_long_double(int value, int is_unsigned)
+{
+    if (is_unsigned)
+        *(long double *)value = *(unsigned long long *)value;
+    else
+        *(long double *)value = *(long long *)value;
+    return 0;
+}
 
-    if (df) {
-        if ((sbt & VT_BTYPE) == VT_LLONG) {
-            if ((sbt & VT_UNSIGNED) || !(vtop->c.i >> 63))
-                vtop->c.ld = vtop->c.i;
-            else
-                vtop->c.ld = -(long double)-vtop->c.i;
-        } else if(!sf) {
-            if ((sbt & VT_UNSIGNED) || !(vtop->c.i >> 31))
-                vtop->c.ld = (uint32_t)vtop->c.i;
-            else
-                vtop->c.ld = -(long double)-(uint32_t)vtop->c.i;
-        }
+int cc2_integer32_to_long_double(int value, int is_unsigned)
+{
+    if (is_unsigned)
+        *(long double *)value = *(unsigned int *)value;
+    else
+        *(long double *)value = *(int *)value;
+    return 0;
+}
 
-        if (dbt == VT_FLOAT)
-            vtop->c.f = (float)vtop->c.ld;
-        else if (dbt == VT_DOUBLE)
-            vtop->c.d = (double)vtop->c.ld;
-    } else if (sf && dbt == (VT_LLONG|VT_UNSIGNED)) {
-        vtop->c.i = vtop->c.ld;
-    } else if (sf && dbt == VT_BOOL) {
-        vtop->c.i = (vtop->c.ld != 0);
-    } else {
-        if(sf)
-            vtop->c.i = vtop->c.ld;
-        else if (sbt == (VT_LLONG|VT_UNSIGNED))
-            ;
-        else if (sbt & VT_UNSIGNED)
-            vtop->c.i = (uint32_t)vtop->c.i;
-#if PTR_SIZE == 8
-        else if (sbt == VT_PTR)
-            ;
-#endif
-        else if (sbt != VT_LLONG)
-            vtop->c.i = ((uint32_t)vtop->c.i |
-                          -(vtop->c.i & 0x80000000));
+int cc2_float_narrow(int value, int destination_basic)
+{
+    if (destination_basic == VT_FLOAT)
+        *(float *)value = *(long double *)value;
+    else
+        *(double *)value = *(long double *)value;
+    return 0;
+}
 
-        if (dbt == (VT_LLONG|VT_UNSIGNED))
-            ;
-        else if (dbt == VT_BOOL)
-            vtop->c.i = (vtop->c.i != 0);
-#if PTR_SIZE == 8
-        else if (dbt == VT_PTR)
-            ;
-#endif
-        else if (dbt != VT_LLONG) {
-            uint32_t m = ((dbt & VT_BTYPE) == VT_BYTE ? 0xff :
-                          (dbt & VT_BTYPE) == VT_SHORT ? 0xffff :
-                          0xffffffff);
-            vtop->c.i &= m;
-            if (!(dbt & VT_UNSIGNED))
-                vtop->c.i |= -(vtop->c.i & ((m >> 1) + 1));
-        }
-    }
+int cc2_long_double_to_unsigned64(int value)
+{
+    *(unsigned long long *)value = *(long double *)value;
+    return 0;
+}
+
+int cc2_long_double_to_signed64(int value)
+{
+    *(long long *)value = *(long double *)value;
+    return 0;
+}
+
+int cc2_long_double_nonzero(int value)
+{
+    return *(long double *)value != 0;
 }
 
 /* Bind legacy typed storage while cc2 owns its initialization policy. */
@@ -321,16 +299,6 @@ int cc2_preprocess_start_bridge(TCCState *state, int is_asm)
     return 0;
 }
 
-ST_FUNC void preprocess_start(TCCState *state, int is_asm)
-{
-    cc2_preprocess_start_bridge(state, is_asm);
-}
-
-ST_FUNC void tccpp_new(TCCState *state)
-{
-    cc2_tccpp_new_bridge(state);
-}
-
 int cc2_tccpp_new_bridge(TCCState *state)
 {
     cc2_bind_preprocessor_state();
@@ -347,12 +315,6 @@ int cc2_tcc_state_slot(void)
 int cc2_tcc_state_count_slot(void)
 {
     return (int)&nb_states;
-}
-
-/* Preserve the pointer-to-pointer shape while cc2 owns flag semantics. */
-int no_flag(const char **text)
-{
-    return cc2_no_flag((int)text);
 }
 
 int cc2_stderr(void)
@@ -435,11 +397,6 @@ PUB_FUNC void tcc_warning(const char *format, ...)
 int cc2_tcc_preprocess_bridge(TCCState *state)
 {
     return cc2_tcc_preprocess((int)state);
-}
-
-ST_FUNC int tcc_preprocess(TCCState *state)
-{
-    return cc2_tcc_preprocess_bridge(state);
 }
 
 /* Address-taking for legacy typed globals is outside the cc0 dialect. */
