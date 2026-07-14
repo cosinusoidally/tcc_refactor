@@ -482,6 +482,7 @@ int cc2_bind_tcc_globals(TCCState *state)
     bss_section_address = &bss_section;
     common_section_address = &common_section;
     text_section_address = &text_section;
+    last_text_section_address = &last_text_section;
     stab_section_address = &stab_section;
     stabstr_section_address = &stabstr_section;
     tcc_state_address = state;

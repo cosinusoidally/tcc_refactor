@@ -613,6 +613,7 @@ var cur_text_section_address;
 var bss_section_address;
 var common_section_address;
 var text_section_address;
+var last_text_section_address;
 var stab_section_address;
 var stabstr_section_address;
 var tcc_state_address;
@@ -7311,6 +7312,117 @@ function asm_parse_code_mode(state, bits)
 {
     next();
     wi32(add(state, CC2_TCC_STATE_SEGMENT_SIZE_OFFSET), bits);
+    return 0;
+}
+
+function asm_parse_type_(state, symbol, new_type, type_value)
+{
+    next();
+    symbol = get_asm_sym(ri32(tok_address), 0);
+    next();
+    skip(mkC(","));
+    if (eq(ri32(tok_address), CC2_TOKEN_STRING)) {
+        new_type = ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET));
+    } else {
+        if (or(eq(ri32(tok_address), mkC("@")),
+            eq(ri32(tok_address), CC2_ASCII_PERCENT))) {
+            next();
+        }
+        new_type = get_tok_str(ri32(tok_address), 0);
+    }
+    type_value = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
+    if (or(eq(strcmp(new_type, mks("function")), 0),
+        eq(strcmp(new_type, mks("STT_FUNC")), 0))) {
+        wi32(add(symbol, CC2_SYM_TYPE_OFFSET), or(and(type_value,
+            bnot(CC2_TCC_BASIC_TYPE_MASK)), CC2_TCC_FUNCTION_TYPE));
+    } else if (ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
+        tcc_warning(mks("change type of '%s' from 0x%x to '%s' ignored"),
+            get_tok_str(ri32(symbol), 0), type_value, new_type);
+    }
+    next();
+    return 0;
+}
+
+function asm_parse_type(state)
+{
+    return asm_parse_type_(state, 0, 0, 0);
+}
+
+function asm_parse_section_(state, push, old_count, string, text, current,
+    new_count)
+{
+    old_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    next();
+    string = malloc(CC2_CSTRING_BYTES);
+    cstr_new(string);
+    while (and(not(eq(ri32(tok_address), mkC(";"))), and(
+        not(eq(ri32(tok_address), CC2_CHARACTER_LINE_FEED)),
+        not(eq(ri32(tok_address), mkC(",")))))) {
+        text = cc2_asm_current_token_text();
+        cstr_cat(string, text, strlen(text));
+        next();
+    }
+    cstr_ccat(string, 0);
+    if (eq(ri32(tok_address), mkC(","))) {
+        next();
+        if (not(eq(ri32(tok_address), CC2_TOKEN_STRING))) {
+            expect(mks("string constant"));
+        }
+        next();
+        if (eq(ri32(tok_address), mkC(","))) {
+            next();
+            if (or(eq(ri32(tok_address), mkC("@")),
+                eq(ri32(tok_address), CC2_ASCII_PERCENT))) {
+                next();
+            }
+            next();
+        }
+    }
+    current = ri32(cur_text_section_address);
+    wi32(last_text_section_address, current);
+    text = ri32(add(string, CC2_CSTRING_DATA_OFFSET));
+    if (push) {
+        push_section(state, text);
+    } else {
+        use_section(state, text);
+    }
+    new_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    if (not(eq(old_count, new_count))) {
+        current = ri32(cur_text_section_address);
+        wi32(add(current, CC2_SECTION_ALIGNMENT_OFFSET), 1);
+    }
+    cstr_free(string);
+    free(string);
+    return 0;
+}
+
+function asm_parse_section(state, push)
+{
+    return asm_parse_section_(state, push, 0, 0, 0, 0, 0);
+}
+
+function asm_parse_previous_(state, previous, current)
+{
+    next();
+    previous = ri32(last_text_section_address);
+    if (eq(previous, 0)) {
+        tcc_error(mks("no previous section referenced"), 0);
+    }
+    current = ri32(cur_text_section_address);
+    use_section1(state, previous);
+    wi32(last_text_section_address, current);
+    return 0;
+}
+
+function asm_parse_previous(state)
+{
+    return asm_parse_previous_(state, 0, 0);
+}
+
+function asm_parse_popsection(state)
+{
+    next();
+    pop_section(state);
     return 0;
 }
 

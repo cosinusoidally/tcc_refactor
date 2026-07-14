@@ -1285,6 +1285,7 @@ extern Section **cur_text_section_address;
 extern Section **bss_section_address;
 extern Section **common_section_address;
 extern Section **text_section_address;
+extern Section **last_text_section_address;
 extern Section **stab_section_address;
 extern Section **stabstr_section_address;
 extern TCCState *tcc_state_address;
@@ -1721,6 +1722,10 @@ extern int asm_parse_size(TCCState *s1);
 extern int asm_parse_set(TCCState *s1, int label);
 extern int asm_parse_symbol_binding(int is_weak, int is_hidden);
 extern int asm_parse_code_mode(TCCState *s1, int bits);
+extern int asm_parse_type(TCCState *s1);
+extern int asm_parse_section(TCCState *s1, int push);
+extern int asm_parse_previous(TCCState *s1);
+extern int asm_parse_popsection(TCCState *s1);
 ST_FUNC int tcc_assemble(TCCState *s1, int do_preprocess);
 /* ------------ i386-asm.c ------------ */
 extern void gen_expr32(ExprValue *pe);

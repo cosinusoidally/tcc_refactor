@@ -126,89 +126,18 @@ static void asm_parse_directive(TCCState *s1, int global)
         asm_parse_size(s1);
         break;
     case TOK_ASMDIR_type:
-        { 
-            Sym *sym;
-            const char *newtype;
-
-            next();
-            sym = get_asm_sym(tok, NULL);
-            next();
-            skip(',');
-            if (tok == TOK_STR) {
-                newtype = tokc.str.data;
-            } else {
-                if (tok == '@' || tok == '%')
-                    next();
-                newtype = get_tok_str(tok, NULL);
-            }
-
-            if (!strcmp(newtype, "function") || !strcmp(newtype, "STT_FUNC")) {
-                sym->type.t = (sym->type.t & ~VT_BTYPE) | VT_FUNC;
-            }
-            else if (s1->warn_unsupported)
-                tcc_warning("change type of '%s' from 0x%x to '%s' ignored", 
-                    get_tok_str(sym->v, NULL), sym->type.t, newtype);
-
-            next();
-        }
+        asm_parse_type(s1);
         break;
     case TOK_ASMDIR_pushsection:
     case TOK_ASMDIR_section:
-        {
-            char sname[256];
-	    int old_nb_section = s1->nb_sections;
-
-	    tok1 = tok;
-            /* XXX: support more options */
-            next();
-            sname[0] = '\0';
-            while (tok != ';' && tok != TOK_LINEFEED && tok != ',') {
-                if (tok == TOK_STR)
-                    pstrcat(sname, sizeof(sname), tokc.str.data);
-                else
-                    pstrcat(sname, sizeof(sname), get_tok_str(tok, NULL));
-                next();
-            }
-            if (tok == ',') {
-                /* skip section options */
-                next();
-                if (tok != TOK_STR)
-                    expect("string constant");
-                next();
-                if (tok == ',') {
-                    next();
-                    if (tok == '@' || tok == '%')
-                        next();
-                    next();
-                }
-            }
-            last_text_section = cur_text_section;
-	    if (tok1 == TOK_ASMDIR_section)
-	        use_section(s1, sname);
-	    else
-	        push_section(s1, sname);
-	    /* If we just allocated a new section reset its alignment to
-	       1.  new_section normally acts for GCC compatibility and
-	       sets alignment to PTR_SIZE.  The assembler behaves different. */
-	    if (old_nb_section != s1->nb_sections)
-	        cur_text_section->sh_addralign = 1;
-        }
+        asm_parse_section(s1, tok == TOK_ASMDIR_pushsection);
         break;
     case TOK_ASMDIR_previous:
-        { 
-            Section *sec;
-            next();
-            if (!last_text_section)
-                tcc_error("no previous section referenced");
-            sec = cur_text_section;
-            use_section1(s1, last_text_section);
-            last_text_section = sec;
-        }
+        asm_parse_previous(s1);
         break;
     case TOK_ASMDIR_popsection:
-	next();
-	pop_section(s1);
-	break;
+        asm_parse_popsection(s1);
+        break;
     case TOK_ASMDIR_code16:
         asm_parse_code_mode(s1, 16);
         break;
