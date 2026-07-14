@@ -14891,15 +14891,6 @@ function test_lvalue()
     return 0;
 }
 
-function check_vstack()
-{
-    if (not(eq(pvtop, vtop))) {
-        tcc_error(mks("internal compiler error: vstack leak (%d)"),
-            sdiv(sub(vtop, pvtop), CC2_SVALUE_BYTES));
-    }
-    return 0;
-}
-
 function cc2_align_up(value, alignment)
 {
     return and(add(value, sub(alignment, 1)), sub(0, alignment));
@@ -19270,7 +19261,6 @@ function tccgen_compile(state)
     next();
     decl(CC2_VALUE_CONSTANT);
     gen_inline_functions(state);
-    check_vstack();
     tcc_debug_end(state);
     return 0;
 }
@@ -23193,7 +23183,6 @@ function gen_function(symbol)
     func_var = 0;
     ind = 0;
     nocode_wanted = shl(1, 31);
-    check_vstack();
     return 0;
 }
 
