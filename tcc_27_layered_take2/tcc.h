@@ -1156,6 +1156,7 @@ extern int ch;
 extern int tok;
 extern int *tok_address;
 extern int *gnu_ext_address;
+extern int *tcc_ext_address;
 extern int *parse_flags_address;
 extern BufferedFile **file_address;
 extern Section **symtab_section_address;

@@ -439,6 +439,11 @@ var CC2_TOKEN_BUILTIN_DATE;
 var CC2_TOKEN_BUILTIN_TIME;
 var CC2_TOKEN_BUILTIN_COUNTER;
 var CC2_LOCAL_TIME_FIELDS;
+var CC2_NUMBER_TEXT_BYTES;
+var CC2_NUMBER_WORDS;
+var CC2_SIGNED_INT_LIMIT_LOW;
+var CC2_ONE_WORD_HIGH;
+var CC2_SIGNED_WIDE_LIMIT_HIGH;
 var CC2_PARSE_FLAG_SPACES;
 var CC2_PARSE_FLAG_LINE_FEED;
 var CC2_PARSE_FLAG_PREPROCESS;
@@ -609,6 +614,7 @@ var common_section_address;
 var text_section_address;
 var tcc_state_address;
 var gnu_ext_address;
+var tcc_ext_address;
 var parse_flags_address;
 var file_address;
 var macro_ptr;
@@ -2923,6 +2929,350 @@ function macro_subst_tok(output, nested_list, symbol)
 {
     return macro_subst_tok_(output, nested_list, symbol, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_number_digit(character)
+{
+    if (and(not(lt(character, mkC("0"))),
+        not(lt(mkC("9"), character)))) {
+        return sub(character, mkC("0"));
+    }
+    if (and(not(lt(character, mkC("a"))),
+        not(lt(mkC("f"), character)))) {
+        return add(sub(character, mkC("a")), 10);
+    }
+    if (and(not(lt(character, mkC("A"))),
+        not(lt(mkC("F"), character)))) {
+        return add(sub(character, mkC("A")), 10);
+    }
+    return sub(0, 1);
+}
+
+function cc2_number_append(buffer, output, character)
+{
+    if (not(lt(sub(output, buffer), sub(CC2_NUMBER_TEXT_BYTES, 1)))) {
+        tcc_error(mks("number too long"), 0);
+    }
+    wi8(output, character);
+    return add(output, 1);
+}
+
+function parse_number_(text, pointer, buffer, output, words, character,
+    first, digit, base, shift, fraction_bits, exponent_sign, exponent,
+    suffix, long_count, unsigned_count, overflow, started_with_dot,
+    suffix_start)
+{
+    buffer = malloc(CC2_NUMBER_TEXT_BYTES);
+    words = malloc(mul(CC2_NUMBER_WORDS, CC2_I386_WORD_BYTES));
+    pointer = text;
+    character = ri8(pointer);
+    pointer = add(pointer, 1);
+    first = character;
+    character = ri8(pointer);
+    pointer = add(pointer, 1);
+    output = buffer;
+    output = cc2_number_append(buffer, output, first);
+    base = 10;
+    started_with_dot = eq(first, mkC("."));
+    if (eq(first, mkC("0"))) {
+        if (or(eq(character, mkC("x")), eq(character, mkC("X")))) {
+            output = sub(output, 1);
+            character = ri8(pointer);
+            pointer = add(pointer, 1);
+            base = 16;
+        } else if (and(ri32(tcc_ext_address),
+            or(eq(character, mkC("b")), eq(character, mkC("B"))))) {
+            output = sub(output, 1);
+            character = ri8(pointer);
+            pointer = add(pointer, 1);
+            base = 2;
+        }
+    }
+    if (not(started_with_dot)) {
+        while (1) {
+            digit = cc2_number_digit(character);
+            if (or(lt(digit, 0), not(lt(digit, base)))) {
+                break;
+            }
+            output = cc2_number_append(buffer, output, character);
+            character = ri8(pointer);
+            pointer = add(pointer, 1);
+        }
+    }
+    if (or(started_with_dot, or(eq(character, mkC(".")), or(and(eq(base, 10),
+        or(eq(character, mkC("e")), eq(character, mkC("E")))), and(
+        or(eq(base, 16), eq(base, 2)), or(eq(character, mkC("p")),
+        eq(character, mkC("P")))))))) {
+        if (not(eq(base, 10))) {
+            wi8(output, 0);
+            if (eq(base, 16)) {
+                shift = 4;
+            } else {
+                shift = 1;
+            }
+            cc0_number_zero(words);
+            output = buffer;
+            while (ri8(output)) {
+                cc0_number_lshift(words, shift,
+                    cc2_number_digit(ri8(output)));
+                output = add(output, 1);
+            }
+            fraction_bits = 0;
+            if (eq(character, mkC("."))) {
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+                while (not(lt(cc2_number_digit(character), 0))) {
+                    digit = cc2_number_digit(character);
+                    if (not(lt(digit, base))) {
+                        tcc_error(mks("invalid digit"), 0);
+                    }
+                    cc0_number_lshift(words, shift, digit);
+                    fraction_bits = add(fraction_bits, shift);
+                    character = ri8(pointer);
+                    pointer = add(pointer, 1);
+                }
+            }
+            if (and(not(eq(character, mkC("p"))),
+                not(eq(character, mkC("P"))))) {
+                expect(mks("exponent"));
+            }
+            character = ri8(pointer);
+            pointer = add(pointer, 1);
+            exponent_sign = 1;
+            exponent = 0;
+            if (eq(character, mkC("+"))) {
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+            } else if (eq(character, mkC("-"))) {
+                exponent_sign = sub(0, 1);
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+            }
+            if (lt(cc2_number_digit(character), 0)) {
+                expect(mks("exponent digits"));
+            }
+            while (and(not(lt(character, mkC("0"))),
+                not(lt(mkC("9"), character)))) {
+                exponent = add(mul(exponent, 10), sub(character, mkC("0")));
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+            }
+            exponent = sub(mul(exponent, exponent_sign), fraction_bits);
+            suffix = cc0_to_upper(character);
+            if (eq(suffix, mkC("F"))) {
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+                wi32(tok_address, CC2_TOKEN_FLOAT_CONSTANT);
+                store_ldexp_float(tokc_address, words, exponent);
+            } else if (eq(suffix, mkC("L"))) {
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+                wi32(tok_address, CC2_TOKEN_LONG_DOUBLE_CONSTANT);
+                store_ldexp_long_double(tokc_address, words, exponent);
+            } else {
+                wi32(tok_address, CC2_TOKEN_DOUBLE_CONSTANT);
+                store_ldexp_double(tokc_address, words, exponent);
+            }
+        } else {
+            if (eq(character, mkC("."))) {
+                output = cc2_number_append(buffer, output, character);
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+            }
+            while (and(not(lt(character, mkC("0"))),
+                not(lt(mkC("9"), character)))) {
+                output = cc2_number_append(buffer, output, character);
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+            }
+            if (or(eq(character, mkC("e")), eq(character, mkC("E")))) {
+                output = cc2_number_append(buffer, output, character);
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+                if (or(eq(character, mkC("-")),
+                    eq(character, mkC("+")))) {
+                    output = cc2_number_append(buffer, output, character);
+                    character = ri8(pointer);
+                    pointer = add(pointer, 1);
+                }
+                if (or(lt(character, mkC("0")),
+                    lt(mkC("9"), character))) {
+                    expect(mks("exponent digits"));
+                }
+                while (and(not(lt(character, mkC("0"))),
+                    not(lt(mkC("9"), character)))) {
+                    output = cc2_number_append(buffer, output, character);
+                    character = ri8(pointer);
+                    pointer = add(pointer, 1);
+                }
+            }
+            wi8(output, 0);
+            suffix = cc0_to_upper(character);
+            if (eq(suffix, mkC("F"))) {
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+                wi32(tok_address, CC2_TOKEN_FLOAT_CONSTANT);
+                store_strtof(tokc_address, buffer);
+            } else if (eq(suffix, mkC("L"))) {
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+                wi32(tok_address, CC2_TOKEN_LONG_DOUBLE_CONSTANT);
+                store_strtold(tokc_address, buffer);
+            } else {
+                wi32(tok_address, CC2_TOKEN_DOUBLE_CONSTANT);
+                store_strtod(tokc_address, buffer);
+            }
+        }
+    } else {
+        wi8(output, 0);
+        output = buffer;
+        if (and(eq(base, 10), eq(ri8(output), mkC("0")))) {
+            base = 8;
+            output = add(output, 1);
+        }
+        cc0_number_zero(words);
+        overflow = 0;
+        while (ri8(output)) {
+            digit = cc2_number_digit(ri8(output));
+            if (not(lt(digit, base))) {
+                tcc_error(mks("invalid digit"), 0);
+            }
+            if (u64_mul_add(words, base, digit)) {
+                overflow = 1;
+            }
+            output = add(output, 1);
+        }
+        long_count = 0;
+        unsigned_count = 0;
+        suffix_start = pointer;
+        while (1) {
+            suffix = cc0_to_upper(character);
+            if (eq(suffix, mkC("L"))) {
+                if (not(lt(long_count, 2))) {
+                    tcc_error(mks("three 'l's in integer constant"), 0);
+                }
+                if (and(long_count,
+                    not(eq(ri8(sub(pointer, 1)), character)))) {
+                    tcc_error(mks("incorrect integer suffix: %s"),
+                        suffix_start);
+                }
+                long_count = add(long_count, 1);
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+            } else if (eq(suffix, mkC("U"))) {
+                if (unsigned_count) {
+                    tcc_error(mks("two 'u's in integer constant"), 0);
+                }
+                unsigned_count = 1;
+                character = ri8(pointer);
+                pointer = add(pointer, 1);
+            } else {
+                break;
+            }
+        }
+        if (and(eq(unsigned_count, 0), eq(base, 10))) {
+            if (and(not(lt(1, long_count)),
+                u64_ge(words, CC2_SIGNED_INT_LIMIT_LOW, 0))) {
+                long_count = 2;
+            }
+            if (u64_ge(words, 0, CC2_SIGNED_WIDE_LIMIT_HIGH)) {
+                overflow = 1;
+                unsigned_count = 1;
+            }
+        } else {
+            if (not(lt(1, long_count))) {
+                if (u64_ge(words, 0, CC2_ONE_WORD_HIGH)) {
+                    long_count = 2;
+                } else if (u64_ge(words, CC2_SIGNED_INT_LIMIT_LOW, 0)) {
+                    unsigned_count = 1;
+                }
+            }
+            if (u64_ge(words, 0, CC2_SIGNED_WIDE_LIMIT_HIGH)) {
+                unsigned_count = 1;
+            }
+        }
+        if (overflow) {
+            tcc_warning(mks("integer constant overflow"), 0);
+        }
+        wi32(tok_address, CC2_TOKEN_INTEGER_CONSTANT);
+        if (long_count) {
+            wi32(tok_address, CC2_TOKEN_LONG_CONSTANT);
+            if (eq(long_count, 2)) {
+                wi32(tok_address, CC2_TOKEN_LONG_LONG_CONSTANT);
+            }
+        }
+        if (unsigned_count) {
+            wi32(tok_address, add(ri32(tok_address), 1));
+        }
+        wi32(tokc_address, ri32(words));
+        wi32(add(tokc_address, CC2_I386_WORD_BYTES),
+            ri32(add(words, CC2_I386_WORD_BYTES)));
+    }
+    if (character) {
+        tcc_error(mks("invalid number"), 0);
+    }
+    free(words);
+    free(buffer);
+    return 0;
+}
+
+function parse_number(text)
+{
+    return parse_number_(text, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0);
+}
+
+function next_(nested_list, symbol)
+{
+    while (1) {
+        if (and(ri32(parse_flags_address), CC2_PARSE_FLAG_SPACES)) {
+            next_nomacro_spc();
+        } else {
+            next_nomacro();
+        }
+        if (macro_ptr) {
+            if (or(eq(ri32(tok_address), CC2_TOKEN_NO_SUBSTITUTION),
+                eq(ri32(tok_address), CC2_TOKEN_PLACEHOLDER))) {
+                continue;
+            }
+            if (eq(ri32(tok_address), 0)) {
+                end_macro();
+                continue;
+            }
+        } else if (and(not(lt(ri32(tok_address),
+            CC2_TOKEN_IDENTIFIER_BASE)), and(ri32(parse_flags_address),
+            CC2_PARSE_FLAG_PREPROCESS))) {
+            symbol = define_find(ri32(tok_address));
+            if (symbol) {
+                nested_list = malloc(CC2_I386_WORD_BYTES);
+                wi32(nested_list, 0);
+                wi32(add(tokstr_buf_address, CC2_TOKEN_STRING_LENGTH_OFFSET),
+                    0);
+                macro_subst_tok(tokstr_buf_address, nested_list, symbol);
+                tok_str_add(tokstr_buf_address, 0);
+                begin_macro(tokstr_buf_address, 2);
+                free(nested_list);
+                continue;
+            }
+        }
+        break;
+    }
+    if (eq(ri32(tok_address), CC2_TOKEN_PREPROCESSOR_NUMBER)) {
+        if (and(ri32(parse_flags_address), CC2_PARSE_FLAG_TOKEN_NUMBERS)) {
+            parse_number(ri32(add(tokc_address, CC2_I386_WORD_BYTES)));
+        }
+    } else if (eq(ri32(tok_address), CC2_TOKEN_PREPROCESSOR_STRING)) {
+        if (and(ri32(parse_flags_address), CC2_PARSE_FLAG_TOKEN_STRINGS)) {
+            parse_string(ri32(add(tokc_address, CC2_I386_WORD_BYTES)),
+                sub(ri32(tokc_address), 1));
+        }
+    }
+    return 0;
+}
+
+function next()
+{
+    return next_(0, 0);
 }
 
 /* Keep preprocessor output tokens textually separate where concatenation
@@ -16401,6 +16751,11 @@ function cc2_init_constants()
     CC2_TOKEN_BUILTIN_TIME = 330;
     CC2_TOKEN_BUILTIN_COUNTER = 333;
     CC2_LOCAL_TIME_FIELDS = 6;
+    CC2_NUMBER_TEXT_BYTES = 1025;
+    CC2_NUMBER_WORDS = 2;
+    CC2_SIGNED_INT_LIMIT_LOW = 2147483648;
+    CC2_ONE_WORD_HIGH = 1;
+    CC2_SIGNED_WIDE_LIMIT_HIGH = 2147483648;
     CC2_PARSE_FLAG_SPACES = 16;
     CC2_PARSE_FLAG_LINE_FEED = 4;
     CC2_PARSE_FLAG_PREPROCESS = 1;

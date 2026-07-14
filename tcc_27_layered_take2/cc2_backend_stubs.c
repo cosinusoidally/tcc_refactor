@@ -163,6 +163,46 @@ function cc2_local_time(fields)
     return 0;
 }
 
+function u64_mul_add(words, base, digit)
+{
+    return 0;
+}
+
+function u64_ge(words, low, high)
+{
+    return 0;
+}
+
+function store_strtof(destination, text)
+{
+    return 0;
+}
+
+function store_strtod(destination, text)
+{
+    return 0;
+}
+
+function store_strtold(destination, text)
+{
+    return 0;
+}
+
+function store_ldexp_float(destination, words, exponent)
+{
+    return 0;
+}
+
+function store_ldexp_double(destination, words, exponent)
+{
+    return 0;
+}
+
+function store_ldexp_long_double(destination, words, exponent)
+{
+    return 0;
+}
+
 function put_extern_sym(symbol, section, offset, size)
 {
     return 0;

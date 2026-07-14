@@ -403,6 +403,7 @@ int cc2_bind_preprocessor_state(void)
     tok_address = &tok;
     tokc_address = &tokc;
     gnu_ext_address = &gnu_ext;
+    tcc_ext_address = &tcc_ext;
     tokstr_buf_address = &tokstr_buf;
     isidnum_table_address = isidnum_table;
     pp_debug_tok_address = &pp_debug_tok;
@@ -471,6 +472,72 @@ int cc2_local_time(int *fields)
     fields[3] = local->tm_mday;
     fields[4] = local->tm_mon;
     fields[5] = local->tm_year;
+    return 0;
+}
+
+/* These primitives expose representations that scalar cc2 code cannot
+   express; all literal syntax, suffix, overflow, and type policy stays cc2. */
+int u64_mul_add(unsigned *words, unsigned base, unsigned digit)
+{
+    unsigned long long old_value;
+    unsigned long long value;
+    old_value = ((unsigned long long)words[1] << 32) | words[0];
+    value = old_value * base + digit;
+    words[0] = value;
+    words[1] = value >> 32;
+    return old_value >= 0x1000000000000000ULL
+        && value / base != old_value;
+}
+
+int u64_ge(const unsigned *words, unsigned low, unsigned high)
+{
+    unsigned long long value;
+    unsigned long long limit;
+    value = ((unsigned long long)words[1] << 32) | words[0];
+    limit = ((unsigned long long)high << 32) | low;
+    return value >= limit;
+}
+
+int store_strtof(void *destination, const char *text)
+{
+    *(float *)destination = strtof(text, NULL);
+    return 0;
+}
+
+int store_strtod(void *destination, const char *text)
+{
+    *(double *)destination = strtod(text, NULL);
+    return 0;
+}
+
+int store_strtold(void *destination, const char *text)
+{
+    *(long double *)destination = strtold(text, NULL);
+    return 0;
+}
+
+int store_ldexp_float(void *destination, const unsigned *words, int exponent)
+{
+    double value;
+    value = (double)words[1] * 4294967296.0 + (double)words[0];
+    *(float *)destination = (float)ldexp(value, exponent);
+    return 0;
+}
+
+int store_ldexp_double(void *destination, const unsigned *words, int exponent)
+{
+    double value;
+    value = (double)words[1] * 4294967296.0 + (double)words[0];
+    *(double *)destination = ldexp(value, exponent);
+    return 0;
+}
+
+int store_ldexp_long_double(void *destination, const unsigned *words,
+                            int exponent)
+{
+    double value;
+    value = (double)words[1] * 4294967296.0 + (double)words[0];
+    *(long double *)destination = (long double)ldexp(value, exponent);
     return 0;
 }
 
