@@ -480,45 +480,6 @@ static void fill_unloadable_phdr(ElfW(Phdr) *phdr, int phnum, Section *interp,
     }
 }
 
-/* Relocate remaining sections and symbols (that is those not related to
-   dynamic linking) */
-static int final_sections_reloc(TCCState *s1)
-{
-    int i;
-    Section *s;
-
-    relocate_syms(s1, s1->symtab, 0);
-
-    if (s1->nb_errors != 0)
-        return -1;
-
-    /* relocate sections */
-    /* XXX: ignore sections with allocated relocations ? */
-    for(i = 1; i < s1->nb_sections; i++) {
-        s = s1->sections[i];
-#if defined(TCC_TARGET_I386) || defined(TCC_MUSL)
-        if (s->reloc && s != s1->got && (s->sh_flags & SHF_ALLOC)) //gr
-        /* On X86 gdb 7.3 works in any case but gdb 6.6 will crash if SHF_ALLOC
-        checking is removed */
-#else
-        if (s->reloc && s != s1->got)
-        /* On X86_64 gdb 7.3 will crash if SHF_ALLOC checking is present */
-#endif
-            relocate_section(s1, s);
-    }
-
-    /* relocate relocation entries if the relocation tables are
-       allocated in the executable */
-    for(i = 1; i < s1->nb_sections; i++) {
-        s = s1->sections[i];
-        if ((s->sh_flags & SHF_ALLOC) &&
-            s->sh_type == SHT_RELX) {
-            relocate_rel(s1, s);
-        }
-    }
-    return 0;
-}
-
 /* Create an ELF file on disk.
    This function handle ELF specific layout requirements */
 static void tcc_output_elf(TCCState *s1, FILE *f, int phnum, ElfW(Phdr) *phdr,

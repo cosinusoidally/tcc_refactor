@@ -649,6 +649,7 @@ var CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET;
 var CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET;
 var CC2_TCC_STATE_WARN_WRITE_STRINGS_OFFSET;
 var CC2_TCC_STATE_DEBUG_OFFSET;
+var CC2_TCC_STATE_ERROR_COUNT_OFFSET;
 var CC2_TCC_STATE_DOLLARS_IN_IDENTIFIERS_OFFSET;
 var CC2_TCC_STATE_COMMAND_INCLUDE_FILES_OFFSET;
 var CC2_TCC_STATE_COMMAND_INCLUDE_COUNT_OFFSET;
@@ -7138,6 +7139,47 @@ function fill_dynamic(state, dynamic_info)
         put_dt(dynamic_section, CC2_ELF_DYNAMIC_DEBUG_TAG, 0);
     }
     put_dt(dynamic_section, CC2_ELF_DYNAMIC_NULL_TAG, 0);
+    return 0;
+}
+
+/* Apply the non-dynamic relocations after every section has a final address. */
+function final_sections_reloc(state)
+{
+    var section_index;
+    var section_count;
+    var sections;
+    var section;
+    var relocation_section;
+    relocate_syms(state, ri32(add(state, CC2_TCC_STATE_SYMBOL_TABLE_OFFSET)),
+        0);
+    if (not(eq(ri32(add(state, CC2_TCC_STATE_ERROR_COUNT_OFFSET)), 0))) {
+        return sub(0, 1);
+    }
+    section_index = 1;
+    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    while (lt(section_index, section_count)) {
+        sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+        section = ri32(add(sections, shl(section_index, 2)));
+        relocation_section = ri32(add(section, CC2_SECTION_RELOCATION_OFFSET));
+        if (and(not(eq(relocation_section, 0)), and(not(eq(section,
+            ri32(add(state, CC2_TCC_STATE_GOT_OFFSET)))), not(eq(and(ri32(add(
+            section, CC2_SECTION_FLAGS_OFFSET)),
+            CC2_ELF_ALLOCATE_SECTION_FLAG), 0))))) {
+            relocate_section(state, section);
+        }
+        section_index = add(section_index, 1);
+    }
+    section_index = 1;
+    while (lt(section_index, section_count)) {
+        sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+        section = ri32(add(sections, shl(section_index, 2)));
+        if (and(not(eq(and(ri32(add(section, CC2_SECTION_FLAGS_OFFSET)),
+            CC2_ELF_ALLOCATE_SECTION_FLAG), 0)), eq(ri32(add(section,
+            CC2_SECTION_TYPE_OFFSET)), CC2_ELF_SECTION_REL))) {
+            relocate_rel(state, section);
+        }
+        section_index = add(section_index, 1);
+    }
     return 0;
 }
 
@@ -18678,6 +18720,7 @@ function cc2_init_constants()
     CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET = 56;
     CC2_TCC_STATE_WARN_WRITE_STRINGS_OFFSET = 76;
     CC2_TCC_STATE_DEBUG_OFFSET = 100;
+    CC2_TCC_STATE_ERROR_COUNT_OFFSET = 352;
     CC2_TCC_STATE_DOLLARS_IN_IDENTIFIERS_OFFSET = 68;
     CC2_TCC_STATE_COMMAND_INCLUDE_FILES_OFFSET = 176;
     CC2_TCC_STATE_COMMAND_INCLUDE_COUNT_OFFSET = 180;
