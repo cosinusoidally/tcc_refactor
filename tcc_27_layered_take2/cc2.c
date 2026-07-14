@@ -1014,6 +1014,7 @@ var CC2_ELF_DYNAMIC_RUNPATH_TAG;
 var CC2_DEFAULT_INTERPRETER;
 var CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET;
 var CC2_TCC_STATE_NO_STANDARD_INCLUDES_OFFSET;
+var CC2_TCC_STATE_EXPORT_DYNAMIC_FLAG_OFFSET;
 var CC2_TCC_STATE_LIBRARY_ROOT_OFFSET;
 var CC2_TCC_STATE_CRT_PATHS_OFFSET;
 var CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET;
@@ -24253,6 +24254,196 @@ function set_flag(state, flags, name)
     return result;
 }
 
+function cc2_link_option(option, expected, result_slot)
+{
+    var current;
+    var wanted;
+    var result;
+    if (not(eq(ri8(option), mkC("-")))) {
+        return 0;
+    }
+    current = add(option, 1);
+    if (eq(ri8(current), mkC("-"))) {
+        current = add(current, 1);
+    }
+    wanted = expected;
+    result = 1;
+    if (eq(ri8(wanted), mkC("?"))) {
+        wanted = add(wanted, 1);
+        if (and(eq(ri8(current), mkC("n")), and(eq(ri8(add(current, 1)),
+            mkC("o")), eq(ri8(add(current, 2)), mkC("-"))))) {
+            current = add(current, 3);
+            result = sub(0, 1);
+        }
+    }
+    while (and(ri8(wanted), not(eq(ri8(wanted), mkC("="))))) {
+        if (not(eq(ri8(current), ri8(wanted)))) {
+            return 0;
+        }
+        current = add(current, 1);
+        wanted = add(wanted, 1);
+    }
+    if (eq(ri8(wanted), mkC("="))) {
+        if (eq(ri8(current), 0)) {
+            wi32(result_slot, current);
+        }
+        if (and(not(eq(ri8(current), mkC(","))),
+            not(eq(ri8(current), mkC("="))))) {
+            return 0;
+        }
+        current = add(current, 1);
+    } else if (ri8(current)) {
+        return 0;
+    }
+    wi32(result_slot, current);
+    return result;
+}
+
+function cc2_skip_linker_arg(text_slot)
+{
+    var start;
+    var comma;
+    start = ri32(text_slot);
+    comma = strchr(start, mkC(","));
+    if (comma) {
+        wi32(text_slot, comma);
+        return add(comma, 1);
+    }
+    comma = add(start, strlen(start));
+    wi32(text_slot, comma);
+    return comma;
+}
+
+function cc2_copy_linker_arg(destination_slot, source, separator)
+{
+    var end_slot;
+    var end;
+    var destination;
+    var length;
+    end_slot = malloc(4);
+    wi32(end_slot, source);
+    cc2_skip_linker_arg(end_slot);
+    end = ri32(end_slot);
+    free(end_slot);
+    destination = ri32(destination_slot);
+    length = 0;
+    if (and(destination, separator)) {
+        length = strlen(destination);
+        wi8(add(destination, length), separator);
+        length = add(length, 1);
+    }
+    destination = tcc_realloc(destination,
+        add(add(sub(end, source), length), 1));
+    wi32(destination_slot, destination);
+    pstrncpy(add(destination, length), source, sub(end, source));
+    return 0;
+}
+
+function cc2_text_starts_with(prefix, text)
+{
+    while (ri8(prefix)) {
+        if (not(eq(ri8(prefix), ri8(text)))) {
+            return 0;
+        }
+        prefix = add(prefix, 1);
+        text = add(text, 1);
+    }
+    return 1;
+}
+
+function strstart(prefix, text_slot)
+{
+    var text;
+    text = ri32(text_slot);
+    if (not(cc2_text_starts_with(prefix, text))) {
+        return 0;
+    }
+    wi32(text_slot, add(text, strlen(prefix)));
+    return 1;
+}
+
+function tcc_set_linker(state, option)
+{
+    var argument_slot;
+    var argument;
+    var ignoring;
+    var result;
+    argument_slot = malloc(4);
+    while (ri8(option)) {
+        wi32(argument_slot, 0);
+        ignoring = 0;
+        if (cc2_link_option(option, mks("Bsymbolic"), argument_slot)) {
+            wi32(add(state, CC2_TCC_STATE_SYMBOLIC_OFFSET), 1);
+        } else if (cc2_link_option(option, mks("nostdlib"), argument_slot)) {
+            wi32(add(state, CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET), 1);
+        } else if (cc2_link_option(option, mks("fini="), argument_slot)) {
+            cc2_copy_linker_arg(add(state, CC2_TCC_STATE_FINI_SYMBOL_OFFSET),
+                ri32(argument_slot), 0);
+            ignoring = 1;
+        } else if (or(cc2_link_option(option, mks("image-base="),
+            argument_slot), cc2_link_option(option, mks("Ttext="),
+            argument_slot))) {
+            argument = ri32(argument_slot);
+            wi32(add(state, CC2_TCC_STATE_TEXT_ADDRESS_OFFSET),
+                strtoul(argument, 0, 16));
+            wi32(add(state, CC2_TCC_STATE_HAS_TEXT_ADDRESS_OFFSET), 1);
+        } else if (cc2_link_option(option, mks("init="), argument_slot)) {
+            cc2_copy_linker_arg(add(state, CC2_TCC_STATE_INIT_SYMBOL_OFFSET),
+                ri32(argument_slot), 0);
+            ignoring = 1;
+        } else if (cc2_link_option(option, mks("oformat="), argument_slot)) {
+            argument = ri32(argument_slot);
+            if (cc2_text_starts_with(mks("elf32-"), argument)) {
+                wi32(add(state, CC2_TCC_STATE_OUTPUT_FORMAT_OFFSET),
+                    CC2_TCC_OUTPUT_FORMAT_ELF);
+            } else if (eq(strcmp(argument, mks("binary")), 0)) {
+                wi32(add(state, CC2_TCC_STATE_OUTPUT_FORMAT_OFFSET),
+                    CC2_TCC_OUTPUT_FORMAT_BINARY);
+            } else {
+                tcc_error(mks("unsupported linker option '%s'"), option);
+            }
+        } else if (cc2_link_option(option, mks("as-needed"), argument_slot)) {
+            ignoring = 1;
+        } else if (cc2_link_option(option, mks("O"), argument_slot)) {
+            ignoring = 1;
+        } else if (cc2_link_option(option, mks("export-all-symbols"),
+            argument_slot)) {
+            wi32(add(state, CC2_TCC_STATE_EXPORT_DYNAMIC_FLAG_OFFSET), 1);
+        } else if (cc2_link_option(option, mks("rpath="), argument_slot)) {
+            cc2_copy_linker_arg(add(state, CC2_TCC_STATE_RPATH_OFFSET),
+                ri32(argument_slot), mkC(":"));
+        } else if (cc2_link_option(option, mks("enable-new-dtags"),
+            argument_slot)) {
+            wi32(add(state, CC2_TCC_STATE_NEW_DTAGS_OFFSET), 1);
+        } else if (cc2_link_option(option, mks("section-alignment="),
+            argument_slot)) {
+            wi32(add(state, CC2_TCC_STATE_SECTION_ALIGNMENT_OFFSET),
+                strtoul(ri32(argument_slot), 0, 16));
+        } else if (cc2_link_option(option, mks("soname="), argument_slot)) {
+            cc2_copy_linker_arg(add(state, CC2_TCC_STATE_SONAME_OFFSET),
+                ri32(argument_slot), 0);
+        } else {
+            result = cc2_link_option(option, mks("?whole-archive"),
+                argument_slot);
+            if (result) {
+                wi32(add(state, CC2_TCC_STATE_ALACARTE_OFFSET), lt(result, 0));
+            } else if (ri32(argument_slot)) {
+                free(argument_slot);
+                return 0;
+            } else {
+                tcc_error(mks("unsupported linker option '%s'"), option);
+            }
+        }
+        if (and(ignoring, ri32(add(state,
+            CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET)))) {
+            tcc_warning(mks("unsupported linker option '%s'"), option);
+        }
+        option = cc2_skip_linker_arg(argument_slot);
+    }
+    free(argument_slot);
+    return 1;
+}
+
 function tcc_memcheck()
 {
     return 0;
@@ -25868,6 +26059,7 @@ function cc2_init_constants()
     CC2_DEFAULT_INTERPRETER = mks("/lib/ld-linux.so.2");
     CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET = 8;
     CC2_TCC_STATE_NO_STANDARD_INCLUDES_OFFSET = 4;
+    CC2_TCC_STATE_EXPORT_DYNAMIC_FLAG_OFFSET = 20;
     CC2_TCC_STATE_LIBRARY_ROOT_OFFSET = 32;
     CC2_TCC_STATE_CRT_PATHS_OFFSET = 168;
     CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET = 172;
