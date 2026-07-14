@@ -778,6 +778,14 @@ var CC2_ELF_DYNAMIC_TYPE;
 var CC2_ELF_SEGMENT_READ_FLAG;
 var CC2_ELF_SEGMENT_WRITE_FLAG;
 var CC2_ELF_SEGMENT_EXECUTE_FLAG;
+var CC2_TCC_STATE_OUTPUT_FORMAT_OFFSET;
+var CC2_TCC_STATE_TEXT_ADDRESS_OFFSET;
+var CC2_TCC_STATE_HAS_TEXT_ADDRESS_OFFSET;
+var CC2_TCC_STATE_SECTION_ALIGNMENT_OFFSET;
+var CC2_TCC_OUTPUT_FORMAT_ELF;
+var CC2_ELF_PAGE_BYTES;
+var CC2_ELF_EXECUTABLE_START_ADDRESS;
+var CC2_ELF_LOAD_TYPE;
 var CC2_TOKEN_GENERIC;
 var CC2_TOKEN_DEFAULT;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD;
@@ -7258,6 +7266,228 @@ function fill_unloadable_phdr(program_headers, header_count,
             dynamic_section, CC2_SECTION_ALIGNMENT_OFFSET)));
     }
     return 0;
+}
+
+/* Loaded sections are ordered as interpreter, metadata, relocs, data, BSS. */
+function cc2_layout_section_category(section, interpreter_section)
+{
+    var section_type;
+    if (eq(section, interpreter_section)) {
+        return 0;
+    }
+    section_type = ri32(add(section, CC2_SECTION_TYPE_OFFSET));
+    if (or(eq(section_type, CC2_ELF_SECTION_DYNAMIC_SYMBOLS), or(eq(
+        section_type, CC2_ELF_SECTION_STRING_TABLE), eq(section_type,
+        CC2_ELF_SECTION_HASH)))) {
+        return 1;
+    }
+    if (eq(section_type, CC2_ELF_SECTION_REL)) {
+        return 2;
+    }
+    if (eq(section_type, CC2_ELF_SECTION_NOBITS)) {
+        return 4;
+    }
+    return 3;
+}
+
+/* Assign i386 sections to the RX/RW load segments and record file offsets. */
+function layout_sections(state, program_headers, header_count,
+    interpreter_section, section_name_table, dynamic_info, section_order)
+{
+    var file_type;
+    var output_format;
+    var order_index;
+    var file_offset;
+    var segment_alignment;
+    var address;
+    var address_offset;
+    var page_offset;
+    var header;
+    var segment;
+    var category;
+    var section_index;
+    var section_count;
+    var sections;
+    var section;
+    var flags;
+    var expected_flags;
+    var section_alignment;
+    var previous_address;
+    var section_type;
+    file_type = ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET));
+    output_format = ri32(add(state, CC2_TCC_STATE_OUTPUT_FORMAT_OFFSET));
+    order_index = 1;
+    file_offset = 0;
+    if (eq(output_format, CC2_TCC_OUTPUT_FORMAT_ELF)) {
+        file_offset = add(CC2_ELF_HEADER_BYTES,
+            mul(header_count, CC2_ELF_PROGRAM_HEADER_BYTES));
+    }
+    segment_alignment = CC2_ELF_PAGE_BYTES;
+    if (not(eq(ri32(add(state,
+        CC2_TCC_STATE_SECTION_ALIGNMENT_OFFSET)), 0))) {
+        segment_alignment = ri32(add(state,
+            CC2_TCC_STATE_SECTION_ALIGNMENT_OFFSET));
+    }
+    if (not(eq(header_count, 0))) {
+        if (ri32(add(state, CC2_TCC_STATE_HAS_TEXT_ADDRESS_OFFSET))) {
+            address = ri32(add(state, CC2_TCC_STATE_TEXT_ADDRESS_OFFSET));
+            address_offset = and(address, sub(segment_alignment, 1));
+            page_offset = and(file_offset, sub(segment_alignment, 1));
+            if (lt(address_offset, page_offset)) {
+                address_offset = add(address_offset, segment_alignment);
+            }
+            file_offset = add(file_offset, sub(address_offset, page_offset));
+        } else {
+            if (eq(file_type, CC2_TCC_OUTPUT_DLL)) {
+                address = 0;
+            } else {
+                address = CC2_ELF_EXECUTABLE_START_ADDRESS;
+            }
+            address = add(address, and(file_offset,
+                sub(segment_alignment, 1)));
+        }
+        header = program_headers;
+        if (not(eq(interpreter_section, 0))) {
+            header = add(header, mul(2, CC2_ELF_PROGRAM_HEADER_BYTES));
+        }
+        wi32(add(dynamic_info, CC2_DYNAMIC_INFO_RELOCATION_ADDRESS_OFFSET), 0);
+        wi32(add(dynamic_info, CC2_DYNAMIC_INFO_RELOCATION_SIZE_OFFSET), 0);
+        segment = 0;
+        while (lt(segment, 2)) {
+            wi32(add(header, CC2_PROGRAM_HEADER_TYPE_OFFSET),
+                CC2_ELF_LOAD_TYPE);
+            if (eq(segment, 0)) {
+                wi32(add(header, CC2_PROGRAM_HEADER_FLAGS_OFFSET), or(
+                    CC2_ELF_SEGMENT_READ_FLAG,
+                    CC2_ELF_SEGMENT_EXECUTE_FLAG));
+                expected_flags = CC2_ELF_ALLOCATE_SECTION_FLAG;
+            } else {
+                wi32(add(header, CC2_PROGRAM_HEADER_FLAGS_OFFSET), or(
+                    CC2_ELF_SEGMENT_READ_FLAG, CC2_ELF_SEGMENT_WRITE_FLAG));
+                expected_flags = or(CC2_ELF_ALLOCATE_SECTION_FLAG,
+                    CC2_ELF_WRITE_SECTION_FLAG);
+            }
+            wi32(add(header, CC2_PROGRAM_HEADER_ALIGNMENT_OFFSET),
+                segment_alignment);
+            category = 0;
+            while (lt(category, 5)) {
+                section_index = 1;
+                section_count = ri32(add(state,
+                    CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+                while (lt(section_index, section_count)) {
+                    sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+                    section = ri32(add(sections, shl(section_index, 2)));
+                    flags = and(ri32(add(section, CC2_SECTION_FLAGS_OFFSET)),
+                        or(CC2_ELF_ALLOCATE_SECTION_FLAG,
+                        CC2_ELF_WRITE_SECTION_FLAG));
+                    if (and(eq(flags, expected_flags), eq(
+                        cc2_layout_section_category(section,
+                        interpreter_section), category))) {
+                        wi32(add(section_order, shl(order_index, 2)),
+                            section_index);
+                        order_index = add(order_index, 1);
+                        previous_address = address;
+                        section_alignment = ri32(add(section,
+                            CC2_SECTION_ALIGNMENT_OFFSET));
+                        address = cc2_align_up(address, section_alignment);
+                        file_offset = add(file_offset,
+                            sub(address, previous_address));
+                        wi32(add(section, CC2_SECTION_FILE_OFFSET_OFFSET),
+                            file_offset);
+                        wi32(add(section, CC2_SECTION_ADDRESS_OFFSET), address);
+                        if (eq(ri32(add(header,
+                            CC2_PROGRAM_HEADER_FILE_OFFSET_OFFSET)), 0)) {
+                            wi32(add(header,
+                                CC2_PROGRAM_HEADER_FILE_OFFSET_OFFSET),
+                                file_offset);
+                            wi32(add(header,
+                                CC2_PROGRAM_HEADER_VIRTUAL_ADDRESS_OFFSET),
+                                address);
+                            wi32(add(header,
+                                CC2_PROGRAM_HEADER_PHYSICAL_ADDRESS_OFFSET),
+                                address);
+                        }
+                        section_type = ri32(add(section,
+                            CC2_SECTION_TYPE_OFFSET));
+                        if (eq(section_type, CC2_ELF_SECTION_REL)) {
+                            if (eq(ri32(add(dynamic_info,
+                                CC2_DYNAMIC_INFO_RELOCATION_SIZE_OFFSET)), 0)) {
+                                wi32(add(dynamic_info,
+                                    CC2_DYNAMIC_INFO_RELOCATION_ADDRESS_OFFSET),
+                                    address);
+                            }
+                            wi32(add(dynamic_info,
+                                CC2_DYNAMIC_INFO_RELOCATION_SIZE_OFFSET), add(
+                                ri32(add(dynamic_info,
+                                CC2_DYNAMIC_INFO_RELOCATION_SIZE_OFFSET)),
+                                ri32(add(section, CC2_SECTION_SIZE_OFFSET))));
+                        }
+                        address = add(address, ri32(add(section,
+                            CC2_SECTION_SIZE_OFFSET)));
+                        if (not(eq(section_type, CC2_ELF_SECTION_NOBITS))) {
+                            file_offset = add(file_offset, ri32(add(section,
+                                CC2_SECTION_SIZE_OFFSET)));
+                        }
+                    }
+                    section_index = add(section_index, 1);
+                }
+                category = add(category, 1);
+            }
+            if (eq(segment, 0)) {
+                wi32(add(header, CC2_PROGRAM_HEADER_FILE_OFFSET_OFFSET), and(
+                    ri32(add(header, CC2_PROGRAM_HEADER_FILE_OFFSET_OFFSET)),
+                    bnot(sub(segment_alignment, 1))));
+                wi32(add(header, CC2_PROGRAM_HEADER_VIRTUAL_ADDRESS_OFFSET),
+                    and(ri32(add(header,
+                    CC2_PROGRAM_HEADER_VIRTUAL_ADDRESS_OFFSET)),
+                    bnot(sub(segment_alignment, 1))));
+                wi32(add(header, CC2_PROGRAM_HEADER_PHYSICAL_ADDRESS_OFFSET),
+                    and(ri32(add(header,
+                    CC2_PROGRAM_HEADER_PHYSICAL_ADDRESS_OFFSET)),
+                    bnot(sub(segment_alignment, 1))));
+            }
+            wi32(add(header, CC2_PROGRAM_HEADER_FILE_SIZE_OFFSET), sub(
+                file_offset, ri32(add(header,
+                CC2_PROGRAM_HEADER_FILE_OFFSET_OFFSET))));
+            wi32(add(header, CC2_PROGRAM_HEADER_MEMORY_SIZE_OFFSET), sub(
+                address, ri32(add(header,
+                CC2_PROGRAM_HEADER_VIRTUAL_ADDRESS_OFFSET))));
+            header = add(header, CC2_ELF_PROGRAM_HEADER_BYTES);
+            if (eq(segment, 0)) {
+                if (eq(output_format, CC2_TCC_OUTPUT_FORMAT_ELF)) {
+                    if (not(eq(and(address,
+                        sub(segment_alignment, 1)), 0))) {
+                        address = add(address, segment_alignment);
+                    }
+                } else {
+                    address = cc2_align_up(address, segment_alignment);
+                    file_offset = cc2_align_up(file_offset, segment_alignment);
+                }
+            }
+            segment = add(segment, 1);
+        }
+    }
+    section_index = 1;
+    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    while (lt(section_index, section_count)) {
+        sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+        section = ri32(add(sections, shl(section_index, 2)));
+        if (or(eq(header_count, 0), eq(and(ri32(add(section,
+            CC2_SECTION_FLAGS_OFFSET)), CC2_ELF_ALLOCATE_SECTION_FLAG), 0))) {
+            wi32(add(section_order, shl(order_index, 2)), section_index);
+            order_index = add(order_index, 1);
+            file_offset = cc2_align_up(file_offset, ri32(add(section,
+                CC2_SECTION_ALIGNMENT_OFFSET)));
+            wi32(add(section, CC2_SECTION_FILE_OFFSET_OFFSET), file_offset);
+            if (not(eq(ri32(add(section, CC2_SECTION_TYPE_OFFSET)),
+                CC2_ELF_SECTION_NOBITS))) {
+                file_offset = add(file_offset, ri32(add(section,
+                    CC2_SECTION_SIZE_OFFSET)));
+            }
+        }
+        section_index = add(section_index, 1);
+    }
+    return file_offset;
 }
 
 function add_init_array_defines(state, section_name)
@@ -18926,6 +19156,14 @@ function cc2_init_constants()
     CC2_ELF_SEGMENT_READ_FLAG = 4;
     CC2_ELF_SEGMENT_WRITE_FLAG = 2;
     CC2_ELF_SEGMENT_EXECUTE_FLAG = 1;
+    CC2_TCC_STATE_OUTPUT_FORMAT_OFFSET = 52;
+    CC2_TCC_STATE_TEXT_ADDRESS_OFFSET = 108;
+    CC2_TCC_STATE_HAS_TEXT_ADDRESS_OFFSET = 112;
+    CC2_TCC_STATE_SECTION_ALIGNMENT_OFFSET = 116;
+    CC2_TCC_OUTPUT_FORMAT_ELF = 0;
+    CC2_ELF_PAGE_BYTES = 4096;
+    CC2_ELF_EXECUTABLE_START_ADDRESS = 134512640;
+    CC2_ELF_LOAD_TYPE = 1;
     CC2_TOKEN_GENERIC = 292;
     CC2_TOKEN_DEFAULT = 300;
     CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;
