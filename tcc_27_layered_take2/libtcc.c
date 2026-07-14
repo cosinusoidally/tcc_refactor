@@ -129,13 +129,6 @@ static void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
         s1->nb_errors++;
 }
 
-LIBTCCAPI void tcc_set_error_func(TCCState *s, void *error_opaque,
-                        void (*error_func)(void *opaque, const char *msg))
-{
-    s->error_opaque = error_opaque;
-    s->error_func = error_func;
-}
-
 /* error without aborting current compilation */
 PUB_FUNC void tcc_error_noabort(const char *fmt, ...)
 {
@@ -751,20 +744,6 @@ ST_FUNC void tcc_add_pragma_libs(TCCState *s1)
     int i;
     for (i = 0; i < s1->nb_pragma_libs; i++)
         tcc_add_library_err(s1, s1->pragma_libs[i]);
-}
-
-LIBTCCAPI int tcc_add_symbol(TCCState *s, const char *name, const void *val)
-{
-#ifdef TCC_TARGET_PE
-    /* On x86_64 'val' might not be reachable with a 32bit offset.
-       So it is handled here as if it were in a DLL. */
-    pe_putimport(s, 0, name, (uintptr_t)val);
-#else
-    set_elf_sym(symtab_section, (uintptr_t)val, 0,
-        ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
-        SHN_ABS, name);
-#endif
-    return 0;
 }
 
 #define WD_ALL    0x0001 /* warning is activated when using -Wall */

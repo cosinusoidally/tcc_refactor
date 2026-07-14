@@ -500,6 +500,8 @@ var CC2_TCC_STATE_SYSTEM_INCLUDE_PATHS_OFFSET;
 var CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET;
 var CC2_TCC_STATE_LIBRARY_PATHS_OFFSET;
 var CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET;
+var CC2_TCC_STATE_ERROR_OPAQUE_OFFSET;
+var CC2_TCC_STATE_ERROR_FUNCTION_OFFSET;
 var CC2_TCC_STATE_INCLUDE_STACK_OFFSET;
 var CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET;
 var CC2_INCLUDE_STACK_ENTRIES;
@@ -23625,6 +23627,20 @@ function tcc_set_lib_path(state, path)
     return 0;
 }
 
+function tcc_set_error_func(state, opaque, error_function)
+{
+    wi32(add(state, CC2_TCC_STATE_ERROR_OPAQUE_OFFSET), opaque);
+    wi32(add(state, CC2_TCC_STATE_ERROR_FUNCTION_OFFSET), error_function);
+    return 0;
+}
+
+function tcc_add_symbol(state, name, value)
+{
+    set_elf_sym(ri32(symtab_section_address), value, 0, 16, 0, 65521,
+        name);
+    return 0;
+}
+
 function tcc_memcheck()
 {
     return 0;
@@ -25339,6 +25355,8 @@ function cc2_init_constants()
     CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET = 156;
     CC2_TCC_STATE_LIBRARY_PATHS_OFFSET = 160;
     CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET = 164;
+    CC2_TCC_STATE_ERROR_OPAQUE_OFFSET = 184;
+    CC2_TCC_STATE_ERROR_FUNCTION_OFFSET = 188;
     CC2_TCC_STATE_INCLUDE_STACK_OFFSET = 376;
     CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET = 504;
     CC2_INCLUDE_STACK_ENTRIES = 32;
