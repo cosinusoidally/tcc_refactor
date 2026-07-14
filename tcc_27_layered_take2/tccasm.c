@@ -50,41 +50,7 @@ static void asm_parse_directive(TCCState *s1, int global)
     case TOK_ASMDIR_p2align:
     case TOK_ASMDIR_skip:
     case TOK_ASMDIR_space:
-        tok1 = tok;
-        next();
-        n = asm_int_expr(s1);
-        if (tok1 == TOK_ASMDIR_p2align)
-        {
-            if (n < 0 || n > 30)
-                tcc_error("invalid p2align, must be between 0 and 30");
-            n = 1 << n;
-            tok1 = TOK_ASMDIR_align;
-        }
-        if (tok1 == TOK_ASMDIR_align || tok1 == TOK_ASMDIR_balign) {
-            if (n < 0 || (n & (n-1)) != 0)
-                tcc_error("alignment must be a positive power of two");
-            offset = (ind + n - 1) & -n;
-            size = offset - ind;
-            /* the section must have a compatible alignment */
-            if (sec->sh_addralign < n)
-                sec->sh_addralign = n;
-        } else {
-	    if (n < 0)
-	        n = 0;
-            size = n;
-        }
-        v = 0;
-        if (tok == ',') {
-            next();
-            v = asm_int_expr(s1);
-        }
-    zero_pad:
-        if (sec->sh_type != SHT_NOBITS) {
-            sec->data_offset = ind;
-            ptr = section_ptr_add(sec, size);
-            memset(ptr, v, size);
-        }
-        ind += size;
+        asm_parse_align_space(s1);
         break;
     case TOK_ASMDIR_quad:
 #ifdef TCC_TARGET_X86_64
@@ -223,25 +189,7 @@ static void asm_parse_directive(TCCState *s1, int global)
             break;
         }
     case TOK_ASMDIR_org:
-        {
-            unsigned long n;
-	    ExprValue e;
-	    ElfSym *esym;
-            next();
-	    asm_expr(s1, &e);
-	    n = e.v;
-	    esym = elfsym(e.sym);
-	    if (esym) {
-		if (esym->st_shndx != cur_text_section->sh_num)
-		  expect("constant or same-section symbol");
-		n += esym->st_value;
-	    }
-            if (n < ind)
-                tcc_error("attempt to .org backwards");
-            v = 0;
-            size = n - ind;
-            goto zero_pad;
-        }
+        asm_parse_org(s1);
         break;
     case TOK_ASMDIR_set:
 	next();

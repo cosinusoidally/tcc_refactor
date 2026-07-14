@@ -833,6 +833,9 @@ var CC2_ASM_EXPRESSION_HIGH_OFFSET;
 var CC2_ASM_EXPRESSION_SYMBOL_OFFSET;
 var CC2_ASM_EXPRESSION_PCREL_OFFSET;
 var CC2_TOKEN_IDENTIFIER_FIRST;
+var CC2_ASM_DIRECTIVE_ALIGN;
+var CC2_ASM_DIRECTIVE_BALIGN;
+var CC2_ASM_DIRECTIVE_P2ALIGN;
 var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
@@ -6908,6 +6911,94 @@ function set_symbol_(state, label, expression, value, source_symbol,
 function set_symbol(state, label)
 {
     return set_symbol_(state, label, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_asm_zero_pad(section, size, fill, pointer)
+{
+    if (not(eq(ri32(add(section, CC2_SECTION_TYPE_OFFSET)),
+        CC2_ELF_SECTION_NOBITS))) {
+        wi32(add(section, CC2_SECTION_DATA_OFFSET), ind);
+        pointer = section_ptr_add(section, size);
+        memset(pointer, fill, size);
+    }
+    ind = add(ind, size);
+    return 0;
+}
+
+function asm_parse_align_space_(state, directive, section, amount, offset,
+    size, fill, pointer)
+{
+    directive = ri32(tok_address);
+    section = ri32(cur_text_section_address);
+    next();
+    amount = asm_int_expr(state);
+    if (eq(directive, CC2_ASM_DIRECTIVE_P2ALIGN)) {
+        if (or(lt(amount, 0), lt(30, amount))) {
+            tcc_error(mks("invalid p2align, must be between 0 and 30"), 0);
+        }
+        amount = shl(1, amount);
+        directive = CC2_ASM_DIRECTIVE_ALIGN;
+    }
+    if (or(eq(directive, CC2_ASM_DIRECTIVE_ALIGN),
+        eq(directive, CC2_ASM_DIRECTIVE_BALIGN))) {
+        if (or(lt(amount, 0), not(eq(and(amount, sub(amount, 1)), 0)))) {
+            tcc_error(mks("alignment must be a positive power of two"), 0);
+        }
+        offset = and(sub(add(ind, amount), 1), sub(0, amount));
+        size = sub(offset, ind);
+        if (lt(ri32(add(section, CC2_SECTION_ALIGNMENT_OFFSET)), amount)) {
+            wi32(add(section, CC2_SECTION_ALIGNMENT_OFFSET), amount);
+        }
+    } else {
+        if (lt(amount, 0)) {
+            amount = 0;
+        }
+        size = amount;
+    }
+    fill = 0;
+    if (eq(ri32(tok_address), mkC(","))) {
+        next();
+        fill = asm_int_expr(state);
+    }
+    cc2_asm_zero_pad(section, size, fill, pointer);
+    return 0;
+}
+
+function asm_parse_align_space(state)
+{
+    return asm_parse_align_space_(state, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function asm_parse_org_(state, expression, value, symbol, elf_symbol,
+    section, size)
+{
+    next();
+    expression = malloc(16);
+    asm_expr(state, expression);
+    value = ri32(expression);
+    symbol = ri32(add(expression, CC2_ASM_EXPRESSION_SYMBOL_OFFSET));
+    elf_symbol = elfsym(symbol);
+    section = ri32(cur_text_section_address);
+    if (not(eq(elf_symbol, 0))) {
+        if (not(eq(cc2_read_little_u16(add(elf_symbol,
+            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), ri32(add(section,
+            CC2_SECTION_NUMBER_OFFSET))))) {
+            expect(mks("constant or same-section symbol"));
+        }
+        value = add(value, ri32(add(elf_symbol,
+            CC2_ELF_SYMBOL_VALUE_OFFSET)));
+    }
+    free(expression);
+    if (lt(value, ind)) {
+        tcc_error(mks("attempt to .org backwards"), 0);
+    }
+    size = sub(value, ind);
+    return cc2_asm_zero_pad(section, size, 0, 0);
+}
+
+function asm_parse_org(state)
+{
+    return asm_parse_org_(state, 0, 0, 0, 0, 0, 0);
 }
 
 function use_section1(state, section)
@@ -22281,6 +22372,9 @@ function cc2_init_constants()
     CC2_ASM_EXPRESSION_SYMBOL_OFFSET = 8;
     CC2_ASM_EXPRESSION_PCREL_OFFSET = 12;
     CC2_TOKEN_IDENTIFIER_FIRST = 256;
+    CC2_ASM_DIRECTIVE_ALIGN = 408;
+    CC2_ASM_DIRECTIVE_BALIGN = 409;
+    CC2_ASM_DIRECTIVE_P2ALIGN = 410;
     CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;
