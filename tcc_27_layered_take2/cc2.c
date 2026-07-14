@@ -5869,6 +5869,125 @@ function new_undef_syms()
     return result;
 }
 
+function tccelf_begin_file(state)
+{
+    var sections;
+    var section_count;
+    var section_index;
+    var section;
+    var symbol_table;
+    sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    section_index = 1;
+    while (lt(section_index, section_count)) {
+        section = ri32(add(sections, mul(section_index,
+            CC2_I386_WORD_BYTES)));
+        wi32(add(section, CC2_SECTION_FILE_OFFSET_OFFSET),
+            ri32(add(section, CC2_SECTION_DATA_OFFSET)));
+        section_index = add(section_index, 1);
+    }
+    symbol_table = ri32(add(state, CC2_TCC_STATE_SYMBOL_TABLE_OFFSET));
+    wi32(add(symbol_table, CC2_SECTION_RELOCATION_OFFSET),
+        ri32(add(symbol_table, CC2_SECTION_HASH_OFFSET)));
+    wi32(add(symbol_table, CC2_SECTION_HASH_OFFSET), 0);
+    return 0;
+}
+
+function tccelf_end_file(state)
+{
+    var symbol_table;
+    var string_table;
+    var first_symbol;
+    var symbol_count;
+    var translations;
+    var symbol_index;
+    var symbol;
+    var section_index;
+    var information;
+    var strings;
+    var sections;
+    var section_count;
+    var section;
+    var relocation_offset;
+    var relocation_information;
+    var temporary_index;
+    symbol_table = ri32(add(state, CC2_TCC_STATE_SYMBOL_TABLE_OFFSET));
+    first_symbol = sdiv(ri32(add(symbol_table,
+        CC2_SECTION_FILE_OFFSET_OFFSET)), CC2_ELF_SYMBOL_BYTES);
+    symbol_count = sub(sdiv(ri32(add(symbol_table, CC2_SECTION_DATA_OFFSET)),
+        CC2_ELF_SYMBOL_BYTES), first_symbol);
+    wi32(add(symbol_table, CC2_SECTION_DATA_OFFSET), ri32(add(symbol_table,
+        CC2_SECTION_FILE_OFFSET_OFFSET)));
+    string_table = ri32(add(symbol_table, CC2_SECTION_LINK_OFFSET));
+    wi32(add(string_table, CC2_SECTION_DATA_OFFSET), ri32(add(string_table,
+        CC2_SECTION_FILE_OFFSET_OFFSET)));
+    wi32(add(symbol_table, CC2_SECTION_HASH_OFFSET), ri32(add(symbol_table,
+        CC2_SECTION_RELOCATION_OFFSET)));
+    wi32(add(symbol_table, CC2_SECTION_RELOCATION_OFFSET), 0);
+    translations = tcc_mallocz(mul(symbol_count, CC2_I386_WORD_BYTES));
+    strings = ri32(add(string_table, CC2_SECTION_DATA_POINTER_OFFSET));
+
+    symbol_index = 0;
+    while (lt(symbol_index, symbol_count)) {
+        symbol = add(ri32(add(symbol_table,
+            CC2_SECTION_DATA_POINTER_OFFSET)), mul(add(first_symbol,
+            symbol_index), CC2_ELF_SYMBOL_BYTES));
+        section_index = add(ri8(add(symbol,
+            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), shl(ri8(add(symbol,
+            add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1))), 8));
+        information = ri8(add(symbol, CC2_ELF_SYMBOL_INFO_OFFSET));
+        if (and(eq(section_index, CC2_ELF_UNDEFINED_SECTION), eq(ushr(
+            information, CC2_ELF_SYMBOL_BIND_SHIFT),
+            CC2_ELF_LOCAL_BINDING))) {
+            information = or(shl(CC2_ELF_SYMBOL_GLOBAL_BINDING,
+                CC2_ELF_SYMBOL_BIND_SHIFT), and(information,
+                CC2_ELF_SYMBOL_TYPE_MASK));
+            wi8(add(symbol, CC2_ELF_SYMBOL_INFO_OFFSET), information);
+        }
+        wi32(add(translations, mul(symbol_index, CC2_I386_WORD_BYTES)),
+            set_elf_sym(symbol_table, ri32(add(symbol,
+            CC2_ELF_SYMBOL_VALUE_OFFSET)), ri32(add(symbol,
+            CC2_ELF_SYMBOL_SIZE_OFFSET)), information, ri8(add(symbol,
+            add(CC2_ELF_SYMBOL_INFO_OFFSET, 1))), section_index, add(strings,
+            ri32(add(symbol, CC2_ELF_SYMBOL_NAME_OFFSET)))));
+        symbol_index = add(symbol_index, 1);
+    }
+
+    sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    section_index = 1;
+    while (lt(section_index, section_count)) {
+        section = ri32(add(sections, mul(section_index,
+            CC2_I386_WORD_BYTES)));
+        if (and(eq(ri32(add(section, CC2_SECTION_TYPE_OFFSET)),
+            CC2_ELF_SECTION_REL), eq(ri32(add(section,
+            CC2_SECTION_LINK_OFFSET)), symbol_table))) {
+            relocation_offset = ri32(add(section,
+                CC2_SECTION_FILE_OFFSET_OFFSET));
+            while (lt(relocation_offset, ri32(add(section,
+                CC2_SECTION_DATA_OFFSET)))) {
+                relocation_information = ri32(add(add(ri32(add(section,
+                    CC2_SECTION_DATA_POINTER_OFFSET)), relocation_offset),
+                    CC2_ELF_RELOCATION_INFO_OFFSET));
+                temporary_index = sub(ushr(relocation_information,
+                    CC2_ELF_RELOCATION_SYMBOL_SHIFT), first_symbol);
+                wi32(add(add(ri32(add(section,
+                    CC2_SECTION_DATA_POINTER_OFFSET)), relocation_offset),
+                    CC2_ELF_RELOCATION_INFO_OFFSET), or(shl(ri32(add(
+                    translations, mul(temporary_index,
+                    CC2_I386_WORD_BYTES))),
+                    CC2_ELF_RELOCATION_SYMBOL_SHIFT), and(
+                    relocation_information, CC2_ELF_RELOCATION_TYPE_MASK)));
+                relocation_offset = add(relocation_offset,
+                    CC2_ELF_RELOCATION_BYTES);
+            }
+        }
+        section_index = add(section_index, 1);
+    }
+    free(translations);
+    return 0;
+}
+
 /* Grow the pool pointer vector with the same power-of-two rule as TCC. */
 function cc2_add_sym_pool_(pool, count, capacity, pools)
 {

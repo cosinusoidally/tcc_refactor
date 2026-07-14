@@ -135,60 +135,6 @@ ST_FUNC void tccelf_delete(TCCState *s1)
     symtab_section = NULL; /* for tccrun.c:rt_printline() */
 }
 
-/* save section data state */
-ST_FUNC void tccelf_begin_file(TCCState *s1)
-{
-    Section *s; int i;
-    for (i = 1; i < s1->nb_sections; i++) {
-        s = s1->sections[i];
-        s->sh_offset = s->data_offset;
-    }
-    /* disable symbol hashing during compilation */
-    s = s1->symtab, s->reloc = s->hash, s->hash = NULL;
-#if defined TCC_TARGET_X86_64 && defined TCC_TARGET_PE
-    s1->uw_sym = 0;
-#endif
-}
-
-/* At the end of compilation, convert any UNDEF syms to global, and merge
-   with previously existing symbols */
-ST_FUNC void tccelf_end_file(TCCState *s1)
-{
-    Section *s = s1->symtab;
-    int first_sym, nb_syms, *tr, i;
-
-    first_sym = s->sh_offset / sizeof (ElfSym);
-    nb_syms = s->data_offset / sizeof (ElfSym) - first_sym;
-    s->data_offset = s->sh_offset;
-    s->link->data_offset = s->link->sh_offset;
-    s->hash = s->reloc, s->reloc = NULL;
-    tr = tcc_mallocz(nb_syms * sizeof *tr);
-
-    for (i = 0; i < nb_syms; ++i) {
-        ElfSym *sym = (ElfSym*)s->data + first_sym + i;
-        if (sym->st_shndx == SHN_UNDEF
-            && ELFW(ST_BIND)(sym->st_info) == STB_LOCAL)
-            sym->st_info = ELFW(ST_INFO)(STB_GLOBAL, ELFW(ST_TYPE)(sym->st_info));
-        tr[i] = set_elf_sym(s, sym->st_value, sym->st_size, sym->st_info,
-            sym->st_other, sym->st_shndx, s->link->data + sym->st_name);
-    }
-    /* now update relocations */
-    for (i = 1; i < s1->nb_sections; i++) {
-        Section *sr = s1->sections[i];
-        if (sr->sh_type == SHT_RELX && sr->link == s) {
-            ElfW_Rel *rel = (ElfW_Rel*)(sr->data + sr->sh_offset);
-            ElfW_Rel *rel_end = (ElfW_Rel*)(sr->data + sr->data_offset);
-            for (; rel < rel_end; ++rel) {
-                int n = ELFW(R_SYM)(rel->r_info) - first_sym;
-                //if (n < 0) tcc_error("internal: invalid symbol index in relocation");
-                rel->r_info = ELFW(R_INFO)(tr[n], ELFW(R_TYPE)(rel->r_info));
-            }
-        }
-    }
-    tcc_free(tr);
-}
-
-
 /* return elf symbol value */
 LIBTCCAPI void *tcc_get_symbol(TCCState *s, const char *name)
 {
