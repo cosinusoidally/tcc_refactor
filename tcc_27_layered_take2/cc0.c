@@ -328,6 +328,20 @@ var CC0_LINK_BSS_LENGTH;
 var CC0_LINK_REGION_TEXT;
 var CC0_LINK_REGION_DATA;
 var CC0_LINK_REGION_BSS;
+var CC0_LINK_REGION_ABSOLUTE;
+var CC0_LINK_SYMBOLS;
+var CC0_LINK_SYMBOL_COUNT;
+var CC0_LINK_SYMBOL_CAPACITY;
+var CC0_LINK_SYMBOL_SHIFT;
+var CC0_LINK_SYMBOL_NAME_OFFSET;
+var CC0_LINK_SYMBOL_LENGTH_OFFSET;
+var CC0_LINK_SYMBOL_REGION_OFFSET;
+var CC0_LINK_SYMBOL_VALUE_OFFSET;
+var CC0_LINK_SYMBOL_BINDING_OFFSET;
+var CC0_LINK_ELF_UNDEFINED_SECTION;
+var CC0_LINK_ELF_RESERVED_SECTION;
+var CC0_LINK_ELF_GLOBAL_BINDING;
+var CC0_LINK_ELF_WEAK_BINDING;
 var CC0_ELF_HEADER_BYTES;
 var CC0_ELF_SECTION_HEADER_BYTES;
 var CC0_ELF_TYPE_RELOCATABLE;
@@ -654,6 +668,20 @@ function cc0_init()
     CC0_LINK_REGION_TEXT = 1;
     CC0_LINK_REGION_DATA = 2;
     CC0_LINK_REGION_BSS = 3;
+    CC0_LINK_REGION_ABSOLUTE = 4;
+    CC0_LINK_SYMBOLS = 0;
+    CC0_LINK_SYMBOL_COUNT = 0;
+    CC0_LINK_SYMBOL_CAPACITY = 0;
+    CC0_LINK_SYMBOL_SHIFT = 5;
+    CC0_LINK_SYMBOL_NAME_OFFSET = 0;
+    CC0_LINK_SYMBOL_LENGTH_OFFSET = 4;
+    CC0_LINK_SYMBOL_REGION_OFFSET = 8;
+    CC0_LINK_SYMBOL_VALUE_OFFSET = 12;
+    CC0_LINK_SYMBOL_BINDING_OFFSET = 16;
+    CC0_LINK_ELF_UNDEFINED_SECTION = 0;
+    CC0_LINK_ELF_RESERVED_SECTION = 65280;
+    CC0_LINK_ELF_GLOBAL_BINDING = 1;
+    CC0_LINK_ELF_WEAK_BINDING = 2;
     CC0_ELF_HEADER_BYTES = 52;
     CC0_ELF_SECTION_HEADER_BYTES = 40;
     CC0_ELF_TYPE_RELOCATABLE = 1;
@@ -5783,6 +5811,157 @@ function cc0_link_merge_objects_(object_index, object, section_index,
 function cc0_link_merge_objects()
 {
     return cc0_link_merge_objects_(0, 0, 0, 0);
+}
+
+function cc0_link_symbol_entry(index)
+{
+    return add(CC0_LINK_SYMBOLS, shl(index, CC0_LINK_SYMBOL_SHIFT));
+}
+
+function cc0_link_reserve_symbols_(needed, needed_bytes, used_bytes,
+    symbols)
+{
+    needed_bytes = shl(needed, CC0_LINK_SYMBOL_SHIFT);
+    used_bytes = shl(CC0_LINK_SYMBOL_COUNT, CC0_LINK_SYMBOL_SHIFT);
+    symbols = cc0_compiler_grow_memory(CC0_LINK_SYMBOLS, used_bytes,
+        CC0_LINK_SYMBOL_CAPACITY, needed_bytes);
+    if (eq(symbols, 0)) {
+        return CC0_TRUE;
+    }
+    CC0_LINK_SYMBOLS = symbols;
+    CC0_LINK_SYMBOL_CAPACITY = cc0_compiler_grown_capacity(
+        CC0_LINK_SYMBOL_CAPACITY, needed_bytes);
+    return CC0_FALSE;
+}
+
+function cc0_link_reserve_symbols(needed)
+{
+    return cc0_link_reserve_symbols_(needed, 0, 0, 0);
+}
+
+function cc0_link_find_global_(name, length, index, symbol)
+{
+    index = 0;
+    while (lt(index, CC0_LINK_SYMBOL_COUNT)) {
+        symbol = cc0_link_symbol_entry(index);
+        if (cc0_compiler_slice_equal(name, length,
+            ri32(add(symbol, CC0_LINK_SYMBOL_NAME_OFFSET)),
+            ri32(add(symbol, CC0_LINK_SYMBOL_LENGTH_OFFSET)))) {
+            return symbol;
+        }
+        index = add(index, 1);
+    }
+    return 0;
+}
+
+function cc0_link_find_global(name, length)
+{
+    return cc0_link_find_global_(name, length, 0, 0);
+}
+
+function cc0_link_record_symbol_(name, length, region, value, binding,
+    existing, symbol)
+{
+    existing = cc0_link_find_global(name, length);
+    if (not(eq(existing, 0))) {
+        if (eq(ri32(add(existing, CC0_LINK_SYMBOL_BINDING_OFFSET)),
+            CC0_LINK_ELF_WEAK_BINDING)) {
+            if (not(eq(binding, CC0_LINK_ELF_WEAK_BINDING))) {
+                wi32(add(existing, CC0_LINK_SYMBOL_REGION_OFFSET), region);
+                wi32(add(existing, CC0_LINK_SYMBOL_VALUE_OFFSET), value);
+                wi32(add(existing, CC0_LINK_SYMBOL_BINDING_OFFSET), binding);
+            }
+            return CC0_FALSE;
+        }
+        if (eq(binding, CC0_LINK_ELF_WEAK_BINDING)) {
+            return CC0_FALSE;
+        }
+        return CC0_TRUE;
+    }
+    if (cc0_link_reserve_symbols(add(CC0_LINK_SYMBOL_COUNT, 1))) {
+        return CC0_TRUE;
+    }
+    symbol = cc0_link_symbol_entry(CC0_LINK_SYMBOL_COUNT);
+    wi32(add(symbol, CC0_LINK_SYMBOL_NAME_OFFSET), name);
+    wi32(add(symbol, CC0_LINK_SYMBOL_LENGTH_OFFSET), length);
+    wi32(add(symbol, CC0_LINK_SYMBOL_REGION_OFFSET), region);
+    wi32(add(symbol, CC0_LINK_SYMBOL_VALUE_OFFSET), value);
+    wi32(add(symbol, CC0_LINK_SYMBOL_BINDING_OFFSET), binding);
+    CC0_LINK_SYMBOL_COUNT = add(CC0_LINK_SYMBOL_COUNT, 1);
+    return CC0_FALSE;
+}
+
+function cc0_link_record_symbol(name, length, region, value, binding)
+{
+    return cc0_link_record_symbol_(name, length, region, value, binding,
+        0, 0);
+}
+
+function cc0_link_collect_object_symbols_(object, image, symbol_section,
+    string_section, symbols, strings, symbol_count, index, symbol, name,
+    binding, section_index, map, region, value)
+{
+    image = ri32(add(object, CC0_LINK_OBJECT_IMAGE_OFFSET));
+    symbol_section = ri32(add(object, CC0_LINK_OBJECT_SYMBOLS_OFFSET));
+    string_section = ri32(add(object, CC0_LINK_OBJECT_STRINGS_OFFSET));
+    symbols = add(image, ri32(add(symbol_section,
+        CC0_LINK_ELF_SECTION_FILE_OFFSET)));
+    strings = add(image, ri32(add(string_section,
+        CC0_LINK_ELF_SECTION_FILE_OFFSET)));
+    symbol_count = sdiv(ri32(add(symbol_section,
+        CC0_LINK_ELF_SECTION_SIZE_OFFSET)), CC0_ELF_SYMBOL_BYTES);
+    index = 1;
+    while (lt(index, symbol_count)) {
+        symbol = add(symbols, shl(index, CC0_ELF_SYMBOL_ADDRESS_SHIFT));
+        binding = ushr(ri8(add(symbol, CC0_ELF_SYMBOL_INFO_OFFSET)), 4);
+        section_index = cc0_link_read_half(add(symbol,
+            CC0_ELF_SYMBOL_SECTION_OFFSET));
+        if (and(not(eq(binding, 0)), and(not(eq(section_index,
+            CC0_LINK_ELF_UNDEFINED_SECTION)), not(eq(ri32(add(symbol,
+            CC0_ELF_SYMBOL_NAME_OFFSET)), 0))))) {
+            name = add(strings, ri32(add(symbol,
+                CC0_ELF_SYMBOL_NAME_OFFSET)));
+            value = ri32(add(symbol, CC0_ELF_SYMBOL_VALUE_OFFSET));
+            if (lt(section_index, CC0_LINK_ELF_RESERVED_SECTION)) {
+                map = add(ri32(add(object,
+                    CC0_LINK_OBJECT_SECTION_MAP_OFFSET)),
+                    shl(section_index, 3));
+                region = ri32(map);
+                value = add(value, ri32(add(map, 4)));
+            } else {
+                region = CC0_LINK_REGION_ABSOLUTE;
+            }
+            if (cc0_link_record_symbol(name, cc0_c_string_length(name),
+                region, value, binding)) {
+                return CC0_TRUE;
+            }
+        }
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_link_collect_object_symbols(object)
+{
+    return cc0_link_collect_object_symbols_(object, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc0_link_collect_symbols_(index)
+{
+    index = 0;
+    while (lt(index, CC0_LINK_OBJECT_COUNT)) {
+        if (cc0_link_collect_object_symbols(cc0_link_object_entry(index))) {
+            return CC0_TRUE;
+        }
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_link_collect_symbols()
+{
+    return cc0_link_collect_symbols_(0);
 }
 
 function cc0_write_object_(name, descriptor, index)
