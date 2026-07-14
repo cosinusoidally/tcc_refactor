@@ -1710,9 +1710,8 @@ function cc0_elf_emit_relocations()
 }
 
 /* Turn the compiler buffers into TCC-style sections before file layout. */
-function cc0_elf_build_object_sections()
+function cc0_elf_build_object_sections_(bss_bytes)
 {
-    var bss_bytes;
     if (cc0_elf_prepare_object_sections()) {
         return CC0_TRUE;
     }
@@ -1759,6 +1758,11 @@ function cc0_elf_build_object_sections()
         return CC0_TRUE;
     }
     return cc0_elf_emit_relocations();
+}
+
+function cc0_elf_build_object_sections()
+{
+    return cc0_elf_build_object_sections_(0);
 }
 
 function cc0_compiler_product_(left, right, result, index)
