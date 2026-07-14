@@ -1125,65 +1125,6 @@ again:
         add32le(cur_text_section->data + pc - 4, pc - ind);
 }
 
-/* return the constraint priority (we allocate first the lowest
-   numbered constraints) */
-static inline int constraint_priority(const char *str)
-{
-    int priority, c, pr;
-
-    /* we take the lowest priority */
-    priority = 0;
-    for(;;) {
-        c = *str;
-        if (c == '\0')
-            break;
-        str++;
-        switch(c) {
-        case 'A':
-            pr = 0;
-            break;
-        case 'a':
-        case 'b':
-        case 'c':
-        case 'd':
-        case 'S':
-        case 'D':
-            pr = 1;
-            break;
-        case 'q':
-            pr = 2;
-            break;
-        case 'r':
-	case 'R':
-	case 'p':
-            pr = 3;
-            break;
-        case 'N':
-        case 'M':
-        case 'I':
-	case 'e':
-        case 'i':
-        case 'm':
-        case 'g':
-            pr = 4;
-            break;
-        default:
-            tcc_error("unknown constraint '%c'", c);
-            pr = 0;
-        }
-        if (pr > priority)
-            priority = pr;
-    }
-    return priority;
-}
-
-static const char *skip_constraint_modifiers(const char *p)
-{
-    while (*p == '=' || *p == '&' || *p == '+' || *p == '%')
-        p++;
-    return p;
-}
-
 /* If T (a token) is of the form "%reg" returns the register
    number and type, otherwise return -1.  */
 int asm_parse_regvar (int t)
@@ -1679,34 +1620,4 @@ void asm_gen_code(ASMOperand *operands, int nb_operands,
             }
         }
     }
-}
-
-void asm_clobber(uint8_t *clobber_regs, const char *str)
-{
-    int reg;
-    TokenSym *ts;
-#ifdef TCC_TARGET_X86_64
-    unsigned int type;
-#endif
-
-    if (!strcmp(str, "memory") ||
-        !strcmp(str, "cc") ||
-	!strcmp(str, "flags"))
-        return;
-    ts = tok_alloc(str, strlen(str));
-    reg = ts->tok;
-    if (reg >= TOK_ASM_eax && reg <= TOK_ASM_edi) {
-        reg -= TOK_ASM_eax;
-    } else if (reg >= TOK_ASM_ax && reg <= TOK_ASM_di) {
-        reg -= TOK_ASM_ax;
-#ifdef TCC_TARGET_X86_64
-    } else if (reg >= TOK_ASM_rax && reg <= TOK_ASM_rdi) {
-        reg -= TOK_ASM_rax;
-    } else if ((reg = asm_parse_numeric_reg(reg, &type)) >= 0) {
-	;
-#endif
-    } else {
-        tcc_error("invalid clobber register '%s'", str);
-    }
-    clobber_regs[reg] = 1;
 }

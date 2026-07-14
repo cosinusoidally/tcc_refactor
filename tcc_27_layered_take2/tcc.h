@@ -1739,6 +1739,8 @@ extern void asm_compute_constraints(ASMOperand *operands, int nb_operands, int n
 extern void subst_asm_operand(CString *add_str, SValue *sv, int modifier);
 extern void asm_gen_code(ASMOperand *operands, int nb_operands, int nb_outputs, int is_output, uint8_t *clobber_regs, int out_reg);
 extern void asm_clobber(uint8_t *clobber_regs, const char *str);
+extern int constraint_priority(const char *str);
+extern const char *skip_constraint_modifiers(const char *str);
 #endif
 
 /* ------------ tccpe.c -------------- */

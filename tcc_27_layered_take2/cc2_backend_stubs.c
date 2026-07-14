@@ -209,10 +209,6 @@ function asm_gen_code(operands, operand_count, output_count, is_output,
     return 0;
 }
 
-function asm_clobber(clobbers, text)
-{
-    return 0;
-}
 
 function case_sort(base, count)
 {

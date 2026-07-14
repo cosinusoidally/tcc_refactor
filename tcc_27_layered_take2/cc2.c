@@ -880,6 +880,10 @@ var CC2_ASM_OPERAND_MEMORY_OFFSET;
 var CC2_ASM_OPERAND_LIMIT;
 var CC2_ASM_REGISTER_COUNT;
 var CC2_CHARACTER_IDENTIFIER_FLAG;
+var CC2_ASM_REGISTER_AX_FIRST;
+var CC2_ASM_REGISTER_AX_LAST;
+var CC2_ASM_REGISTER_EAX_FIRST;
+var CC2_ASM_REGISTER_EAX_LAST;
 var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
@@ -7974,6 +7978,96 @@ function asm_global_instr_(saved_no_code, string, section)
 function asm_global_instr()
 {
     return asm_global_instr_(0, 0, 0);
+}
+
+function constraint_priority_(text, priority, character, current)
+{
+    priority = 0;
+    while (not(eq(ri8(text), 0))) {
+        character = ri8(text);
+        text = add(text, 1);
+        if (eq(character, mkC("A"))) {
+            current = 0;
+        } else if (or(or(eq(character, mkC("a")),
+            eq(character, mkC("b"))), or(or(eq(character, mkC("c")),
+            eq(character, mkC("d"))), or(eq(character, mkC("S")),
+            eq(character, mkC("D")))))) {
+            current = 1;
+        } else if (eq(character, mkC("q"))) {
+            current = 2;
+        } else if (eq(character, mkC("r"))) {
+            current = 3;
+        } else if (eq(character, mkC("R"))) {
+            current = 3;
+        } else if (eq(character, mkC("p"))) {
+            current = 3;
+        } else if (eq(character, mkC("N"))) {
+            current = 4;
+        } else if (eq(character, mkC("M"))) {
+            current = 4;
+        } else if (eq(character, mkC("I"))) {
+            current = 4;
+        } else if (eq(character, mkC("e"))) {
+            current = 4;
+        } else if (eq(character, mkC("i"))) {
+            current = 4;
+        } else if (eq(character, mkC("m"))) {
+            current = 4;
+        } else if (eq(character, mkC("g"))) {
+            current = 4;
+        } else {
+            tcc_error(mks("unknown constraint '%c'"), character);
+            current = 0;
+        }
+        if (lt(priority, current)) {
+            priority = current;
+        }
+    }
+    return priority;
+}
+
+function constraint_priority(text)
+{
+    return constraint_priority_(text, 0, 0, 0);
+}
+
+function skip_constraint_modifiers(text)
+{
+    var character;
+    character = ri8(text);
+    while (or(or(eq(character, mkC("=")), eq(character, mkC("&"))),
+        or(eq(character, mkC("+")), eq(character, CC2_ASCII_PERCENT)))) {
+        text = add(text, 1);
+        character = ri8(text);
+    }
+    return text;
+}
+
+function asm_clobber_(clobbers, text, token_symbol, reg)
+{
+    if (or(or(eq(strcmp(text, mks("memory")), 0),
+        eq(strcmp(text, mks("cc")), 0)),
+        eq(strcmp(text, mks("flags")), 0))) {
+        return 0;
+    }
+    token_symbol = tok_alloc(text, strlen(text));
+    reg = ri32(add(token_symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET));
+    if (and(le(CC2_ASM_REGISTER_EAX_FIRST, reg),
+        le(reg, CC2_ASM_REGISTER_EAX_LAST))) {
+        reg = sub(reg, CC2_ASM_REGISTER_EAX_FIRST);
+    } else if (and(le(CC2_ASM_REGISTER_AX_FIRST, reg),
+        le(reg, CC2_ASM_REGISTER_AX_LAST))) {
+        reg = sub(reg, CC2_ASM_REGISTER_AX_FIRST);
+    } else {
+        tcc_error(mks("invalid clobber register '%s'"), text);
+    }
+    wi8(add(clobbers, reg), 1);
+    return 0;
+}
+
+function asm_clobber(clobbers, text)
+{
+    return asm_clobber_(clobbers, text, 0, 0);
 }
 
 function use_section1(state, section)
@@ -23393,6 +23487,10 @@ function cc2_init_constants()
     CC2_ASM_OPERAND_LIMIT = 30;
     CC2_ASM_REGISTER_COUNT = 8;
     CC2_CHARACTER_IDENTIFIER_FLAG = 2;
+    CC2_ASM_REGISTER_AX_FIRST = 450;
+    CC2_ASM_REGISTER_AX_LAST = 457;
+    CC2_ASM_REGISTER_EAX_FIRST = 458;
+    CC2_ASM_REGISTER_EAX_LAST = 465;
     CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;
