@@ -186,6 +186,26 @@ function asm_opcode(state, opcode)
     return 0;
 }
 
+function cc2_i386_instruction_table()
+{
+    return 0;
+}
+
+function cc2_i386_zero_operand_codes()
+{
+    return 0;
+}
+
+function cc2_i386_segment_prefix_table()
+{
+    return 0;
+}
+
+function cc2_i386_test_bit_table()
+{
+    return 0;
+}
+
 function asm_compute_constraints(operands, operand_count, output_count,
     clobbers, output_register)
 {

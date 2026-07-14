@@ -252,6 +252,28 @@ static const uint16_t op0_codes[] = {
 #endif
 };
 
+/* cc2 owns instruction selection; this file temporarily retains the typed
+   immutable table representation until table construction moves as well. */
+int cc2_i386_instruction_table(void)
+{
+    return (int)asm_instrs;
+}
+
+int cc2_i386_zero_operand_codes(void)
+{
+    return (int)op0_codes;
+}
+
+int cc2_i386_segment_prefix_table(void)
+{
+    return (int)segment_prefixes;
+}
+
+int cc2_i386_test_bit_table(void)
+{
+    return (int)test_bits;
+}
+
 void parse_operand(TCCState *s1, Operand *op);
 
 void asm_opcode(TCCState *s1, int opcode)
@@ -302,139 +324,10 @@ void asm_opcode(TCCState *s1, int opcode)
         next();
     }
 
-    s = 0; /* avoid warning */
-
-again:
-    /* optimize matching by using a lookup table (no hashing is needed
-       !) */
-    for(pa = asm_instrs; pa->sym != 0; pa++) {
-	int it = pa->instr_type & OPCT_MASK;
-        s = 0;
-        if (it == OPC_FARITH) {
-            v = opcode - pa->sym;
-            if (!((unsigned)v < 8 * 6 && (v % 6) == 0))
-                continue;
-        } else if (it == OPC_ARITH) {
-            if (!(opcode >= pa->sym && opcode < pa->sym + 8*NBWLX))
-                continue;
-            s = (opcode - pa->sym) % NBWLX;
-	    if ((pa->instr_type & OPC_BWLX) == OPC_WLX)
-	      {
-		/* We need to reject the xxxb opcodes that we accepted above.
-		   Note that pa->sym for WLX opcodes is the 'w' token,
-		   to get the 'b' token subtract one.  */
-		if (((opcode - pa->sym + 1) % NBWLX) == 0)
-		    continue;
-	        s++;
-	      }
-        } else if (it == OPC_SHIFT) {
-            if (!(opcode >= pa->sym && opcode < pa->sym + 7*NBWLX))
-                continue;
-            s = (opcode - pa->sym) % NBWLX;
-        } else if (it == OPC_TEST) {
-            if (!(opcode >= pa->sym && opcode < pa->sym + NB_TEST_OPCODES))
-                continue;
-	    /* cmovxx is a test opcode but accepts multiple sizes.
-	       The suffixes aren't encoded in the table, instead we
-	       simply force size autodetection always and deal with suffixed
-	       variants below when we don't find e.g. "cmovzl".  */
-	    if (pa->instr_type & OPC_WLX)
-	        s = NBWLX - 1;
-        } else if (pa->instr_type & OPC_B) {
-#ifdef TCC_TARGET_X86_64
-	    /* Some instructions don't have the full size but only
-	       bwl form.  insb e.g. */
-	    if ((pa->instr_type & OPC_WLQ) != OPC_WLQ
-		&& !(opcode >= pa->sym && opcode < pa->sym + NBWLX-1))
-	        continue;
-#endif
-            if (!(opcode >= pa->sym && opcode < pa->sym + NBWLX))
-                continue;
-            s = opcode - pa->sym;
-        } else if (pa->instr_type & OPC_WLX) {
-            if (!(opcode >= pa->sym && opcode < pa->sym + NBWLX-1))
-                continue;
-            s = opcode - pa->sym + 1;
-        } else {
-            if (pa->sym != opcode)
-                continue;
-        }
-        if (pa->nb_ops != nb_ops)
-            continue;
-#ifdef TCC_TARGET_X86_64
-	/* Special case for moves.  Selecting the IM64->REG64 form
-	   should only be done if we really have an >32bit imm64, and that
-	   is hardcoded.  Ignore it here.  */
-	if (pa->opcode == 0xb0 && ops[0].type != OP_IM64
-	    && (ops[1].type & OP_REG) == OP_REG64
-	    && !(pa->instr_type & OPC_0F))
-	    continue;
-#endif
-        /* now decode and check each operand */
-	alltypes = 0;
-        for(i = 0; i < nb_ops; i++) {
-            int op1, op2;
-            op1 = pa->op_type[i];
-            op2 = op1 & 0x1f;
-            switch(op2) {
-            case OPT_IM:
-                v = OP_IM8 | OP_IM16 | OP_IM32;
-                break;
-            case OPT_REG:
-                v = OP_REG8 | OP_REG16 | OP_REG32 | OP_REG64;
-                break;
-            case OPT_REGW:
-                v = OP_REG16 | OP_REG32 | OP_REG64;
-                break;
-            case OPT_IMW:
-                v = OP_IM16 | OP_IM32;
-                break;
-	    case OPT_MMXSSE:
-		v = OP_MMX | OP_SSE;
-		break;
-	    case OPT_DISP:
-	    case OPT_DISP8:
-		v = OP_ADDR;
-		break;
-            default:
-                v = 1 << op2;
-                break;
-            }
-            if (op1 & OPT_EA)
-                v |= OP_EA;
-	    op_type[i] = v;
-            if ((ops[i].type & v) == 0)
-                goto next;
-	    alltypes |= ops[i].type;
-        }
-        /* all is matching ! */
-        break;
-    next: ;
-    }
-    if (pa->sym == 0) {
-        if (opcode >= TOK_ASM_first && opcode <= TOK_ASM_last) {
-            int b;
-            b = op0_codes[opcode - TOK_ASM_first];
-            if (b & 0xff00) 
-                g(b >> 8);
-            g(b);
-            return;
-        } else if (opcode <= TOK_ASM_alllast) {
-            tcc_error("bad operand with opcode '%s'",
-                  get_tok_str(opcode, NULL));
-        } else {
-	    /* Special case for cmovcc, we accept size suffixes but ignore
-	       them, but we don't want them to blow up our tables.  */
-	    TokenSym *ts = table_ident[opcode - TOK_IDENT];
-	    if (ts->len >= 6
-		&& strchr("wlq", ts->str[ts->len-1])
-		&& !memcmp(ts->str, "cmov", 4)) {
-		opcode = tok_alloc(ts->str, ts->len-1)->tok;
-		goto again;
-	    }
-            tcc_error("unknown opcode '%s'", ts->str);
-        }
-    }
+    pa = (ASMInstr *)cc2_i386_find_instruction(&opcode, ops, nb_ops,
+                                                op_type, &s);
+    if (!pa)
+        return;
     /* if the size is unknown, then evaluate it (OPC_B or OPC_WL case) */
     autosize = NBWLX-1;
 #ifdef TCC_TARGET_X86_64

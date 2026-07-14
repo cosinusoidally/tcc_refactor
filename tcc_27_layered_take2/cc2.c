@@ -916,6 +916,32 @@ var CC2_I386_TYPE_DATA_REGISTER;
 var CC2_I386_TYPE_ADDRESS;
 var CC2_I386_TYPE_INDIRECT;
 var CC2_I386_TYPE_EFFECTIVE_ADDRESS;
+var CC2_I386_INSTRUCTION_BYTES;
+var CC2_I386_INSTRUCTION_SYMBOL_OFFSET;
+var CC2_I386_INSTRUCTION_OPCODE_OFFSET;
+var CC2_I386_INSTRUCTION_TYPE_OFFSET;
+var CC2_I386_INSTRUCTION_OPERAND_COUNT_OFFSET;
+var CC2_I386_INSTRUCTION_OPERAND_TYPES_OFFSET;
+var CC2_I386_OPCODE_TYPE_MASK;
+var CC2_I386_OPCODE_FLOAT_ARITHMETIC;
+var CC2_I386_OPCODE_ARITHMETIC;
+var CC2_I386_OPCODE_SHIFT;
+var CC2_I386_OPCODE_TEST;
+var CC2_I386_OPCODE_BYTE;
+var CC2_I386_OPCODE_WORD_LONG;
+var CC2_I386_OPERAND_DESCRIPTOR_EFFECTIVE_ADDRESS;
+var CC2_I386_OPERAND_DESCRIPTOR_IMMEDIATE;
+var CC2_I386_OPERAND_DESCRIPTOR_REGISTER;
+var CC2_I386_OPERAND_DESCRIPTOR_WORD_REGISTER;
+var CC2_I386_OPERAND_DESCRIPTOR_WORD_IMMEDIATE;
+var CC2_I386_OPERAND_DESCRIPTOR_MMX_SSE;
+var CC2_I386_OPERAND_DESCRIPTOR_DISPLACEMENT;
+var CC2_I386_OPERAND_DESCRIPTOR_SHORT_DISPLACEMENT;
+var CC2_I386_TOKEN_ZERO_OPERAND_FIRST;
+var CC2_I386_TOKEN_ZERO_OPERAND_LAST;
+var CC2_I386_TOKEN_OPCODE_LAST;
+var CC2_I386_OPCODE_SIZE_COUNT;
+var CC2_I386_TEST_OPCODE_COUNT;
 var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
@@ -8309,6 +8335,198 @@ function asm_parse_regvar(token)
     }
     free(operand);
     return reg;
+}
+
+function cc2_i386_decode_operand_descriptor(descriptor)
+{
+    var kind;
+    var type_value;
+    kind = and(descriptor, 31);
+    if (eq(kind, CC2_I386_OPERAND_DESCRIPTOR_IMMEDIATE)) {
+        type_value = or(CC2_I386_TYPE_IMMEDIATE_8,
+            or(CC2_I386_TYPE_IMMEDIATE_16,
+            CC2_I386_TYPE_IMMEDIATE_32));
+    } else if (eq(kind, CC2_I386_OPERAND_DESCRIPTOR_REGISTER)) {
+        type_value = or(CC2_I386_TYPE_REGISTER_8,
+            or(CC2_I386_TYPE_REGISTER_16,
+            CC2_I386_TYPE_REGISTER_32));
+    } else if (eq(kind,
+        CC2_I386_OPERAND_DESCRIPTOR_WORD_REGISTER)) {
+        type_value = or(CC2_I386_TYPE_REGISTER_16,
+            CC2_I386_TYPE_REGISTER_32);
+    } else if (eq(kind,
+        CC2_I386_OPERAND_DESCRIPTOR_WORD_IMMEDIATE)) {
+        type_value = or(CC2_I386_TYPE_IMMEDIATE_16,
+            CC2_I386_TYPE_IMMEDIATE_32);
+    } else if (eq(kind, CC2_I386_OPERAND_DESCRIPTOR_MMX_SSE)) {
+        type_value = or(8, 16);
+    } else if (or(eq(kind,
+        CC2_I386_OPERAND_DESCRIPTOR_DISPLACEMENT), eq(kind,
+        CC2_I386_OPERAND_DESCRIPTOR_SHORT_DISPLACEMENT))) {
+        type_value = CC2_I386_TYPE_ADDRESS;
+    } else {
+        type_value = shl(1, kind);
+    }
+    if (and(descriptor,
+        CC2_I386_OPERAND_DESCRIPTOR_EFFECTIVE_ADDRESS)) {
+        type_value = or(type_value, CC2_I386_TYPE_EFFECTIVE_ADDRESS);
+    }
+    return type_value;
+}
+
+function cc2_i386_emit_zero_operand(opcode)
+{
+    var table;
+    var value;
+    table = cc2_i386_zero_operand_codes();
+    value = cc2_read_little_u16(add(table, mul(sub(opcode,
+        CC2_I386_TOKEN_ZERO_OPERAND_FIRST), 2)));
+    if (and(value, 65280)) {
+        g(shr(value, 8));
+    }
+    g(value);
+    return 0;
+}
+
+/* Select the first TCC opcode template matching the parsed operands. */
+function cc2_i386_find_instruction_(opcode_pointer, operands, operand_count,
+    operand_types, size_pointer, opcode, table, instruction, symbol,
+    instruction_type, instruction_class, size, delta, index, descriptor,
+    accepted_type, matches, text, length, token_symbol)
+{
+    opcode = ri32(opcode_pointer);
+    table = cc2_i386_instruction_table();
+    while (1) {
+        instruction = table;
+        while (1) {
+            symbol = cc2_read_little_u16(add(instruction,
+                CC2_I386_INSTRUCTION_SYMBOL_OFFSET));
+            if (eq(symbol, 0)) {
+                break;
+            }
+            instruction_type = cc2_read_little_u16(add(instruction,
+                CC2_I386_INSTRUCTION_TYPE_OFFSET));
+            instruction_class = and(instruction_type,
+                CC2_I386_OPCODE_TYPE_MASK);
+            size = 0;
+            matches = 1;
+            if (eq(instruction_class,
+                CC2_I386_OPCODE_FLOAT_ARITHMETIC)) {
+                delta = sub(opcode, symbol);
+                if (or(not(cc2_unsigned_less(delta, 48)),
+                    not(eq(mod(delta, 6), 0)))) {
+                    matches = 0;
+                }
+            } else if (eq(instruction_class,
+                CC2_I386_OPCODE_ARITHMETIC)) {
+                if (or(lt(opcode, symbol), not(lt(opcode, add(symbol,
+                    mul(8, CC2_I386_OPCODE_SIZE_COUNT)))))) {
+                    matches = 0;
+                } else {
+                    size = mod(sub(opcode, symbol),
+                        CC2_I386_OPCODE_SIZE_COUNT);
+                    if (eq(and(instruction_type, or(
+                        CC2_I386_OPCODE_BYTE,
+                        CC2_I386_OPCODE_WORD_LONG)),
+                        CC2_I386_OPCODE_WORD_LONG)) {
+                        if (eq(mod(add(sub(opcode, symbol), 1),
+                            CC2_I386_OPCODE_SIZE_COUNT), 0)) {
+                            matches = 0;
+                        }
+                        size = add(size, 1);
+                    }
+                }
+            } else if (eq(instruction_class, CC2_I386_OPCODE_SHIFT)) {
+                if (or(lt(opcode, symbol), not(lt(opcode, add(symbol,
+                    mul(7, CC2_I386_OPCODE_SIZE_COUNT)))))) {
+                    matches = 0;
+                } else {
+                    size = mod(sub(opcode, symbol),
+                        CC2_I386_OPCODE_SIZE_COUNT);
+                }
+            } else if (eq(instruction_class, CC2_I386_OPCODE_TEST)) {
+                if (or(lt(opcode, symbol), not(lt(opcode, add(symbol,
+                    CC2_I386_TEST_OPCODE_COUNT))))) {
+                    matches = 0;
+                } else if (and(instruction_type,
+                    CC2_I386_OPCODE_WORD_LONG)) {
+                    size = sub(CC2_I386_OPCODE_SIZE_COUNT, 1);
+                }
+            } else if (and(instruction_type, CC2_I386_OPCODE_BYTE)) {
+                if (or(lt(opcode, symbol), not(lt(opcode, add(symbol,
+                    CC2_I386_OPCODE_SIZE_COUNT))))) {
+                    matches = 0;
+                } else {
+                    size = sub(opcode, symbol);
+                }
+            } else if (and(instruction_type,
+                CC2_I386_OPCODE_WORD_LONG)) {
+                if (or(lt(opcode, symbol), not(lt(opcode, add(symbol,
+                    sub(CC2_I386_OPCODE_SIZE_COUNT, 1)))))) {
+                    matches = 0;
+                } else {
+                    size = add(sub(opcode, symbol), 1);
+                }
+            } else if (not(eq(symbol, opcode))) {
+                matches = 0;
+            }
+            if (and(matches, not(eq(ri8(add(instruction,
+                CC2_I386_INSTRUCTION_OPERAND_COUNT_OFFSET)),
+                operand_count)))) {
+                matches = 0;
+            }
+            index = 0;
+            while (and(matches, lt(index, operand_count))) {
+                descriptor = ri8(add(instruction, add(
+                    CC2_I386_INSTRUCTION_OPERAND_TYPES_OFFSET, index)));
+                accepted_type = cc2_i386_decode_operand_descriptor(
+                    descriptor);
+                wi32(add(operand_types, shl(index, 2)), accepted_type);
+                if (eq(and(ri32(add(operands, mul(index,
+                    CC2_I386_OPERAND_BYTES))), accepted_type), 0)) {
+                    matches = 0;
+                }
+                index = add(index, 1);
+            }
+            if (matches) {
+                wi32(size_pointer, size);
+                wi32(opcode_pointer, opcode);
+                return instruction;
+            }
+            instruction = add(instruction, CC2_I386_INSTRUCTION_BYTES);
+        }
+        if (and(le(CC2_I386_TOKEN_ZERO_OPERAND_FIRST, opcode),
+            le(opcode, CC2_I386_TOKEN_ZERO_OPERAND_LAST))) {
+            cc2_i386_emit_zero_operand(opcode);
+            return 0;
+        }
+        if (le(opcode, CC2_I386_TOKEN_OPCODE_LAST)) {
+            tcc_error(mks("bad operand with opcode '%s'"),
+                get_tok_str(opcode, 0));
+            return 0;
+        }
+        text = get_tok_str(opcode, 0);
+        length = strlen(text);
+        if (and(le(6, length), and(or(or(eq(ri8(add(text,
+            sub(length, 1))), mkC("w")), eq(ri8(add(text,
+            sub(length, 1))), mkC("l"))), eq(ri8(add(text,
+            sub(length, 1))), mkC("q"))), eq(memcmp(text, mks("cmov"),
+            4), 0)))) {
+            token_symbol = tok_alloc(text, sub(length, 1));
+            opcode = ri32(add(token_symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET));
+        } else {
+            tcc_error(mks("unknown opcode '%s'"), text);
+            return 0;
+        }
+    }
+}
+
+function cc2_i386_find_instruction(opcode_pointer, operands, operand_count,
+    operand_types, size_pointer)
+{
+    return cc2_i386_find_instruction_(opcode_pointer, operands,
+        operand_count, operand_types, size_pointer, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function gen_disp32_(expression, symbol, elf_symbol, section, value,
@@ -23863,6 +24081,33 @@ function cc2_init_constants()
     CC2_I386_TYPE_ADDRESS = 262144;
     CC2_I386_TYPE_INDIRECT = 524288;
     CC2_I386_TYPE_EFFECTIVE_ADDRESS = 1073741824;
+    CC2_I386_INSTRUCTION_BYTES = 10;
+    CC2_I386_INSTRUCTION_SYMBOL_OFFSET = 0;
+    CC2_I386_INSTRUCTION_OPCODE_OFFSET = 2;
+    CC2_I386_INSTRUCTION_TYPE_OFFSET = 4;
+    CC2_I386_INSTRUCTION_OPERAND_COUNT_OFFSET = 6;
+    CC2_I386_INSTRUCTION_OPERAND_TYPES_OFFSET = 7;
+    CC2_I386_OPCODE_TYPE_MASK = 112;
+    CC2_I386_OPCODE_FLOAT_ARITHMETIC = 64;
+    CC2_I386_OPCODE_ARITHMETIC = 48;
+    CC2_I386_OPCODE_SHIFT = 32;
+    CC2_I386_OPCODE_TEST = 80;
+    CC2_I386_OPCODE_BYTE = 1;
+    CC2_I386_OPCODE_WORD_LONG = 2;
+    CC2_I386_OPERAND_DESCRIPTOR_EFFECTIVE_ADDRESS = 128;
+    CC2_I386_OPERAND_DESCRIPTOR_IMMEDIATE = 21;
+    CC2_I386_OPERAND_DESCRIPTOR_REGISTER = 22;
+    CC2_I386_OPERAND_DESCRIPTOR_WORD_REGISTER = 23;
+    CC2_I386_OPERAND_DESCRIPTOR_WORD_IMMEDIATE = 24;
+    CC2_I386_OPERAND_DESCRIPTOR_MMX_SSE = 25;
+    CC2_I386_OPERAND_DESCRIPTOR_DISPLACEMENT = 26;
+    CC2_I386_OPERAND_DESCRIPTOR_SHORT_DISPLACEMENT = 27;
+    CC2_I386_TOKEN_ZERO_OPERAND_FIRST = 913;
+    CC2_I386_TOKEN_ZERO_OPERAND_LAST = 1007;
+    CC2_I386_TOKEN_OPCODE_LAST = 1151;
+    /* b, w, l, and the unsuffixed spelling are consecutive tokens. */
+    CC2_I386_OPCODE_SIZE_COUNT = 4;
+    CC2_I386_TEST_OPCODE_COUNT = 30;
     CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;
