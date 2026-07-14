@@ -25083,6 +25083,39 @@ function tcc_set_options(state, options)
     return 0;
 }
 
+function tcc_print_stats(state, elapsed_milliseconds)
+{
+    var lines;
+    var elapsed_seconds;
+    var elapsed_remainder;
+    var lines_per_second;
+    var throughput_tenths;
+    var throughput_whole;
+    var throughput_remainder;
+    if (lt(elapsed_milliseconds, 1)) {
+        elapsed_milliseconds = 1;
+    }
+    if (lt(total_bytes, 1)) {
+        total_bytes = 1;
+    }
+    lines = ri32(total_lines_address);
+    elapsed_seconds = sdiv(elapsed_milliseconds, 1000);
+    elapsed_remainder = sub(elapsed_milliseconds,
+        mul(elapsed_seconds, 1000));
+    lines_per_second = sdiv(mul(lines, 1000), elapsed_milliseconds);
+    throughput_tenths = sdiv(total_bytes,
+        mul(100, elapsed_milliseconds));
+    throughput_whole = sdiv(throughput_tenths, 10);
+    throughput_remainder = sub(throughput_tenths,
+        mul(throughput_whole, 10));
+    fprintf(cc2_stderr(), mks("* %d idents, %d lines, %d bytes\n"),
+        sub(tok_ident, CC2_TOKEN_IDENTIFIER_BASE), lines, total_bytes);
+    fprintf(cc2_stderr(), mks("* %d.%03d s, %u lines/s, %d.%d MB/s\n"),
+        elapsed_seconds, elapsed_remainder, lines_per_second,
+        throughput_whole, throughput_remainder);
+    return 0;
+}
+
 function tcc_memcheck()
 {
     return 0;

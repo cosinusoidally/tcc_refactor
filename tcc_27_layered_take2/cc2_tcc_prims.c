@@ -486,6 +486,11 @@ int no_flag(const char **text)
     return cc2_no_flag((int)text);
 }
 
+int cc2_stderr(void)
+{
+    return (int)stderr;
+}
+
 int cc2_tcc_preprocess_bridge(TCCState *state)
 {
     return cc2_tcc_preprocess((int)state);

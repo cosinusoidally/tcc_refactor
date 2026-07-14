@@ -76,6 +76,11 @@ function cc2_tcc_state_count_slot()
     return 0;
 }
 
+function cc2_stderr()
+{
+    return 0;
+}
+
 function u64_mul_add(words, base, digit)
 {
     return 0;
