@@ -7140,6 +7140,37 @@ function asm_parse_quad(state)
     return asm_parse_quad_(state, 0, 0, 0, 0, 0);
 }
 
+function asm_parse_string_(omit_terminator, data, size, index)
+{
+    next();
+    while (1) {
+        if (not(eq(ri32(tok_address), CC2_TOKEN_STRING))) {
+            expect(mks("string constant"));
+        }
+        data = ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET));
+        size = ri32(add(tokc_address, CC2_CSTRING_SIZE_OFFSET));
+        if (and(omit_terminator, lt(0, size))) {
+            size = sub(size, 1);
+        }
+        index = 0;
+        while (lt(index, size)) {
+            g(ri8(add(data, index)));
+            index = add(index, 1);
+        }
+        next();
+        if (eq(ri32(tok_address), mkC(","))) {
+            next();
+        } else if (not(eq(ri32(tok_address), CC2_TOKEN_STRING))) {
+            return 0;
+        }
+    }
+}
+
+function asm_parse_string(omit_terminator)
+{
+    return asm_parse_string_(omit_terminator, 0, 0, 0);
+}
+
 function use_section1(state, section)
 {
     var current;

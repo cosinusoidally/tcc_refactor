@@ -127,29 +127,7 @@ static void asm_parse_directive(TCCState *s1, int global)
     case TOK_ASMDIR_string:
     case TOK_ASMDIR_ascii:
     case TOK_ASMDIR_asciz:
-        {
-            const uint8_t *p;
-            int i, size, t;
-
-            t = tok;
-            next();
-            for(;;) {
-                if (tok != TOK_STR)
-                    expect("string constant");
-                p = tokc.str.data;
-                size = tokc.str.size;
-                if (t == TOK_ASMDIR_ascii && size > 0)
-                    size--;
-                for(i = 0; i < size; i++)
-                    g(p[i]);
-                next();
-                if (tok == ',') {
-                    next();
-                } else if (tok != TOK_STR) {
-                    break;
-                }
-            }
-	}
+        asm_parse_string(tok == TOK_ASMDIR_ascii);
 	break;
     case TOK_ASMDIR_text:
     case TOK_ASMDIR_data:
