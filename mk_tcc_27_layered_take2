@@ -14,7 +14,7 @@ CRTN=$(gcc -m32 -print-file-name=crtn.o)
 HOST_LIBC=$(gcc -m32 -print-file-name=libc.so)
 HOST_LIBGCC=$(gcc -m32 -print-file-name=libgcc.a)
 
-# cc1's bootstrap linker consumes these stable local names through TCC.
+# Keep stable local runtime names for compiler paths that perform discovery.
 ln -s "$CRT1" crt1.o
 ln -s "$CRTI" crti.o
 ln -s "$CRTBEGIN" crtbegin.o
@@ -86,10 +86,13 @@ diff -u -s libtcc1_layered_take2.o libtcc1_layered_take2_2.o
 
 # build the full compiler through the cc0 dialect entry
 ./tcc_27_layered_take2 -std=cc0 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ -c ../tcc_27_layered_take2/tcc_unified_cc0.c -U__linux__ -o tcc_27_layered_take2_cc0.o
-gcc -m32 prims_layered_take2_2.o cc0_layered_take2_2.o \
+./tcc_27_layered_take2 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    prims_layered_take2_2.o cc0_layered_take2_2.o \
     cc1_layered_take2_2.o cc2_layered_take2_2.o \
     tcc_27_layered_take2_cc0.o libtcc1_layered_take2_2.o \
-    -o tcc_27_layered_take2_cc0 -ldl
+    "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    -o tcc_27_layered_take2_cc0
+chmod +x tcc_27_layered_take2_cc0
 ./tcc_27_layered_take2_cc0 -dumpversion >/dev/null
 ./tcc_27_layered_take2_cc0 -std=cc0 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ -c ../tcc_27_layered_take2/tcc_unified_cc0.c -U__linux__ -o tcc_27_layered_take2_cc0_2.o
 diff -u -s tcc_27_layered_take2_cc0.o tcc_27_layered_take2_cc0_2.o
@@ -110,18 +113,27 @@ gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int -Dmain=cc0_smoke_main \
     -c ../tcc_27_layered_take2/cc0.c -o cc0_smoke.o
 gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
     -c ../tcc_27_layered_take2/cc1_stubs.c -o cc1_stubs_smoke.o
-gcc -m32 ../tcc_27_layered_take2/prims.c cc0_smoke.o cc1_stubs_smoke.o \
-    ../tcc_27_layered_take2/tests/layered/cc0_c_smoke.c -o cc0_c_smoke
+./tcc_27_layered_take2 -c ../tcc_27_layered_take2/prims.c \
+    -o prims_smoke.o
+./tcc_27_layered_take2 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    prims_smoke.o cc0_smoke.o cc1_stubs_smoke.o \
+    ../tcc_27_layered_take2/tests/layered/cc0_c_smoke.c \
+    "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" -o cc0_c_smoke
+chmod +x cc0_c_smoke
 ./cc0_c_smoke
 
 gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
     -c ../tcc_27_layered_take2/cc1.c -o cc1_token_smoke.o
 gcc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
     -c ../tcc_27_layered_take2/cc2_stubs.c -o cc2_stubs_smoke.o
-gcc -m32 ../tcc_27_layered_take2/prims.c cc0_smoke.o cc1_token_smoke.o \
-    cc2_stubs_smoke.o \
+./tcc_27_layered_take2 -c \
     ../tcc_27_layered_take2/tests/layered/cc1_token_smoke.c \
+    -o cc1_token_smoke_main.o
+./tcc_27_layered_take2 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    prims_smoke.o cc0_smoke.o cc1_token_smoke.o cc2_stubs_smoke.o \
+    cc1_token_smoke_main.o "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
     -o cc1_token_smoke
+chmod +x cc1_token_smoke
 ./cc1_token_smoke
 
 js ../tcc_27_layered_take2/tests/layered/cc0_js_smoke.js
