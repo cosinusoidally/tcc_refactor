@@ -1578,13 +1578,13 @@ function cc1_expand_source_recursive(source, length, file, stack)
 
 function cc1_expand_source_(source, length, file, stack)
 {
-    CC1_ASCII_TAB = 9;
-    CC1_ASCII_LINE_FEED = 10;
-    CC1_ASCII_CARRIAGE_RETURN = 13;
-    CC1_ASCII_SPACE = 32;
-    CC1_ASCII_QUOTE = 34;
-    CC1_ASCII_HASH = 35;
-    CC1_ASCII_SLASH = 47;
+    CC1_ASCII_TAB = mkC("\t");
+    CC1_ASCII_LINE_FEED = mkC("\n");
+    CC1_ASCII_CARRIAGE_RETURN = mkC("\r");
+    CC1_ASCII_SPACE = mkC(" ");
+    CC1_ASCII_QUOTE = mkC("\"");
+    CC1_ASCII_HASH = mkC("#");
+    CC1_ASCII_SLASH = mkC("/");
     CC1_EXPANDED_LENGTH = 0;
     stack = malloc(8);
     if (eq(stack, 0)) {

@@ -35,6 +35,8 @@
 - Do not use arithmetic, comparison, logical, bitwise, or pointer operators in
   `cc0.c`. Use lowercase primitive calls such as `add(a, b)`, `eq(a, b)`, and
   `ri32(address)` instead. Assignment remains part of the cc0 statement syntax.
+- Express single-byte character constants as `mkC("x")`. Do not use C character
+  literals or numeric ASCII values for characters in dialect code.
 - Do not prefix primitive names with `CC0_` or provide uppercase aliases.
 - Implement host meanings for otherwise inexpressible primitives in the small
   C and JavaScript support files. Those files must not contain compiler policy,
