@@ -830,6 +830,7 @@ var CC2_LINKER_FILENAME_BYTES;
 var CC2_BINARY_FILE_FLAG;
 var CC2_ASM_SYMBOL_TYPE;
 var CC2_ASM_SYMBOL_REGISTER;
+var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
 var CC2_ARCHIVE_GID_OFFSET;
@@ -6269,6 +6270,113 @@ function get_asm_sym(name, c_symbol)
         }
     }
     return symbol;
+}
+
+function asm_new_label1(state, label, is_local, section_number, value)
+{
+    var symbol;
+    var elf_symbol;
+    var create_symbol;
+    var type;
+    symbol = asm_label_find(label);
+    create_symbol = eq(symbol, 0);
+    if (not(create_symbol)) {
+        elf_symbol = elfsym(symbol);
+        if (and(not(eq(elf_symbol, 0)), not(eq(cc2_read_little_u16(add(
+            elf_symbol, CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)),
+            CC2_ELF_UNDEFINED_SECTION)))) {
+            type = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
+            if (and(eq(and(type, or(CC2_TCC_BASIC_TYPE_MASK,
+                CC2_TCC_UNSIGNED_TYPE)), CC2_TCC_UNSIGNED_TYPE), or(eq(
+                is_local, 1), not(eq(and(type, CC2_TCC_EXTERN_STORAGE), 0))))) {
+                create_symbol = 1;
+            } else {
+                if (eq(and(type, CC2_TCC_EXTERN_STORAGE), 0)) {
+                    tcc_error(mks("assembler label '%s' already defined"),
+                        get_tok_str(label, 0));
+                }
+            }
+        }
+    }
+    if (create_symbol) {
+        symbol = asm_label_push(label);
+    }
+    if (eq(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), 0)) {
+        put_extern_sym2(symbol, CC2_ELF_UNDEFINED_SECTION, 0, 0, 0);
+    }
+    elf_symbol = elfsym(symbol);
+    cc2_write_little_u16(add(elf_symbol,
+        CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET), section_number);
+    wi32(add(elf_symbol, CC2_ELF_SYMBOL_VALUE_OFFSET), value);
+    if (not(eq(is_local, 2))) {
+        wi32(add(symbol, CC2_SYM_TYPE_OFFSET), and(ri32(add(symbol,
+            CC2_SYM_TYPE_OFFSET)), bnot(CC2_TCC_EXTERN_STORAGE)));
+    }
+    return symbol;
+}
+
+function asm_new_label(state, label, is_local)
+{
+    var section;
+    section = ri32(cur_text_section_address);
+    return asm_new_label1(state, label, is_local, ri32(add(section,
+        CC2_SECTION_NUMBER_OFFSET)), ind);
+}
+
+function asm_section_sym(state, section)
+{
+    var buffer;
+    var token_symbol;
+    var label;
+    var symbol;
+    buffer = malloc(add(strlen(add(section, CC2_SECTION_NAME_OFFSET)), 3));
+    sprintf(buffer, mks("L.%s"), add(section, CC2_SECTION_NAME_OFFSET));
+    token_symbol = tok_alloc(buffer, strlen(buffer));
+    label = ri32(add(token_symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET));
+    free(buffer);
+    symbol = asm_label_find(label);
+    if (eq(symbol, 0)) {
+        symbol = asm_new_label1(state, label, 1, ri32(add(section,
+            CC2_SECTION_NUMBER_OFFSET)), 0);
+    }
+    return symbol;
+}
+
+function use_section1(state, section)
+{
+    var current;
+    current = ri32(cur_text_section_address);
+    wi32(add(current, CC2_SECTION_DATA_OFFSET), ind);
+    wi32(cur_text_section_address, section);
+    ind = ri32(add(section, CC2_SECTION_DATA_OFFSET));
+    return 0;
+}
+
+function use_section(state, name)
+{
+    return use_section1(state, find_section(state, name));
+}
+
+function push_section(state, name)
+{
+    var section;
+    section = find_section(state, name);
+    wi32(add(section, CC2_SECTION_PREVIOUS_OFFSET),
+        ri32(cur_text_section_address));
+    return use_section1(state, section);
+}
+
+function pop_section(state)
+{
+    var current;
+    var previous;
+    current = ri32(cur_text_section_address);
+    previous = ri32(add(current, CC2_SECTION_PREVIOUS_OFFSET));
+    if (eq(previous, 0)) {
+        tcc_error(mks(".popsection without .pushsection"), 0);
+    }
+    wi32(add(current, CC2_SECTION_PREVIOUS_OFFSET), 0);
+    return use_section1(state, previous);
 }
 
 /* Build a Unix archive and its big-endian ELF symbol index without GNU ar. */
@@ -21447,6 +21555,7 @@ function cc2_init_constants()
     CC2_BINARY_FILE_FLAG = 64;
     CC2_ASM_SYMBOL_TYPE = 12304;
     CC2_ASM_SYMBOL_REGISTER = 560;
+    CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;
     CC2_ARCHIVE_GID_OFFSET = 34;

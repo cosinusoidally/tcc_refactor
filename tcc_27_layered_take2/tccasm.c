@@ -22,8 +22,6 @@
 #ifdef CONFIG_TCC_ASM
 
 static int tcc_assemble_internal(TCCState *s1, int do_preprocess, int global);
-static Sym* asm_new_label(TCCState *s1, int label, int is_local);
-static Sym* asm_new_label1(TCCState *s1, int label, int is_local, int sh_num, int value);
 
 /* Return a symbol we can use inside the assembler, having name NAME.
    Symbols from asm and C source share a namespace.  If we generate
@@ -35,16 +33,6 @@ static Sym* asm_new_label1(TCCState *s1, int label, int is_local, int sh_num, in
    are anonymous in C, in this case CSYM can be used to transfer
    all information from that symbol to the (possibly newly created)
    asm symbol.  */
-static Sym* asm_section_sym(TCCState *s1, Section *sec)
-{
-    char buf[100];
-    int label = tok_alloc(buf,
-        snprintf(buf, sizeof buf, "L.%s", sec->name)
-        )->tok;
-    Sym *sym = asm_label_find(label);
-    return sym ? sym : asm_new_label1(s1, label, 1, sec->sh_num, 0);
-}
-
 /* We do not use the C expression parser to handle symbols. Maybe the
    C expression parser could be tweaked to do so. */
 
@@ -324,46 +312,6 @@ ST_FUNC int asm_int_expr(TCCState *s1)
     return e.v;
 }
 
-static Sym* asm_new_label1(TCCState *s1, int label, int is_local,
-                           int sh_num, int value)
-{
-    Sym *sym;
-    ElfSym *esym;
-
-    sym = asm_label_find(label);
-    if (sym) {
-	esym = elfsym(sym);
-	/* A VT_EXTERN symbol, even if it has a section is considered
-	   overridable.  This is how we "define" .set targets.  Real
-	   definitions won't have VT_EXTERN set.  */
-        if (esym && esym->st_shndx != SHN_UNDEF) {
-            /* the label is already defined */
-            if (IS_ASM_SYM(sym)
-                && (is_local == 1 || (sym->type.t & VT_EXTERN)))
-                goto new_label;
-            if (!(sym->type.t & VT_EXTERN))
-                tcc_error("assembler label '%s' already defined",
-                          get_tok_str(label, NULL));
-        }
-    } else {
-    new_label:
-        sym = asm_label_push(label);
-    }
-    if (!sym->c)
-      put_extern_sym2(sym, SHN_UNDEF, 0, 0, 0);
-    esym = elfsym(sym);
-    esym->st_shndx = sh_num;
-    esym->st_value = value;
-    if (is_local != 2)
-        sym->type.t &= ~VT_EXTERN;
-    return sym;
-}
-
-static Sym* asm_new_label(TCCState *s1, int label, int is_local)
-{
-    return asm_new_label1(s1, label, is_local, cur_text_section->sh_num, ind);
-}
-
 /* Set the value of LABEL to that of some expression (possibly
    involving other symbols).  LABEL can be overwritten later still.  */
 static Sym* set_symbol(TCCState *s1, int label)
@@ -381,36 +329,6 @@ static Sym* set_symbol(TCCState *s1, int label)
     sym = asm_new_label1(s1, label, 2, esym ? esym->st_shndx : SHN_ABS, n);
     elfsym(sym)->st_other |= ST_ASM_SET;
     return sym;
-}
-
-static void use_section1(TCCState *s1, Section *sec)
-{
-    cur_text_section->data_offset = ind;
-    cur_text_section = sec;
-    ind = cur_text_section->data_offset;
-}
-
-static void use_section(TCCState *s1, const char *name)
-{
-    Section *sec;
-    sec = find_section(s1, name);
-    use_section1(s1, sec);
-}
-
-static void push_section(TCCState *s1, const char *name)
-{
-    Section *sec = find_section(s1, name);
-    sec->prev = cur_text_section;
-    use_section1(s1, sec);
-}
-
-static void pop_section(TCCState *s1)
-{
-    Section *prev = cur_text_section->prev;
-    if (!prev)
-        tcc_error(".popsection without .pushsection");
-    cur_text_section->prev = NULL;
-    use_section1(s1, prev);
 }
 
 static void asm_parse_directive(TCCState *s1, int global)
