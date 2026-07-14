@@ -342,6 +342,16 @@ var CC0_LINK_ELF_UNDEFINED_SECTION;
 var CC0_LINK_ELF_RESERVED_SECTION;
 var CC0_LINK_ELF_GLOBAL_BINDING;
 var CC0_LINK_ELF_WEAK_BINDING;
+var CC0_LINK_RELOCATIONS;
+var CC0_LINK_RELOCATION_COUNT;
+var CC0_LINK_RELOCATION_CAPACITY;
+var CC0_LINK_RELOCATION_SHIFT;
+var CC0_LINK_RELOCATION_OBJECT_OFFSET;
+var CC0_LINK_RELOCATION_REGION_OFFSET;
+var CC0_LINK_RELOCATION_TARGET_OFFSET;
+var CC0_LINK_RELOCATION_TYPE_OFFSET;
+var CC0_LINK_RELOCATION_SYMBOL_OFFSET;
+var CC0_LINK_ELF_SECTION_INFO_OFFSET;
 var CC0_ELF_HEADER_BYTES;
 var CC0_ELF_SECTION_HEADER_BYTES;
 var CC0_ELF_TYPE_RELOCATABLE;
@@ -682,6 +692,16 @@ function cc0_init()
     CC0_LINK_ELF_RESERVED_SECTION = 65280;
     CC0_LINK_ELF_GLOBAL_BINDING = 1;
     CC0_LINK_ELF_WEAK_BINDING = 2;
+    CC0_LINK_RELOCATIONS = 0;
+    CC0_LINK_RELOCATION_COUNT = 0;
+    CC0_LINK_RELOCATION_CAPACITY = 0;
+    CC0_LINK_RELOCATION_SHIFT = 5;
+    CC0_LINK_RELOCATION_OBJECT_OFFSET = 0;
+    CC0_LINK_RELOCATION_REGION_OFFSET = 4;
+    CC0_LINK_RELOCATION_TARGET_OFFSET = 8;
+    CC0_LINK_RELOCATION_TYPE_OFFSET = 12;
+    CC0_LINK_RELOCATION_SYMBOL_OFFSET = 16;
+    CC0_LINK_ELF_SECTION_INFO_OFFSET = 28;
     CC0_ELF_HEADER_BYTES = 52;
     CC0_ELF_SECTION_HEADER_BYTES = 40;
     CC0_ELF_TYPE_RELOCATABLE = 1;
@@ -5962,6 +5982,129 @@ function cc0_link_collect_symbols_(index)
 function cc0_link_collect_symbols()
 {
     return cc0_link_collect_symbols_(0);
+}
+
+function cc0_link_relocation_entry(index)
+{
+    return add(CC0_LINK_RELOCATIONS,
+        shl(index, CC0_LINK_RELOCATION_SHIFT));
+}
+
+function cc0_link_reserve_relocations_(needed, needed_bytes, used_bytes,
+    relocations)
+{
+    needed_bytes = shl(needed, CC0_LINK_RELOCATION_SHIFT);
+    used_bytes = shl(CC0_LINK_RELOCATION_COUNT,
+        CC0_LINK_RELOCATION_SHIFT);
+    relocations = cc0_compiler_grow_memory(CC0_LINK_RELOCATIONS, used_bytes,
+        CC0_LINK_RELOCATION_CAPACITY, needed_bytes);
+    if (eq(relocations, 0)) {
+        return CC0_TRUE;
+    }
+    CC0_LINK_RELOCATIONS = relocations;
+    CC0_LINK_RELOCATION_CAPACITY = cc0_compiler_grown_capacity(
+        CC0_LINK_RELOCATION_CAPACITY, needed_bytes);
+    return CC0_FALSE;
+}
+
+function cc0_link_reserve_relocations(needed)
+{
+    return cc0_link_reserve_relocations_(needed, 0, 0, 0);
+}
+
+function cc0_link_record_relocation_(object_index, region, target, type,
+    symbol_index, relocation)
+{
+    if (and(not(eq(type, CC0_ELF_RELOCATION_ABSOLUTE)),
+        not(eq(type, CC0_ELF_RELOCATION_PC_RELATIVE)))) {
+        return CC0_TRUE;
+    }
+    if (cc0_link_reserve_relocations(add(CC0_LINK_RELOCATION_COUNT, 1))) {
+        return CC0_TRUE;
+    }
+    relocation = cc0_link_relocation_entry(CC0_LINK_RELOCATION_COUNT);
+    wi32(add(relocation, CC0_LINK_RELOCATION_OBJECT_OFFSET), object_index);
+    wi32(add(relocation, CC0_LINK_RELOCATION_REGION_OFFSET), region);
+    wi32(add(relocation, CC0_LINK_RELOCATION_TARGET_OFFSET), target);
+    wi32(add(relocation, CC0_LINK_RELOCATION_TYPE_OFFSET), type);
+    wi32(add(relocation, CC0_LINK_RELOCATION_SYMBOL_OFFSET), symbol_index);
+    CC0_LINK_RELOCATION_COUNT = add(CC0_LINK_RELOCATION_COUNT, 1);
+    return CC0_FALSE;
+}
+
+function cc0_link_record_relocation(object_index, region, target, type,
+    symbol_index)
+{
+    return cc0_link_record_relocation_(object_index, region, target, type,
+        symbol_index, 0);
+}
+
+function cc0_link_collect_relocation_section_(object_index, object, section,
+    image, target_section_index, target_map, region, target_base, records,
+    record_count, index, record, info)
+{
+    image = ri32(add(object, CC0_LINK_OBJECT_IMAGE_OFFSET));
+    target_section_index = ri32(add(section,
+        CC0_LINK_ELF_SECTION_INFO_OFFSET));
+    target_map = add(ri32(add(object, CC0_LINK_OBJECT_SECTION_MAP_OFFSET)),
+        shl(target_section_index, 3));
+    region = ri32(target_map);
+    target_base = ri32(add(target_map, 4));
+    if (eq(region, 0)) {
+        return CC0_TRUE;
+    }
+    records = add(image, ri32(add(section,
+        CC0_LINK_ELF_SECTION_FILE_OFFSET)));
+    record_count = ushr(ri32(add(section,
+        CC0_LINK_ELF_SECTION_SIZE_OFFSET)), 3);
+    index = 0;
+    while (lt(index, record_count)) {
+        record = add(records, shl(index, 3));
+        info = ri32(add(record, 4));
+        if (cc0_link_record_relocation(object_index, region,
+            add(target_base, ri32(record)), and(info, 255), ushr(info, 8))) {
+            return CC0_TRUE;
+        }
+        index = add(index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_link_collect_relocation_section(object_index, object, section)
+{
+    return cc0_link_collect_relocation_section_(object_index, object,
+        section, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc0_link_collect_relocations_(object_index, object, image,
+    section_count, section_index, section)
+{
+    object_index = 0;
+    while (lt(object_index, CC0_LINK_OBJECT_COUNT)) {
+        object = cc0_link_object_entry(object_index);
+        image = ri32(add(object, CC0_LINK_OBJECT_IMAGE_OFFSET));
+        section_count = ri32(add(object,
+            CC0_LINK_OBJECT_SECTION_COUNT_OFFSET));
+        section_index = 1;
+        while (lt(section_index, section_count)) {
+            section = cc0_link_section(image, section_index);
+            if (eq(ri32(add(section, CC0_LINK_ELF_SECTION_TYPE_OFFSET)),
+                CC0_ELF_SECTION_REL)) {
+                if (cc0_link_collect_relocation_section(object_index,
+                    object, section)) {
+                    return CC0_TRUE;
+                }
+            }
+            section_index = add(section_index, 1);
+        }
+        object_index = add(object_index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_link_collect_relocations()
+{
+    return cc0_link_collect_relocations_(0, 0, 0, 0, 0, 0);
 }
 
 function cc0_write_object_(name, descriptor, index)
