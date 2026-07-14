@@ -147,10 +147,6 @@ extern long double strtold (const char *__nptr, char **__endptr);
 
 #if defined TCC_IS_NATIVE && !defined CONFIG_TCCBOOT
 # define CONFIG_TCC_BACKTRACE
-# if (defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64) \
-  && !defined TCC_UCLIBC && !defined TCC_MUSL
-# define CONFIG_TCC_BCHECK /* enable bound checking code */
-# endif
 #endif
 
 /* ------------ path configuration ------------ */
@@ -638,10 +634,8 @@ struct TCCState {
 
     /* compile with debug symbol (and use them if error during execution) */
     int do_debug;
-#ifdef CONFIG_TCC_BCHECK
-    /* compile with built-in memory and bounds checker */
-    int do_bounds_check;
-#endif
+    /* Keep the audited i386 state layout stable as legacy features disappear. */
+    int reserved_after_debug;
 #ifdef TCC_TARGET_ARM
     enum float_abi float_abi; /* float ABI of the generated code*/
 #endif
@@ -1310,7 +1304,6 @@ extern Section **common_section_address;
 extern Section **text_section_address;
 extern Section **stab_section_address;
 extern Section **stabstr_section_address;
-extern Section **bounds_section_address;
 extern TCCState *tcc_state_address;
 extern CValue *tokc_address;
 extern SValue __vstack[1+/*to make bcheck happy*/ VSTACK_SIZE];
@@ -1456,9 +1449,6 @@ extern void expr_eq(void);
 extern void expr_const1(void);
 extern void expr_cond(void);
 int expr_const(void);
-#if defined CONFIG_TCC_BCHECK || defined TCC_TARGET_C67
-extern Sym *get_sym_ref(CType *type, Section *sec, unsigned long offset, unsigned long size);
-#endif
 #if defined TCC_TARGET_X86_64 && !defined TCC_TARGET_PE
 ST_FUNC int classify_x86_64_va_arg(CType *ty);
 #endif
@@ -1484,12 +1474,6 @@ ST_DATA Section *common_section;
 ST_DATA Section *cur_text_section; /* current section where function code is generated */
 #ifdef CONFIG_TCC_ASM
 ST_DATA Section *last_text_section; /* to handle .previous asm directive */
-#endif
-#ifdef CONFIG_TCC_BCHECK
-/* bound check related sections */
-ST_DATA Section *bounds_section; /* contains global data bound description */
-ST_DATA Section *lbounds_section; /* contains local data bound description */
-ST_FUNC void tccelf_bounds_new(TCCState *s);
 #endif
 /* symbol sections */
 ST_DATA Section *symtab_section;
@@ -1679,11 +1663,6 @@ extern void gen_le16(int c);
 extern void gen_le32(int c);
 extern void gen_addr32(int r, Sym *sym, int c);
 extern void gen_addrpc32(int r, Sym *sym, int c);
-#endif
-
-#ifdef CONFIG_TCC_BCHECK
-ST_FUNC void gen_bounded_ptr_add(void);
-ST_FUNC void gen_bounded_ptr_deref(void);
 #endif
 
 /* ------------ x86_64-gen.c ------------ */

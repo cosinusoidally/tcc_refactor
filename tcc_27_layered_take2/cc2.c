@@ -617,7 +617,6 @@ var common_section_address;
 var text_section_address;
 var stab_section_address;
 var stabstr_section_address;
-var bounds_section_address;
 var tcc_state_address;
 var gnu_ext_address;
 var tcc_ext_address;
@@ -832,8 +831,6 @@ var CC2_TCC_STATE_CRT_PATHS_OFFSET;
 var CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET;
 var CC2_TCC_OUTPUT_MEMORY;
 var CC2_RUNTIME_SUPPORT_LIBRARY;
-var CC2_TCC_STATE_BOUNDS_CHECK_OFFSET;
-var CC2_I386_CALL_RELATIVE_OPCODE;
 var CC2_TOKEN_GENERIC;
 var CC2_TOKEN_DEFAULT;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD;
@@ -7956,7 +7953,6 @@ function tcc_add_runtime(state)
     var library_count;
     var library_index;
     var library_root;
-    cc2_add_bounds_runtime(state);
     libraries = ri32(add(state, CC2_TCC_STATE_PRAGMA_LIBRARIES_OFFSET));
     library_count = ri32(add(state,
         CC2_TCC_STATE_PRAGMA_LIBRARY_COUNT_OFFSET));
@@ -7977,38 +7973,6 @@ function tcc_add_runtime(state)
             CC2_TCC_OUTPUT_MEMORY))) {
             cc2_add_crt(state, mks("crtn.o"));
         }
-    }
-    return 0;
-}
-
-function cc2_add_bounds_runtime(state)
-{
-    var bounds_section;
-    var pointer;
-    var symbol_index;
-    var init_section;
-    if (eq(ri32(add(state, CC2_TCC_STATE_BOUNDS_CHECK_OFFSET)), 0)) {
-        return 0;
-    }
-    bounds_section = ri32(bounds_section_address);
-    pointer = section_ptr_add(bounds_section, CC2_I386_WORD_BYTES);
-    wi32(pointer, 0);
-    set_elf_sym(ri32(symtab_section_address), 0, 0,
-        shl(CC2_ELF_SYMBOL_GLOBAL_BINDING, CC2_ELF_SYMBOL_BIND_SHIFT), 0,
-        ri32(add(bounds_section, CC2_SECTION_NUMBER_OFFSET)),
-        mks("__bounds_start"));
-    symbol_index = set_elf_sym(ri32(symtab_section_address), 0, 0,
-        shl(CC2_ELF_SYMBOL_GLOBAL_BINDING, CC2_ELF_SYMBOL_BIND_SHIFT), 0,
-        CC2_ELF_UNDEFINED_SECTION, mks("__bound_init"));
-    if (not(eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
-        CC2_TCC_OUTPUT_MEMORY))) {
-        init_section = find_section(state, mks(".init"));
-        pointer = section_ptr_add(init_section, 5);
-        wi8(pointer, CC2_I386_CALL_RELATIVE_OPCODE);
-        wi32(add(pointer, 1), sub(0, CC2_I386_WORD_BYTES));
-        put_elf_reloc(ri32(symtab_section_address), init_section, sub(ri32(add(
-            init_section, CC2_SECTION_DATA_OFFSET)), CC2_I386_WORD_BYTES),
-            CC2_I386_PC_RELATIVE_RELOCATION, symbol_index);
     }
     return 0;
 }
@@ -19885,8 +19849,6 @@ function cc2_init_constants()
     CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET = 172;
     CC2_TCC_OUTPUT_MEMORY = 1;
     CC2_RUNTIME_SUPPORT_LIBRARY = mks("libtcc1.a");
-    CC2_TCC_STATE_BOUNDS_CHECK_OFFSET = 104;
-    CC2_I386_CALL_RELATIVE_OPCODE = 232;
     CC2_TOKEN_GENERIC = 292;
     CC2_TOKEN_DEFAULT = 300;
     CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;

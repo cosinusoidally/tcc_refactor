@@ -55,9 +55,6 @@ static const char help[] =
     "  -Wl,-opt[=val]  set linker option (see tcc -hh)\n"
     "Debugger options:\n"
     "  -g          generate runtime debug info\n"
-#ifdef CONFIG_TCC_BCHECK
-    "  -b          compile with built-in memory and bounds checker (implies -g)\n"
-#endif
 #ifdef CONFIG_TCC_BACKTRACE
     "  -bt N       show N callers in stack traces\n"
 #endif
