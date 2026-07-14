@@ -1015,6 +1015,15 @@ var CC2_DEFAULT_INTERPRETER;
 var CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET;
 var CC2_TCC_STATE_NO_STANDARD_INCLUDES_OFFSET;
 var CC2_TCC_STATE_EXPORT_DYNAMIC_FLAG_OFFSET;
+var CC2_TCC_STATE_WARN_ERROR_OFFSET;
+var CC2_TCC_STATE_WARN_NONE_OFFSET;
+var CC2_TCC_STATE_WARN_GCC_COMPAT_OFFSET;
+var CC2_TCC_STATE_LEADING_UNDERSCORE_OFFSET;
+var CC2_TCC_STATE_LIBRARY_ARGUMENT_COUNT_OFFSET;
+var CC2_TCC_STATE_RELOCATABLE_OUTPUT_OFFSET;
+var CC2_TCC_STATE_BENCHMARK_OFFSET;
+var CC2_TCC_STATE_GENERATE_DEPENDENCIES_OFFSET;
+var CC2_TCC_STATE_PTHREAD_OFFSET;
 var CC2_TCC_STATE_LIBRARY_ROOT_OFFSET;
 var CC2_TCC_STATE_CRT_PATHS_OFFSET;
 var CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET;
@@ -24565,6 +24574,515 @@ function args_parser_listfile(state, filename, option_index, count_pointer,
     return 0;
 }
 
+function cc2_match_option(body, name, has_argument, no_separate_argument,
+    index_slot, argument_count, arguments, argument_slot, original)
+{
+    var current;
+    var expected;
+    var index;
+    current = body;
+    expected = name;
+    while (ri8(expected)) {
+        if (not(eq(ri8(current), ri8(expected)))) {
+            return 0;
+        }
+        current = add(current, 1);
+        expected = add(expected, 1);
+    }
+    if (has_argument) {
+        if (and(eq(ri8(current), 0), not(no_separate_argument))) {
+            index = ri32(index_slot);
+            if (not(lt(index, argument_count))) {
+                tcc_error(mks("argument to '%s' is missing"), original);
+            }
+            current = ri32(add(arguments, shl(index, 2)));
+            wi32(index_slot, add(index, 1));
+        }
+    } else if (ri8(current)) {
+        return 0;
+    }
+    wi32(argument_slot, current);
+    return 1;
+}
+
+function cc2_flag_text(option, text_slot, value_slot)
+{
+    wi32(text_slot, option);
+    wi32(value_slot, 1);
+    if (and(eq(ri8(option), mkC("n")), and(eq(ri8(add(option, 1)), mkC("o")),
+        eq(ri8(add(option, 2)), mkC("-"))))) {
+        wi32(text_slot, add(option, 3));
+        wi32(value_slot, 0);
+    }
+    return 0;
+}
+
+function cc2_set_f_flag(state, option)
+{
+    var text_slot;
+    var value_slot;
+    var text;
+    var value;
+    var offset;
+    var invert;
+    text_slot = malloc(4);
+    value_slot = malloc(4);
+    cc2_flag_text(option, text_slot, value_slot);
+    text = ri32(text_slot);
+    value = ri32(value_slot);
+    offset = sub(0, 1);
+    invert = 0;
+    if (eq(strcmp(text, mks("unsigned-char")), 0)) {
+        offset = CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET;
+    } else if (eq(strcmp(text, mks("signed-char")), 0)) {
+        offset = CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET;
+        invert = 1;
+    } else if (eq(strcmp(text, mks("common")), 0)) {
+        offset = CC2_TCC_STATE_NOCOMMON_OFFSET;
+        invert = 1;
+    } else if (eq(strcmp(text, mks("leading-underscore")), 0)) {
+        offset = CC2_TCC_STATE_LEADING_UNDERSCORE_OFFSET;
+    } else if (eq(strcmp(text, mks("ms-extensions")), 0)) {
+        offset = CC2_TCC_STATE_MS_EXTENSIONS_OFFSET;
+    } else if (eq(strcmp(text, mks("dollars-in-identifiers")), 0)) {
+        offset = CC2_TCC_STATE_DOLLARS_IN_IDENTIFIERS_OFFSET;
+    }
+    free(text_slot);
+    free(value_slot);
+    if (lt(offset, 0)) {
+        return sub(0, 1);
+    }
+    if (invert) {
+        value = not(value);
+    }
+    wi32(add(state, offset), value);
+    return 0;
+}
+
+function cc2_set_m_flag(state, option)
+{
+    var text_slot;
+    var value_slot;
+    var result;
+    text_slot = malloc(4);
+    value_slot = malloc(4);
+    cc2_flag_text(option, text_slot, value_slot);
+    result = sub(0, 1);
+    if (eq(strcmp(ri32(text_slot), mks("ms-bitfields")), 0)) {
+        wi32(add(state, CC2_TCC_STATE_MS_BITFIELDS_OFFSET),
+            ri32(value_slot));
+        result = 0;
+    }
+    free(text_slot);
+    free(value_slot);
+    return result;
+}
+
+function cc2_set_warning_flag(state, option)
+{
+    var text_slot;
+    var value_slot;
+    var text;
+    var value;
+    var offset;
+    text_slot = malloc(4);
+    value_slot = malloc(4);
+    cc2_flag_text(option, text_slot, value_slot);
+    text = ri32(text_slot);
+    value = ri32(value_slot);
+    offset = sub(0, 1);
+    if (eq(strcmp(text, mks("all")), 0)) {
+        wi32(add(state, CC2_TCC_STATE_WARN_IMPLICIT_FUNCTION_OFFSET), value);
+        offset = 0;
+    } else if (eq(strcmp(text, mks("unsupported")), 0)) {
+        offset = CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET;
+    } else if (eq(strcmp(text, mks("write-strings")), 0)) {
+        offset = CC2_TCC_STATE_WARN_WRITE_STRINGS_OFFSET;
+    } else if (eq(strcmp(text, mks("error")), 0)) {
+        offset = CC2_TCC_STATE_WARN_ERROR_OFFSET;
+    } else if (eq(strcmp(text, mks("gcc-compat")), 0)) {
+        offset = CC2_TCC_STATE_WARN_GCC_COMPAT_OFFSET;
+    } else if (eq(strcmp(text, mks("implicit-function-declaration")), 0)) {
+        offset = CC2_TCC_STATE_WARN_IMPLICIT_FUNCTION_OFFSET;
+    }
+    free(text_slot);
+    free(value_slot);
+    if (lt(offset, 0)) {
+        return sub(0, 1);
+    }
+    if (offset) {
+        wi32(add(state, offset), value);
+    }
+    return 0;
+}
+
+function cc2_parser_output(state, output_type, option_name)
+{
+    if (ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET))) {
+        tcc_warning(mks("-%s: overriding compiler action already specified"),
+            option_name);
+    }
+    wi32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET), output_type);
+    return 0;
+}
+
+function tcc_parse_args(state, argument_count_pointer, arguments_pointer,
+    option_index)
+{
+    var argument_count;
+    var arguments;
+    var index_slot;
+    var count_slot;
+    var array_slot;
+    var argument_slot;
+    var linker_argument;
+    var option;
+    var body;
+    var argument;
+    var run_options;
+    var last_optimization;
+    var tool;
+    var argument_start;
+    var no_action;
+    var reparse;
+    var stop;
+    var value;
+    argument_count = ri32(argument_count_pointer);
+    arguments = ri32(arguments_pointer);
+    index_slot = malloc(4);
+    count_slot = malloc(4);
+    array_slot = malloc(4);
+    argument_slot = malloc(4);
+    linker_argument = malloc(CC2_CSTRING_BYTES);
+    cstr_new(linker_argument);
+    wi32(index_slot, option_index);
+    run_options = 0;
+    last_optimization = sub(0, 1);
+    tool = 0;
+    argument_start = 0;
+    no_action = option_index;
+    stop = 0;
+    while (and(lt(ri32(index_slot), argument_count), not(stop))) {
+        option_index = ri32(index_slot);
+        option = ri32(add(arguments, shl(option_index, 2)));
+        if (and(eq(ri8(option), mkC("@")), ri8(add(option, 1)))) {
+            wi32(count_slot, argument_count);
+            wi32(array_slot, arguments);
+            args_parser_listfile(state, add(option, 1), option_index,
+                count_slot, array_slot);
+            argument_count = ri32(count_slot);
+            arguments = ri32(array_slot);
+            continue;
+        }
+        wi32(index_slot, add(option_index, 1));
+        if (tool) {
+            if (and(eq(strcmp(option, mks("-v")), 0), 1)) {
+                wi32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET), add(ri32(add(
+                    state, CC2_TCC_STATE_VERBOSE_OFFSET)), 1));
+            }
+            continue;
+        }
+        reparse = 1;
+        while (and(reparse, not(stop))) {
+            reparse = 0;
+            if (or(not(eq(ri8(option), mkC("-"))),
+                eq(ri8(add(option, 1)), 0))) {
+                if (not(eq(ri8(option), mkC("@")))) {
+                    args_parser_add_file(state, option,
+                        ri32(add(state, CC2_TCC_STATE_FILE_TYPE_OFFSET)));
+                }
+                if (run_options) {
+                    tcc_set_options(state, run_options);
+                    argument_start = sub(ri32(index_slot), 1);
+                    stop = 1;
+                }
+                continue;
+            }
+            body = add(option, 1);
+            wi32(argument_slot, 0);
+            if (or(cc2_match_option(body, mks("h"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option), or(
+                cc2_match_option(body, mks("-help"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option),
+                cc2_match_option(body, mks("?"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option)))) {
+                value = 1;
+                stop = 1;
+                tool = value;
+            } else if (cc2_match_option(body, mks("hh"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                tool = 2;
+                stop = 1;
+            } else if (cc2_match_option(body, mks("v"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                argument = ri32(argument_slot);
+                wi32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET), add(ri32(add(
+                    state, CC2_TCC_STATE_VERBOSE_OFFSET)), 1));
+                while (eq(ri8(argument), mkC("v"))) {
+                    wi32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET), add(ri32(add(
+                        state, CC2_TCC_STATE_VERBOSE_OFFSET)), 1));
+                    argument = add(argument, 1);
+                }
+                no_action = add(no_action, 1);
+            } else if (cc2_match_option(body, mks("I"), 1, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                tcc_add_include_path(state, ri32(argument_slot));
+            } else if (cc2_match_option(body, mks("D"), 1, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                parse_option_D(state, ri32(argument_slot));
+            } else if (cc2_match_option(body, mks("U"), 1, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                tcc_undefine_symbol(state, ri32(argument_slot));
+            } else if (cc2_match_option(body, mks("P"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                wi32(add(state, CC2_TCC_STATE_LINE_FORMAT_OFFSET),
+                    add(atoi(ri32(argument_slot)), 1));
+            } else if (cc2_match_option(body, mks("L"), 1, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                tcc_add_library_path(state, ri32(argument_slot));
+            } else if (cc2_match_option(body, mks("B"), 1, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                tcc_set_lib_path(state, ri32(argument_slot));
+            } else if (cc2_match_option(body, mks("l"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                args_parser_add_file(state, ri32(argument_slot), 4);
+                wi32(add(state, CC2_TCC_STATE_LIBRARY_ARGUMENT_COUNT_OFFSET),
+                    add(ri32(add(state,
+                    CC2_TCC_STATE_LIBRARY_ARGUMENT_COUNT_OFFSET)), 1));
+            } else if (cc2_match_option(body, mks("bench"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                wi32(add(state, CC2_TCC_STATE_BENCHMARK_OFFSET), 1);
+            } else if (cc2_match_option(body, mks("g"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                wi32(add(state, CC2_TCC_STATE_DEBUG_OFFSET), 1);
+            } else if (cc2_match_option(body, mks("c"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                cc2_parser_output(state, CC2_TCC_OUTPUT_OBJECT, mks("c"));
+            } else if (cc2_match_option(body, mks("dumpversion"), 0, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+                printf(mks("0.9.27\n"), 0);
+                exit(0);
+            } else if (cc2_match_option(body, mks("d"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                argument = ri32(argument_slot);
+                if (eq(ri8(argument), mkC("D"))) {
+                    wi8(add(state, CC2_TCC_STATE_DEFINE_FLAGS_OFFSET), 3);
+                } else if (eq(ri8(argument), mkC("M"))) {
+                    wi8(add(state, CC2_TCC_STATE_DEFINE_FLAGS_OFFSET), 7);
+                } else if (eq(ri8(argument), mkC("t"))) {
+                    wi8(add(state, CC2_TCC_STATE_DEFINE_FLAGS_OFFSET), 16);
+                } else if (and(le(mkC("0"), ri8(argument)),
+                    le(ri8(argument), mkC("9")))) {
+                    g_debug = atoi(argument);
+                } else if (ri32(add(state,
+                    CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
+                    tcc_warning(mks("unsupported option '%s'"), option);
+                }
+            } else if (cc2_match_option(body, mks("static"), 0, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+                wi32(add(state, CC2_TCC_STATE_STATIC_LINK_OFFSET), 1);
+            } else if (cc2_match_option(body, mks("std"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                if (eq(strcmp(ri32(argument_slot), mks("=cc0")), 0)) {
+                    tcc_define_symbol(state, mks("function"), mks("int"));
+                    tcc_define_symbol(state, mks("var"), mks("int"));
+                }
+            } else if (cc2_match_option(body, mks("shared"), 0, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+                cc2_parser_output(state, CC2_TCC_OUTPUT_DLL, mks("shared"));
+            } else if (cc2_match_option(body, mks("soname"), 1, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+                wi32(add(state, CC2_TCC_STATE_SONAME_OFFSET),
+                    tcc_strdup(ri32(argument_slot)));
+            } else if (cc2_match_option(body, mks("o"), 1, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                if (ri32(add(state, CC2_TCC_STATE_OUTFILE_OFFSET))) {
+                    tcc_warning(mks("multiple -o option"), 0);
+                    tcc_free(ri32(add(state, CC2_TCC_STATE_OUTFILE_OFFSET)));
+                }
+                wi32(add(state, CC2_TCC_STATE_OUTFILE_OFFSET),
+                    tcc_strdup(ri32(argument_slot)));
+            } else if (cc2_match_option(body, mks("-param"), 1, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+            } else if (cc2_match_option(body, mks("pedantic"), 0, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+            } else if (cc2_match_option(body, mks("pthread"), 0, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+                parse_option_D(state, mks("_REENTRANT"));
+                wi32(add(state, CC2_TCC_STATE_PTHREAD_OFFSET), 1);
+            } else if (cc2_match_option(body, mks("run"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                run_options = ri32(argument_slot);
+                cc2_parser_output(state, CC2_TCC_OUTPUT_MEMORY, mks("run"));
+            } else if (cc2_match_option(body, mks("rdynamic"), 0, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+                wi32(add(state, CC2_TCC_STATE_EXPORT_DYNAMIC_FLAG_OFFSET), 1);
+            } else if (cc2_match_option(body, mks("r"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                wi32(add(state, CC2_TCC_STATE_RELOCATABLE_OUTPUT_OFFSET), 1);
+                cc2_parser_output(state, CC2_TCC_OUTPUT_OBJECT, mks("r"));
+            } else if (or(cc2_match_option(body, mks("s"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option),
+                cc2_match_option(body, mks("traditional"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option))) {
+            } else if (cc2_match_option(body, mks("Wl,"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                if (ri32(linker_argument)) {
+                    wi32(linker_argument, sub(ri32(linker_argument), 1));
+                    cstr_ccat(linker_argument, mkC(","));
+                }
+                cstr_cat(linker_argument, ri32(argument_slot), 0);
+                if (tcc_set_linker(state, ri32(add(linker_argument,
+                    CC2_CSTRING_DATA_OFFSET)))) {
+                    cstr_free(linker_argument);
+                }
+            } else if (cc2_match_option(body, mks("Wp,"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                option = ri32(argument_slot);
+                reparse = 1;
+            } else if (cc2_match_option(body, mks("W"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                if (and(lt(cc2_set_warning_flag(state, ri32(argument_slot)), 0),
+                    ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET)))) {
+                    tcc_warning(mks("unsupported option '%s'"), option);
+                }
+            } else if (cc2_match_option(body, mks("O"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                last_optimization = atoi(ri32(argument_slot));
+            } else if (cc2_match_option(body, mks("m"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                argument = ri32(argument_slot);
+                if (lt(cc2_set_m_flag(state, argument), 0)) {
+                    value = atoi(argument);
+                    if (and(not(eq(value, 32)), not(eq(value, 64)))) {
+                        if (ri32(add(state,
+                            CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
+                            tcc_warning(mks("unsupported option '%s'"), option);
+                        }
+                    } else if (not(eq(value, 32))) {
+                        tool = value;
+                        stop = 1;
+                    } else {
+                        no_action = add(no_action, 1);
+                    }
+                }
+            } else if (cc2_match_option(body, mks("f"), 1, 1, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                if (and(lt(cc2_set_f_flag(state, ri32(argument_slot)), 0),
+                    ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET)))) {
+                    tcc_warning(mks("unsupported option '%s'"), option);
+                }
+            } else if (cc2_match_option(body, mks("isystem"), 1, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+                tcc_add_sysinclude_path(state, ri32(argument_slot));
+            } else if (cc2_match_option(body, mks("include"), 1, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+                dynarray_add(add(state, CC2_TCC_STATE_COMMAND_INCLUDE_FILES_OFFSET),
+                    add(state, CC2_TCC_STATE_COMMAND_INCLUDE_COUNT_OFFSET),
+                    tcc_strdup(ri32(argument_slot)));
+            } else if (cc2_match_option(body, mks("nostdinc"), 0, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+                wi32(add(state, CC2_TCC_STATE_NO_STANDARD_INCLUDES_OFFSET), 1);
+            } else if (cc2_match_option(body, mks("nostdlib"), 0, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+                wi32(add(state, CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET), 1);
+            } else if (cc2_match_option(body, mks("print-search-dirs"), 0, 0,
+                index_slot, argument_count, arguments, argument_slot, option)) {
+                argument_start = sub(ri32(index_slot), 1);
+                if (not(eq(argument_start, no_action))) {
+                    tcc_error(mks("cannot parse %s here"), option);
+                }
+                tool = 4;
+            } else if (cc2_match_option(body, mks("w"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                wi32(add(state, CC2_TCC_STATE_WARN_NONE_OFFSET), 1);
+            } else if (cc2_match_option(body, mks("pipe"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+            } else if (cc2_match_option(body, mks("E"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                cc2_parser_output(state, CC2_OUTPUT_PREPROCESS, mks("E"));
+            } else if (cc2_match_option(body, mks("MD"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                wi32(add(state, CC2_TCC_STATE_GENERATE_DEPENDENCIES_OFFSET), 1);
+            } else if (cc2_match_option(body, mks("MF"), 1, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                wi32(add(state, CC2_TCC_STATE_DEPS_OUTFILE_OFFSET),
+                    tcc_strdup(ri32(argument_slot)));
+            } else if (cc2_match_option(body, mks("x"), 1, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                argument = ri32(argument_slot);
+                if (eq(ri8(argument), mkC("c"))) {
+                    value = 1;
+                } else if (eq(ri8(argument), mkC("a"))) {
+                    value = 3;
+                } else if (eq(ri8(argument), mkC("n"))) {
+                    value = 0;
+                } else {
+                    value = sub(0, 1);
+                    tcc_warning(mks("unsupported language '%s'"), argument);
+                }
+                if (not(lt(value, 0))) {
+                    wi32(add(state, CC2_TCC_STATE_FILE_TYPE_OFFSET), value);
+                }
+            } else if (cc2_match_option(body, mks("ar"), 0, 0, index_slot,
+                argument_count, arguments, argument_slot, option)) {
+                argument_start = sub(ri32(index_slot), 1);
+                if (not(eq(argument_start, no_action))) {
+                    tcc_error(mks("cannot parse %s here"), option);
+                }
+                tool = 5;
+            } else {
+                tcc_error(mks("invalid option -- '%s'"), option);
+            }
+        }
+    }
+    if (lt(0, last_optimization)) {
+        tcc_define_symbol(state, mks("__OPTIMIZE__"), 0);
+    }
+    if (ri32(linker_argument)) {
+        tcc_error(mks("argument to '%s' is missing"), ri32(add(linker_argument,
+            CC2_CSTRING_DATA_OFFSET)));
+    }
+    option_index = ri32(index_slot);
+    wi32(argument_count_pointer, sub(argument_count, argument_start));
+    wi32(arguments_pointer, add(arguments, shl(argument_start, 2)));
+    cstr_free(linker_argument);
+    free(linker_argument);
+    free(index_slot);
+    free(count_slot);
+    free(array_slot);
+    free(argument_slot);
+    if (tool) {
+        return tool;
+    }
+    if (not(eq(option_index, no_action))) {
+        return 0;
+    }
+    if (eq(ri32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET)), 2)) {
+        return 4;
+    }
+    if (ri32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET))) {
+        return 3;
+    }
+    return 1;
+}
+
+function tcc_set_options(state, options)
+{
+    var count_slot;
+    var array_slot;
+    count_slot = malloc(4);
+    array_slot = malloc(4);
+    wi32(count_slot, 0);
+    wi32(array_slot, 0);
+    args_parser_make_argv(options, count_slot, array_slot);
+    tcc_parse_args(state, count_slot, array_slot, 0);
+    dynarray_reset(array_slot, count_slot);
+    free(count_slot);
+    free(array_slot);
+    return 0;
+}
+
 function tcc_memcheck()
 {
     return 0;
@@ -26181,6 +26699,15 @@ function cc2_init_constants()
     CC2_TCC_STATE_NO_STANDARD_LIBRARIES_OFFSET = 8;
     CC2_TCC_STATE_NO_STANDARD_INCLUDES_OFFSET = 4;
     CC2_TCC_STATE_EXPORT_DYNAMIC_FLAG_OFFSET = 20;
+    CC2_TCC_STATE_WARN_ERROR_OFFSET = 84;
+    CC2_TCC_STATE_WARN_NONE_OFFSET = 88;
+    CC2_TCC_STATE_WARN_GCC_COMPAT_OFFSET = 96;
+    CC2_TCC_STATE_LEADING_UNDERSCORE_OFFSET = 60;
+    CC2_TCC_STATE_LIBRARY_ARGUMENT_COUNT_OFFSET = 1020;
+    CC2_TCC_STATE_RELOCATABLE_OUTPUT_OFFSET = 1032;
+    CC2_TCC_STATE_BENCHMARK_OFFSET = 1036;
+    CC2_TCC_STATE_GENERATE_DEPENDENCIES_OFFSET = 1040;
+    CC2_TCC_STATE_PTHREAD_OFFSET = 1048;
     CC2_TCC_STATE_LIBRARY_ROOT_OFFSET = 32;
     CC2_TCC_STATE_CRT_PATHS_OFFSET = 168;
     CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET = 172;
@@ -26194,6 +26721,7 @@ function cc2_init_constants()
     CC2_TCC_STATE_ARGV_OFFSET = 1056;
     CC2_TCC_OUTPUT_MEMORY = 1;
     CC2_RUNTIME_SUPPORT_LIBRARY = mks("libtcc1.a");
+    g_debug = 0;
     CC2_TOKEN_GENERIC = 292;
     CC2_TOKEN_DEFAULT = 300;
     CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;
