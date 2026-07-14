@@ -498,6 +498,8 @@ var CC2_TCC_STATE_INCLUDE_PATHS_OFFSET;
 var CC2_TCC_STATE_INCLUDE_PATH_COUNT_OFFSET;
 var CC2_TCC_STATE_SYSTEM_INCLUDE_PATHS_OFFSET;
 var CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET;
+var CC2_TCC_STATE_LIBRARY_PATHS_OFFSET;
+var CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET;
 var CC2_TCC_STATE_INCLUDE_STACK_OFFSET;
 var CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET;
 var CC2_INCLUDE_STACK_ENTRIES;
@@ -23553,6 +23555,76 @@ function tcc_strdup(text)
     return tcc_strdup_(text, 0, 0);
 }
 
+function tcc_split_path(state, table_pointer, count_pointer, input)
+{
+    var current;
+    var character;
+    var string;
+    var data;
+    current = input;
+    while (1) {
+        string = malloc(CC2_CSTRING_BYTES);
+        cstr_new(string);
+        character = ri8(current);
+        while (and(not(eq(character, 0)), not(eq(character, mkC(":"))))) {
+            if (and(eq(character, mkC("{")), and(not(eq(ri8(add(current,
+                1)), 0)), eq(ri8(add(current, 2)), mkC("}"))))) {
+                character = ri8(add(current, 1));
+                current = add(current, 2);
+                if (eq(character, mkC("B"))) {
+                    cstr_cat(string, ri32(add(state,
+                        CC2_TCC_STATE_LIBRARY_ROOT_OFFSET)), sub(0, 1));
+                }
+            } else {
+                cstr_ccat(string, character);
+            }
+            current = add(current, 1);
+            character = ri8(current);
+        }
+        if (ri32(string)) {
+            cstr_ccat(string, 0);
+            data = tcc_strdup(ri32(add(string, CC2_CSTRING_DATA_OFFSET)));
+            dynarray_add(table_pointer, count_pointer, data);
+        }
+        cstr_free(string);
+        free(string);
+        if (eq(character, 0)) {
+            break;
+        }
+        current = add(current, 1);
+    }
+    return 0;
+}
+
+function tcc_add_include_path(state, pathname)
+{
+    tcc_split_path(state, add(state, CC2_TCC_STATE_INCLUDE_PATHS_OFFSET),
+        add(state, CC2_TCC_STATE_INCLUDE_PATH_COUNT_OFFSET), pathname);
+    return 0;
+}
+
+function tcc_add_sysinclude_path(state, pathname)
+{
+    tcc_split_path(state,
+        add(state, CC2_TCC_STATE_SYSTEM_INCLUDE_PATHS_OFFSET),
+        add(state, CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET), pathname);
+    return 0;
+}
+
+function tcc_add_library_path(state, pathname)
+{
+    tcc_split_path(state, add(state, CC2_TCC_STATE_LIBRARY_PATHS_OFFSET),
+        add(state, CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET), pathname);
+    return 0;
+}
+
+function tcc_set_lib_path(state, path)
+{
+    tcc_free(ri32(add(state, CC2_TCC_STATE_LIBRARY_ROOT_OFFSET)));
+    wi32(add(state, CC2_TCC_STATE_LIBRARY_ROOT_OFFSET), tcc_strdup(path));
+    return 0;
+}
+
 function tcc_memcheck()
 {
     return 0;
@@ -25265,6 +25337,8 @@ function cc2_init_constants()
     CC2_TCC_STATE_INCLUDE_PATH_COUNT_OFFSET = 148;
     CC2_TCC_STATE_SYSTEM_INCLUDE_PATHS_OFFSET = 152;
     CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET = 156;
+    CC2_TCC_STATE_LIBRARY_PATHS_OFFSET = 160;
+    CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET = 164;
     CC2_TCC_STATE_INCLUDE_STACK_OFFSET = 376;
     CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET = 504;
     CC2_INCLUDE_STACK_ENTRIES = 32;

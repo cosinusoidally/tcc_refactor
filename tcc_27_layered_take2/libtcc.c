@@ -68,32 +68,6 @@ ST_FUNC void asm_global_instr(void)
 #define malloc(s) use_tcc_malloc(s)
 #define realloc(p, s) use_tcc_realloc(p, s)
 
-static void tcc_split_path(TCCState *s, void *p_ary, int *p_nb_ary, const char *in)
-{
-    const char *p;
-    do {
-        int c;
-        CString str;
-
-        cstr_new(&str);
-        for (p = in; c = *p, c != '\0' && c != PATHSEP[0]; ++p) {
-            if (c == '{' && p[1] && p[2] == '}') {
-                c = p[1], p += 2;
-                if (c == 'B')
-                    cstr_cat(&str, s->tcc_lib_path, -1);
-            } else {
-                cstr_ccat(&str, c);
-            }
-        }
-        if (str.size) {
-            cstr_ccat(&str, '\0');
-            dynarray_add(p_ary, p_nb_ary, tcc_strdup(str.data));
-        }
-        cstr_free(&str);
-        in = p+1;
-    } while (*p);
-}
-
 /********************************************************/
 
 static void strcat_vprintf(char *buf, int buf_size, const char *fmt, va_list ap)
@@ -613,18 +587,6 @@ LIBTCCAPI int tcc_set_output_type(TCCState *s, int output_type)
     return 0;
 }
 
-LIBTCCAPI int tcc_add_include_path(TCCState *s, const char *pathname)
-{
-    tcc_split_path(s, &s->include_paths, &s->nb_include_paths, pathname);
-    return 0;
-}
-
-LIBTCCAPI int tcc_add_sysinclude_path(TCCState *s, const char *pathname)
-{
-    tcc_split_path(s, &s->sysinclude_paths, &s->nb_sysinclude_paths, pathname);
-    return 0;
-}
-
 int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
 {
     int ret;
@@ -723,12 +685,6 @@ LIBTCCAPI int tcc_add_file(TCCState *s, const char *filename)
     return tcc_add_file_internal(s, filename, flags);
 }
 
-LIBTCCAPI int tcc_add_library_path(TCCState *s, const char *pathname)
-{
-    tcc_split_path(s, &s->library_paths, &s->nb_library_paths, pathname);
-    return 0;
-}
-
 static int tcc_add_library_internal(TCCState *s, const char *fmt,
     const char *filename, int flags, char **paths, int nb_paths)
 {
@@ -809,12 +765,6 @@ LIBTCCAPI int tcc_add_symbol(TCCState *s, const char *name, const void *val)
         SHN_ABS, name);
 #endif
     return 0;
-}
-
-LIBTCCAPI void tcc_set_lib_path(TCCState *s, const char *path)
-{
-    tcc_free(s->tcc_lib_path);
-    s->tcc_lib_path = tcc_strdup(path);
 }
 
 #define WD_ALL    0x0001 /* warning is activated when using -Wall */
