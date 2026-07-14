@@ -805,6 +805,10 @@ var CC2_ELF_HEADER_STRING_SECTION_OFFSET;
 var CC2_ELF_EXECUTABLE_TYPE;
 var CC2_ELF_SHARED_TYPE;
 var CC2_ELF_RELOCATABLE_TYPE;
+var CC2_BINARY_TYPE_RELOCATABLE;
+var CC2_BINARY_TYPE_SHARED;
+var CC2_BINARY_TYPE_ARCHIVE;
+var CC2_ARCHIVE_MAGIC_BYTES;
 var CC2_ELF_I386_MACHINE;
 var CC2_ELF_CURRENT_VERSION;
 var CC2_ELF_CLASS_32;
@@ -7548,6 +7552,45 @@ function cc2_write_little_u16(address, value)
 function cc2_read_little_u16(address)
 {
     return or(ri8(address), shl(ri8(add(address, 1)), 8));
+}
+
+/* Read one object-file region without imposing a compiler-specific ceiling. */
+function load_data(file_descriptor, file_offset, size)
+{
+    var data;
+    data = malloc(size);
+    lseek(file_descriptor, file_offset, 0);
+    read(file_descriptor, data, size);
+    return data;
+}
+
+/* Classify only the i386 ELF and Unix archive inputs accepted by this layer. */
+function tcc_object_type(file_descriptor, header)
+{
+    var size;
+    var type;
+    size = read(file_descriptor, header, CC2_ELF_HEADER_BYTES);
+    if (and(eq(size, CC2_ELF_HEADER_BYTES), and(and(eq(ri8(header), 127),
+        eq(ri8(add(header, 1)), mkC("E"))), and(eq(ri8(add(header, 2)),
+        mkC("L")), eq(ri8(add(header, 3)), mkC("F")))))) {
+        type = cc2_read_little_u16(add(header, CC2_ELF_HEADER_TYPE_OFFSET));
+        if (eq(type, CC2_ELF_RELOCATABLE_TYPE)) {
+            return CC2_BINARY_TYPE_RELOCATABLE;
+        }
+        if (eq(type, CC2_ELF_SHARED_TYPE)) {
+            return CC2_BINARY_TYPE_SHARED;
+        }
+    } else {
+        if (and(not(lt(size, CC2_ARCHIVE_MAGIC_BYTES)), and(and(eq(ri8(header),
+            mkC("!")), eq(ri8(add(header, 1)), mkC("<"))), and(and(eq(ri8(add(
+            header, 2)), mkC("a")), eq(ri8(add(header, 3)), mkC("r"))),
+            and(and(eq(ri8(add(header, 4)), mkC("c")), eq(ri8(add(header, 5)),
+            mkC("h"))), and(eq(ri8(add(header, 6)), mkC(">")), eq(ri8(add(
+            header, 7)), mkC("\n")))))))) {
+            return CC2_BINARY_TYPE_ARCHIVE;
+        }
+    }
+    return 0;
 }
 
 function cc2_output_padding(output, offset, target)
@@ -19823,6 +19866,10 @@ function cc2_init_constants()
     CC2_ELF_EXECUTABLE_TYPE = 2;
     CC2_ELF_SHARED_TYPE = 3;
     CC2_ELF_RELOCATABLE_TYPE = 1;
+    CC2_BINARY_TYPE_RELOCATABLE = 1;
+    CC2_BINARY_TYPE_SHARED = 2;
+    CC2_BINARY_TYPE_ARCHIVE = 3;
+    CC2_ARCHIVE_MAGIC_BYTES = 8;
     CC2_ELF_I386_MACHINE = 3;
     CC2_ELF_CURRENT_VERSION = 1;
     CC2_ELF_CLASS_32 = 1;

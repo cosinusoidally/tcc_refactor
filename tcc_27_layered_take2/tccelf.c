@@ -144,41 +144,12 @@ ST_FUNC void* tcc_get_symbol_err(TCCState *s, const char *name)
    the code, we must do it after. All the relocation tables are also
    modified to take into account the symbol table sorting */
 
-static void *load_data(int fd, unsigned long file_offset, unsigned long size)
-{
-    void *data;
-
-    data = tcc_malloc(size);
-    lseek(fd, file_offset, SEEK_SET);
-    read(fd, data, size);
-    return data;
-}
-
 typedef struct SectionMergeInfo {
     Section *s;            /* corresponding existing section */
     unsigned long offset;  /* offset of the new section in the existing section */
     uint8_t new_section;       /* true if section 's' was added */
     uint8_t link_once;         /* true if link once section */
 } SectionMergeInfo;
-
-ST_FUNC int tcc_object_type(int fd, ElfW(Ehdr) *h)
-{
-    int size = read(fd, h, sizeof *h);
-    if (size == sizeof *h && 0 == memcmp(h, ELFMAG, 4)) {
-        if (h->e_type == ET_REL)
-            return AFF_BINTYPE_REL;
-        if (h->e_type == ET_DYN)
-            return AFF_BINTYPE_DYN;
-    } else if (size >= 8) {
-        if (0 == memcmp(h, ARMAG, 8))
-            return AFF_BINTYPE_AR;
-#ifdef TCC_TARGET_COFF
-        if (((struct filehdr*)h)->f_magic == COFF_C67_MAGIC)
-            return AFF_BINTYPE_C67;
-#endif
-    }
-    return 0;
-}
 
 /* load an object file and merge it with current files */
 /* XXX: handle correctly stab (debug) info */

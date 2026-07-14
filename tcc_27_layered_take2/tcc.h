@@ -1517,7 +1517,8 @@ ST_FUNC void resolve_common_syms(TCCState *s1);
 ST_FUNC void relocate_syms(TCCState *s1, Section *symtab, int do_resolve);
 ST_FUNC void relocate_section(TCCState *s1, Section *s);
 
-ST_FUNC int tcc_object_type(int fd, ElfW(Ehdr) *h);
+extern void *load_data(int fd, unsigned long file_offset, unsigned long size);
+extern int tcc_object_type(int fd, ElfW(Ehdr) *h);
 ST_FUNC int tcc_load_object_file(TCCState *s1, int fd, unsigned long file_offset);
 ST_FUNC int tcc_load_archive(TCCState *s1, int fd);
 ST_FUNC void tcc_add_bcheck(TCCState *s1);
