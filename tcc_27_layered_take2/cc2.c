@@ -6492,6 +6492,131 @@ function add_init_array_defines(state, section_name)
     return 0;
 }
 
+function cc2_linker_symbol_name_character(character)
+{
+    if (eq(character, mkC("_"))) {
+        return 1;
+    }
+    if (and(le(mkC("A"), character), le(character, mkC("Z")))) {
+        return 1;
+    }
+    if (and(le(mkC("a"), character), le(character, mkC("z")))) {
+        return 1;
+    }
+    if (and(le(mkC("0"), character), le(character, mkC("9")))) {
+        return 1;
+    }
+    return le(128, character);
+}
+
+function cc2_add_section_boundary_symbol(section, prefix, value)
+{
+    var name;
+    var name_bytes;
+    name_bytes = add(add(strlen(prefix), strlen(add(section,
+        CC2_SECTION_NAME_OFFSET))), 1);
+    name = malloc(name_bytes);
+    strcpy(name, prefix);
+    strcat(name, add(section, CC2_SECTION_NAME_OFFSET));
+    set_elf_sym(ri32(symtab_section_address), value, 0, shl(
+        CC2_ELF_SYMBOL_GLOBAL_BINDING, CC2_ELF_SYMBOL_BIND_SHIFT), 0,
+        ri32(add(section, CC2_SECTION_NUMBER_OFFSET)), name);
+    free(name);
+    return 0;
+}
+
+function tcc_add_linker_symbols(state)
+{
+    var section;
+    var sections;
+    var section_count;
+    var section_index;
+    var name;
+    var name_index;
+    var valid_name;
+    section = ri32(text_section_address);
+    set_elf_sym(ri32(symtab_section_address), ri32(add(section,
+        CC2_SECTION_DATA_OFFSET)), 0, shl(CC2_ELF_SYMBOL_GLOBAL_BINDING,
+        CC2_ELF_SYMBOL_BIND_SHIFT), 0, ri32(add(section,
+        CC2_SECTION_NUMBER_OFFSET)), mks("_etext"));
+    section = ri32(data_section_address);
+    set_elf_sym(ri32(symtab_section_address), ri32(add(section,
+        CC2_SECTION_DATA_OFFSET)), 0, shl(CC2_ELF_SYMBOL_GLOBAL_BINDING,
+        CC2_ELF_SYMBOL_BIND_SHIFT), 0, ri32(add(section,
+        CC2_SECTION_NUMBER_OFFSET)), mks("_edata"));
+    section = ri32(bss_section_address);
+    set_elf_sym(ri32(symtab_section_address), ri32(add(section,
+        CC2_SECTION_DATA_OFFSET)), 0, shl(CC2_ELF_SYMBOL_GLOBAL_BINDING,
+        CC2_ELF_SYMBOL_BIND_SHIFT), 0, ri32(add(section,
+        CC2_SECTION_NUMBER_OFFSET)), mks("_end"));
+    add_init_array_defines(state, mks(".preinit_array"));
+    add_init_array_defines(state, mks(".init_array"));
+    add_init_array_defines(state, mks(".fini_array"));
+
+    sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    section_index = 1;
+    while (lt(section_index, section_count)) {
+        section = ri32(add(sections, mul(section_index,
+            CC2_I386_WORD_BYTES)));
+        if (and(eq(ri32(add(section, CC2_SECTION_TYPE_OFFSET)),
+            CC2_ELF_SECTION_PROGBITS), not(eq(and(ri32(add(section,
+            CC2_SECTION_FLAGS_OFFSET)), CC2_ELF_ALLOCATE_SECTION_FLAG),
+            0)))) {
+            name = add(section, CC2_SECTION_NAME_OFFSET);
+            name_index = 0;
+            valid_name = 1;
+            while (ri8(add(name, name_index))) {
+                if (not(cc2_linker_symbol_name_character(ri8(add(name,
+                    name_index))))) {
+                    valid_name = 0;
+                }
+                name_index = add(name_index, 1);
+            }
+            if (valid_name) {
+                cc2_add_section_boundary_symbol(section, mks("__start_"), 0);
+                cc2_add_section_boundary_symbol(section, mks("__stop_"),
+                    ri32(add(section, CC2_SECTION_DATA_OFFSET)));
+            }
+        }
+        section_index = add(section_index, 1);
+    }
+    return 0;
+}
+
+function resolve_common_syms(state)
+{
+    var symbol_table;
+    var symbol_offset;
+    var symbol;
+    var section_index;
+    var bss_section;
+    symbol_table = ri32(symtab_section_address);
+    bss_section = ri32(bss_section_address);
+    symbol_offset = CC2_ELF_SYMBOL_BYTES;
+    while (lt(symbol_offset, ri32(add(symbol_table,
+        CC2_SECTION_DATA_OFFSET)))) {
+        symbol = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
+            symbol_offset);
+        section_index = add(ri8(add(symbol,
+            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), shl(ri8(add(symbol,
+            add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1))), 8));
+        if (eq(section_index, CC2_ELF_COMMON_SECTION)) {
+            wi32(add(symbol, CC2_ELF_SYMBOL_VALUE_OFFSET), section_add(
+                bss_section, ri32(add(symbol, CC2_ELF_SYMBOL_SIZE_OFFSET)),
+                ri32(add(symbol, CC2_ELF_SYMBOL_VALUE_OFFSET))));
+            section_index = ri32(add(bss_section, CC2_SECTION_NUMBER_OFFSET));
+            wi8(add(symbol, CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET),
+                and(section_index, 255));
+            wi8(add(symbol, add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1)),
+                and(ushr(section_index, 8), 255));
+        }
+        symbol_offset = add(symbol_offset, CC2_ELF_SYMBOL_BYTES);
+    }
+    tcc_add_linker_symbols(state);
+    return 0;
+}
+
 /* Grow the pool pointer vector with the same power-of-two rule as TCC. */
 function cc2_add_sym_pool_(pool, count, capacity, pools)
 {
