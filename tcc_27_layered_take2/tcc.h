@@ -1730,6 +1730,7 @@ extern int tcc_assemble_internal(TCCState *s1, int do_preprocess, int global);
 extern int tcc_assemble(TCCState *s1, int do_preprocess);
 /* ------------ i386-asm.c ------------ */
 extern void gen_expr32(ExprValue *pe);
+extern void gen_disp32(ExprValue *pe);
 #ifdef TCC_TARGET_X86_64
 ST_FUNC void gen_expr64(ExprValue *pe);
 #endif

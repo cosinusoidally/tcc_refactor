@@ -884,6 +884,12 @@ var CC2_ASM_REGISTER_AX_FIRST;
 var CC2_ASM_REGISTER_AX_LAST;
 var CC2_ASM_REGISTER_EAX_FIRST;
 var CC2_ASM_REGISTER_EAX_LAST;
+var CC2_I386_OPERAND_TYPE_OFFSET;
+var CC2_I386_OPERAND_REGISTER_OFFSET;
+var CC2_I386_OPERAND_INDEX_REGISTER_OFFSET;
+var CC2_I386_OPERAND_SHIFT_OFFSET;
+var CC2_I386_OPERAND_EXPRESSION_OFFSET;
+var CC2_I386_OPERAND_REGISTER_TYPE_MASK;
 var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
@@ -8068,6 +8074,115 @@ function asm_clobber_(clobbers, text, token_symbol, reg)
 function asm_clobber(clobbers, text)
 {
     return asm_clobber_(clobbers, text, 0, 0);
+}
+
+function cc2_read_signed_byte(address)
+{
+    var value;
+    value = ri8(address);
+    if (le(128, value)) {
+        value = sub(value, 256);
+    }
+    return value;
+}
+
+function gen_disp32_(expression, symbol, elf_symbol, section, value,
+    type_value)
+{
+    symbol = ri32(add(expression, CC2_ASM_EXPRESSION_SYMBOL_OFFSET));
+    elf_symbol = elfsym(symbol);
+    section = ri32(cur_text_section_address);
+    if (not(eq(elf_symbol, 0))) {
+        if (eq(cc2_read_little_u16(add(elf_symbol,
+            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), ri32(add(section,
+            CC2_SECTION_NUMBER_OFFSET)))) {
+            value = add(ri32(expression), ri32(add(elf_symbol,
+                CC2_ELF_SYMBOL_VALUE_OFFSET)));
+            gen_le32(sub(sub(value, ind), 4));
+            return 0;
+        }
+    }
+    if (not(eq(symbol, 0))) {
+        type_value = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
+        if (eq(type_value, CC2_TCC_VOID_TYPE)) {
+            wi32(add(symbol, CC2_SYM_TYPE_OFFSET), CC2_TCC_FUNCTION_TYPE);
+            wi32(add(symbol, CC2_SYM_TYPE_REFERENCE_OFFSET), 0);
+        }
+    }
+    gen_addrpc32(CC2_TCC_SYMBOL_VALUE, symbol, ri32(expression));
+    return 0;
+}
+
+function gen_disp32(expression)
+{
+    return gen_disp32_(expression, 0, 0, 0, 0, 0);
+}
+
+function asm_modrm_(reg, operand, type_value, operand_reg, index_reg,
+    sib_base, mod, encoded_reg, expression, value, shifted)
+{
+    type_value = ri32(add(operand, CC2_I386_OPERAND_TYPE_OFFSET));
+    operand_reg = cc2_read_signed_byte(add(operand,
+        CC2_I386_OPERAND_REGISTER_OFFSET));
+    index_reg = cc2_read_signed_byte(add(operand,
+        CC2_I386_OPERAND_INDEX_REGISTER_OFFSET));
+    expression = add(operand, CC2_I386_OPERAND_EXPRESSION_OFFSET);
+    if (and(type_value, CC2_I386_OPERAND_REGISTER_TYPE_MASK)) {
+        g(add(add(192, shl(reg, 3)), operand_reg));
+        return 0;
+    }
+    if (and(eq(operand_reg, sub(0, 1)),
+        eq(index_reg, sub(0, 1)))) {
+        g(add(5, shl(reg, 3)));
+        gen_expr32(expression, 0, 0);
+        return 0;
+    }
+    sib_base = operand_reg;
+    if (eq(sib_base, sub(0, 1))) {
+        sib_base = 5;
+        mod = 0;
+    } else {
+        value = ri32(expression);
+        if (and(eq(value, 0), and(eq(ri32(add(expression,
+            CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0),
+            not(eq(operand_reg, 5))))) {
+            mod = 0;
+        } else {
+            shifted = and(value, 255);
+            if (le(128, shifted)) {
+                shifted = sub(shifted, 256);
+            }
+            if (and(eq(value, shifted), eq(ri32(add(expression,
+                CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0))) {
+                mod = 64;
+            } else {
+                mod = 128;
+            }
+        }
+    }
+    encoded_reg = operand_reg;
+    if (not(eq(index_reg, sub(0, 1)))) {
+        encoded_reg = 4;
+    }
+    g(add(add(mod, shl(reg, 3)), encoded_reg));
+    if (eq(encoded_reg, 4)) {
+        if (eq(index_reg, sub(0, 1))) {
+            index_reg = 4;
+        }
+        g(add(add(shl(ri8(add(operand, CC2_I386_OPERAND_SHIFT_OFFSET)), 6),
+            shl(index_reg, 3)), sib_base));
+    }
+    if (eq(mod, 64)) {
+        g(ri32(expression));
+    } else if (or(eq(mod, 128), eq(operand_reg, sub(0, 1)))) {
+        gen_expr32(expression, 0, 0);
+    }
+    return 0;
+}
+
+function asm_modrm(reg, operand)
+{
+    return asm_modrm_(reg, operand, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function use_section1(state, section)
@@ -23491,6 +23606,12 @@ function cc2_init_constants()
     CC2_ASM_REGISTER_AX_LAST = 457;
     CC2_ASM_REGISTER_EAX_FIRST = 458;
     CC2_ASM_REGISTER_EAX_LAST = 465;
+    CC2_I386_OPERAND_TYPE_OFFSET = 0;
+    CC2_I386_OPERAND_REGISTER_OFFSET = 4;
+    CC2_I386_OPERAND_INDEX_REGISTER_OFFSET = 5;
+    CC2_I386_OPERAND_SHIFT_OFFSET = 6;
+    CC2_I386_OPERAND_EXPRESSION_OFFSET = 8;
+    CC2_I386_OPERAND_REGISTER_TYPE_MASK = 31;
     CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;
