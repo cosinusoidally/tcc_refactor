@@ -500,6 +500,7 @@ var CC2_TCC_STATE_SYSTEM_INCLUDE_PATHS_OFFSET;
 var CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET;
 var CC2_TCC_STATE_LIBRARY_PATHS_OFFSET;
 var CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET;
+var CC2_TCC_STATE_FILE_TYPE_OFFSET;
 var CC2_TCC_STATE_ERROR_OPAQUE_OFFSET;
 var CC2_TCC_STATE_ERROR_FUNCTION_OFFSET;
 var CC2_TCC_STATE_INCLUDE_STACK_OFFSET;
@@ -23620,6 +23621,119 @@ function tcc_add_library_path(state, pathname)
     return 0;
 }
 
+function tcc_add_file(state, filename)
+{
+    var file_type;
+    var flags;
+    var extension;
+    file_type = ri32(add(state, CC2_TCC_STATE_FILE_TYPE_OFFSET));
+    flags = 16;
+    if (eq(file_type, 0)) {
+        extension = tcc_fileextension(filename);
+        if (ri8(extension)) {
+            extension = add(extension, 1);
+            if (eq(strcmp(extension, mks("S")), 0)) {
+                file_type = 3;
+            } else if (eq(strcmp(extension, mks("s")), 0)) {
+                file_type = 2;
+            } else if (or(eq(strcmp(extension, mks("c")), 0),
+                eq(strcmp(extension, mks("i")), 0))) {
+                file_type = 1;
+            } else {
+                flags = or(flags, 64);
+            }
+        } else {
+            file_type = 1;
+        }
+        wi32(add(state, CC2_TCC_STATE_FILE_TYPE_OFFSET), file_type);
+    }
+    return tcc_add_file_internal(state, filename, flags);
+}
+
+function tcc_add_library_internal(state, format, filename, flags, paths,
+    path_count)
+{
+    var index;
+    var path;
+    var candidate;
+    var capacity;
+    index = 0;
+    while (lt(index, path_count)) {
+        path = ri32(add(paths, shl(index, 2)));
+        capacity = add(add(strlen(format), strlen(path)),
+            add(strlen(filename), 1));
+        candidate = malloc(capacity);
+        sprintf(candidate, format, path, filename);
+        if (eq(tcc_add_file_internal(state, candidate, or(flags, 64)), 0)) {
+            free(candidate);
+            return 0;
+        }
+        free(candidate);
+        index = add(index, 1);
+    }
+    return sub(0, 1);
+}
+
+function tcc_add_dll(state, filename, flags)
+{
+    return tcc_add_library_internal(state, mks("%s/%s"), filename, flags,
+        ri32(add(state, CC2_TCC_STATE_LIBRARY_PATHS_OFFSET)),
+        ri32(add(state, CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET)));
+}
+
+function tcc_add_crt(state, filename)
+{
+    var result;
+    result = tcc_add_library_internal(state, mks("%s/%s"), filename, 0,
+        ri32(add(state, CC2_TCC_STATE_CRT_PATHS_OFFSET)),
+        ri32(add(state, CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET)));
+    if (eq(result, sub(0, 1))) {
+        tcc_error_noabort(mks("file '%s' not found"), filename);
+    }
+    return 0;
+}
+
+function tcc_add_library(state, library)
+{
+    var paths;
+    var path_count;
+    paths = ri32(add(state, CC2_TCC_STATE_LIBRARY_PATHS_OFFSET));
+    path_count = ri32(add(state, CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET));
+    if (eq(ri32(add(state, CC2_TCC_STATE_STATIC_LINK_OFFSET)), 0)) {
+        if (eq(tcc_add_library_internal(state, mks("%s/lib%s.so"), library,
+            0, paths, path_count), 0)) {
+            return 0;
+        }
+    }
+    return tcc_add_library_internal(state, mks("%s/lib%s.a"), library, 0,
+        paths, path_count);
+}
+
+function tcc_add_library_err(state, library)
+{
+    var result;
+    result = tcc_add_library(state, library);
+    if (lt(result, 0)) {
+        tcc_error_noabort(mks("library '%s' not found"), library);
+    }
+    return result;
+}
+
+function tcc_add_pragma_libs(state)
+{
+    var index;
+    var libraries;
+    var count;
+    libraries = ri32(add(state, CC2_TCC_STATE_PRAGMA_LIBRARIES_OFFSET));
+    count = ri32(add(state, CC2_TCC_STATE_PRAGMA_LIBRARY_COUNT_OFFSET));
+    index = 0;
+    while (lt(index, count)) {
+        tcc_add_library_err(state, ri32(add(libraries, shl(index, 2))));
+        index = add(index, 1);
+    }
+    return 0;
+}
+
 function tcc_set_lib_path(state, path)
 {
     tcc_free(ri32(add(state, CC2_TCC_STATE_LIBRARY_ROOT_OFFSET)));
@@ -25355,6 +25469,7 @@ function cc2_init_constants()
     CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET = 156;
     CC2_TCC_STATE_LIBRARY_PATHS_OFFSET = 160;
     CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET = 164;
+    CC2_TCC_STATE_FILE_TYPE_OFFSET = 1024;
     CC2_TCC_STATE_ERROR_OPAQUE_OFFSET = 184;
     CC2_TCC_STATE_ERROR_FUNCTION_OFFSET = 188;
     CC2_TCC_STATE_INCLUDE_STACK_OFFSET = 376;
