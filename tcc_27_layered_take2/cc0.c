@@ -385,6 +385,25 @@ var CC0_LINK_GOT_OFFSET;
 var CC0_LINK_BSS_OFFSET;
 var CC0_LINK_OUTPUT;
 var CC0_LINK_OUTPUT_BYTES;
+var CC0_LINK_ELF_TYPE_EXECUTABLE;
+var CC0_LINK_ELF_PROGRAM_LOAD;
+var CC0_LINK_ELF_PROGRAM_DYNAMIC;
+var CC0_LINK_ELF_PROGRAM_INTERPRETER;
+var CC0_LINK_ELF_PROGRAM_HEADERS;
+var CC0_LINK_ELF_PROGRAM_READ;
+var CC0_LINK_ELF_PROGRAM_WRITE;
+var CC0_LINK_ELF_PROGRAM_EXECUTE;
+var CC0_LINK_ELF_DYNAMIC_NEEDED;
+var CC0_LINK_ELF_DYNAMIC_HASH;
+var CC0_LINK_ELF_DYNAMIC_STRING_TABLE;
+var CC0_LINK_ELF_DYNAMIC_SYMBOL_TABLE;
+var CC0_LINK_ELF_DYNAMIC_STRING_BYTES;
+var CC0_LINK_ELF_DYNAMIC_SYMBOL_BYTES;
+var CC0_LINK_ELF_DYNAMIC_REL;
+var CC0_LINK_ELF_DYNAMIC_REL_BYTES;
+var CC0_LINK_ELF_DYNAMIC_REL_ENTRY_BYTES;
+var CC0_LINK_ELF_DYNAMIC_NULL;
+var CC0_LINK_ELF_RELOCATION_GLOBAL_DATA;
 var CC0_ELF_HEADER_BYTES;
 var CC0_ELF_SECTION_HEADER_BYTES;
 var CC0_ELF_TYPE_RELOCATABLE;
@@ -768,6 +787,25 @@ function cc0_init()
     CC0_LINK_BSS_OFFSET = 0;
     CC0_LINK_OUTPUT = 0;
     CC0_LINK_OUTPUT_BYTES = 0;
+    CC0_LINK_ELF_TYPE_EXECUTABLE = 2;
+    CC0_LINK_ELF_PROGRAM_LOAD = 1;
+    CC0_LINK_ELF_PROGRAM_DYNAMIC = 2;
+    CC0_LINK_ELF_PROGRAM_INTERPRETER = 3;
+    CC0_LINK_ELF_PROGRAM_HEADERS = 6;
+    CC0_LINK_ELF_PROGRAM_READ = 4;
+    CC0_LINK_ELF_PROGRAM_WRITE = 2;
+    CC0_LINK_ELF_PROGRAM_EXECUTE = 1;
+    CC0_LINK_ELF_DYNAMIC_NEEDED = 1;
+    CC0_LINK_ELF_DYNAMIC_HASH = 4;
+    CC0_LINK_ELF_DYNAMIC_STRING_TABLE = 5;
+    CC0_LINK_ELF_DYNAMIC_SYMBOL_TABLE = 6;
+    CC0_LINK_ELF_DYNAMIC_STRING_BYTES = 10;
+    CC0_LINK_ELF_DYNAMIC_SYMBOL_BYTES = 11;
+    CC0_LINK_ELF_DYNAMIC_REL = 17;
+    CC0_LINK_ELF_DYNAMIC_REL_BYTES = 18;
+    CC0_LINK_ELF_DYNAMIC_REL_ENTRY_BYTES = 19;
+    CC0_LINK_ELF_DYNAMIC_NULL = 0;
+    CC0_LINK_ELF_RELOCATION_GLOBAL_DATA = 6;
     CC0_ELF_HEADER_BYTES = 52;
     CC0_ELF_SECTION_HEADER_BYTES = 40;
     CC0_ELF_TYPE_RELOCATABLE = 1;
@@ -6351,6 +6389,174 @@ function cc0_link_layout_(offset, index, entry, name_bytes, symbol_count,
 function cc0_link_layout()
 {
     return cc0_link_layout_(0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc0_link_address(offset)
+{
+    return add(CC0_LINK_BASE_ADDRESS, offset);
+}
+
+function cc0_link_write_program_header_(index, type, offset, file_bytes,
+    memory_bytes, flags, alignment, header)
+{
+    header = add(CC0_LINK_OUTPUT, add(CC0_ELF_HEADER_BYTES,
+        mul(index, CC0_LINK_PROGRAM_HEADER_BYTES)));
+    wi32(header, type);
+    wi32(add(header, 4), offset);
+    wi32(add(header, 8), cc0_link_address(offset));
+    wi32(add(header, 12), cc0_link_address(offset));
+    wi32(add(header, 16), file_bytes);
+    wi32(add(header, 20), memory_bytes);
+    wi32(add(header, 24), flags);
+    wi32(add(header, 28), alignment);
+    return CC0_FALSE;
+}
+
+function cc0_link_write_program_header(index, type, offset, file_bytes,
+    memory_bytes, flags, alignment)
+{
+    return cc0_link_write_program_header_(index, type, offset, file_bytes,
+        memory_bytes, flags, alignment, 0);
+}
+
+function cc0_link_write_elf_header_(header, interpreter_offset,
+    program_header_bytes, writable_file_bytes, writable_memory_bytes)
+{
+    header = CC0_LINK_OUTPUT;
+    wi8(header, CC0_ELF_MAGIC_DELETE);
+    wi8(add(header, 1), CC0_ELF_MAGIC_E);
+    wi8(add(header, 2), CC0_ELF_MAGIC_L);
+    wi8(add(header, 3), CC0_ELF_MAGIC_F);
+    wi8(add(header, 4), CC0_ELF_CLASS_32);
+    wi8(add(header, 5), CC0_ELF_DATA_LITTLE_ENDIAN);
+    wi8(add(header, 6), CC0_ELF_CURRENT_VERSION);
+    cc0_elf_write_half(add(header, 16), CC0_LINK_ELF_TYPE_EXECUTABLE);
+    cc0_elf_write_half(add(header, 18), CC0_ELF_MACHINE_I386);
+    wi32(add(header, 20), CC0_ELF_CURRENT_VERSION);
+    wi32(add(header, 24), cc0_link_address(CC0_LINK_STARTUP_OFFSET));
+    wi32(add(header, 28), CC0_ELF_HEADER_BYTES);
+    wi32(add(header, 32), 0);
+    wi32(add(header, 36), 0);
+    cc0_elf_write_half(add(header, 40), CC0_ELF_HEADER_BYTES);
+    cc0_elf_write_half(add(header, 42), CC0_LINK_PROGRAM_HEADER_BYTES);
+    cc0_elf_write_half(add(header, 44), CC0_LINK_PROGRAM_HEADER_COUNT);
+    cc0_elf_write_half(add(header, 46), CC0_ELF_SECTION_HEADER_BYTES);
+    cc0_elf_write_half(add(header, 48), 0);
+    cc0_elf_write_half(add(header, 50), 0);
+    program_header_bytes = mul(CC0_LINK_PROGRAM_HEADER_COUNT,
+        CC0_LINK_PROGRAM_HEADER_BYTES);
+    interpreter_offset = add(CC0_ELF_HEADER_BYTES, program_header_bytes);
+    cc0_link_write_program_header(0, CC0_LINK_ELF_PROGRAM_HEADERS,
+        CC0_ELF_HEADER_BYTES, program_header_bytes, program_header_bytes,
+        or(CC0_LINK_ELF_PROGRAM_READ, CC0_LINK_ELF_PROGRAM_EXECUTE), 4);
+    cc0_link_write_program_header(1, CC0_LINK_ELF_PROGRAM_INTERPRETER,
+        interpreter_offset, CC0_LINK_INTERPRETER_BYTES,
+        CC0_LINK_INTERPRETER_BYTES, CC0_LINK_ELF_PROGRAM_READ, 1);
+    cc0_link_write_program_header(2, CC0_LINK_ELF_PROGRAM_LOAD, 0,
+        CC0_LINK_DATA_OFFSET, CC0_LINK_DATA_OFFSET,
+        or(CC0_LINK_ELF_PROGRAM_READ, CC0_LINK_ELF_PROGRAM_EXECUTE),
+        CC0_LINK_PAGE_BYTES);
+    writable_file_bytes = sub(CC0_LINK_OUTPUT_BYTES, CC0_LINK_DATA_OFFSET);
+    writable_memory_bytes = add(writable_file_bytes, CC0_LINK_BSS_LENGTH);
+    cc0_link_write_program_header(3, CC0_LINK_ELF_PROGRAM_LOAD,
+        CC0_LINK_DATA_OFFSET, writable_file_bytes, writable_memory_bytes,
+        or(CC0_LINK_ELF_PROGRAM_READ, CC0_LINK_ELF_PROGRAM_WRITE),
+        CC0_LINK_PAGE_BYTES);
+    cc0_link_write_program_header(4, CC0_LINK_ELF_PROGRAM_DYNAMIC,
+        CC0_LINK_DYNAMIC_OFFSET, mul(CC0_LINK_DYNAMIC_RECORD_COUNT,
+        CC0_LINK_DYNAMIC_RECORD_BYTES), mul(CC0_LINK_DYNAMIC_RECORD_COUNT,
+        CC0_LINK_DYNAMIC_RECORD_BYTES), or(CC0_LINK_ELF_PROGRAM_READ,
+        CC0_LINK_ELF_PROGRAM_WRITE), 4);
+    cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT, interpreter_offset),
+        CC0_LINK_INTERPRETER, CC0_LINK_INTERPRETER_BYTES);
+    return CC0_FALSE;
+}
+
+function cc0_link_write_elf_header()
+{
+    return cc0_link_write_elf_header_(0, 0, 0, 0, 0);
+}
+
+function cc0_link_put_dynamic_(index, tag, value, record)
+{
+    record = add(CC0_LINK_OUTPUT, add(CC0_LINK_DYNAMIC_OFFSET,
+        mul(index, CC0_LINK_DYNAMIC_RECORD_BYTES)));
+    wi32(record, tag);
+    wi32(add(record, 4), value);
+    return CC0_FALSE;
+}
+
+function cc0_link_put_dynamic(index, tag, value)
+{
+    return cc0_link_put_dynamic_(index, tag, value, 0);
+}
+
+function cc0_link_write_dynamic_(index, entry, name, length, symbol,
+    relocation, symbol_count, chain)
+{
+    wi8(add(CC0_LINK_OUTPUT, CC0_LINK_DYNSTR_OFFSET), 0);
+    cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT,
+        add(CC0_LINK_DYNSTR_OFFSET, 1)), mks("libc.so.6"), 10);
+    index = 0;
+    while (lt(index, CC0_LINK_IMPORT_COUNT)) {
+        entry = cc0_link_import_entry(index);
+        name = ri32(add(entry, CC0_LINK_IMPORT_NAME_OFFSET));
+        length = ri32(add(entry, CC0_LINK_IMPORT_LENGTH_OFFSET));
+        cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT,
+            add(CC0_LINK_DYNSTR_OFFSET, ri32(add(entry,
+            CC0_LINK_IMPORT_STRING_OFFSET)))), name, length);
+        symbol = add(CC0_LINK_OUTPUT, add(CC0_LINK_DYNSYM_OFFSET,
+            shl(add(index, 1), CC0_ELF_SYMBOL_ADDRESS_SHIFT)));
+        wi32(symbol, ri32(add(entry, CC0_LINK_IMPORT_STRING_OFFSET)));
+        wi8(add(symbol, CC0_ELF_SYMBOL_INFO_OFFSET),
+            CC0_ELF_SYMBOL_GLOBAL_FUNCTION);
+        relocation = add(CC0_LINK_OUTPUT, add(CC0_LINK_REL_OFFSET,
+            shl(index, 3)));
+        wi32(relocation, cc0_link_address(add(CC0_LINK_GOT_OFFSET,
+            shl(index, 2))));
+        wi32(add(relocation, 4), or(shl(add(index, 1), 8),
+            CC0_LINK_ELF_RELOCATION_GLOBAL_DATA));
+        index = add(index, 1);
+    }
+    symbol_count = add(CC0_LINK_IMPORT_COUNT, 1);
+    wi32(add(CC0_LINK_OUTPUT, CC0_LINK_HASH_OFFSET), 1);
+    wi32(add(CC0_LINK_OUTPUT, add(CC0_LINK_HASH_OFFSET, 4)), symbol_count);
+    if (not(eq(CC0_LINK_IMPORT_COUNT, 0))) {
+        wi32(add(CC0_LINK_OUTPUT, add(CC0_LINK_HASH_OFFSET, 8)), 1);
+    }
+    index = 1;
+    while (lt(index, symbol_count)) {
+        chain = 0;
+        if (lt(add(index, 1), symbol_count)) {
+            chain = add(index, 1);
+        }
+        wi32(add(CC0_LINK_OUTPUT, add(CC0_LINK_HASH_OFFSET,
+            shl(add(index, 3), 2))), chain);
+        index = add(index, 1);
+    }
+    cc0_link_put_dynamic(0, CC0_LINK_ELF_DYNAMIC_NEEDED, 1);
+    cc0_link_put_dynamic(1, CC0_LINK_ELF_DYNAMIC_HASH,
+        cc0_link_address(CC0_LINK_HASH_OFFSET));
+    cc0_link_put_dynamic(2, CC0_LINK_ELF_DYNAMIC_STRING_TABLE,
+        cc0_link_address(CC0_LINK_DYNSTR_OFFSET));
+    cc0_link_put_dynamic(3, CC0_LINK_ELF_DYNAMIC_SYMBOL_TABLE,
+        cc0_link_address(CC0_LINK_DYNSYM_OFFSET));
+    cc0_link_put_dynamic(4, CC0_LINK_ELF_DYNAMIC_STRING_BYTES,
+        CC0_LINK_DYNSTR_BYTES);
+    cc0_link_put_dynamic(5, CC0_LINK_ELF_DYNAMIC_SYMBOL_BYTES,
+        CC0_ELF_SYMBOL_BYTES);
+    cc0_link_put_dynamic(6, CC0_LINK_ELF_DYNAMIC_REL,
+        cc0_link_address(CC0_LINK_REL_OFFSET));
+    cc0_link_put_dynamic(7, CC0_LINK_ELF_DYNAMIC_REL_BYTES,
+        mul(CC0_LINK_IMPORT_COUNT, CC0_ELF_RELOCATION_BYTES));
+    cc0_link_put_dynamic(8, CC0_LINK_ELF_DYNAMIC_REL_ENTRY_BYTES,
+        CC0_ELF_RELOCATION_BYTES);
+    return cc0_link_put_dynamic(9, CC0_LINK_ELF_DYNAMIC_NULL, 0);
+}
+
+function cc0_link_write_dynamic()
+{
+    return cc0_link_write_dynamic_(0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function cc0_write_object_(name, descriptor, index)
