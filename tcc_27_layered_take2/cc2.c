@@ -5988,6 +5988,80 @@ function tccelf_end_file(state)
     return 0;
 }
 
+function squeeze_multi_relocs(section, old_relocation_offset)
+{
+    var relocation_section;
+    var data;
+    var data_offset;
+    var current_offset;
+    var previous_offset;
+    var destination_offset;
+    var address;
+    var current_address;
+    var destination_address;
+    var temporary_address;
+    var temporary_information;
+    relocation_section = ri32(add(section, CC2_SECTION_RELOCATION_OFFSET));
+    data_offset = ri32(add(relocation_section, CC2_SECTION_DATA_OFFSET));
+    if (not(lt(add(old_relocation_offset, CC2_ELF_RELOCATION_BYTES),
+        data_offset))) {
+        return 0;
+    }
+    data = ri32(add(relocation_section, CC2_SECTION_DATA_POINTER_OFFSET));
+
+    /* Stable insertion sort keeps relocation ordering deterministic. */
+    current_offset = add(old_relocation_offset, CC2_ELF_RELOCATION_BYTES);
+    while (lt(current_offset, data_offset)) {
+        previous_offset = sub(current_offset, CC2_ELF_RELOCATION_BYTES);
+        address = ri32(add(add(data, current_offset),
+            CC2_ELF_RELOCATION_OFFSET_OFFSET));
+        while (and(not(lt(previous_offset, old_relocation_offset)),
+            lt(address, ri32(add(add(data, previous_offset),
+            CC2_ELF_RELOCATION_OFFSET_OFFSET))))) {
+            temporary_address = ri32(add(add(data, current_offset),
+                CC2_ELF_RELOCATION_OFFSET_OFFSET));
+            temporary_information = ri32(add(add(data, current_offset),
+                CC2_ELF_RELOCATION_INFO_OFFSET));
+            wi32(add(add(data, current_offset),
+                CC2_ELF_RELOCATION_OFFSET_OFFSET), ri32(add(add(data,
+                previous_offset), CC2_ELF_RELOCATION_OFFSET_OFFSET)));
+            wi32(add(add(data, current_offset),
+                CC2_ELF_RELOCATION_INFO_OFFSET), ri32(add(add(data,
+                previous_offset), CC2_ELF_RELOCATION_INFO_OFFSET)));
+            wi32(add(add(data, previous_offset),
+                CC2_ELF_RELOCATION_OFFSET_OFFSET), temporary_address);
+            wi32(add(add(data, previous_offset),
+                CC2_ELF_RELOCATION_INFO_OFFSET), temporary_information);
+            previous_offset = sub(previous_offset,
+                CC2_ELF_RELOCATION_BYTES);
+        }
+        current_offset = add(current_offset, CC2_ELF_RELOCATION_BYTES);
+    }
+
+    current_offset = old_relocation_offset;
+    destination_offset = old_relocation_offset;
+    while (lt(current_offset, data_offset)) {
+        destination_address = ri32(add(add(data, destination_offset),
+            CC2_ELF_RELOCATION_OFFSET_OFFSET));
+        current_address = ri32(add(add(data, current_offset),
+            CC2_ELF_RELOCATION_OFFSET_OFFSET));
+        if (not(eq(destination_address, current_address))) {
+            destination_offset = add(destination_offset,
+                CC2_ELF_RELOCATION_BYTES);
+        }
+        wi32(add(add(data, destination_offset),
+            CC2_ELF_RELOCATION_OFFSET_OFFSET), ri32(add(add(data,
+            current_offset), CC2_ELF_RELOCATION_OFFSET_OFFSET)));
+        wi32(add(add(data, destination_offset),
+            CC2_ELF_RELOCATION_INFO_OFFSET), ri32(add(add(data,
+            current_offset), CC2_ELF_RELOCATION_INFO_OFFSET)));
+        current_offset = add(current_offset, CC2_ELF_RELOCATION_BYTES);
+    }
+    wi32(add(relocation_section, CC2_SECTION_DATA_OFFSET),
+        add(destination_offset, CC2_ELF_RELOCATION_BYTES));
+    return 0;
+}
+
 /* Grow the pool pointer vector with the same power-of-two rule as TCC. */
 function cc2_add_sym_pool_(pool, count, capacity, pools)
 {
