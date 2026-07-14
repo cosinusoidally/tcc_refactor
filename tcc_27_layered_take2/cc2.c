@@ -9073,6 +9073,129 @@ function subst_asm_operand(output, value, modifier)
     return 0;
 }
 
+function cc2_clone_svalue(source)
+{
+    var destination;
+    destination = malloc(CC2_SVALUE_BYTES);
+    cc2_copy_svalue(destination, source);
+    return destination;
+}
+
+function asm_gen_code(operands, operand_count, output_count, is_output,
+    clobbers, output_register)
+{
+    var allocated;
+    var index;
+    var operand;
+    var reg;
+    var value;
+    var registers;
+    allocated = malloc(CC2_ASM_REGISTER_COUNT);
+    memcpy(allocated, clobbers, CC2_ASM_REGISTER_COUNT);
+    index = 0;
+    while (lt(index, operand_count)) {
+        operand = add(operands, mul(index, CC2_ASM_OPERAND_BYTES));
+        reg = ri32(add(operand, CC2_ASM_OPERAND_REGISTER_OFFSET));
+        if (le(0, reg)) {
+            wi8(add(allocated, reg), 1);
+        }
+        index = add(index, 1);
+    }
+    if (not(is_output)) {
+        if (ri8(add(allocated, 3))) {
+            g(83);
+        }
+        if (ri8(add(allocated, 6))) {
+            g(86);
+        }
+        if (ri8(add(allocated, 7))) {
+            g(87);
+        }
+        index = 0;
+        while (lt(index, operand_count)) {
+            operand = add(operands, mul(index, CC2_ASM_OPERAND_BYTES));
+            reg = ri32(add(operand, CC2_ASM_OPERAND_REGISTER_OFFSET));
+            if (le(0, reg)) {
+                value = ri32(add(operand, CC2_ASM_OPERAND_VALUE_OFFSET));
+                registers = ri32(add(value, CC2_SVALUE_REGISTER_OFFSET));
+                if (and(eq(and(registers, CC2_VALUE_LOCATION_MASK),
+                    CC2_VALUE_LOCAL_LVALUE), ri32(add(operand,
+                    CC2_ASM_OPERAND_MEMORY_OFFSET)))) {
+                    value = cc2_clone_svalue(value);
+                    wi32(add(value, CC2_SVALUE_REGISTER_OFFSET), or(and(
+                        registers, bnot(CC2_VALUE_LOCATION_MASK)),
+                        or(CC2_VALUE_LOCAL, CC2_TCC_LVALUE)));
+                    wi32(value, CC2_TCC_POINTER_TYPE);
+                    load(reg, value);
+                    free(value);
+                } else if (or(le(output_count, index), ri32(add(operand,
+                    52)))) {
+                    load(reg, value);
+                    if (ri32(add(operand, 44))) {
+                        value = cc2_clone_svalue(value);
+                        wi32(add(value, CC2_SVALUE_CONSTANT_OFFSET), add(
+                            ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)), 4));
+                        load(2, value);
+                        free(value);
+                    }
+                }
+            }
+            index = add(index, 1);
+        }
+    } else {
+        index = 0;
+        while (lt(index, output_count)) {
+            operand = add(operands, mul(index, CC2_ASM_OPERAND_BYTES));
+            reg = ri32(add(operand, CC2_ASM_OPERAND_REGISTER_OFFSET));
+            if (le(0, reg)) {
+                value = ri32(add(operand, CC2_ASM_OPERAND_VALUE_OFFSET));
+                registers = ri32(add(value, CC2_SVALUE_REGISTER_OFFSET));
+                if (eq(and(registers, CC2_VALUE_LOCATION_MASK),
+                    CC2_VALUE_LOCAL_LVALUE)) {
+                    if (eq(ri32(add(operand,
+                        CC2_ASM_OPERAND_MEMORY_OFFSET)), 0)) {
+                        value = cc2_clone_svalue(value);
+                        wi32(add(value, CC2_SVALUE_REGISTER_OFFSET), or(and(
+                            registers, bnot(CC2_VALUE_LOCATION_MASK)),
+                            CC2_VALUE_LOCAL));
+                        wi32(value, CC2_TCC_POINTER_TYPE);
+                        load(output_register, value);
+                        free(value);
+                        value = cc2_clone_svalue(ri32(add(operand,
+                            CC2_ASM_OPERAND_VALUE_OFFSET)));
+                        wi32(add(value, CC2_SVALUE_REGISTER_OFFSET), or(and(
+                            ri32(add(value, CC2_SVALUE_REGISTER_OFFSET)),
+                            bnot(CC2_VALUE_LOCATION_MASK)), output_register));
+                        store(reg, value);
+                        free(value);
+                    }
+                } else {
+                    store(reg, value);
+                    if (ri32(add(operand, 44))) {
+                        value = cc2_clone_svalue(value);
+                        wi32(add(value, CC2_SVALUE_CONSTANT_OFFSET), add(
+                            ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)), 4));
+                        store(2, value);
+                        free(value);
+                    }
+                }
+            }
+            index = add(index, 1);
+        }
+        if (ri8(add(allocated, 7))) {
+            g(95);
+        }
+        if (ri8(add(allocated, 6))) {
+            g(94);
+        }
+        if (ri8(add(allocated, 3))) {
+            g(91);
+        }
+    }
+    free(allocated);
+    return 0;
+}
+
 function gen_disp32_(expression, symbol, elf_symbol, section, value,
     type_value)
 {

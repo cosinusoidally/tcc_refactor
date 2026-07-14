@@ -208,13 +208,6 @@ function asm_compute_constraints(operands, operand_count, output_count,
     return 0;
 }
 
-function asm_gen_code(operands, operand_count, output_count, is_output,
-    clobbers, output_register)
-{
-    return 0;
-}
-
-
 function case_sort(base, count)
 {
     return 0;
