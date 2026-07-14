@@ -1480,9 +1480,9 @@ ST_DATA Section *symtab_section;
 /* debug sections */
 ST_DATA Section *stab_section, *stabstr_section;
 
-ST_FUNC void tccelf_new(TCCState *s);
-ST_FUNC void tccelf_delete(TCCState *s);
-ST_FUNC void tccelf_stab_new(TCCState *s);
+extern void tccelf_new(TCCState *s);
+extern void tccelf_delete(TCCState *s);
+extern void tccelf_stab_new(TCCState *s);
 ST_FUNC void tccelf_begin_file(TCCState *s1);
 ST_FUNC void tccelf_end_file(TCCState *s1);
 
@@ -1530,7 +1530,7 @@ void squeeze_multi_relocs(Section *sec, size_t oldrelocoffset);
 
 ST_FUNC addr_t get_elf_sym_addr(TCCState *s, const char *name, int err);
 #if defined TCC_IS_NATIVE || defined TCC_TARGET_PE
-ST_FUNC void *tcc_get_symbol_err(TCCState *s, const char *name);
+extern void *tcc_get_symbol_err(TCCState *s, const char *name);
 #endif
 
 #ifndef TCC_TARGET_PE

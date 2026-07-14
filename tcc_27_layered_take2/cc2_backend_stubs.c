@@ -246,3 +246,8 @@ function tcc_add_file_internal(state, filename, flags)
 {
     return sub(0, 1);
 }
+
+function cc2_bind_tcc_globals(state)
+{
+    return 0;
+}

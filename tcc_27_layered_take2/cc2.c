@@ -855,6 +855,7 @@ var CC2_TCC_STATE_NEW_DTAGS_OFFSET;
 var CC2_TCC_STATE_LOADED_DLLS_OFFSET;
 var CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET;
 var CC2_DLL_REFERENCE_LEVEL_OFFSET;
+var CC2_DLL_REFERENCE_HANDLE_OFFSET;
 var CC2_DLL_REFERENCE_NAME_OFFSET;
 var CC2_TCC_OUTPUT_EXE;
 var CC2_ELF_DYNAMIC_NEEDED_TAG;
@@ -6017,6 +6018,112 @@ function new_undef_syms()
     result = CC2_NEW_UNDEFINED_SYMBOL;
     CC2_NEW_UNDEFINED_SYMBOL = 0;
     return result;
+}
+
+/* Establish the standard ELF section graph used by every compilation. */
+function tccelf_new(state)
+{
+    var section;
+    cc2_bind_tcc_globals(state);
+    dynarray_add(add(state, CC2_TCC_STATE_SECTIONS_OFFSET), add(state,
+        CC2_TCC_STATE_SECTION_COUNT_OFFSET), 0);
+    section = new_section(state, mks(".text"), CC2_ELF_SECTION_PROGBITS,
+        or(CC2_ELF_ALLOCATE_SECTION_FLAG, CC2_ELF_EXECUTE_SECTION_FLAG));
+    wi32(text_section_address, section);
+    section = new_section(state, mks(".data"), CC2_ELF_SECTION_PROGBITS,
+        or(CC2_ELF_ALLOCATE_SECTION_FLAG, CC2_ELF_WRITE_SECTION_FLAG));
+    wi32(data_section_address, section);
+    section = new_section(state, mks(".bss"), CC2_ELF_SECTION_NOBITS,
+        or(CC2_ELF_ALLOCATE_SECTION_FLAG, CC2_ELF_WRITE_SECTION_FLAG));
+    wi32(bss_section_address, section);
+    section = new_section(state, mks(".common"), CC2_ELF_SECTION_NOBITS,
+        CC2_ELF_PRIVATE_SECTION_FLAG);
+    wi32(common_section_address, section);
+    wi32(add(section, CC2_SECTION_NUMBER_OFFSET),
+        CC2_ELF_COMMON_SECTION);
+    section = new_symtab(state, mks(".symtab"),
+        CC2_ELF_SECTION_SYMBOL_TABLE, 0, mks(".strtab"), mks(".hashtab"),
+        CC2_ELF_PRIVATE_SECTION_FLAG);
+    wi32(symtab_section_address, section);
+    wi32(add(state, CC2_TCC_STATE_SYMBOL_TABLE_OFFSET), section);
+    section = new_symtab(state, mks(".dynsymtab"),
+        CC2_ELF_SECTION_SYMBOL_TABLE, or(CC2_ELF_PRIVATE_SECTION_FLAG,
+        CC2_ELF_DYNAMIC_SYMBOL_FLAG), mks(".dynstrtab"),
+        mks(".dynhashtab"), CC2_ELF_PRIVATE_SECTION_FLAG);
+    wi32(add(state, CC2_TCC_STATE_LOADED_DYNAMIC_SYMBOL_TABLE_OFFSET),
+        section);
+    get_sym_attr(state, 0, 1);
+    return 0;
+}
+
+function tccelf_stab_new(state)
+{
+    var section;
+    var string_section;
+    section = new_section(state, mks(".stab"), CC2_ELF_SECTION_PROGBITS, 0);
+    wi32(stab_section_address, section);
+    wi32(add(section, CC2_SECTION_ENTRY_SIZE_OFFSET),
+        CC2_STABS_RECORD_BYTES);
+    string_section = new_section(state, mks(".stabstr"),
+        CC2_ELF_SECTION_STRING_TABLE, 0);
+    wi32(stabstr_section_address, string_section);
+    put_elf_str(string_section, mks(""));
+    wi32(add(section, CC2_SECTION_LINK_OFFSET), string_section);
+    put_stabs(mks(""), 0, 0, 0, 0);
+    return 0;
+}
+
+function tccelf_delete(state)
+{
+    var table;
+    var count;
+    var index;
+    var entry;
+    table = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+    count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    index = 1;
+    while (lt(index, count)) {
+        entry = ri32(add(table, shl(index, 2)));
+        free(ri32(add(entry, CC2_SECTION_DATA_POINTER_OFFSET)));
+        index = add(index, 1);
+    }
+    dynarray_reset(add(state, CC2_TCC_STATE_SECTIONS_OFFSET), add(state,
+        CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    table = ri32(add(state, CC2_TCC_STATE_PRIVATE_SECTIONS_OFFSET));
+    count = ri32(add(state, CC2_TCC_STATE_PRIVATE_SECTION_COUNT_OFFSET));
+    index = 0;
+    while (lt(index, count)) {
+        entry = ri32(add(table, shl(index, 2)));
+        free(ri32(add(entry, CC2_SECTION_DATA_POINTER_OFFSET)));
+        index = add(index, 1);
+    }
+    dynarray_reset(add(state, CC2_TCC_STATE_PRIVATE_SECTIONS_OFFSET), add(state,
+        CC2_TCC_STATE_PRIVATE_SECTION_COUNT_OFFSET));
+    table = ri32(add(state, CC2_TCC_STATE_LOADED_DLLS_OFFSET));
+    count = ri32(add(state, CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET));
+    index = 0;
+    while (lt(index, count)) {
+        entry = ri32(add(table, shl(index, 2)));
+        if (not(eq(ri32(add(entry, CC2_DLL_REFERENCE_HANDLE_OFFSET)), 0))) {
+            dlclose(ri32(add(entry, CC2_DLL_REFERENCE_HANDLE_OFFSET)));
+        }
+        index = add(index, 1);
+    }
+    dynarray_reset(add(state, CC2_TCC_STATE_LOADED_DLLS_OFFSET), add(state,
+        CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET));
+    free(ri32(add(state, CC2_TCC_STATE_SYMBOL_ATTRIBUTES_OFFSET)));
+    wi32(symtab_section_address, 0);
+    return 0;
+}
+
+function tcc_get_symbol(state, name)
+{
+    return get_elf_sym_addr(state, name, 0);
+}
+
+function tcc_get_symbol_err(state, name)
+{
+    return get_elf_sym_addr(state, name, 1);
 }
 
 function tccelf_begin_file(state)
@@ -20932,6 +21039,7 @@ function cc2_init_constants()
     CC2_TCC_STATE_LOADED_DLLS_OFFSET = 136;
     CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET = 140;
     CC2_DLL_REFERENCE_LEVEL_OFFSET = 0;
+    CC2_DLL_REFERENCE_HANDLE_OFFSET = 4;
     CC2_DLL_REFERENCE_NAME_OFFSET = 8;
     CC2_TCC_OUTPUT_EXE = 2;
     CC2_ELF_DYNAMIC_NEEDED_TAG = 1;
