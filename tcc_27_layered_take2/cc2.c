@@ -7001,6 +7001,53 @@ function asm_parse_org(state)
     return asm_parse_org_(state, 0, 0, 0, 0, 0, 0);
 }
 
+function asm_parse_fill_(state, repeat, size, value, repeat_index,
+    byte_index, byte_value)
+{
+    next();
+    repeat = asm_int_expr(state);
+    if (lt(repeat, 0)) {
+        tcc_error(mks("repeat < 0; .fill ignored"), 0);
+        return 0;
+    }
+    size = 1;
+    value = 0;
+    if (eq(ri32(tok_address), mkC(","))) {
+        next();
+        size = asm_int_expr(state);
+        if (lt(size, 0)) {
+            tcc_error(mks("size < 0; .fill ignored"), 0);
+            return 0;
+        }
+        if (lt(8, size)) {
+            size = 8;
+        }
+        if (eq(ri32(tok_address), mkC(","))) {
+            next();
+            value = asm_int_expr(state);
+        }
+    }
+    repeat_index = 0;
+    while (lt(repeat_index, repeat)) {
+        byte_index = 0;
+        while (lt(byte_index, size)) {
+            byte_value = 0;
+            if (lt(byte_index, 4)) {
+                byte_value = and(ushr(value, mul(byte_index, 8)), 255);
+            }
+            g(byte_value);
+            byte_index = add(byte_index, 1);
+        }
+        repeat_index = add(repeat_index, 1);
+    }
+    return 0;
+}
+
+function asm_parse_fill(state)
+{
+    return asm_parse_fill_(state, 0, 0, 0, 0, 0, 0);
+}
+
 function use_section1(state, section)
 {
     var current;
