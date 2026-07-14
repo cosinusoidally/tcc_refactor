@@ -318,6 +318,16 @@ var CC0_LINK_ELF_SECTION_SIZE_OFFSET;
 var CC0_LINK_ELF_SECTION_LINK_OFFSET;
 var CC0_LINK_ELF_SECTION_ALIGNMENT_OFFSET;
 var CC0_LINK_ELF_SECTION_ENTRY_SIZE_OFFSET;
+var CC0_LINK_TEXT;
+var CC0_LINK_TEXT_LENGTH;
+var CC0_LINK_TEXT_CAPACITY;
+var CC0_LINK_DATA;
+var CC0_LINK_DATA_LENGTH;
+var CC0_LINK_DATA_CAPACITY;
+var CC0_LINK_BSS_LENGTH;
+var CC0_LINK_REGION_TEXT;
+var CC0_LINK_REGION_DATA;
+var CC0_LINK_REGION_BSS;
 var CC0_ELF_HEADER_BYTES;
 var CC0_ELF_SECTION_HEADER_BYTES;
 var CC0_ELF_TYPE_RELOCATABLE;
@@ -634,6 +644,16 @@ function cc0_init()
     CC0_LINK_ELF_SECTION_LINK_OFFSET = 24;
     CC0_LINK_ELF_SECTION_ALIGNMENT_OFFSET = 32;
     CC0_LINK_ELF_SECTION_ENTRY_SIZE_OFFSET = 36;
+    CC0_LINK_TEXT = 0;
+    CC0_LINK_TEXT_LENGTH = 0;
+    CC0_LINK_TEXT_CAPACITY = 0;
+    CC0_LINK_DATA = 0;
+    CC0_LINK_DATA_LENGTH = 0;
+    CC0_LINK_DATA_CAPACITY = 0;
+    CC0_LINK_BSS_LENGTH = 0;
+    CC0_LINK_REGION_TEXT = 1;
+    CC0_LINK_REGION_DATA = 2;
+    CC0_LINK_REGION_BSS = 3;
     CC0_ELF_HEADER_BYTES = 52;
     CC0_ELF_SECTION_HEADER_BYTES = 40;
     CC0_ELF_TYPE_RELOCATABLE = 1;
@@ -5600,6 +5620,169 @@ function cc0_link_add_object_(name, size_pointer, image, section_count,
 function cc0_link_add_object(name)
 {
     return cc0_link_add_object_(name, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc0_link_reserve_text_(needed, text)
+{
+    text = cc0_compiler_grow_memory(CC0_LINK_TEXT, CC0_LINK_TEXT_LENGTH,
+        CC0_LINK_TEXT_CAPACITY, needed);
+    if (eq(text, 0)) {
+        return CC0_TRUE;
+    }
+    CC0_LINK_TEXT = text;
+    CC0_LINK_TEXT_CAPACITY = cc0_compiler_grown_capacity(
+        CC0_LINK_TEXT_CAPACITY, needed);
+    return CC0_FALSE;
+}
+
+function cc0_link_reserve_text(needed)
+{
+    return cc0_link_reserve_text_(needed, 0);
+}
+
+function cc0_link_reserve_data_(needed, data)
+{
+    data = cc0_compiler_grow_memory(CC0_LINK_DATA, CC0_LINK_DATA_LENGTH,
+        CC0_LINK_DATA_CAPACITY, needed);
+    if (eq(data, 0)) {
+        return CC0_TRUE;
+    }
+    CC0_LINK_DATA = data;
+    CC0_LINK_DATA_CAPACITY = cc0_compiler_grown_capacity(
+        CC0_LINK_DATA_CAPACITY, needed);
+    return CC0_FALSE;
+}
+
+function cc0_link_reserve_data(needed)
+{
+    return cc0_link_reserve_data_(needed, 0);
+}
+
+function cc0_link_zero_(destination, count, index)
+{
+    index = 0;
+    while (lt(index, count)) {
+        wi8(add(destination, index), 0);
+        index = add(index, 1);
+    }
+    return destination;
+}
+
+function cc0_link_zero(destination, count)
+{
+    return cc0_link_zero_(destination, count, 0);
+}
+
+function cc0_link_merge_text_(source, size, alignment, offset, end)
+{
+    offset = cc0_elf_align(CC0_LINK_TEXT_LENGTH, alignment);
+    end = add(offset, size);
+    if (cc0_link_reserve_text(end)) {
+        return sub(0, 1);
+    }
+    cc0_link_zero(add(CC0_LINK_TEXT, CC0_LINK_TEXT_LENGTH),
+        sub(offset, CC0_LINK_TEXT_LENGTH));
+    cc0_compiler_copy_bytes(add(CC0_LINK_TEXT, offset), source, size);
+    CC0_LINK_TEXT_LENGTH = end;
+    return offset;
+}
+
+function cc0_link_merge_text(source, size, alignment)
+{
+    return cc0_link_merge_text_(source, size, alignment, 0, 0);
+}
+
+function cc0_link_merge_data_(source, size, alignment, offset, end)
+{
+    offset = cc0_elf_align(CC0_LINK_DATA_LENGTH, alignment);
+    end = add(offset, size);
+    if (cc0_link_reserve_data(end)) {
+        return sub(0, 1);
+    }
+    cc0_link_zero(add(CC0_LINK_DATA, CC0_LINK_DATA_LENGTH),
+        sub(offset, CC0_LINK_DATA_LENGTH));
+    cc0_compiler_copy_bytes(add(CC0_LINK_DATA, offset), source, size);
+    CC0_LINK_DATA_LENGTH = end;
+    return offset;
+}
+
+function cc0_link_merge_data(source, size, alignment)
+{
+    return cc0_link_merge_data_(source, size, alignment, 0, 0);
+}
+
+function cc0_link_merge_section_(object, section_index, image, section,
+    type, flags, alignment, size, region, offset, map)
+{
+    image = ri32(add(object, CC0_LINK_OBJECT_IMAGE_OFFSET));
+    section = cc0_link_section(image, section_index);
+    type = ri32(add(section, CC0_LINK_ELF_SECTION_TYPE_OFFSET));
+    flags = ri32(add(section, CC0_LINK_ELF_SECTION_FLAGS_OFFSET));
+    if (eq(and(flags, CC0_ELF_FLAG_ALLOC), 0)) {
+        return CC0_FALSE;
+    }
+    alignment = ri32(add(section, CC0_LINK_ELF_SECTION_ALIGNMENT_OFFSET));
+    if (lt(alignment, 1)) {
+        alignment = 1;
+    }
+    size = ri32(add(section, CC0_LINK_ELF_SECTION_SIZE_OFFSET));
+    if (eq(type, CC0_ELF_SECTION_NOBITS)) {
+        region = CC0_LINK_REGION_BSS;
+        offset = cc0_elf_align(CC0_LINK_BSS_LENGTH, alignment);
+        CC0_LINK_BSS_LENGTH = add(offset, size);
+    } else {
+        if (not(eq(type, CC0_ELF_SECTION_PROGBITS))) {
+            return CC0_FALSE;
+        }
+        if (eq(and(flags, CC0_ELF_FLAG_WRITE), 0)) {
+            region = CC0_LINK_REGION_TEXT;
+            offset = cc0_link_merge_text(add(image, ri32(add(section,
+                CC0_LINK_ELF_SECTION_FILE_OFFSET))), size, alignment);
+        } else {
+            region = CC0_LINK_REGION_DATA;
+            offset = cc0_link_merge_data(add(image, ri32(add(section,
+                CC0_LINK_ELF_SECTION_FILE_OFFSET))), size, alignment);
+        }
+        if (lt(offset, 0)) {
+            return CC0_TRUE;
+        }
+    }
+    map = add(ri32(add(object, CC0_LINK_OBJECT_SECTION_MAP_OFFSET)),
+        shl(section_index, 3));
+    wi32(map, region);
+    wi32(add(map, 4), offset);
+    return CC0_FALSE;
+}
+
+function cc0_link_merge_section(object, section_index)
+{
+    return cc0_link_merge_section_(object, section_index, 0, 0, 0, 0, 0,
+        0, 0, 0, 0);
+}
+
+function cc0_link_merge_objects_(object_index, object, section_index,
+    section_count)
+{
+    object_index = 0;
+    while (lt(object_index, CC0_LINK_OBJECT_COUNT)) {
+        object = cc0_link_object_entry(object_index);
+        section_count = ri32(add(object,
+            CC0_LINK_OBJECT_SECTION_COUNT_OFFSET));
+        section_index = 1;
+        while (lt(section_index, section_count)) {
+            if (cc0_link_merge_section(object, section_index)) {
+                return CC0_TRUE;
+            }
+            section_index = add(section_index, 1);
+        }
+        object_index = add(object_index, 1);
+    }
+    return CC0_FALSE;
+}
+
+function cc0_link_merge_objects()
+{
+    return cc0_link_merge_objects_(0, 0, 0, 0);
 }
 
 function cc0_write_object_(name, descriptor, index)
