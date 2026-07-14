@@ -90,12 +90,6 @@ static int cc2_ieee_finite(double d)
     return ((unsigned)((p[1] | 0x800fffff) + 1)) >> 31;
 }
 
-/* compiling intel long double natively */
-#if (defined __i386__ || defined __x86_64__) \
-    && (defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64)
-# define TCC_IS_NATIVE_387
-#endif
-
 ST_FUNC void vpush64(int ty, unsigned long long v)
 {
     CValue cval;
