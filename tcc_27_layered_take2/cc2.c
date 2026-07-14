@@ -1024,6 +1024,13 @@ var CC2_TCC_STATE_RELOCATABLE_OUTPUT_OFFSET;
 var CC2_TCC_STATE_BENCHMARK_OFFSET;
 var CC2_TCC_STATE_GENERATE_DEPENDENCIES_OFFSET;
 var CC2_TCC_STATE_PTHREAD_OFFSET;
+var CC2_DRIVER_OPTION_HELP;
+var CC2_DRIVER_OPTION_HELP_MORE;
+var CC2_DRIVER_OPTION_VERSION_ONLY;
+var CC2_DRIVER_OPTION_PRINT_DIRECTORIES;
+var CC2_DRIVER_OPTION_ARCHIVE;
+var CC2_DRIVER_OPTION_I386;
+var CC2_DRIVER_OPTION_X86_64;
 var CC2_TCC_STATE_LIBRARY_ROOT_OFFSET;
 var CC2_TCC_STATE_CRT_PATHS_OFFSET;
 var CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET;
@@ -25116,6 +25123,318 @@ function tcc_print_stats(state, elapsed_milliseconds)
     return 0;
 }
 
+function cc2_print_help(more)
+{
+    if (more) {
+        puts(mks("Tiny C Compiler 0.9.27 - More Options"));
+        puts(mks("Special options:"));
+        puts(mks("  -P -P1                        with -E: no/alternative #line output"));
+        puts(mks("  -dD -dM                       with -E: output #define directives"));
+        puts(mks("  -pthread                      same as -D_REENTRANT and -lpthread"));
+        puts(mks("  -On                           define __OPTIMIZE__ for n > 0"));
+        puts(mks("  -Wp,-opt                      same as -opt"));
+        puts(mks("  -include file                 include file above each input"));
+        puts(mks("  -isystem dir                  add a system include path"));
+        puts(mks("  -static                       link to static libraries"));
+        puts(mks("  -dumpversion                  print version"));
+        puts(mks("  -print-search-dirs            print search paths"));
+        puts(mks("Warnings: -Wall -Werror -Wunsupported -Wwrite-strings"));
+        puts(mks("Flags: -funsigned-char -fsigned-char -fcommon"));
+        puts(mks("       -fleading-underscore -fms-extensions"));
+        puts(mks("       -fdollars-in-identifiers -mms-bitfields"));
+        puts(mks("ELF linker options:"));
+        puts(mks("  -Wl,-nostdlib -Wl,-[no-]whole-archive"));
+        puts(mks("  -Wl,-export-all-symbols -Wl,-Ttext=address"));
+        puts(mks("  -Wl,-section-alignment=value -Wl,-rpath=path"));
+        puts(mks("  -Wl,-enable-new-dtags -Wl,-soname=name"));
+        puts(mks("  -Wl,-Bsymbolic -Wl,-oformat=[elf32-*|binary]"));
+        return 0;
+    }
+    puts(mks("Tiny C Compiler 0.9.27 - Copyright (C) 2001-2006 Fabrice Bellard"));
+    puts(mks("Usage: tcc [options...] [-o outfile] [-c] infile(s)..."));
+    puts(mks("General options:"));
+    puts(mks("  -c          compile only and generate an object file"));
+    puts(mks("  -o outfile  set output filename"));
+    puts(mks("  -fflag      set/reset a compiler flag"));
+    puts(mks("  -Wwarning   set/reset a warning"));
+    puts(mks("  -w          disable warnings"));
+    puts(mks("  -v -vv      show version or search paths"));
+    puts(mks("  -h -hh      show help or extended help"));
+    puts(mks("  -bench      show compilation statistics"));
+    puts(mks("  @listfile   read arguments from a file"));
+    puts(mks("Preprocessor: -I -D -U -E -include -isystem -nostdinc"));
+    puts(mks("Linker: -L -l -r -shared -rdynamic -soname -nostdlib -Wl,"));
+    puts(mks("Miscellaneous: -x[c|a|n] -Bdir -MD -MF -m32/64"));
+    puts(mks("Tools: tcc -ar [rcsv] lib.a files"));
+    return 0;
+}
+
+function cc2_print_directories(label, paths, path_count)
+{
+    var index;
+    printf(mks("%s:"), label);
+    fputc(mkC("\n"), cc2_stdout());
+    if (eq(path_count, 0)) {
+        puts(mks("  -"));
+    }
+    index = 0;
+    while (lt(index, path_count)) {
+        printf(mks("  %s"), ri32(add(paths, shl(index, 2))));
+        fputc(mkC("\n"), cc2_stdout());
+        index = add(index, 1);
+    }
+    return 0;
+}
+
+function cc2_print_search_directories(state)
+{
+    var library_root;
+    library_root = ri32(add(state, CC2_TCC_STATE_LIBRARY_ROOT_OFFSET));
+    printf(mks("install: %s"), library_root);
+    fputc(mkC("\n"), cc2_stdout());
+    cc2_print_directories(mks("include"), ri32(add(state,
+        CC2_TCC_STATE_SYSTEM_INCLUDE_PATHS_OFFSET)), ri32(add(state,
+        CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET)));
+    cc2_print_directories(mks("libraries"), ri32(add(state,
+        CC2_TCC_STATE_LIBRARY_PATHS_OFFSET)), ri32(add(state,
+        CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET)));
+    puts(mks("libtcc1:"));
+    printf(mks("  %s/libtcc1.a"), library_root);
+    fputc(mkC("\n"), cc2_stdout());
+    cc2_print_directories(mks("crt"), ri32(add(state,
+        CC2_TCC_STATE_CRT_PATHS_OFFSET)), ri32(add(state,
+        CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET)));
+    puts(mks("elfinterp:"));
+    puts(CC2_DEFAULT_INTERPRETER);
+    return 0;
+}
+
+function cc2_set_environment(state)
+{
+    var path;
+    path = getenv(mks("C_INCLUDE_PATH"));
+    if (path) {
+        tcc_add_sysinclude_path(state, path);
+    }
+    path = getenv(mks("CPATH"));
+    if (path) {
+        tcc_add_include_path(state, path);
+    }
+    path = getenv(mks("LIBRARY_PATH"));
+    if (path) {
+        tcc_add_library_path(state, path);
+    }
+    return 0;
+}
+
+function cc2_default_output_file(state, first_file)
+{
+    var name;
+    var output;
+    var extension;
+    name = mks("a");
+    if (and(first_file, not(eq(strcmp(first_file, mks("-")), 0)))) {
+        name = tcc_basename(first_file);
+    }
+    output = tcc_malloc(add(strlen(name), 8));
+    strcpy(output, name);
+    extension = tcc_fileextension(output);
+    if (and(eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+        CC2_TCC_OUTPUT_OBJECT), and(eq(ri32(add(state,
+        CC2_TCC_STATE_RELOCATABLE_OUTPUT_OFFSET)), 0), ri8(extension)))) {
+        strcpy(extension, mks(".o"));
+    } else {
+        strcpy(output, mks("a.out"));
+    }
+    return output;
+}
+
+function tcc_driver_main(original_count, original_arguments)
+{
+    var state;
+    var result;
+    var option;
+    var files_remaining;
+    var start_time;
+    var first_file;
+    var argument_count_slot;
+    var arguments_slot;
+    var argument_count;
+    var arguments;
+    var preprocess_output;
+    var repeat;
+    var file_specification;
+    var file_name;
+    cc2_init_constants();
+    files_remaining = 0;
+    start_time = 0;
+    preprocess_output = cc2_stdout();
+    repeat = 1;
+    result = 0;
+    argument_count_slot = malloc(4);
+    arguments_slot = malloc(4);
+    while (repeat) {
+        repeat = 0;
+        wi32(argument_count_slot, original_count);
+        wi32(arguments_slot, original_arguments);
+        state = tcc_new();
+        option = tcc_parse_args(state, argument_count_slot, arguments_slot, 1);
+        argument_count = ri32(argument_count_slot);
+        arguments = ri32(arguments_slot);
+        if (eq(files_remaining, 0)) {
+            if (eq(option, CC2_DRIVER_OPTION_HELP)) {
+                cc2_print_help(0);
+                result = 1;
+                tcc_delete(state);
+                break;
+            }
+            if (eq(option, CC2_DRIVER_OPTION_HELP_MORE)) {
+                cc2_print_help(1);
+                result = 1;
+                tcc_delete(state);
+                break;
+            }
+            if (or(eq(option, CC2_DRIVER_OPTION_I386),
+                eq(option, CC2_DRIVER_OPTION_X86_64))) {
+                tcc_tool_cross(state, arguments, option);
+            }
+            if (ri32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET))) {
+                puts(mks("tcc version 0.9.27 (i386 Linux)"));
+            }
+            if (eq(option, CC2_DRIVER_OPTION_ARCHIVE)) {
+                result = tcc_tool_ar(state, argument_count, arguments);
+                tcc_delete(state);
+                break;
+            }
+            if (eq(option, CC2_DRIVER_OPTION_VERSION_ONLY)) {
+                result = 0;
+                tcc_delete(state);
+                break;
+            }
+            if (eq(option, CC2_DRIVER_OPTION_PRINT_DIRECTORIES)) {
+                cc2_set_environment(state);
+                tcc_set_output_type(state, CC2_TCC_OUTPUT_MEMORY);
+                cc2_print_search_directories(state);
+                result = 0;
+                tcc_delete(state);
+                break;
+            }
+            files_remaining = ri32(add(state, CC2_TCC_STATE_FILE_COUNT_OFFSET));
+            if (eq(files_remaining, 0)) {
+                tcc_error(mks("no input files"), 0);
+            }
+            if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+                CC2_OUTPUT_PREPROCESS)) {
+                if (ri32(add(state, CC2_TCC_STATE_OUTFILE_OFFSET))) {
+                    preprocess_output = fopen(ri32(add(state,
+                        CC2_TCC_STATE_OUTFILE_OFFSET)), mks("w"));
+                    if (eq(preprocess_output, 0)) {
+                        tcc_error(mks("could not write '%s'"), ri32(add(state,
+                            CC2_TCC_STATE_OUTFILE_OFFSET)));
+                    }
+                }
+            } else if (and(eq(ri32(add(state,
+                CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)), CC2_TCC_OUTPUT_OBJECT),
+                eq(ri32(add(state,
+                CC2_TCC_STATE_RELOCATABLE_OUTPUT_OFFSET)), 0))) {
+                if (ri32(add(state,
+                    CC2_TCC_STATE_LIBRARY_ARGUMENT_COUNT_OFFSET))) {
+                    tcc_error(mks("cannot specify libraries with -c"), 0);
+                }
+                if (and(lt(1, files_remaining), ri32(add(state,
+                    CC2_TCC_STATE_OUTFILE_OFFSET)))) {
+                    tcc_error(mks("cannot specify output file with -c many files"),
+                        0);
+                }
+            } else if (ri32(add(state, CC2_TCC_STATE_PTHREAD_OFFSET))) {
+                tcc_set_options(state, mks("-lpthread"));
+            }
+            if (ri32(add(state, CC2_TCC_STATE_BENCHMARK_OFFSET))) {
+                start_time = cc2_clock_ms();
+            }
+        }
+        cc2_set_environment(state);
+        if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)), 0)) {
+            wi32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET),
+                CC2_TCC_OUTPUT_EXE);
+        }
+        tcc_set_output_type(state,
+            ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)));
+        wi32(add(state, CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET),
+            preprocess_output);
+        first_file = 0;
+        result = 0;
+        while (1) {
+            file_specification = ri32(add(ri32(add(state,
+                CC2_TCC_STATE_FILES_OFFSET)), shl(sub(ri32(add(state,
+                CC2_TCC_STATE_FILE_COUNT_OFFSET)), files_remaining), 2)));
+            wi32(add(state, CC2_TCC_STATE_FILE_TYPE_OFFSET),
+                ri8(file_specification));
+            wi32(add(state, CC2_TCC_STATE_ALACARTE_OFFSET),
+                ri8(add(file_specification, 1)));
+            file_name = add(file_specification, 2);
+            if (eq(ri8(file_specification), 4)) {
+                if (lt(tcc_add_library_err(state, file_name), 0)) {
+                    result = 1;
+                }
+            } else {
+                if (eq(ri32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET)), 1)) {
+                    printf(mks("-> %s"), file_name);
+                    fputc(mkC("\n"), cc2_stdout());
+                }
+                if (eq(first_file, 0)) {
+                    first_file = file_name;
+                }
+                if (lt(tcc_add_file(state, file_name), 0)) {
+                    result = 1;
+                }
+            }
+            wi32(add(state, CC2_TCC_STATE_FILE_TYPE_OFFSET), 0);
+            wi32(add(state, CC2_TCC_STATE_ALACARTE_OFFSET), 1);
+            files_remaining = sub(files_remaining, 1);
+            if (or(or(eq(files_remaining, 0), result), and(eq(ri32(add(state,
+                CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)), CC2_TCC_OUTPUT_OBJECT),
+                eq(ri32(add(state,
+                CC2_TCC_STATE_RELOCATABLE_OUTPUT_OFFSET)), 0)))) {
+                break;
+            }
+        }
+        if (not(eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
+            CC2_OUTPUT_PREPROCESS))) {
+            if (and(eq(result, 0), not(eq(ri32(add(state,
+                CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)), CC2_TCC_OUTPUT_MEMORY)))) {
+                if (eq(ri32(add(state, CC2_TCC_STATE_OUTFILE_OFFSET)), 0)) {
+                    wi32(add(state, CC2_TCC_STATE_OUTFILE_OFFSET),
+                        cc2_default_output_file(state, first_file));
+                }
+                if (tcc_output_file(state,
+                    ri32(add(state, CC2_TCC_STATE_OUTFILE_OFFSET)))) {
+                    result = 1;
+                } else if (ri32(add(state,
+                    CC2_TCC_STATE_GENERATE_DEPENDENCIES_OFFSET))) {
+                    gen_makedeps(state, ri32(add(state,
+                        CC2_TCC_STATE_OUTFILE_OFFSET)), ri32(add(state,
+                        CC2_TCC_STATE_DEPS_OUTFILE_OFFSET)));
+                }
+            }
+        }
+        if (and(ri32(add(state, CC2_TCC_STATE_BENCHMARK_OFFSET)),
+            and(eq(files_remaining, 0), eq(result, 0)))) {
+            tcc_print_stats(state, sub(cc2_clock_ms(), start_time));
+        }
+        tcc_delete(state);
+        if (and(eq(result, 0), files_remaining)) {
+            repeat = 1;
+        }
+    }
+    if (and(preprocess_output, not(eq(preprocess_output, cc2_stdout())))) {
+        fclose(preprocess_output);
+    }
+    free(argument_count_slot);
+    free(arguments_slot);
+    return result;
+}
+
 function cc2_append_diagnostic_location(output, state)
 {
     var source_file;
@@ -26850,6 +27169,13 @@ function cc2_init_constants()
     CC2_TCC_STATE_BENCHMARK_OFFSET = 1036;
     CC2_TCC_STATE_GENERATE_DEPENDENCIES_OFFSET = 1040;
     CC2_TCC_STATE_PTHREAD_OFFSET = 1048;
+    CC2_DRIVER_OPTION_HELP = 1;
+    CC2_DRIVER_OPTION_HELP_MORE = 2;
+    CC2_DRIVER_OPTION_VERSION_ONLY = 3;
+    CC2_DRIVER_OPTION_PRINT_DIRECTORIES = 4;
+    CC2_DRIVER_OPTION_ARCHIVE = 5;
+    CC2_DRIVER_OPTION_I386 = 32;
+    CC2_DRIVER_OPTION_X86_64 = 64;
     CC2_TCC_STATE_LIBRARY_ROOT_OFFSET = 32;
     CC2_TCC_STATE_CRT_PATHS_OFFSET = 168;
     CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET = 172;

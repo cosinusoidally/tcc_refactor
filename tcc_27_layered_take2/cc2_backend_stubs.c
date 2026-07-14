@@ -91,6 +91,11 @@ function cc2_longjmp_error(state)
     return 0;
 }
 
+function cc2_clock_ms()
+{
+    return 0;
+}
+
 function u64_mul_add(words, base, digit)
 {
     return 0;
