@@ -8613,7 +8613,7 @@ function cc2_i386_infer_size(opcode, instruction, operands, operand_count,
         operand_count, operand_types, size, 0, 0, 0, 0, 0, 0, 0);
 }
 
-function cc2_i386_emit_opcode(state, opcode)
+function asm_opcode(state, opcode)
 {
     var operands;
     var operand_types;

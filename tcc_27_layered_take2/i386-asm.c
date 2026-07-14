@@ -274,13 +274,6 @@ int cc2_i386_test_bit_table(void)
     return (int)test_bits;
 }
 
-void parse_operand(TCCState *s1, Operand *op);
-
-void asm_opcode(TCCState *s1, int opcode)
-{
-    cc2_i386_emit_opcode((int)s1, opcode);
-}
-
 #define REG_OUT_MASK 0x01
 #define REG_IN_MASK  0x02
 

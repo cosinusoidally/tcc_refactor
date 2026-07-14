@@ -181,11 +181,6 @@ function gen_opif_fold_constant(operation)
     return 0;
 }
 
-function asm_opcode(state, opcode)
-{
-    return 0;
-}
-
 function cc2_i386_instruction_table()
 {
     return 0;
