@@ -507,12 +507,6 @@ int cc2_bind_preprocess_types(TCCState *state)
     return 0;
 }
 
-int cc2_define_symbol(TCCState *state, const char *name, const char *value)
-{
-    tcc_define_symbol(state, name, value);
-    return 0;
-}
-
 int cc2_open_buffer(TCCState *state, const char *name, int size)
 {
     tcc_open_bf(state, name, size);

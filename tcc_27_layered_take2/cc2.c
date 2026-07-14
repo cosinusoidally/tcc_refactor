@@ -2245,7 +2245,7 @@ function cc2_preprocess_start(state, is_asm)
         sub(0, 1));
     cstr_ccat(string, mkC("\""));
     cstr_ccat(string, 0);
-    cc2_define_symbol(state, mks("__BASE_FILE__"),
+    tcc_define_symbol(state, mks("__BASE_FILE__"),
         ri32(add(string, CC2_CSTRING_DATA_OFFSET)));
     cstr_reset(string);
     files = ri32(add(state, CC2_TCC_STATE_COMMAND_INCLUDE_FILES_OFFSET));
@@ -2276,7 +2276,7 @@ function cc2_preprocess_start(state, is_asm)
     cstr_free(string);
     free(string);
     if (is_asm) {
-        cc2_define_symbol(state, mks("__ASSEMBLER__"), 0);
+        tcc_define_symbol(state, mks("__ASSEMBLER__"), 0);
         wi32(parse_flags_address, CC2_PARSE_FLAG_ASM_FILE);
     } else {
         wi32(parse_flags_address, 0);
@@ -23752,6 +23752,43 @@ function tcc_add_symbol(state, name, value)
 {
     set_elf_sym(ri32(symtab_section_address), value, 0, 16, 0, 65521,
         name);
+    return 0;
+}
+
+function tcc_define_symbol(state, name, value)
+{
+    var name_length;
+    var value_length;
+    var source_file;
+    var buffer;
+    if (eq(value, 0)) {
+        value = mks("1");
+    }
+    name_length = strlen(name);
+    value_length = strlen(value);
+    cc2_open_buffer(state, mks("<define>"),
+        add(add(name_length, value_length), 1));
+    source_file = ri32(file_address);
+    buffer = add(source_file, CC2_BUFFERED_FILE_BUFFER_OFFSET);
+    memcpy(buffer, name, name_length);
+    wi8(add(buffer, name_length), mkC(" "));
+    memcpy(add(buffer, add(name_length, 1)), value, value_length);
+    next_nomacro();
+    parse_define();
+    cc2_tcc_close();
+    return 0;
+}
+
+function tcc_undefine_symbol(state, name)
+{
+    var token_symbol;
+    var symbol;
+    token_symbol = tok_alloc(name, strlen(name));
+    symbol = define_find(ri32(add(token_symbol,
+        CC2_TOKEN_SYMBOL_TOKEN_OFFSET)));
+    if (symbol) {
+        define_undef(symbol);
+    }
     return 0;
 }
 

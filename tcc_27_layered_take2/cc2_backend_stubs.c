@@ -51,11 +51,6 @@ function cc2_tcc_close()
     return 0;
 }
 
-function cc2_define_symbol(state, name, value)
-{
-    return 0;
-}
-
 function cc2_open_buffer(state, name, size)
 {
     return 0;
