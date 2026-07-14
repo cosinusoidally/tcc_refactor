@@ -947,6 +947,7 @@ var CC2_I386_TOKEN_POP;
 var CC2_I386_TOKEN_WAIT;
 var CC2_I386_TOKEN_REPEAT_NOT_ZERO;
 var CC2_I386_TOKEN_ADD_BYTE;
+var CC2_I386_TOKEN_REGISTER_HIGH_BYTE_FIRST;
 var CC2_I386_OPCODE_MODRM;
 var CC2_I386_OPCODE_REGISTER;
 var CC2_I386_OPCODE_SECONDARY_MAP;
@@ -8967,6 +8968,108 @@ function asm_opcode(state, opcode)
     free(opcode_pointer);
     free(operand_types);
     free(operands);
+    return 0;
+}
+
+function subst_asm_operand(output, value, modifier)
+{
+    var registers;
+    var reg;
+    var size;
+    var constant;
+    var buffer;
+    var symbol;
+    var name;
+    var basic_type;
+    registers = ri32(add(value, CC2_SVALUE_REGISTER_OFFSET));
+    buffer = malloc(64);
+    if (eq(and(registers, CC2_VALUE_LOCATION_MASK),
+        CC2_VALUE_CONSTANT)) {
+        if (and(eq(and(registers, CC2_TCC_LVALUE), 0),
+            and(not(eq(modifier, mkC("c"))), and(not(eq(modifier,
+            mkC("n"))), not(eq(modifier, mkC("P"))))))) {
+            cstr_ccat(output, mkC("$"));
+        }
+        if (and(registers, CC2_TCC_SYMBOL_VALUE)) {
+            symbol = ri32(add(value, CC2_SVALUE_SYMBOL_OFFSET));
+            name = get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0);
+            if (le(CC2_FIRST_ANONYMOUS_SYMBOL,
+                ri32(add(symbol, CC2_SYM_VALUE_OFFSET)))) {
+                get_asm_sym(ri32(add(tok_alloc(name, strlen(name)),
+                    CC2_TOKEN_SYMBOL_TOKEN_OFFSET)), symbol);
+            }
+            cstr_cat(output, name, sub(0, 1));
+            if (eq(ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)), 0)) {
+                free(buffer);
+                return 0;
+            }
+            cstr_ccat(output, mkC("+"));
+        }
+        constant = ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET));
+        if (eq(modifier, mkC("n"))) {
+            constant = sub(0, constant);
+        }
+        snprintf(buffer, 64, mks("%d"),
+            ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)));
+        cstr_cat(output, buffer, sub(0, 1));
+    } else if (eq(and(registers, CC2_VALUE_LOCATION_MASK),
+        CC2_VALUE_LOCAL)) {
+        snprintf(buffer, 64, mks("%d(%%ebp)"),
+            ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)));
+        cstr_cat(output, buffer, sub(0, 1));
+    } else if (and(registers, CC2_TCC_LVALUE)) {
+        reg = and(registers, CC2_VALUE_LOCATION_MASK);
+        if (le(CC2_VALUE_CONSTANT, reg)) {
+            tcc_error(mks("internal compiler error"), 0);
+        }
+        snprintf(buffer, 64, mks("(%%%s)"), get_tok_str(add(
+            CC2_ASM_REGISTER_EAX_FIRST, reg), 0));
+        cstr_cat(output, buffer, sub(0, 1));
+    } else {
+        reg = and(registers, CC2_VALUE_LOCATION_MASK);
+        if (le(CC2_VALUE_CONSTANT, reg)) {
+            tcc_error(mks("internal compiler error"), 0);
+        }
+        basic_type = and(ri32(value), CC2_TCC_BASIC_TYPE_MASK);
+        if (or(eq(basic_type, CC2_TCC_BYTE_TYPE),
+            eq(basic_type, CC2_TCC_BOOLEAN_TYPE))) {
+            size = 1;
+        } else if (eq(basic_type, CC2_TCC_SHORT_TYPE)) {
+            size = 2;
+        } else {
+            size = 4;
+        }
+        if (and(eq(size, 1), le(4, reg))) {
+            size = 4;
+        }
+        if (eq(modifier, mkC("b"))) {
+            if (le(4, reg)) {
+                tcc_error(mks("cannot use byte register"), 0);
+            }
+            size = 1;
+        } else if (eq(modifier, mkC("h"))) {
+            if (le(4, reg)) {
+                tcc_error(mks("cannot use byte register"), 0);
+            }
+            size = sub(0, 1);
+        } else if (eq(modifier, mkC("w"))) {
+            size = 2;
+        } else if (eq(modifier, mkC("k"))) {
+            size = 4;
+        }
+        if (eq(size, sub(0, 1))) {
+            reg = add(CC2_I386_TOKEN_REGISTER_HIGH_BYTE_FIRST, reg);
+        } else if (eq(size, 1)) {
+            reg = add(CC2_I386_TOKEN_REGISTER_AL_FIRST, reg);
+        } else if (eq(size, 2)) {
+            reg = add(CC2_ASM_REGISTER_AX_FIRST, reg);
+        } else {
+            reg = add(CC2_ASM_REGISTER_EAX_FIRST, reg);
+        }
+        snprintf(buffer, 64, mks("%%%s"), get_tok_str(reg, 0));
+        cstr_cat(output, buffer, sub(0, 1));
+    }
+    free(buffer);
     return 0;
 }
 
@@ -24554,6 +24657,7 @@ function cc2_init_constants()
     CC2_I386_TOKEN_WAIT = 951;
     CC2_I386_TOKEN_REPEAT_NOT_ZERO = 961;
     CC2_I386_TOKEN_ADD_BYTE = 526;
+    CC2_I386_TOKEN_REGISTER_HIGH_BYTE_FIRST = 446;
     CC2_I386_OPCODE_MODRM = 8;
     CC2_I386_OPCODE_REGISTER = 4;
     CC2_I386_OPCODE_SECONDARY_MAP = 256;
