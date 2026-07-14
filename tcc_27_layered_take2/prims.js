@@ -20,6 +20,7 @@ function ushr(value, count) { return (value >>> count) | 0; }
 var CC0_PRIMS_MEMORY_SIZE = 4096;
 var cc0_prims_memory = new Uint8Array(CC0_PRIMS_MEMORY_SIZE);
 var cc0_prims_heap_top = 4;
+var cc0_prims_allocation_sizes = {};
 var cc0_prims_string_cache = {};
 
 function cc0_prims_reserve(needed) {
@@ -40,7 +41,21 @@ function malloc(size) {
     var pointer = cc0_prims_heap_top;
     cc0_prims_heap_top = (pointer + size + 3) & -4;
     cc0_prims_reserve(cc0_prims_heap_top);
+    cc0_prims_allocation_sizes[pointer] = size;
     return pointer;
+}
+
+function realloc(pointer, size) {
+    var replacement = malloc(size);
+    var oldSize = cc0_prims_allocation_sizes[pointer] | 0;
+    var copySize = oldSize < size ? oldSize : size;
+    var index = 0;
+    while (index < copySize) {
+        cc0_prims_memory[replacement + index] =
+            cc0_prims_memory[pointer + index];
+        index++;
+    }
+    return replacement;
 }
 
 function mks(value) {

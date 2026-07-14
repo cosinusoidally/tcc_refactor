@@ -294,8 +294,7 @@ var CC0_ELF_REMAP_LOCATION_SYMBOL;
 var CC0_FILE_READ_ONLY;
 var CC0_FILE_WRITE_FLAGS;
 var CC0_FILE_CREATE_MODE;
-var CC0_FILE_SEEK_START;
-var CC0_FILE_SEEK_END;
+var CC0_FILE_EXECUTABLE_MODE;
 var CC0_FILE_BYTE;
 var CC0_ELF_OUTPUT;
 var CC0_ELF_OUTPUT_LENGTH;
@@ -700,8 +699,7 @@ function cc0_init()
     CC0_FILE_READ_ONLY = 0;
     CC0_FILE_WRITE_FLAGS = 577;
     CC0_FILE_CREATE_MODE = 438;
-    CC0_FILE_SEEK_START = 0;
-    CC0_FILE_SEEK_END = 2;
+    CC0_FILE_EXECUTABLE_MODE = 493;
     CC0_FILE_BYTE = 0;
     CC0_ELF_OUTPUT = 0;
     CC0_ELF_OUTPUT_LENGTH = 0;
@@ -5431,18 +5429,9 @@ function file_open_write(path)
     return open(path, CC0_FILE_WRITE_FLAGS, CC0_FILE_CREATE_MODE);
 }
 
-function file_size_(descriptor, size)
+function file_open_executable(path)
 {
-    size = lseek(descriptor, 0, CC0_FILE_SEEK_END);
-    if (not(lt(size, 0))) {
-        lseek(descriptor, 0, CC0_FILE_SEEK_START);
-    }
-    return size;
-}
-
-function file_size(descriptor)
-{
-    return file_size_(descriptor, 0);
+    return open(path, CC0_FILE_WRITE_FLAGS, CC0_FILE_EXECUTABLE_MODE);
 }
 
 function file_read_byte(descriptor)
@@ -5612,40 +5601,47 @@ function cc0_report_compile_error(name)
 }
 
 function cc0_read_source_(name, size_pointer, descriptor, size, source,
-    index, value)
+    index, value, capacity, replacement)
 {
     descriptor = file_open_read(name);
     if (lt(descriptor, 0)) {
         return 0;
     }
-    size = file_size(descriptor);
-    if (lt(size, 1)) {
-        file_close(descriptor);
-        return 0;
-    }
-    source = alloc(size);
+    capacity = CC0_INITIAL_ALLOCATION_BYTES;
+    source = alloc(capacity);
     if (eq(source, 0)) {
         file_close(descriptor);
         return 0;
     }
-    index = 0;
-    while (lt(index, size)) {
+    size = 0;
+    while (CC0_TRUE) {
         value = file_read_byte(descriptor);
         if (lt(value, 0)) {
-            file_close(descriptor);
-            return 0;
+            break;
         }
-        wi8(add(source, index), value);
-        index = add(index, 1);
+        if (not(lt(size, capacity))) {
+            capacity = mul(capacity, 2);
+            replacement = realloc(source, capacity);
+            if (eq(replacement, 0)) {
+                file_close(descriptor);
+                return 0;
+            }
+            source = replacement;
+        }
+        wi8(add(source, size), value);
+        size = add(size, 1);
     }
     file_close(descriptor);
+    if (lt(size, 1)) {
+        return 0;
+    }
     wi32(size_pointer, size);
     return source;
 }
 
 function cc0_read_source(name, size_pointer)
 {
-    return cc0_read_source_(name, size_pointer, 0, 0, 0, 0, 0);
+    return cc0_read_source_(name, size_pointer, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function cc0_link_read_half(address)
@@ -6870,7 +6866,7 @@ function cc0_link_build_image()
 
 function cc0_link_write_executable_(name, descriptor, index)
 {
-    descriptor = file_open_write(name);
+    descriptor = file_open_executable(name);
     if (lt(descriptor, 0)) {
         return CC0_TRUE;
     }
@@ -6884,7 +6880,7 @@ function cc0_link_write_executable_(name, descriptor, index)
         index = add(index, 1);
     }
     file_close(descriptor);
-    return not(eq(chmod(name, 493), 0));
+    return CC0_FALSE;
 }
 
 function cc0_link_write_executable(name)
