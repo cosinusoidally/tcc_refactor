@@ -7599,6 +7599,77 @@ function tcc_object_type(file_descriptor, header)
     return 0;
 }
 
+function cc2_read_big_u32(address)
+{
+    return or(or(shl(ri8(address), 24), shl(ri8(add(address, 1)), 16)),
+        or(shl(ri8(add(address, 2)), 8), ri8(add(address, 3))));
+}
+
+/* Load archive members until no remaining undefined symbol is resolved. */
+function tcc_load_alacarte(state, file_descriptor, size, entry_size)
+{
+    var data;
+    var symbol_count;
+    var indexes;
+    var names;
+    var name;
+    var index;
+    var bound;
+    var symbol_index;
+    var symbol;
+    var member_offset;
+    var result;
+    data = malloc(size);
+    if (not(eq(read(file_descriptor, data, size), size))) {
+        free(data);
+        return sub(0, 1);
+    }
+    if (eq(entry_size, CC2_I386_WORD_BYTES)) {
+        symbol_count = cc2_read_big_u32(data);
+    } else {
+        symbol_count = cc2_read_big_u32(add(data, CC2_I386_WORD_BYTES));
+    }
+    indexes = add(data, entry_size);
+    names = add(indexes, mul(symbol_count, entry_size));
+    bound = 1;
+    result = 0;
+    while (and(bound, eq(result, 0))) {
+        bound = 0;
+        name = names;
+        index = 0;
+        while (and(lt(index, symbol_count), eq(result, 0))) {
+            symbol_index = find_elf_sym(ri32(symtab_section_address), name);
+            if (not(eq(symbol_index, 0))) {
+                symbol = add(ri32(add(ri32(symtab_section_address),
+                    CC2_SECTION_DATA_POINTER_OFFSET)), mul(symbol_index,
+                    CC2_ELF_SYMBOL_BYTES));
+                if (eq(cc2_read_little_u16(add(symbol,
+                    CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)),
+                    CC2_ELF_UNDEFINED_SECTION)) {
+                    if (eq(entry_size, CC2_I386_WORD_BYTES)) {
+                        member_offset = cc2_read_big_u32(add(indexes,
+                            mul(index, entry_size)));
+                    } else {
+                        member_offset = cc2_read_big_u32(add(add(indexes,
+                            mul(index, entry_size)), CC2_I386_WORD_BYTES));
+                    }
+                    member_offset = add(member_offset,
+                        CC2_ARCHIVE_HEADER_BYTES);
+                    bound = add(bound, 1);
+                    if (lt(tcc_load_object_file(state, file_descriptor,
+                        member_offset), 0)) {
+                        result = sub(0, 1);
+                    }
+                }
+            }
+            name = add(name, add(strlen(name), 1));
+            index = add(index, 1);
+        }
+    }
+    free(data);
+    return result;
+}
+
 /* Traverse a Unix archive and pass each selected i386 object to the loader. */
 function tcc_load_archive(state, file_descriptor)
 {

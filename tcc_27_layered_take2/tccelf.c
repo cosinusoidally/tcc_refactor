@@ -450,61 +450,6 @@ typedef struct ArchiveHeader {
     char ar_fmag[2];            /* should contain ARFMAG */
 } ArchiveHeader;
 
-static int get_be32(const uint8_t *b)
-{
-    return b[3] | (b[2] << 8) | (b[1] << 16) | (b[0] << 24);
-}
-
-static long get_be64(const uint8_t *b)
-{
-  long long ret = get_be32(b);
-  ret = (ret << 32) | (unsigned)get_be32(b+4);
-  return (long)ret;
-}
-
-/* load only the objects which resolve undefined symbols */
-int tcc_load_alacarte(TCCState *s1, int fd, int size, int entrysize)
-{
-    long i, bound, nsyms, sym_index, off, ret;
-    uint8_t *data;
-    const char *ar_names, *p;
-    const uint8_t *ar_index;
-    ElfW(Sym) *sym;
-
-    data = tcc_malloc(size);
-    if (read(fd, data, size) != size)
-        goto fail;
-    nsyms = entrysize == 4 ? get_be32(data) : get_be64(data);
-    ar_index = data + entrysize;
-    ar_names = (char *) ar_index + nsyms * entrysize;
-
-    do {
-        bound = 0;
-        for(p = ar_names, i = 0; i < nsyms; i++, p += strlen(p)+1) {
-            sym_index = find_elf_sym(symtab_section, p);
-            if(sym_index) {
-                sym = &((ElfW(Sym) *)symtab_section->data)[sym_index];
-                if(sym->st_shndx == SHN_UNDEF) {
-                    off = (entrysize == 4
-			   ? get_be32(ar_index + i * 4)
-			   : get_be64(ar_index + i * 8))
-			  + sizeof(ArchiveHeader);
-                    ++bound;
-                    if(tcc_load_object_file(s1, fd, off) < 0) {
-                    fail:
-                        ret = -1;
-                        goto the_end;
-                    }
-                }
-            }
-        }
-    } while(bound);
-    ret = 0;
- the_end:
-    tcc_free(data);
-    return ret;
-}
-
 #ifndef TCC_TARGET_PE
 /* load a DLL and all referenced DLLs. 'level = 0' means that the DLL
    is referenced by the user (so it should be added as DT_NEEDED in
