@@ -7,6 +7,12 @@
 
 CType func_vt; /* C storage for cc2's current function return type. */
 
+/* Typed global storage; cc2 initializes its compiler policy. */
+ST_DATA int gnu_ext;
+ST_DATA int tcc_ext;
+ST_DATA struct TCCState *tcc_state;
+static int nb_states;
+
 /* Typed storage retained at the boundary while cc2 owns all preprocessor
    algorithms and initialization. */
 ST_DATA int tok_flags;
@@ -418,6 +424,8 @@ void initializer_copy_string(Section *sec, unsigned long offset,
 /* Bind legacy typed storage while cc2 owns its initialization policy. */
 int cc2_bind_preprocessor_state(void)
 {
+    gnu_ext = 1;
+    tcc_ext = 1;
     define_stack_address = &define_stack;
     file_address = &file;
     parse_flags_address = &parse_flags;

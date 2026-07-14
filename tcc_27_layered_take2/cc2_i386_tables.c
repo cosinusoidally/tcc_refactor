@@ -21,6 +21,15 @@
 
 #include "tcc.h"
 
+/* EBX remains reserved, matching the historical i386 allocation. */
+ST_DATA const int reg_classes[NB_REGS] = {
+    RC_INT | RC_EAX,
+    RC_INT | RC_ECX,
+    RC_INT | RC_EDX,
+    0,
+    RC_FLOAT | RC_ST0,
+};
+
 #define MAX_OPERANDS 3
 
 #define TOK_ASM_first TOK_ASM_clc

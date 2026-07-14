@@ -20,7 +20,8 @@
 
 #include "tcc.h"
 #if ONE_SOURCE
-# include "libtcc.c"
+# include "cc2_tcc_prims.c"
+# include "cc2_i386_tables.c"
 #endif
 static const char help[] =
     "Tiny C Compiler "TCC_VERSION" - Copyright (C) 2001-2006 Fabrice Bellard\n"
