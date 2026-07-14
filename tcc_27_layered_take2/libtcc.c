@@ -38,7 +38,6 @@ static int nb_states;
 
 #if ONE_SOURCE
 #define malloc(s) use_tcc_malloc(s)
-#include "tccpp.c"
 #include "tccelf.c"
 #include "cc2_tcc_prims.c"
 /* EBX remains reserved, matching the historical i386 allocation. */

@@ -7,6 +7,55 @@
 
 CType func_vt; /* C storage for cc2's current function return type. */
 
+/* Typed storage retained at the boundary while cc2 owns all preprocessor
+   algorithms and initialization. */
+ST_DATA int tok_flags;
+ST_DATA int parse_flags;
+ST_DATA struct BufferedFile *file;
+int tok;
+CValue tokc;
+ST_DATA CString tokcstr;
+ST_DATA int total_lines;
+
+static TokenSym *hash_ident[TOK_HASH_SIZE];
+static CString cstr_buf;
+static TokenString tokstr_buf;
+static unsigned char isidnum_table[256 - CH_EOF];
+static int pp_debug_tok, pp_debug_symv;
+static int pp_once;
+
+static const char tcc_keywords[] =
+#define DEF(id, str) str "\0"
+#include "tcctok.h"
+#undef DEF
+;
+
+/* Token spellings use TCC's established compact three-byte records. */
+static const unsigned char tok_two_chars[] = {
+    '<','=', TOK_LE,
+    '>','=', TOK_GE,
+    '!','=', TOK_NE,
+    '&','&', TOK_LAND,
+    '|','|', TOK_LOR,
+    '+','+', TOK_INC,
+    '-','-', TOK_DEC,
+    '=','=', TOK_EQ,
+    '<','<', TOK_SHL,
+    '>','>', TOK_SAR,
+    '+','=', TOK_A_ADD,
+    '-','=', TOK_A_SUB,
+    '*','=', TOK_A_MUL,
+    '/','=', TOK_A_DIV,
+    '%','=', TOK_A_MOD,
+    '&','=', TOK_A_AND,
+    '^','=', TOK_A_XOR,
+    '|','=', TOK_A_OR,
+    '-','>', TOK_ARROW,
+    '.','.', TOK_TWODOTS,
+    '#','#', TOK_TWOSHARPS,
+    0
+};
+
 extern int case_cmp(const void *first, const void *second);
 
 /* The cc2 dialect cannot pass its comparator as a C function pointer. */
@@ -422,6 +471,24 @@ int cc2_preprocessor_set_stdout(TCCState *state)
 {
     state->ppfp = stdout;
     return 0;
+}
+
+ST_FUNC void preprocess_start(TCCState *state, int is_asm)
+{
+    cc2_bind_preprocess_types(state);
+    cc2_preprocess_start((int)state, is_asm);
+}
+
+ST_FUNC void tccpp_new(TCCState *state)
+{
+    cc2_bind_preprocessor_state();
+    cc2_preprocessor_set_stdout(state);
+    cc2_tccpp_new((int)state, (int)tcc_keywords);
+}
+
+ST_FUNC int tcc_preprocess(TCCState *state)
+{
+    return cc2_tcc_preprocess((int)state);
 }
 
 int cc2_bind_preprocess_types(TCCState *state)
