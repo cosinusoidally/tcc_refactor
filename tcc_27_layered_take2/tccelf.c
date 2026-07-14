@@ -191,23 +191,6 @@ ST_FUNC void tccelf_end_file(TCCState *s1)
 }
 
 
-/* realloc section and set its content to zero */
-/* return elf symbol value, signal error if 'err' is nonzero */
-ST_FUNC addr_t get_elf_sym_addr(TCCState *s, const char *name, int err)
-{
-    int sym_index;
-    ElfW(Sym) *sym;
-
-    sym_index = find_elf_sym(s->symtab, name);
-    sym = &((ElfW(Sym) *)s->symtab->data)[sym_index];
-    if (!sym_index || sym->st_shndx == SHN_UNDEF) {
-        if (err)
-            tcc_error("%s not defined", name);
-        return 0;
-    }
-    return sym->st_value;
-}
-
 /* return elf symbol value */
 LIBTCCAPI void *tcc_get_symbol(TCCState *s, const char *name)
 {

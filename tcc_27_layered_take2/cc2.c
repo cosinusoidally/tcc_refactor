@@ -688,6 +688,7 @@ var CC2_SECTION_BYTES;
 var CC2_TCC_STATE_PRIVATE_SECTIONS_OFFSET;
 var CC2_TCC_STATE_PRIVATE_SECTION_COUNT_OFFSET;
 var CC2_TCC_STATE_SECTION_COUNT_OFFSET;
+var CC2_TCC_STATE_SYMBOL_TABLE_OFFSET;
 var CC2_ELF_SECTION_PROGBITS;
 var CC2_ELF_SECTION_SYMBOL_TABLE;
 var CC2_ELF_SECTION_STRING_TABLE;
@@ -704,6 +705,7 @@ var CC2_ELF_SYMBOL_BYTES;
 var CC2_ELF_SYMBOL_NAME_OFFSET;
 var CC2_ELF_SYMBOL_INFO_OFFSET;
 var CC2_ELF_LOCAL_BINDING;
+var CC2_ELF_UNDEFINED_SECTION;
 var CC2_ELF_INITIAL_HASH_BUCKET_COUNT;
 var CC2_ELF_HASH_HEADER_WORDS;
 var CC2_ELF_RELOCATION_SECTION_PREFIX;
@@ -5636,6 +5638,30 @@ function find_elf_sym(section, name)
         }
         symbol_index = ri32(add(base, mul(add(add(2, bucket_count),
             symbol_index), CC2_I386_WORD_BYTES)));
+    }
+    return 0;
+}
+
+function get_elf_sym_addr(state, name, report_error)
+{
+    var symbol_table;
+    var symbol_index;
+    var symbol;
+    var section_index;
+    symbol_table = ri32(add(state, CC2_TCC_STATE_SYMBOL_TABLE_OFFSET));
+    symbol_index = find_elf_sym(symbol_table, name);
+    if (not(eq(symbol_index, 0))) {
+        symbol = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
+            mul(symbol_index, CC2_ELF_SYMBOL_BYTES));
+        section_index = add(ri8(add(symbol,
+            CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), shl(ri8(add(symbol,
+            add(CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET, 1))), 8));
+        if (not(eq(section_index, CC2_ELF_UNDEFINED_SECTION))) {
+            return ri32(add(symbol, CC2_ELF_SYMBOL_VALUE_OFFSET));
+        }
+    }
+    if (report_error) {
+        tcc_error(mks("%s not defined"), name);
     }
     return 0;
 }
@@ -17127,6 +17153,7 @@ function cc2_init_constants()
     CC2_TCC_STATE_PRIVATE_SECTIONS_OFFSET = 964;
     CC2_TCC_STATE_PRIVATE_SECTION_COUNT_OFFSET = 968;
     CC2_TCC_STATE_SECTION_COUNT_OFFSET = 960;
+    CC2_TCC_STATE_SYMBOL_TABLE_OFFSET = 988;
     CC2_ELF_SECTION_PROGBITS = 1;
     CC2_ELF_SECTION_SYMBOL_TABLE = 2;
     CC2_ELF_SECTION_STRING_TABLE = 3;
@@ -17143,6 +17170,7 @@ function cc2_init_constants()
     CC2_ELF_SYMBOL_NAME_OFFSET = 0;
     CC2_ELF_SYMBOL_INFO_OFFSET = 12;
     CC2_ELF_LOCAL_BINDING = 0;
+    CC2_ELF_UNDEFINED_SECTION = 0;
     CC2_ELF_INITIAL_HASH_BUCKET_COUNT = 1;
     CC2_ELF_HASH_HEADER_WORDS = 2;
     CC2_ELF_RELOCATION_SECTION_PREFIX = mks(".rel");
