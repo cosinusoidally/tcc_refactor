@@ -282,30 +282,6 @@ void gen_cast_constant(CType *type)
     }
 }
 
-void initializer_repeat(Section *sec, unsigned long c, int elem_size,
-                        int nb_elems)
-{
-    unsigned long end = c + nb_elems * elem_size;
-    unsigned char *src, *dst;
-    int i;
-
-    if (end > sec->data_allocated)
-        section_realloc(sec, end);
-    src = sec->data + c;
-    dst = src;
-    for (i = 1; i < nb_elems; i++) {
-        dst += elem_size;
-        memcpy(dst, src, elem_size);
-    }
-}
-
-/* Copy tokenized narrow-string bytes into TCC's target section storage. */
-void initializer_copy_string(Section *sec, unsigned long offset,
-                             const void *source, int count)
-{
-    memcpy(sec->data + offset, source, count);
-}
-
 /* Bind legacy typed storage while cc2 owns its initialization policy. */
 int cc2_bind_preprocessor_state(void)
 {
@@ -603,22 +579,4 @@ void cc2_format_token_integer(char *output, unsigned low, unsigned high)
 {
     unsigned long long value = low | ((unsigned long long)high << 32);
     sprintf(output, "%llu", value);
-}
-
-/* Rewind a captured initializer through TCC's active macro stream. */
-void initializer_rewind(TokenString *stream)
-{
-    macro_ptr = stream->str;
-}
-
-void decl_record_inline(Sym *sym)
-{
-    struct InlineFunc *fn;
-    const char *filename = file ? file->filename : "";
-
-    fn = tcc_malloc(sizeof *fn + strlen(filename));
-    strcpy(fn->filename, filename);
-    fn->sym = sym;
-    skip_or_save_block(&fn->func_str);
-    dynarray_add(&tcc_state->inline_fns, &tcc_state->nb_inline_fns, fn);
 }

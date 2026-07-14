@@ -336,6 +336,7 @@ var CC2_TCC_STATE_INLINE_FUNCTION_COUNT_OFFSET;
 var CC2_INLINE_STREAM_OFFSET;
 var CC2_INLINE_SYMBOL_OFFSET;
 var CC2_INLINE_FILENAME_OFFSET;
+var CC2_INLINE_RECORD_BYTES;
 var CC2_BUFFERED_FILE_LINE_OFFSET;
 var CC2_BUFFERED_FILE_FILENAME_OFFSET;
 var CC2_SECTION_NUMBER_OFFSET;
@@ -16987,6 +16988,59 @@ function expr_const64_words(words)
     return 0;
 }
 
+function initializer_repeat(section, offset, element_size, element_count)
+{
+    var end;
+    var source;
+    var index;
+    end = add(offset, mul(element_count, element_size));
+    if (lt(ri32(add(section, CC2_SECTION_DATA_ALLOCATED_OFFSET)), end)) {
+        section_realloc(section, end);
+    }
+    source = add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)), offset);
+    index = 1;
+    while (lt(index, element_count)) {
+        memcpy(add(source, mul(index, element_size)), source, element_size);
+        index = add(index, 1);
+    }
+    return 0;
+}
+
+function initializer_copy_string(section, offset, source, count)
+{
+    memcpy(add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)), offset),
+        source, count);
+    return 0;
+}
+
+function initializer_rewind(stream)
+{
+    macro_ptr = ri32(stream);
+    return 0;
+}
+
+function decl_record_inline(symbol)
+{
+    var source_file;
+    var filename;
+    var inline_record;
+    source_file = ri32(file_address);
+    if (source_file) {
+        filename = add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET);
+    } else {
+        filename = mks("");
+    }
+    inline_record = tcc_malloc(add(CC2_INLINE_RECORD_BYTES,
+        strlen(filename)));
+    strcpy(add(inline_record, CC2_INLINE_FILENAME_OFFSET), filename);
+    wi32(add(inline_record, CC2_INLINE_SYMBOL_OFFSET), symbol);
+    skip_or_save_block(add(inline_record, CC2_INLINE_STREAM_OFFSET));
+    dynarray_add(add(tcc_state_address, CC2_TCC_STATE_INLINE_FUNCTIONS_OFFSET),
+        add(tcc_state_address, CC2_TCC_STATE_INLINE_FUNCTION_COUNT_OFFSET),
+        inline_record);
+    return 0;
+}
+
 function cc2_wide_fits_signed_word(low, high)
 {
     if (eq(high, 0)) {
@@ -27136,6 +27190,7 @@ function cc2_init_constants()
     CC2_INLINE_STREAM_OFFSET = 0;
     CC2_INLINE_SYMBOL_OFFSET = 4;
     CC2_INLINE_FILENAME_OFFSET = 8;
+    CC2_INLINE_RECORD_BYTES = 12;
     CC2_BUFFERED_FILE_LINE_OFFSET = 16;
     CC2_BUFFERED_FILE_FILENAME_OFFSET = 40;
     CC2_SECTION_NUMBER_OFFSET = 16;

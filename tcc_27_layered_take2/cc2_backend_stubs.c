@@ -1,8 +1,3 @@
-function decl_record_inline(symbol)
-{
-    return 0;
-}
-
 function neg_zero(basic_type)
 {
     return 0;
@@ -130,21 +125,6 @@ function store_ldexp_long_double(destination, words, exponent)
 }
 
 function elfsym(symbol)
-{
-    return 0;
-}
-
-function initializer_repeat(section, offset, element_size, element_count)
-{
-    return 0;
-}
-
-function initializer_copy_string(section, offset, source, count)
-{
-    return 0;
-}
-
-function initializer_rewind(stream)
 {
     return 0;
 }
