@@ -224,43 +224,6 @@ int gen_opic_fold_constant(int op)
     return 1;
 }
 
-/* Return the shift for a positive power-of-two vtop constant. */
-int gen_opic_power_shift(void)
-{
-    uint64_t value = vtop->c.i;
-    int type = vtop->type.t;
-    int shift = -1;
-
-    if ((type & VT_BTYPE) != VT_LLONG)
-        value = (uint32_t)value | (type & VT_UNSIGNED ? 0 : -(value & 0x80000000));
-    if ((int64_t)value <= 0 || (value & (value - 1)) != 0)
-        return -1;
-    while (value) {
-        value >>= 1;
-        shift++;
-    }
-    return shift;
-}
-
-/* Merge a selected plus/minus constant into a symbol or local addend. */
-int gen_opic_merge_addend(int op)
-{
-    SValue *left = vtop - 1;
-    uint64_t value = vtop->c.i;
-    int type = vtop->type.t;
-
-    if ((type & VT_BTYPE) != VT_LLONG)
-        value = (uint32_t)value | (type & VT_UNSIGNED ? 0 : -(value & 0x80000000));
-    if (op == '-')
-        value = -value;
-    value += left->c.i;
-    if ((int)value != value)
-        return 0;
-    vtop--;
-    vtop->c.i = value;
-    return 1;
-}
-
 int gen_opif_fold_constant(int op)
 {
     SValue *v1 = vtop - 1;

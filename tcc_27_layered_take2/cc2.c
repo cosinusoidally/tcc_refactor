@@ -21668,6 +21668,103 @@ function cc2_integer_constant_u32_max(value, type_value)
         CC2_SVALUE_CONSTANT_OFFSET)), sub(0, 1)));
 }
 
+function gen_opic_power_shift()
+{
+    var type_value;
+    var low;
+    var high;
+    var shift;
+    type_value = ri32(vtop);
+    low = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
+    high = ri32(add(vtop, add(CC2_SVALUE_CONSTANT_OFFSET, 4)));
+    if (not(eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE))) {
+        if (and(type_value, CC2_TCC_UNSIGNED_TYPE)) {
+            high = 0;
+        } else if (lt(low, 0)) {
+            high = sub(0, 1);
+        } else {
+            high = 0;
+        }
+    }
+    if (or(lt(high, 0), and(eq(high, 0), eq(low, 0)))) {
+        return sub(0, 1);
+    }
+    if (and(low, high)) {
+        return sub(0, 1);
+    }
+    if (low) {
+        if (and(low, sub(low, 1))) {
+            return sub(0, 1);
+        }
+        shift = 0;
+        while (not(eq(low, 1))) {
+            low = ushr(low, 1);
+            shift = add(shift, 1);
+        }
+        return shift;
+    }
+    if (and(high, sub(high, 1))) {
+        return sub(0, 1);
+    }
+    shift = 32;
+    while (not(eq(high, 1))) {
+        high = ushr(high, 1);
+        shift = add(shift, 1);
+    }
+    return shift;
+}
+
+function gen_opic_merge_addend(operation)
+{
+    var left;
+    var type_value;
+    var low;
+    var high;
+    var left_low;
+    var left_high;
+    var sum_low;
+    var sum_high;
+    var carry;
+    var expected_high;
+    left = sub(vtop, CC2_SVALUE_BYTES);
+    type_value = ri32(vtop);
+    low = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
+    high = ri32(add(vtop, add(CC2_SVALUE_CONSTANT_OFFSET, 4)));
+    if (not(eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE))) {
+        if (and(type_value, CC2_TCC_UNSIGNED_TYPE)) {
+            high = 0;
+        } else if (lt(low, 0)) {
+            high = sub(0, 1);
+        } else {
+            high = 0;
+        }
+    }
+    if (eq(operation, CC2_ASCII_MINUS)) {
+        low = add(bnot(low), 1);
+        high = add(bnot(high), eq(low, 0));
+    }
+    left_low = ri32(add(left, CC2_SVALUE_CONSTANT_OFFSET));
+    left_high = ri32(add(left, add(CC2_SVALUE_CONSTANT_OFFSET, 4)));
+    sum_low = add(left_low, low);
+    carry = lt(xor(sum_low, CC2_SIGNED_INT_LIMIT_LOW),
+        xor(left_low, CC2_SIGNED_INT_LIMIT_LOW));
+    sum_high = add(add(left_high, high), carry);
+    if (lt(sum_low, 0)) {
+        expected_high = sub(0, 1);
+    } else {
+        expected_high = 0;
+    }
+    if (not(eq(sum_high, expected_high))) {
+        return 0;
+    }
+    vtop = left;
+    wi32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET), sum_low);
+    wi32(add(vtop, add(CC2_SVALUE_CONSTANT_OFFSET, 4)), sum_high);
+    return 1;
+}
+
 function gen_opic(operation)
 {
     var first;
