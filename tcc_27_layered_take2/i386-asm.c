@@ -1211,7 +1211,7 @@ int asm_parse_regvar (int t)
 
 #define is_reg_allocated(reg) (regs_allocated[reg] & reg_mask)
 
-ST_FUNC void asm_compute_constraints(ASMOperand *operands,
+void asm_compute_constraints(ASMOperand *operands,
                                     int nb_operands, int nb_outputs,
                                     const uint8_t *clobber_regs,
                                     int *pout_reg)
@@ -1457,7 +1457,7 @@ ST_FUNC void asm_compute_constraints(ASMOperand *operands,
 #endif
 }
 
-ST_FUNC void subst_asm_operand(CString *add_str,
+void subst_asm_operand(CString *add_str,
                               SValue *sv, int modifier)
 {
     int r, reg, size, val;
@@ -1577,7 +1577,7 @@ ST_FUNC void subst_asm_operand(CString *add_str,
 }
 
 /* generate prolog and epilog code for asm statement */
-ST_FUNC void asm_gen_code(ASMOperand *operands, int nb_operands,
+void asm_gen_code(ASMOperand *operands, int nb_operands,
                          int nb_outputs, int is_output,
                          uint8_t *clobber_regs,
                          int out_reg)
@@ -1681,7 +1681,7 @@ ST_FUNC void asm_gen_code(ASMOperand *operands, int nb_operands,
     }
 }
 
-ST_FUNC void asm_clobber(uint8_t *clobber_regs, const char *str)
+void asm_clobber(uint8_t *clobber_regs, const char *str)
 {
     int reg;
     TokenSym *ts;

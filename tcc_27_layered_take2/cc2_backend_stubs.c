@@ -1,8 +1,3 @@
-function asm_global_instr()
-{
-    return 0;
-}
-
 function decl_record_inline(symbol)
 {
     return 0;
@@ -191,12 +186,30 @@ function gen_opif_fold_constant(operation)
     return 0;
 }
 
-function asm_instr()
+function asm_opcode(state, opcode)
 {
     return 0;
 }
 
-function asm_opcode(state, opcode)
+function asm_compute_constraints(operands, operand_count, output_count,
+    clobbers, output_register)
+{
+    wi32(output_register, 0);
+    return 0;
+}
+
+function subst_asm_operand(output, value, modifier)
+{
+    return 0;
+}
+
+function asm_gen_code(operands, operand_count, output_count, is_output,
+    clobbers, output_register)
+{
+    return 0;
+}
+
+function asm_clobber(clobbers, text)
 {
     return 0;
 }

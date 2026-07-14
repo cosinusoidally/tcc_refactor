@@ -49,7 +49,6 @@ ST_DATA const int reg_classes[NB_REGS] = {
     RC_FLOAT | RC_ST0,
 };
 #include "i386-asm.c"
-#include "tccasm.c"
 #endif /* ONE_SOURCE */
 
 /********************************************************/

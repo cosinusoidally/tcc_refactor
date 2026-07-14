@@ -873,6 +873,13 @@ var CC2_ASM_DIRECTIVE_SHORT;
 var CC2_ASM_DIRECTIVE_LONG;
 var CC2_ASM_DIRECTIVE_INT;
 var CC2_ASM_DIRECTIVE_SECTION;
+var CC2_ASM_OPERAND_CONSTRAINT_OFFSET;
+var CC2_ASM_OPERAND_VALUE_OFFSET;
+var CC2_ASM_OPERAND_REGISTER_OFFSET;
+var CC2_ASM_OPERAND_MEMORY_OFFSET;
+var CC2_ASM_OPERAND_LIMIT;
+var CC2_ASM_REGISTER_COUNT;
+var CC2_CHARACTER_IDENTIFIER_FLAG;
 var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
@@ -7696,6 +7703,277 @@ function tcc_assemble_(state, preprocess, result, section)
 function tcc_assemble(state, preprocess)
 {
     return tcc_assemble_(state, preprocess, 0, 0);
+}
+
+function tcc_assemble_inline_(state, text, length, global, saved_macro,
+    previous_dot, source_file)
+{
+    saved_macro = macro_ptr;
+    previous_dot = cc0_set_idnum(isidnum_table_address, mkC("."),
+        CC2_CHARACTER_IDENTIFIER_FLAG);
+    cc2_open_buffer(state, mks(":asm:"), length);
+    source_file = ri32(file_address);
+    memcpy(add(source_file, CC2_BUFFERED_FILE_BUFFER_OFFSET), text, length);
+    macro_ptr = 0;
+    tcc_assemble_internal(state, 0, global);
+    cc2_tcc_close();
+    cc0_set_idnum(isidnum_table_address, mkC("."), previous_dot);
+    macro_ptr = saved_macro;
+    return 0;
+}
+
+function tcc_assemble_inline(state, text, length, global)
+{
+    return tcc_assemble_inline_(state, text, length, global, 0, 0, 0);
+}
+
+function subst_asm_operands_(operands, operand_count, output, input,
+    character, index, modifier, text, operand, value, registers)
+{
+    cstr_new(output);
+    text = ri32(add(input, CC2_CSTRING_DATA_OFFSET));
+    while (1) {
+        character = ri8(text);
+        text = add(text, 1);
+        if (eq(character, CC2_ASCII_PERCENT)) {
+            if (eq(ri8(text), CC2_ASCII_PERCENT)) {
+                text = add(text, 1);
+            } else {
+                modifier = 0;
+                character = ri8(text);
+                if (or(or(or(eq(character, mkC("c")),
+                    eq(character, mkC("n"))), or(eq(character, mkC("b")),
+                    eq(character, mkC("w")))), or(or(
+                    eq(character, mkC("h")), eq(character, mkC("k"))),
+                    or(eq(character, mkC("q")),
+                    eq(character, mkC("P")))))) {
+                    modifier = character;
+                    text = add(text, 1);
+                }
+                value = malloc(CC2_SVALUE_BYTES);
+                wi32(value, text);
+                index = find_constraint(operands, operand_count, text, value);
+                text = ri32(value);
+                if (lt(index, 0)) {
+                    tcc_error(mks("invalid operand reference after %%"), 0);
+                }
+                operand = add(operands, mul(index, CC2_ASM_OPERAND_BYTES));
+                cc2_copy_svalue(value, ri32(add(operand,
+                    CC2_ASM_OPERAND_VALUE_OFFSET)));
+                registers = ri32(add(operand,
+                    CC2_ASM_OPERAND_REGISTER_OFFSET));
+                if (le(0, registers)) {
+                    wi32(add(value, CC2_SVALUE_REGISTER_OFFSET), registers);
+                    if (and(eq(and(ri32(add(ri32(add(operand,
+                        CC2_ASM_OPERAND_VALUE_OFFSET)),
+                        CC2_SVALUE_REGISTER_OFFSET)),
+                        CC2_VALUE_LOCATION_MASK), CC2_VALUE_LOCAL_LVALUE),
+                        ri32(add(operand, CC2_ASM_OPERAND_MEMORY_OFFSET)))) {
+                        wi32(add(value, CC2_SVALUE_REGISTER_OFFSET),
+                            or(registers, CC2_TCC_LVALUE));
+                    }
+                }
+                subst_asm_operand(output, value, modifier);
+                free(value);
+                continue;
+            }
+        }
+        cstr_ccat(output, character);
+        if (eq(character, 0)) {
+            return 0;
+        }
+    }
+}
+
+function subst_asm_operands(operands, operand_count, output, input)
+{
+    return subst_asm_operands_(operands, operand_count, output, input,
+        0, 0, 0, 0, 0, 0, 0);
+}
+
+function parse_asm_operands_(operands, operand_count, is_output, operand,
+    string, constraint, registers)
+{
+    if (eq(ri32(tok_address), mkC(":"))) {
+        return operand_count;
+    }
+    while (1) {
+        if (not(lt(operand_count, CC2_ASM_OPERAND_LIMIT))) {
+            tcc_error(mks("too many asm operands"), 0);
+        }
+        operand = add(operands, mul(operand_count, CC2_ASM_OPERAND_BYTES));
+        operand_count = add(operand_count, 1);
+        cc2_zero_bytes(operand, CC2_ASM_OPERAND_BYTES);
+        if (eq(ri32(tok_address), mkC("["))) {
+            next();
+            if (lt(ri32(tok_address), CC2_TOKEN_IDENTIFIER_FIRST)) {
+                expect(mks("identifier"));
+            }
+            wi32(operand, ri32(tok_address));
+            next();
+            skip(mkC("]"));
+        }
+        string = malloc(CC2_CSTRING_BYTES);
+        parse_mult_str(string, mks("string constant"));
+        constraint = tcc_malloc(ri32(add(string, CC2_CSTRING_SIZE_OFFSET)));
+        cc2_copy_bytes(constraint,
+            ri32(add(string, CC2_CSTRING_DATA_OFFSET)),
+            ri32(add(string, CC2_CSTRING_SIZE_OFFSET)));
+        wi32(add(operand, CC2_ASM_OPERAND_CONSTRAINT_OFFSET), constraint);
+        cstr_free(string);
+        free(string);
+        skip(mkC("("));
+        gexpr();
+        if (is_output) {
+            if (eq(and(ri32(vtop), CC2_TCC_ARRAY_TYPE), 0)) {
+                test_lvalue();
+            }
+        } else {
+            registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
+            if (not(eq(and(registers, CC2_TCC_LVALUE), 0))) {
+                if (or(eq(and(registers, CC2_VALUE_LOCATION_MASK),
+                    CC2_VALUE_LOCAL_LVALUE), lt(and(registers,
+                    CC2_VALUE_LOCATION_MASK), CC2_VALUE_CONSTANT))) {
+                    if (eq(strchr(constraint, mkC("m")), 0)) {
+                        gv(CC2_INTEGER_REGISTER_CLASS);
+                    }
+                }
+            }
+        }
+        wi32(add(operand, CC2_ASM_OPERAND_VALUE_OFFSET), vtop);
+        skip(mkC(")"));
+        if (not(eq(ri32(tok_address), mkC(",")))) {
+            return operand_count;
+        }
+        next();
+    }
+}
+
+function parse_asm_operands(operands, operand_count, is_output)
+{
+    return parse_asm_operands_(operands, operand_count, is_output,
+        0, 0, 0, 0);
+}
+
+function asm_instr_(asm_text, substituted_text, operands, operand_count,
+    output_count, must_substitute, output_register, clobbers, index,
+    operand, constraint)
+{
+    next();
+    if (cc2_token_is_three(ri32(tok_address), CC2_TOKEN_VOLATILE_FIRST,
+        CC2_TOKEN_VOLATILE_SECOND, CC2_TOKEN_VOLATILE_THIRD)) {
+        next();
+    }
+    asm_text = malloc(CC2_CSTRING_BYTES);
+    substituted_text = malloc(CC2_CSTRING_BYTES);
+    parse_asm_str(asm_text);
+    operands = malloc(mul(CC2_ASM_OPERAND_LIMIT, CC2_ASM_OPERAND_BYTES));
+    clobbers = malloc(CC2_ASM_REGISTER_COUNT);
+    output_register = malloc(CC2_I386_WORD_BYTES);
+    operand_count = 0;
+    output_count = 0;
+    must_substitute = 0;
+    memset(clobbers, 0, CC2_ASM_REGISTER_COUNT);
+    if (eq(ri32(tok_address), mkC(":"))) {
+        next();
+        must_substitute = 1;
+        operand_count = parse_asm_operands(operands, operand_count, 1);
+        output_count = operand_count;
+        if (eq(ri32(tok_address), mkC(":"))) {
+            next();
+            if (not(eq(ri32(tok_address), mkC(")")))) {
+                operand_count = parse_asm_operands(operands, operand_count, 0);
+                if (eq(ri32(tok_address), mkC(":"))) {
+                    next();
+                    while (1) {
+                        if (not(eq(ri32(tok_address), CC2_TOKEN_STRING))) {
+                            expect(mks("string constant"));
+                        }
+                        asm_clobber(clobbers,
+                            ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET)));
+                        next();
+                        if (not(eq(ri32(tok_address), mkC(",")))) {
+                            break;
+                        }
+                        next();
+                    }
+                }
+            }
+        }
+    }
+    skip(mkC(")"));
+    if (not(eq(ri32(tok_address), mkC(";")))) {
+        expect(mks("';'"));
+    }
+    save_regs(0);
+    asm_compute_constraints(operands, operand_count, output_count, clobbers,
+        output_register);
+    if (must_substitute) {
+        subst_asm_operands(operands, operand_count, substituted_text,
+            asm_text);
+        cstr_free(asm_text);
+    } else {
+        cc2_copy_bytes(substituted_text, asm_text, CC2_CSTRING_BYTES);
+    }
+    asm_gen_code(operands, operand_count, output_count, 0, clobbers,
+        ri32(output_register));
+    tcc_assemble_inline(tcc_state_address,
+        ri32(add(substituted_text, CC2_CSTRING_DATA_OFFSET)),
+        sub(ri32(add(substituted_text, CC2_CSTRING_SIZE_OFFSET)), 1), 0);
+    next();
+    asm_gen_code(operands, operand_count, output_count, 1, clobbers,
+        ri32(output_register));
+    index = 0;
+    while (lt(index, operand_count)) {
+        operand = add(operands, mul(index, CC2_ASM_OPERAND_BYTES));
+        constraint = ri32(add(operand, CC2_ASM_OPERAND_CONSTRAINT_OFFSET));
+        tcc_free(constraint);
+        vpop();
+        index = add(index, 1);
+    }
+    cstr_free(substituted_text);
+    free(output_register);
+    free(clobbers);
+    free(operands);
+    free(substituted_text);
+    free(asm_text);
+    return 0;
+}
+
+function asm_instr()
+{
+    return asm_instr_(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function asm_global_instr_(saved_no_code, string, section)
+{
+    saved_no_code = nocode_wanted;
+    nocode_wanted = 0;
+    next();
+    string = malloc(CC2_CSTRING_BYTES);
+    parse_asm_str(string);
+    skip(mkC(")"));
+    if (not(eq(ri32(tok_address), mkC(";")))) {
+        expect(mks("';'"));
+    }
+    section = ri32(text_section_address);
+    wi32(cur_text_section_address, section);
+    ind = ri32(add(section, CC2_SECTION_DATA_OFFSET));
+    tcc_assemble_inline(tcc_state_address,
+        ri32(add(string, CC2_CSTRING_DATA_OFFSET)),
+        sub(ri32(add(string, CC2_CSTRING_SIZE_OFFSET)), 1), 1);
+    section = ri32(cur_text_section_address);
+    wi32(add(section, CC2_SECTION_DATA_OFFSET), ind);
+    next();
+    cstr_free(string);
+    free(string);
+    nocode_wanted = saved_no_code;
+    return 0;
+}
+
+function asm_global_instr()
+{
+    return asm_global_instr_(0, 0, 0);
 }
 
 function use_section1(state, section)
@@ -23108,6 +23386,13 @@ function cc2_init_constants()
     CC2_ASM_DIRECTIVE_LONG = 439;
     CC2_ASM_DIRECTIVE_INT = 440;
     CC2_ASM_DIRECTIVE_SECTION = 441;
+    CC2_ASM_OPERAND_CONSTRAINT_OFFSET = 4;
+    CC2_ASM_OPERAND_VALUE_OFFSET = 24;
+    CC2_ASM_OPERAND_REGISTER_OFFSET = 40;
+    CC2_ASM_OPERAND_MEMORY_OFFSET = 48;
+    CC2_ASM_OPERAND_LIMIT = 30;
+    CC2_ASM_REGISTER_COUNT = 8;
+    CC2_CHARACTER_IDENTIFIER_FLAG = 2;
     CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;
