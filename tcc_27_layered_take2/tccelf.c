@@ -347,36 +347,6 @@ ST_FUNC void build_got_entries(TCCState *s1)
     }
 }
 
-#ifndef TCC_TARGET_PE
-static void add_init_array_defines(TCCState *s1, const char *section_name)
-{
-    Section *s;
-    long end_offset;
-    char sym_start[1024];
-    char sym_end[1024];
-
-    snprintf(sym_start, sizeof(sym_start), "__%s_start", section_name + 1);
-    snprintf(sym_end, sizeof(sym_end), "__%s_end", section_name + 1);
-
-    s = find_section(s1, section_name);
-    if (!s) {
-        end_offset = 0;
-        s = data_section;
-    } else {
-        end_offset = s->data_offset;
-    }
-
-    set_elf_sym(symtab_section,
-                0, 0,
-                ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
-                s->sh_num, sym_start);
-    set_elf_sym(symtab_section,
-                end_offset, 0,
-                ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
-                s->sh_num, sym_end);
-}
-#endif
-
 static int tcc_add_support(TCCState *s1, const char *filename)
 {
     char buf[1024];

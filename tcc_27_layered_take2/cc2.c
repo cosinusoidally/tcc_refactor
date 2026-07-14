@@ -6446,6 +6446,52 @@ function put_dt(dynamic_section, tag, value)
     return 0;
 }
 
+function add_init_array_defines(state, section_name)
+{
+    var section;
+    var end_offset;
+    var prefix;
+    var start_suffix;
+    var end_suffix;
+    var base_name;
+    var start_name;
+    var end_name;
+    var name_bytes;
+    prefix = mks("__");
+    start_suffix = mks("_start");
+    end_suffix = mks("_end");
+    base_name = add(section_name, 1);
+    name_bytes = add(add(strlen(prefix), strlen(base_name)), add(strlen(
+        start_suffix), 1));
+    start_name = malloc(name_bytes);
+    strcpy(start_name, prefix);
+    strcat(start_name, base_name);
+    strcat(start_name, start_suffix);
+    name_bytes = add(add(strlen(prefix), strlen(base_name)), add(strlen(
+        end_suffix), 1));
+    end_name = malloc(name_bytes);
+    strcpy(end_name, prefix);
+    strcat(end_name, base_name);
+    strcat(end_name, end_suffix);
+
+    section = find_section(state, section_name);
+    if (eq(section, 0)) {
+        end_offset = 0;
+        section = ri32(data_section_address);
+    } else {
+        end_offset = ri32(add(section, CC2_SECTION_DATA_OFFSET));
+    }
+    set_elf_sym(ri32(symtab_section_address), 0, 0, shl(
+        CC2_ELF_SYMBOL_GLOBAL_BINDING, CC2_ELF_SYMBOL_BIND_SHIFT), 0,
+        ri32(add(section, CC2_SECTION_NUMBER_OFFSET)), start_name);
+    set_elf_sym(ri32(symtab_section_address), end_offset, 0, shl(
+        CC2_ELF_SYMBOL_GLOBAL_BINDING, CC2_ELF_SYMBOL_BIND_SHIFT), 0,
+        ri32(add(section, CC2_SECTION_NUMBER_OFFSET)), end_name);
+    free(start_name);
+    free(end_name);
+    return 0;
+}
+
 /* Grow the pool pointer vector with the same power-of-two rule as TCC. */
 function cc2_add_sym_pool_(pool, count, capacity, pools)
 {
