@@ -24444,6 +24444,127 @@ function tcc_set_linker(state, option)
     return 1;
 }
 
+function parse_option_D(state, option)
+{
+    var symbol;
+    var value;
+    symbol = tcc_strdup(option);
+    value = strchr(symbol, mkC("="));
+    if (value) {
+        wi8(value, 0);
+        value = add(value, 1);
+    }
+    tcc_define_symbol(state, symbol, value);
+    tcc_free(symbol);
+    return 0;
+}
+
+function args_parser_add_file(state, filename, file_type)
+{
+    var file_specification;
+    file_specification = tcc_malloc(add(strlen(filename), 3));
+    wi8(file_specification, file_type);
+    wi8(add(file_specification, 1),
+        ri32(add(state, CC2_TCC_STATE_ALACARTE_OFFSET)));
+    strcpy(add(file_specification, 2), filename);
+    dynarray_add(add(state, CC2_TCC_STATE_FILES_OFFSET),
+        add(state, CC2_TCC_STATE_FILE_COUNT_OFFSET), file_specification);
+    return 0;
+}
+
+function args_parser_make_argv(text, count_pointer, array_pointer)
+{
+    var result;
+    var quoted;
+    var character;
+    var string;
+    result = 0;
+    while (1) {
+        character = ri8(text);
+        while (and(character, le(character, mkC(" ")))) {
+            text = add(text, 1);
+            character = ri8(text);
+        }
+        if (eq(character, 0)) {
+            break;
+        }
+        quoted = 0;
+        string = malloc(CC2_CSTRING_BYTES);
+        cstr_new(string);
+        character = ri8(text);
+        while (character) {
+            text = add(text, 1);
+            if (and(eq(character, mkC("\\")), or(eq(ri8(text), mkC("\"")),
+                eq(ri8(text), mkC("\\"))))) {
+                character = ri8(text);
+                text = add(text, 1);
+            } else if (eq(character, mkC("\""))) {
+                quoted = not(quoted);
+                character = ri8(text);
+                continue;
+            } else if (and(eq(quoted, 0), le(character, mkC(" ")))) {
+                break;
+            }
+            cstr_ccat(string, character);
+            character = ri8(text);
+        }
+        cstr_ccat(string, 0);
+        dynarray_add(array_pointer, count_pointer,
+            tcc_strdup(ri32(add(string, CC2_CSTRING_DATA_OFFSET))));
+        cstr_free(string);
+        free(string);
+        result = add(result, 1);
+    }
+    return result;
+}
+
+function args_parser_listfile(state, filename, option_index, count_pointer,
+    array_pointer)
+{
+    var descriptor;
+    var length;
+    var contents;
+    var new_count_slot;
+    var new_array_slot;
+    var index;
+    var old_array;
+    descriptor = open(filename, 0);
+    if (lt(descriptor, 0)) {
+        tcc_error(mks("listfile '%s' not found"), filename);
+    }
+    length = lseek(descriptor, 0, 2);
+    contents = tcc_malloc(add(length, 1));
+    wi8(add(contents, length), 0);
+    lseek(descriptor, 0, 0);
+    read(descriptor, contents, length);
+    close(descriptor);
+    new_count_slot = malloc(4);
+    new_array_slot = malloc(4);
+    wi32(new_count_slot, 0);
+    wi32(new_array_slot, 0);
+    old_array = ri32(array_pointer);
+    index = 0;
+    while (lt(index, ri32(count_pointer))) {
+        if (eq(index, option_index)) {
+            args_parser_make_argv(contents, new_count_slot, new_array_slot);
+        } else {
+            dynarray_add(new_array_slot, new_count_slot,
+                tcc_strdup(ri32(add(old_array, shl(index, 2)))));
+        }
+        index = add(index, 1);
+    }
+    tcc_free(contents);
+    dynarray_reset(add(state, CC2_TCC_STATE_ARGV_OFFSET),
+        add(state, CC2_TCC_STATE_ARGC_OFFSET));
+    wi32(count_pointer, ri32(new_count_slot));
+    wi32(array_pointer, ri32(new_array_slot));
+    wi32(add(state, CC2_TCC_STATE_ARGC_OFFSET), ri32(new_count_slot));
+    wi32(add(state, CC2_TCC_STATE_ARGV_OFFSET), ri32(new_array_slot));
+    free(new_count_slot);
+    free(new_array_slot);
+    return 0;
+}
+
 function tcc_memcheck()
 {
     return 0;
