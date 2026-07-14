@@ -7259,6 +7259,53 @@ function asm_parse_size(state)
     return asm_parse_size_(state, 0, 0);
 }
 
+function asm_parse_set(state, label)
+{
+    next();
+    label = ri32(tok_address);
+    next();
+    if (eq(ri32(tok_address), mkC(","))) {
+        set_symbol(state, label);
+    }
+    return 0;
+}
+
+function asm_parse_symbol_binding_(is_weak, is_hidden, symbol, attributes,
+    type_value)
+{
+    while (1) {
+        next();
+        symbol = get_asm_sym(ri32(tok_address), 0);
+        if (not(is_hidden)) {
+            type_value = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
+            wi32(add(symbol, CC2_SYM_TYPE_OFFSET), and(type_value,
+                bnot(CC2_TCC_STATIC_STORAGE)));
+        }
+        attributes = cc2_read_little_u16(add(symbol,
+            CC2_SYM_ATTRIBUTES_OFFSET));
+        if (is_weak) {
+            attributes = or(attributes, CC2_SYM_ATTRIBUTE_WEAK);
+        } else if (is_hidden) {
+            attributes = or(and(attributes,
+                bnot(CC2_SYM_ATTRIBUTE_VISIBILITY_MASK)),
+                shl(CC2_ELF_HIDDEN_VISIBILITY,
+                CC2_ATTRIBUTE_VISIBILITY_SHIFT));
+        }
+        cc2_write_little_u16(add(symbol, CC2_SYM_ATTRIBUTES_OFFSET),
+            attributes);
+        update_storage(symbol);
+        next();
+        if (not(eq(ri32(tok_address), mkC(",")))) {
+            return 0;
+        }
+    }
+}
+
+function asm_parse_symbol_binding(is_weak, is_hidden)
+{
+    return asm_parse_symbol_binding_(is_weak, is_hidden, 0, 0, 0);
+}
+
 function use_section1(state, section)
 {
     var current;

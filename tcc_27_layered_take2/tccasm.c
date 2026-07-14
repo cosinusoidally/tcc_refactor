@@ -97,33 +97,15 @@ static void asm_parse_directive(TCCState *s1, int global)
         asm_parse_org(s1);
         break;
     case TOK_ASMDIR_set:
-	next();
-	tok1 = tok;
-	next();
-	/* Also accept '.set stuff', but don't do anything with this.
-	   It's used in GAS to set various features like '.set mips16'.  */
-	if (tok == ',')
-	    set_symbol(s1, tok1);
-	break;
+        asm_parse_set(s1, 0);
+        break;
     case TOK_ASMDIR_globl:
     case TOK_ASMDIR_global:
     case TOK_ASMDIR_weak:
     case TOK_ASMDIR_hidden:
-	tok1 = tok;
-	do { 
-            Sym *sym;
-            next();
-            sym = get_asm_sym(tok, NULL);
-	    if (tok1 != TOK_ASMDIR_hidden)
-                sym->type.t &= ~VT_STATIC;
-            if (tok1 == TOK_ASMDIR_weak)
-                sym->a.weak = 1;
-	    else if (tok1 == TOK_ASMDIR_hidden)
-	        sym->a.visibility = STV_HIDDEN;
-            update_storage(sym);
-            next();
-	} while (tok == ',');
-	break;
+        asm_parse_symbol_binding(tok == TOK_ASMDIR_weak,
+                                 tok == TOK_ASMDIR_hidden);
+        break;
     case TOK_ASMDIR_string:
     case TOK_ASMDIR_ascii:
     case TOK_ASMDIR_asciz:
