@@ -246,3 +246,8 @@ function tcc_basename(filename)
 {
     return filename;
 }
+
+function tcc_add_file_internal(state, filename, flags)
+{
+    return sub(0, 1);
+}

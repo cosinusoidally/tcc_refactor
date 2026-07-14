@@ -823,6 +823,11 @@ var CC2_ELF_SECTION_HEADER_LINK_OFFSET;
 var CC2_ELF_SYMBOL_OTHER_OFFSET;
 var CC2_DLL_REFERENCE_BYTES;
 var CC2_REFERENCED_DLL_FLAG;
+var CC2_LINKER_TOKEN_NAME;
+var CC2_LINKER_TOKEN_EOF;
+var CC2_LINKER_COMMAND_BYTES;
+var CC2_LINKER_FILENAME_BYTES;
+var CC2_BINARY_FILE_FLAG;
 var CC2_ELF_I386_MACHINE;
 var CC2_ELF_CURRENT_VERSION;
 var CC2_ELF_CLASS_32;
@@ -7904,6 +7909,266 @@ function tcc_load_dll(state, file_descriptor, filename, level)
     free(dynamic_records);
     free(section_headers);
     free(header);
+    return result;
+}
+
+function cc2_ld_is_space(character)
+{
+    return or(or(or(eq(character, mkC(" ")), eq(character, mkC("\t"))),
+        or(eq(character, mkC("\f")), eq(character, mkC("\v")))),
+        or(eq(character, mkC("\r")), eq(character, mkC("\n"))));
+}
+
+function cc2_ld_is_name_character(character)
+{
+    return or(or(and(le(mkC("a"), character), le(character, mkC("z"))),
+        and(le(mkC("A"), character), le(character, mkC("Z")))),
+        or(and(le(mkC("0"), character), le(character, mkC("9"))),
+        not(eq(strchr(mks("/.-_+=$:\\,~"), character), 0))));
+}
+
+function cc2_ld_is_name_start(character)
+{
+    return or(or(or(and(le(mkC("a"), character), le(character, mkC("z"))),
+        and(le(mkC("A"), character), le(character, mkC("Z")))),
+        not(eq(strchr(mks("_.$~"), character), 0))),
+        eq(character, CC2_CHARACTER_END_OF_BUFFER));
+}
+
+/* Return one token from the linker script currently in the TCC input file. */
+function cc2_ld_next(name, name_size)
+{
+    var output;
+    var output_size;
+    var token;
+    var pointer;
+    token = 0;
+    while (eq(token, 0)) {
+        if (cc2_ld_is_space(ch)) {
+            inp();
+        } else {
+            output = name;
+            output_size = 0;
+            if (eq(ch, mkC("/"))) {
+                minp();
+                if (eq(ch, mkC("*"))) {
+                    pointer = parse_comment(ri32(add(ri32(file_address),
+                        CC2_BUFFERED_FILE_POINTER_OFFSET)));
+                    wi32(add(ri32(file_address),
+                        CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
+                    ch = ri8(pointer);
+                } else {
+                    wi8(output, mkC("/"));
+                    output = add(output, 1);
+                    output_size = 1;
+                    token = CC2_LINKER_TOKEN_NAME;
+                }
+            } else {
+                if (eq(ch, CC2_CHARACTER_END_OF_BUFFER)) {
+                    ch = handle_eob();
+                    if (not(eq(ch, CC2_CHARACTER_END_OF_BUFFER))) {
+                        output_size = sub(0, 1);
+                    }
+                }
+                if (eq(output_size, 0)) {
+                    if (cc2_ld_is_name_start(ch)) {
+                        token = CC2_LINKER_TOKEN_NAME;
+                    } else {
+                        if (eq(ch, CC2_CHARACTER_END_OF_FILE)) {
+                            return CC2_LINKER_TOKEN_EOF;
+                        }
+                        token = ch;
+                        inp();
+                    }
+                }
+            }
+            if (eq(token, CC2_LINKER_TOKEN_NAME)) {
+                while (cc2_ld_is_name_character(ch)) {
+                    if (lt(output_size, sub(name_size, 1))) {
+                        wi8(output, ch);
+                        output = add(output, 1);
+                        output_size = add(output_size, 1);
+                    }
+                    minp();
+                }
+                wi8(output, 0);
+            }
+        }
+    }
+    return token;
+}
+
+function cc2_ld_add_file(state, filename)
+{
+    if (eq(ri8(filename), mkC("/"))) {
+        if (eq(tcc_add_file_internal(state, filename, CC2_BINARY_FILE_FLAG),
+            0)) {
+            return 0;
+        }
+        filename = tcc_basename(filename);
+    }
+    return tcc_add_dll(state, filename, 0);
+}
+
+function cc2_duplicate_string(source)
+{
+    var duplicate;
+    duplicate = malloc(add(strlen(source), 1));
+    strcpy(duplicate, source);
+    return duplicate;
+}
+
+function cc2_ld_add_file_list(state, command, as_needed)
+{
+    var filename;
+    var library_name;
+    var token;
+    var group;
+    var result;
+    var libraries_pointer;
+    var library_count_pointer;
+    var libraries;
+    var library_count;
+    var library_index;
+    filename = malloc(CC2_LINKER_FILENAME_BYTES);
+    library_name = malloc(CC2_LINKER_FILENAME_BYTES);
+    libraries_pointer = malloc(CC2_I386_WORD_BYTES);
+    library_count_pointer = malloc(CC2_I386_WORD_BYTES);
+    wi32(libraries_pointer, 0);
+    wi32(library_count_pointer, 0);
+    group = eq(strcmp(command, mks("GROUP")), 0);
+    result = 0;
+    if (eq(as_needed, 0)) {
+        new_undef_syms();
+    }
+    token = cc2_ld_next(filename, CC2_LINKER_FILENAME_BYTES);
+    if (not(eq(token, mkC("(")))) {
+        expect(mks("("));
+    }
+    token = cc2_ld_next(filename, CC2_LINKER_FILENAME_BYTES);
+    while (and(not(eq(token, mkC(")"))), eq(result, 0))) {
+        wi8(library_name, 0);
+        if (eq(token, CC2_LINKER_TOKEN_EOF)) {
+            tcc_error_noabort(mks("unexpected end of file"));
+            result = sub(0, 1);
+        } else {
+            if (eq(token, mkC("-"))) {
+                token = cc2_ld_next(filename, CC2_LINKER_FILENAME_BYTES);
+                if (or(not(eq(token, CC2_LINKER_TOKEN_NAME)),
+                    not(eq(ri8(filename), mkC("l"))))) {
+                    tcc_error_noabort(mks("library name expected"));
+                    result = sub(0, 1);
+                } else {
+                    strcpy(library_name, add(filename, 1));
+                    if (ri32(add(state, CC2_TCC_STATE_STATIC_LINK_OFFSET))) {
+                        snprintf(filename, CC2_LINKER_FILENAME_BYTES,
+                            mks("lib%s.a"), library_name);
+                    } else {
+                        snprintf(filename, CC2_LINKER_FILENAME_BYTES,
+                            mks("lib%s.so"), library_name);
+                    }
+                }
+            } else {
+                if (not(eq(token, CC2_LINKER_TOKEN_NAME))) {
+                    tcc_error_noabort(mks("filename expected"));
+                    result = sub(0, 1);
+                }
+            }
+            if (eq(result, 0)) {
+                if (eq(strcmp(filename, mks("AS_NEEDED")), 0)) {
+                    result = cc2_ld_add_file_list(state, command, 1);
+                } else {
+                    if (eq(as_needed, 0)) {
+                        result = cc2_ld_add_file(state, filename);
+                        if (and(eq(result, 0), group)) {
+                            dynarray_add(libraries_pointer,
+                                library_count_pointer,
+                                cc2_duplicate_string(filename));
+                            if (not(eq(ri8(library_name), 0))) {
+                                dynarray_add(libraries_pointer,
+                                    library_count_pointer,
+                                    cc2_duplicate_string(library_name));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (eq(result, 0)) {
+            token = cc2_ld_next(filename, CC2_LINKER_FILENAME_BYTES);
+            if (eq(token, mkC(","))) {
+                token = cc2_ld_next(filename, CC2_LINKER_FILENAME_BYTES);
+            }
+        }
+    }
+    if (and(and(group, eq(as_needed, 0)), eq(result, 0))) {
+        while (new_undef_syms()) {
+            libraries = ri32(libraries_pointer);
+            library_count = ri32(library_count_pointer);
+            library_index = 0;
+            while (lt(library_index, library_count)) {
+                cc2_ld_add_file(state, ri32(add(libraries,
+                    shl(library_index, 2))));
+                library_index = add(library_index, 1);
+            }
+        }
+    }
+    dynarray_reset(libraries_pointer, library_count_pointer);
+    free(library_count_pointer);
+    free(libraries_pointer);
+    free(library_name);
+    free(filename);
+    return result;
+}
+
+/* Interpret the GNU linker-script subset used by glibc's libc.so file. */
+function tcc_load_ldscript(state)
+{
+    var command;
+    var filename;
+    var token;
+    var result;
+    command = malloc(CC2_LINKER_COMMAND_BYTES);
+    filename = malloc(CC2_LINKER_FILENAME_BYTES);
+    ch = handle_eob();
+    result = 0;
+    token = cc2_ld_next(command, CC2_LINKER_COMMAND_BYTES);
+    while (and(not(eq(token, CC2_LINKER_TOKEN_EOF)), eq(result, 0))) {
+        if (not(eq(token, CC2_LINKER_TOKEN_NAME))) {
+            result = sub(0, 1);
+        } else {
+            if (or(eq(strcmp(command, mks("INPUT")), 0),
+                eq(strcmp(command, mks("GROUP")), 0))) {
+                result = cc2_ld_add_file_list(state, command, 0);
+            } else {
+                if (or(eq(strcmp(command, mks("OUTPUT_FORMAT")), 0),
+                    eq(strcmp(command, mks("TARGET")), 0))) {
+                    token = cc2_ld_next(command, CC2_LINKER_COMMAND_BYTES);
+                    if (not(eq(token, mkC("(")))) {
+                        expect(mks("("));
+                    }
+                    token = cc2_ld_next(filename,
+                        CC2_LINKER_FILENAME_BYTES);
+                    while (and(not(eq(token, mkC(")"))), eq(result, 0))) {
+                        if (eq(token, CC2_LINKER_TOKEN_EOF)) {
+                            tcc_error_noabort(mks("unexpected end of file"));
+                            result = sub(0, 1);
+                        } else {
+                            token = cc2_ld_next(filename,
+                                CC2_LINKER_FILENAME_BYTES);
+                        }
+                    }
+                } else {
+                    result = sub(0, 1);
+                }
+            }
+        }
+        if (eq(result, 0)) {
+            token = cc2_ld_next(command, CC2_LINKER_COMMAND_BYTES);
+        }
+    }
+    free(filename);
+    free(command);
     return result;
 }
 
@@ -20198,6 +20463,11 @@ function cc2_init_constants()
     CC2_ELF_SYMBOL_OTHER_OFFSET = 13;
     CC2_DLL_REFERENCE_BYTES = 12;
     CC2_REFERENCED_DLL_FLAG = 32;
+    CC2_LINKER_TOKEN_NAME = 256;
+    CC2_LINKER_TOKEN_EOF = sub(0, 1);
+    CC2_LINKER_COMMAND_BYTES = 64;
+    CC2_LINKER_FILENAME_BYTES = 1024;
+    CC2_BINARY_FILE_FLAG = 64;
     CC2_ELF_I386_MACHINE = 3;
     CC2_ELF_CURRENT_VERSION = 1;
     CC2_ELF_CLASS_32 = 1;

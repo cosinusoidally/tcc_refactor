@@ -1105,7 +1105,7 @@ ST_FUNC void tcc_open_bf(TCCState *s1, const char *filename, int initlen);
 ST_FUNC int tcc_open(TCCState *s1, const char *filename);
 ST_FUNC void tcc_close(void);
 
-ST_FUNC int tcc_add_file_internal(TCCState *s1, const char *filename, int flags);
+extern int tcc_add_file_internal(TCCState *s1, const char *filename, int flags);
 /* flags: */
 #define AFF_PRINT_ERROR     0x10 /* print error if file not found */
 #define AFF_REFERENCED_DLL  0x20 /* load a referenced dll from another dll */
@@ -1535,7 +1535,7 @@ ST_FUNC void *tcc_get_symbol_err(TCCState *s, const char *name);
 
 #ifndef TCC_TARGET_PE
 extern int tcc_load_dll(TCCState *s1, int fd, const char *filename, int level);
-ST_FUNC int tcc_load_ldscript(TCCState *s1);
+extern int tcc_load_ldscript(TCCState *s1);
 uint8_t *parse_comment(uint8_t *p);
 void minp(void);
 void inp(void);

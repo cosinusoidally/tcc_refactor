@@ -934,7 +934,7 @@ LIBTCCAPI int tcc_add_sysinclude_path(TCCState *s, const char *pathname)
     return 0;
 }
 
-ST_FUNC int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
+int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
 {
     int ret;
 
