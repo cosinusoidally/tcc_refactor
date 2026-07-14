@@ -4618,13 +4618,11 @@ function preprocess_diagnostic_directive(directive)
     skip_spaces();
     buffer = malloc(CC2_PREPROCESS_DIRECTIVE_BUFFER_BYTES);
     length = 0;
-    while (and(not(eq(ch, 10)), not(eq(ch,
+    while (and(not(eq(ch, mkC("\n"))), not(eq(ch,
         CC2_CHARACTER_END_OF_FILE)))) {
-        if (lt(length, sub(CC2_PREPROCESS_DIRECTIVE_BUFFER_BYTES, 1))) {
-            wi8(add(buffer, length), ch);
-            length = add(length, 1);
-        }
-        if (eq(ch, 92)) {
+        wi8(add(buffer, length), ch);
+        length = add(length, 1);
+        if (eq(ch, mkC("\\"))) {
             if (eq(handle_stray_noerror(), 0)) {
                 length = sub(length, 1);
             }
@@ -4642,33 +4640,7 @@ function preprocess_diagnostic_directive(directive)
     return 0;
 }
 
-function cc2_bounded_copy(destination, capacity, source)
-{
-    var index;
-    var character;
-    index = 0;
-    character = ri8(source);
-    while (character) {
-        if (not(lt(index, sub(capacity, 1)))) {
-            break;
-        }
-        wi8(add(destination, index), character);
-        index = add(index, 1);
-        character = ri8(add(source, index));
-    }
-    if (lt(0, capacity)) {
-        wi8(add(destination, index), 0);
-    }
-    return destination;
-}
-
-function cc2_bounded_append(destination, capacity, source)
-{
-    return cc2_bounded_copy(add(destination, strlen(destination)),
-        sub(capacity, strlen(destination)), source);
-}
-
-function cc2_copy_directory(destination, capacity, source)
+function cc2_copy_directory(destination, source)
 {
     var index;
     var count;
@@ -4678,13 +4650,13 @@ function cc2_copy_directory(destination, capacity, source)
     character = ri8(source);
     while (character) {
         index = add(index, 1);
-        if (eq(character, 47)) {
+        if (eq(character, mkC("/"))) {
             count = index;
         }
         character = ri8(add(source, index));
     }
     index = 0;
-    while (and(lt(index, count), lt(index, sub(capacity, 1)))) {
+    while (lt(index, count)) {
         wi8(add(destination, index), ri8(add(source, index)));
         index = add(index, 1);
     }
@@ -4714,21 +4686,19 @@ function preprocess_include(state, directive)
     source_file = ri32(file_address);
     ch = ri8(ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET)));
     skip_spaces();
-    if (or(eq(ch, 60), eq(ch, 34))) {
-        if (eq(ch, 60)) {
-            separator = 62;
+    if (or(eq(ch, mkC("<")), eq(ch, mkC("\"")))) {
+        if (eq(ch, mkC("<"))) {
+            separator = mkC(">");
         } else {
             separator = ch;
         }
         inp();
         length = 0;
-        while (and(and(not(eq(ch, separator)), not(eq(ch, 10))),
+        while (and(and(not(eq(ch, separator)), not(eq(ch, mkC("\n")))),
             not(eq(ch, CC2_CHARACTER_END_OF_FILE)))) {
-            if (lt(length, sub(CC2_BUFFERED_FILE_FILENAME_CAPACITY, 1))) {
-                wi8(add(name, length), ch);
-                length = add(length, 1);
-            }
-            if (eq(ch, 92)) {
+            wi8(add(name, length), ch);
+            length = add(length, 1);
+            if (eq(ch, mkC("\\"))) {
                 if (eq(handle_stray_noerror(), 0)) {
                     length = sub(length, 1);
                 }
@@ -4745,8 +4715,7 @@ function preprocess_include(state, directive)
         next();
         wi8(name, 0);
         while (not(eq(ri32(tok_address), CC2_TOKEN_LINE_FEED))) {
-            cc2_bounded_append(name, CC2_BUFFERED_FILE_FILENAME_CAPACITY,
-                get_tok_str(ri32(tok_address), tokc_address));
+            strcat(name, get_tok_str(ri32(tok_address), tokc_address));
             next();
         }
         length = strlen(name);
@@ -4797,8 +4766,7 @@ function preprocess_include(state, directive)
                 index = add(index, 1);
                 continue;
             }
-            cc2_copy_directory(candidate,
-                CC2_BUFFERED_FILE_FILENAME_CAPACITY, ri32(add(source_file,
+            cc2_copy_directory(candidate, ri32(add(source_file,
                 CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET)));
         } else {
             path_index = sub(index, 2);
@@ -4813,13 +4781,10 @@ function preprocess_include(state, directive)
                     CC2_TCC_STATE_SYSTEM_INCLUDE_PATHS_OFFSET)),
                     mul(system_index, CC2_I386_WORD_BYTES)));
             }
-            cc2_bounded_copy(candidate,
-                CC2_BUFFERED_FILE_FILENAME_CAPACITY, path);
-            cc2_bounded_append(candidate,
-                CC2_BUFFERED_FILE_FILENAME_CAPACITY, mks("/"));
+            strcpy(candidate, path);
+            strcat(candidate, mks("/"));
         }
-        cc2_bounded_append(candidate, CC2_BUFFERED_FILE_FILENAME_CAPACITY,
-            name);
+        strcat(candidate, name);
         entry = search_cached_include(state, candidate, 0);
         if (entry) {
             if (or(not(eq(define_find(ri32(add(entry,
