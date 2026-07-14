@@ -4508,7 +4508,7 @@ function preprocess_line_directive(state, directive)
                 wi32(add(source_file, CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET),
                     copy);
             }
-            cc2_pstrcpy(filename, CC2_BUFFERED_FILE_FILENAME_CAPACITY,
+            pstrcpy(filename, CC2_BUFFERED_FILE_FILENAME_CAPACITY,
                 ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET)));
         } else if (and(ri32(parse_flags_address), CC2_PARSE_FLAG_ASM_FILE)) {
             return 0;
@@ -20110,6 +20110,167 @@ function cc2_copy_bytes_(destination, source, length, index)
 function cc2_copy_bytes(destination, source, length)
 {
     return cc2_copy_bytes_(destination, source, length, 0);
+}
+
+/* These utilities retain TCC's allocation and string behavior in the layer. */
+function pstrcpy_(destination, capacity, source, output, end, character)
+{
+    if (lt(0, capacity)) {
+        output = destination;
+        end = sub(add(destination, capacity), 1);
+        while (lt(output, end)) {
+            character = ri8(source);
+            source = add(source, 1);
+            if (eq(character, 0)) {
+                wi8(output, 0);
+                return destination;
+            }
+            wi8(output, character);
+            output = add(output, 1);
+        }
+        wi8(output, 0);
+    }
+    return destination;
+}
+
+function pstrcpy(destination, capacity, source)
+{
+    return pstrcpy_(destination, capacity, source, 0, 0, 0);
+}
+
+function pstrcat_(destination, capacity, source, length)
+{
+    length = 0;
+    while (not(eq(ri8(add(destination, length)), 0))) {
+        length = add(length, 1);
+    }
+    if (lt(length, capacity)) {
+        pstrcpy(add(destination, length), sub(capacity, length), source);
+    }
+    return destination;
+}
+
+function pstrcat(destination, capacity, source)
+{
+    return pstrcat_(destination, capacity, source, 0);
+}
+
+function pstrncpy(output, input, count)
+{
+    cc2_copy_bytes(output, input, count);
+    wi8(add(output, count), 0);
+    return output;
+}
+
+function tcc_basename_(name, current)
+{
+    current = name;
+    while (not(eq(ri8(current), 0))) {
+        current = add(current, 1);
+    }
+    while (lt(name, current)) {
+        if (or(eq(ri8(sub(current, 1)), mkC("/")),
+            eq(ri8(sub(current, 1)), mkC("\\")))) {
+            return current;
+        }
+        current = sub(current, 1);
+    }
+    return current;
+}
+
+function tcc_basename(name)
+{
+    return tcc_basename_(name, 0);
+}
+
+function tcc_fileextension_(name, current, extension)
+{
+    current = tcc_basename(name);
+    extension = 0;
+    while (not(eq(ri8(current), 0))) {
+        if (eq(ri8(current), mkC("."))) {
+            extension = current;
+        }
+        current = add(current, 1);
+    }
+    if (eq(extension, 0)) {
+        return current;
+    }
+    return extension;
+}
+
+function tcc_fileextension(name)
+{
+    return tcc_fileextension_(name, 0, 0);
+}
+
+function tcc_free(pointer)
+{
+    free(pointer);
+    return 0;
+}
+
+function tcc_malloc_(size, pointer)
+{
+    pointer = malloc(size);
+    if (and(eq(pointer, 0), not(eq(size, 0)))) {
+        tcc_error(mks("memory full (malloc)"), 0);
+    }
+    return pointer;
+}
+
+function tcc_malloc(size)
+{
+    return tcc_malloc_(size, 0);
+}
+
+function tcc_mallocz_(size, pointer)
+{
+    pointer = tcc_malloc(size);
+    if (not(eq(pointer, 0))) {
+        memset(pointer, 0, size);
+    }
+    return pointer;
+}
+
+function tcc_mallocz(size)
+{
+    return tcc_mallocz_(size, 0);
+}
+
+function tcc_realloc_(pointer, size, replacement)
+{
+    replacement = realloc(pointer, size);
+    if (and(eq(replacement, 0), not(eq(size, 0)))) {
+        tcc_error(mks("memory full (realloc)"), 0);
+    }
+    return replacement;
+}
+
+function tcc_realloc(pointer, size)
+{
+    return tcc_realloc_(pointer, size, 0);
+}
+
+function tcc_strdup_(text, length, copy)
+{
+    length = 0;
+    while (not(eq(ri8(add(text, length)), 0))) {
+        length = add(length, 1);
+    }
+    copy = tcc_malloc(add(length, 1));
+    cc2_copy_bytes(copy, text, add(length, 1));
+    return copy;
+}
+
+function tcc_strdup(text)
+{
+    return tcc_strdup_(text, 0, 0);
+}
+
+function tcc_memcheck()
+{
+    return 0;
 }
 
 function cc2_slice_equal_(left, right, length, index)

@@ -415,11 +415,6 @@ void initializer_copy_string(Section *sec, unsigned long offset,
     memcpy(sec->data + offset, source, count);
 }
 
-void cc2_pstrcpy(char *destination, int capacity, const char *source)
-{
-    pstrcpy(destination, capacity, source);
-}
-
 int cc2_tcc_open(TCCState *state, const char *filename)
 {
     return tcc_open(state, filename);

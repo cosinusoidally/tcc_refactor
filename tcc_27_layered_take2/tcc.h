@@ -1040,30 +1040,17 @@ ST_DATA int tcc_ext;
 ST_DATA struct TCCState *tcc_state;
 
 /* public functions currently used by the tcc main function */
-ST_FUNC char *pstrcpy(char *buf, int buf_size, const char *s);
-ST_FUNC char *pstrcat(char *buf, int buf_size, const char *s);
-ST_FUNC char *pstrncpy(char *out, const char *in, size_t num);
+extern char *pstrcpy(char *buf, int buf_size, const char *s);
+extern char *pstrcat(char *buf, int buf_size, const char *s);
+extern char *pstrncpy(char *out, const char *in, size_t num);
 PUB_FUNC char *tcc_basename(const char *name);
 PUB_FUNC char *tcc_fileextension (const char *name);
 
-#ifndef MEM_DEBUG
 PUB_FUNC void tcc_free(void *ptr);
 PUB_FUNC void *tcc_malloc(unsigned long size);
 PUB_FUNC void *tcc_mallocz(unsigned long size);
 PUB_FUNC void *tcc_realloc(void *ptr, unsigned long size);
 PUB_FUNC char *tcc_strdup(const char *str);
-#else
-#define tcc_free(ptr)           tcc_free_debug(ptr)
-#define tcc_malloc(size)        tcc_malloc_debug(size, __FILE__, __LINE__)
-#define tcc_mallocz(size)       tcc_mallocz_debug(size, __FILE__, __LINE__)
-#define tcc_realloc(ptr,size)   tcc_realloc_debug(ptr, size, __FILE__, __LINE__)
-#define tcc_strdup(str)         tcc_strdup_debug(str, __FILE__, __LINE__)
-PUB_FUNC void tcc_free_debug(void *ptr);
-PUB_FUNC void *tcc_malloc_debug(unsigned long size, const char *file, int line);
-PUB_FUNC void *tcc_mallocz_debug(unsigned long size, const char *file, int line);
-PUB_FUNC void *tcc_realloc_debug(void *ptr, unsigned long size, const char *file, int line);
-PUB_FUNC char *tcc_strdup_debug(const char *str, const char *file, int line);
-#endif
 
 #define free(p) use_tcc_free(p)
 #define malloc(s) use_tcc_malloc(s)
@@ -1417,7 +1404,6 @@ void struct_decl_fields(CType *type, int structure_kind, Sym *symbol,
 void struct_decl(CType *type, int structure_kind);
 extern int lvalue_type(int t);
 void decl_record_inline(Sym *sym);
-void cc2_pstrcpy(char *destination, int capacity, const char *source);
 int cc2_tcc_open(TCCState *state, const char *filename);
 void *cc2_toksym_alloc(int size);
 void cc2_format_token_integer(char *output, unsigned low, unsigned high);

@@ -41,28 +41,7 @@ function cc2_format_token_integer(output, low, high)
     return 0;
 }
 
-function tcc_realloc(pointer, size)
-{
-    return realloc(pointer, size);
-}
-
-function tcc_mallocz(size)
-{
-    var pointer;
-
-    pointer = malloc(size);
-    if (not(eq(pointer, 0))) {
-        memset(pointer, 0, size);
-    }
-    return pointer;
-}
-
 function tcc_set_options(state, text)
-{
-    return 0;
-}
-
-function cc2_pstrcpy(destination, capacity, source)
 {
     return 0;
 }
@@ -237,11 +216,6 @@ function tcc_add_dll(state, filename, flags)
     return sub(0, 1);
 }
 
-function tcc_basename(filename)
-{
-    return filename;
-}
-
 function tcc_add_file_internal(state, filename, flags)
 {
     return sub(0, 1);
@@ -250,12 +224,4 @@ function tcc_add_file_internal(state, filename, flags)
 function cc2_bind_tcc_globals(state)
 {
     return 0;
-}
-
-function tcc_fileextension(filename)
-{
-    while (not(eq(ri8(filename), 0))) {
-        filename = add(filename, 1);
-    }
-    return filename;
 }
