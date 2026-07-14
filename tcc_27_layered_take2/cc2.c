@@ -944,6 +944,14 @@ var CC2_I386_OPCODE_SIZE_COUNT;
 var CC2_I386_TEST_OPCODE_COUNT;
 var CC2_I386_TOKEN_PUSH;
 var CC2_I386_TOKEN_POP;
+var CC2_I386_TOKEN_WAIT;
+var CC2_I386_TOKEN_REPEAT_NOT_ZERO;
+var CC2_I386_TOKEN_ADD_BYTE;
+var CC2_I386_OPCODE_MODRM;
+var CC2_I386_OPCODE_REGISTER;
+var CC2_I386_OPCODE_SECONDARY_MAP;
+var CC2_I386_OPCODE_FLOAT_WAIT;
+var CC2_I386_OPCODE_GROUP_SHIFT;
 var CC2_SECTION_PREVIOUS_OFFSET;
 var CC2_ARCHIVE_DATE_OFFSET;
 var CC2_ARCHIVE_UID_OFFSET;
@@ -8603,6 +8611,363 @@ function cc2_i386_infer_size(opcode, instruction, operands, operand_count,
 {
     return cc2_i386_infer_size_(opcode, instruction, operands,
         operand_count, operand_types, size, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_i386_emit_opcode(state, opcode)
+{
+    var operands;
+    var operand_types;
+    var opcode_pointer;
+    var size_pointer;
+    var operand_count;
+    var segment_prefix;
+    var operand;
+    var instruction;
+    var size;
+    var instruction_type;
+    var value;
+    var index;
+    var modrm_index;
+    var modreg_index;
+    var reg;
+    var pc;
+    var expression;
+    var elf_symbol;
+    var section;
+    var displacement;
+    var accepted_type;
+    var descriptor;
+    var table;
+    operands = malloc(mul(3, CC2_I386_OPERAND_BYTES));
+    operand_types = malloc(mul(3, CC2_I386_WORD_BYTES));
+    opcode_pointer = malloc(CC2_I386_WORD_BYTES);
+    size_pointer = malloc(CC2_I386_WORD_BYTES);
+    operand_count = 0;
+    segment_prefix = 0;
+    if (and(le(CC2_I386_TOKEN_WAIT, opcode),
+        le(opcode, CC2_I386_TOKEN_REPEAT_NOT_ZERO))) {
+        unget_tok(mkC(";"));
+    }
+    while (and(not(eq(ri32(tok_address), mkC(";"))),
+        not(eq(ri32(tok_address), mkC("\n"))))) {
+        if (not(lt(operand_count, 3))) {
+            tcc_error(mks("incorrect number of operands"), 0);
+        }
+        operand = add(operands, mul(operand_count,
+            CC2_I386_OPERAND_BYTES));
+        parse_operand(state, operand);
+        if (eq(ri32(tok_address), mkC(":"))) {
+            if (or(not(eq(ri32(operand),
+                CC2_I386_TYPE_SEGMENT_REGISTER)), segment_prefix)) {
+                tcc_error(mks("incorrect prefix"), 0);
+            }
+            table = cc2_i386_segment_prefix_table();
+            segment_prefix = ri8(add(table, cc2_read_signed_byte(add(operand,
+                CC2_I386_OPERAND_REGISTER_OFFSET))));
+            next();
+            parse_operand(state, operand);
+            if (eq(and(ri32(operand),
+                CC2_I386_TYPE_EFFECTIVE_ADDRESS), 0)) {
+                tcc_error(mks("segment prefix must be followed by memory reference"), 0);
+            }
+        }
+        operand_count = add(operand_count, 1);
+        if (not(eq(ri32(tok_address), mkC(",")))) {
+            break;
+        }
+        next();
+    }
+    wi32(opcode_pointer, opcode);
+    instruction = cc2_i386_find_instruction(opcode_pointer, operands,
+        operand_count, operand_types, size_pointer);
+    opcode = ri32(opcode_pointer);
+    if (eq(instruction, 0)) {
+        free(size_pointer);
+        free(opcode_pointer);
+        free(operand_types);
+        free(operands);
+        return 0;
+    }
+    size = cc2_i386_infer_size(opcode, instruction, operands,
+        operand_count, operand_types, ri32(size_pointer));
+    instruction_type = cc2_read_little_u16(add(instruction,
+        CC2_I386_INSTRUCTION_TYPE_OFFSET));
+    if (eq(and(instruction_type, CC2_I386_OPCODE_TYPE_MASK),
+        CC2_I386_OPCODE_FLOAT_WAIT)) {
+        g(155);
+    }
+    if (segment_prefix) {
+        g(segment_prefix);
+    }
+    value = cc2_read_little_u16(add(instruction,
+        CC2_I386_INSTRUCTION_OPCODE_OFFSET));
+    if (and(instruction_type, CC2_I386_OPCODE_SECONDARY_MAP)) {
+        value = or(shl(and(value, bnot(255)), 8),
+            or(3840, and(value, 255)));
+    }
+    if (and(or(eq(value, 105), eq(value, 107)),
+        eq(operand_count, 2))) {
+        memcpy(add(operands, mul(2, CC2_I386_OPERAND_BYTES)),
+            add(operands, CC2_I386_OPERAND_BYTES),
+            CC2_I386_OPERAND_BYTES);
+        wi32(add(operand_types, 8), ri32(add(operand_types, 4)));
+        operand_count = 3;
+    } else if (and(eq(value, 205), and(eq(ri32(add(operands,
+        CC2_I386_OPERAND_EXPRESSION_OFFSET)), 3), eq(ri32(add(operands,
+        add(CC2_I386_OPERAND_EXPRESSION_OFFSET,
+        CC2_ASM_EXPRESSION_SYMBOL_OFFSET))), 0)))) {
+        value = sub(value, 1);
+        operand_count = 0;
+    } else if (or(eq(value, 6), eq(value, 7))) {
+        reg = cc2_read_signed_byte(add(operands,
+            CC2_I386_OPERAND_REGISTER_OFFSET));
+        if (le(4, reg)) {
+            value = add(4000, add(sub(value, 6), shl(sub(reg, 4), 3)));
+        } else {
+            value = add(value, shl(reg, 3));
+        }
+        operand_count = 0;
+    } else if (le(value, 5)) {
+        value = add(value, shl(sdiv(sub(opcode,
+            CC2_I386_TOKEN_ADD_BYTE), CC2_I386_OPCODE_SIZE_COUNT), 3));
+    } else if (eq(and(instruction_type, or(CC2_I386_OPCODE_TYPE_MASK,
+        CC2_I386_OPCODE_MODRM)), CC2_I386_OPCODE_FLOAT_ARITHMETIC)) {
+        value = add(value, shl(sdiv(sub(opcode,
+            cc2_read_little_u16(add(instruction,
+            CC2_I386_INSTRUCTION_SYMBOL_OFFSET))), 6), 3));
+    }
+    modrm_index = sub(0, 1);
+    modreg_index = sub(0, 1);
+    if (and(instruction_type, CC2_I386_OPCODE_MODRM)) {
+        if (eq(operand_count, 0)) {
+            wi32(operands, CC2_I386_OPERAND_REGISTER_TYPE_MASK);
+            wi8(add(operands, CC2_I386_OPERAND_REGISTER_OFFSET), 0);
+            modrm_index = 0;
+        } else {
+            index = 0;
+            while (lt(index, operand_count)) {
+                if (and(ri32(add(operand_types, shl(index, 2))),
+                    CC2_I386_TYPE_EFFECTIVE_ADDRESS)) {
+                    modrm_index = index;
+                    index = operand_count;
+                } else {
+                    index = add(index, 1);
+                }
+            }
+            if (lt(modrm_index, 0)) {
+                index = 0;
+                while (lt(index, operand_count)) {
+                    accepted_type = ri32(add(operand_types, shl(index, 2)));
+                    if (not(eq(and(accepted_type, or(
+                        CC2_I386_OPERAND_REGISTER_TYPE_MASK,
+                        CC2_I386_TYPE_INDIRECT)), 0))) {
+                        modrm_index = index;
+                        index = operand_count;
+                    } else {
+                        index = add(index, 1);
+                    }
+                }
+            }
+        }
+        index = 0;
+        while (lt(index, operand_count)) {
+            accepted_type = ri32(add(operand_types, shl(index, 2)));
+            if (and(not(eq(index, modrm_index)), not(eq(and(accepted_type,
+                511), 0)))) {
+                modreg_index = index;
+                index = operand_count;
+            } else {
+                index = add(index, 1);
+            }
+        }
+    }
+    if (and(instruction_type, CC2_I386_OPCODE_REGISTER)) {
+        if (and(eq(value, 176), le(1, size))) {
+            value = add(value, 7);
+        }
+        index = 0;
+        while (lt(index, operand_count)) {
+            accepted_type = ri32(add(operand_types, shl(index, 2)));
+            if (not(eq(and(accepted_type, or(
+                CC2_I386_OPERAND_REGISTER_TYPE_MASK,
+                CC2_I386_TYPE_FPU_REGISTER)), 0))) {
+                value = add(value, cc2_read_signed_byte(add(operands,
+                    add(mul(index, CC2_I386_OPERAND_BYTES),
+                    CC2_I386_OPERAND_REGISTER_OFFSET))));
+                index = operand_count;
+            } else {
+                index = add(index, 1);
+            }
+        }
+    }
+    if (and(instruction_type, CC2_I386_OPCODE_BYTE)) {
+        if (le(1, size)) {
+            value = add(value, 1);
+        }
+    }
+    descriptor = ri8(add(instruction,
+        CC2_I386_INSTRUCTION_OPERAND_TYPES_OFFSET));
+    if (and(eq(operand_count, 1), eq(descriptor,
+        CC2_I386_OPERAND_DESCRIPTOR_SHORT_DISPLACEMENT))) {
+        expression = add(operands, CC2_I386_OPERAND_EXPRESSION_OFFSET);
+        elf_symbol = elfsym(ri32(add(expression,
+            CC2_ASM_EXPRESSION_SYMBOL_OFFSET)));
+        section = ri32(cur_text_section_address);
+        if (not(eq(elf_symbol, 0))) {
+            if (eq(cc2_read_little_u16(add(elf_symbol,
+                CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), ri32(add(section,
+                CC2_SECTION_NUMBER_OFFSET)))) {
+                displacement = sub(sub(add(ri32(expression), ri32(add(
+                    elf_symbol, CC2_ELF_SYMBOL_VALUE_OFFSET))), ind), 2);
+                if (le(255, value)) {
+                    displacement = sub(displacement, 1);
+                }
+                if (eq(displacement,
+                    cc2_read_signed_byte(expression))) {
+                    wi32(add(expression,
+                        CC2_ASM_EXPRESSION_SYMBOL_OFFSET), 0);
+                    wi32(expression, displacement);
+                    wi32(operand_types,
+                        CC2_I386_TYPE_IMMEDIATE_SIGNED_8);
+                } else {
+                    elf_symbol = 0;
+                }
+            } else {
+                elf_symbol = 0;
+            }
+        }
+        if (eq(elf_symbol, 0)) {
+            if (eq(value, 235)) {
+                value = 233;
+            } else if (eq(value, 112)) {
+                value = add(value, 3856);
+            } else {
+                tcc_error(mks("invalid displacement"), 0);
+            }
+        }
+    }
+    if (eq(and(instruction_type, CC2_I386_OPCODE_TYPE_MASK),
+        CC2_I386_OPCODE_TEST)) {
+        table = cc2_i386_test_bit_table();
+        value = add(value, ri8(add(table, sub(opcode,
+            cc2_read_little_u16(add(instruction,
+            CC2_I386_INSTRUCTION_SYMBOL_OFFSET))))));
+    }
+    if (shr(value, 16)) {
+        g(shr(value, 16));
+    }
+    if (and(shr(value, 8), 255)) {
+        g(and(shr(value, 8), 255));
+    }
+    g(value);
+    if (eq(and(instruction_type, CC2_I386_OPCODE_TYPE_MASK),
+        CC2_I386_OPCODE_SHIFT)) {
+        reg = sdiv(sub(opcode, cc2_read_little_u16(add(instruction,
+            CC2_I386_INSTRUCTION_SYMBOL_OFFSET))),
+            CC2_I386_OPCODE_SIZE_COUNT);
+        if (eq(reg, 6)) {
+            reg = 7;
+        }
+    } else if (eq(and(instruction_type, CC2_I386_OPCODE_TYPE_MASK),
+        CC2_I386_OPCODE_ARITHMETIC)) {
+        reg = sdiv(sub(opcode, cc2_read_little_u16(add(instruction,
+            CC2_I386_INSTRUCTION_SYMBOL_OFFSET))),
+            CC2_I386_OPCODE_SIZE_COUNT);
+    } else if (eq(and(instruction_type, CC2_I386_OPCODE_TYPE_MASK),
+        CC2_I386_OPCODE_FLOAT_ARITHMETIC)) {
+        reg = sdiv(sub(opcode, cc2_read_little_u16(add(instruction,
+            CC2_I386_INSTRUCTION_SYMBOL_OFFSET))), 6);
+    } else {
+        reg = and(shr(instruction_type,
+            CC2_I386_OPCODE_GROUP_SHIFT), 7);
+    }
+    pc = 0;
+    if (and(instruction_type, CC2_I386_OPCODE_MODRM)) {
+        if (le(0, modreg_index)) {
+            reg = cc2_read_signed_byte(add(operands,
+                add(mul(modreg_index, CC2_I386_OPERAND_BYTES),
+                CC2_I386_OPERAND_REGISTER_OFFSET)));
+        }
+        pc = asm_modrm(reg, add(operands,
+            mul(modrm_index, CC2_I386_OPERAND_BYTES)));
+    }
+    value = cc2_read_little_u16(add(instruction,
+        CC2_I386_INSTRUCTION_OPCODE_OFFSET));
+    if (and(eq(and(instruction_type,
+        CC2_I386_OPCODE_SECONDARY_MAP), 0), or(eq(value, 154),
+        eq(value, 234)))) {
+        gen_expr32(add(operands, add(CC2_I386_OPERAND_BYTES,
+            CC2_I386_OPERAND_EXPRESSION_OFFSET)), 0, 0);
+        expression = add(operands, CC2_I386_OPERAND_EXPRESSION_OFFSET);
+        if (ri32(add(expression, CC2_ASM_EXPRESSION_SYMBOL_OFFSET))) {
+            tcc_error(mks("cannot relocate"), 0);
+        }
+        gen_le16(ri32(expression));
+        operand_count = 0;
+    }
+    index = 0;
+    while (lt(index, operand_count)) {
+        accepted_type = ri32(add(operand_types, shl(index, 2)));
+        if (not(eq(and(accepted_type, or(CC2_I386_TYPE_IMMEDIATE_8,
+            or(CC2_I386_TYPE_IMMEDIATE_SIGNED_8,
+            or(CC2_I386_TYPE_IMMEDIATE_16,
+            or(CC2_I386_TYPE_IMMEDIATE_32,
+            CC2_I386_TYPE_ADDRESS))))), 0))) {
+            if (eq(or(accepted_type, CC2_I386_TYPE_IMMEDIATE_8),
+                or(CC2_I386_TYPE_IMMEDIATE_8,
+                or(CC2_I386_TYPE_IMMEDIATE_16,
+                CC2_I386_TYPE_IMMEDIATE_32)))) {
+                if (eq(size, 0)) {
+                    accepted_type = CC2_I386_TYPE_IMMEDIATE_8;
+                } else if (eq(size, 1)) {
+                    accepted_type = CC2_I386_TYPE_IMMEDIATE_16;
+                } else {
+                    accepted_type = CC2_I386_TYPE_IMMEDIATE_32;
+                }
+            }
+            expression = add(operands, add(mul(index,
+                CC2_I386_OPERAND_BYTES),
+                CC2_I386_OPERAND_EXPRESSION_OFFSET));
+            if (and(not(eq(and(accepted_type, or(
+                CC2_I386_TYPE_IMMEDIATE_8,
+                or(CC2_I386_TYPE_IMMEDIATE_SIGNED_8,
+                CC2_I386_TYPE_IMMEDIATE_16))), 0)), ri32(add(expression,
+                CC2_ASM_EXPRESSION_SYMBOL_OFFSET)))) {
+                tcc_error(mks("cannot relocate"), 0);
+            }
+            if (not(eq(and(accepted_type, or(
+                CC2_I386_TYPE_IMMEDIATE_8,
+                CC2_I386_TYPE_IMMEDIATE_SIGNED_8)), 0))) {
+                g(ri32(expression));
+            } else if (and(accepted_type,
+                CC2_I386_TYPE_IMMEDIATE_16)) {
+                gen_le16(ri32(expression));
+            } else {
+                descriptor = ri8(add(instruction, add(
+                    CC2_I386_INSTRUCTION_OPERAND_TYPES_OFFSET, index)));
+                if (or(eq(and(descriptor, 31),
+                    CC2_I386_OPERAND_DESCRIPTOR_DISPLACEMENT),
+                    eq(and(descriptor, 31),
+                    CC2_I386_OPERAND_DESCRIPTOR_SHORT_DISPLACEMENT))) {
+                    gen_disp32(expression);
+                } else {
+                    gen_expr32(expression, 0, 0);
+                }
+            }
+        }
+        index = add(index, 1);
+    }
+    if (pc) {
+        section = ri32(cur_text_section_address);
+        expression = add(ri32(add(section, CC2_SECTION_DATA_OFFSET)),
+            sub(pc, 4));
+        wi32(expression, add(ri32(expression), sub(pc, ind)));
+    }
+    free(size_pointer);
+    free(opcode_pointer);
+    free(operand_types);
+    free(operands);
+    return 0;
 }
 
 function gen_disp32_(expression, symbol, elf_symbol, section, value,
@@ -24186,6 +24551,14 @@ function cc2_init_constants()
     CC2_I386_TEST_OPCODE_COUNT = 30;
     CC2_I386_TOKEN_PUSH = 634;
     CC2_I386_TOKEN_POP = 637;
+    CC2_I386_TOKEN_WAIT = 951;
+    CC2_I386_TOKEN_REPEAT_NOT_ZERO = 961;
+    CC2_I386_TOKEN_ADD_BYTE = 526;
+    CC2_I386_OPCODE_MODRM = 8;
+    CC2_I386_OPCODE_REGISTER = 4;
+    CC2_I386_OPCODE_SECONDARY_MAP = 256;
+    CC2_I386_OPCODE_FLOAT_WAIT = 16;
+    CC2_I386_OPCODE_GROUP_SHIFT = 13;
     CC2_SECTION_PREVIOUS_OFFSET = 68;
     CC2_ARCHIVE_DATE_OFFSET = 16;
     CC2_ARCHIVE_UID_OFFSET = 28;
