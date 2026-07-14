@@ -145,6 +145,9 @@ var CC2_TOKEN_UNSIGNED_GREATER_EQUAL;
 var CC2_TOKEN_EQUAL;
 var CC2_TOKEN_NOT_EQUAL;
 var CC2_TOKEN_UNSIGNED_LESS_EQUAL;
+var CC2_TOKEN_LESS;
+var CC2_TOKEN_GREATER_EQUAL;
+var CC2_TOKEN_LESS_EQUAL;
 var CC2_TOKEN_GREATER;
 var CC2_TOKEN_LOGICAL_AND;
 var CC2_TOKEN_LOGICAL_OR;
@@ -21715,6 +21718,316 @@ function gen_opic_power_shift()
     return shift;
 }
 
+function cc2_u32_less(left, right)
+{
+    return lt(xor(left, CC2_SIGNED_INT_LIMIT_LOW),
+        xor(right, CC2_SIGNED_INT_LIMIT_LOW));
+}
+
+function cc2_u64_less(left_low, left_high, right_low, right_high)
+{
+    if (not(eq(left_high, right_high))) {
+        return cc2_u32_less(left_high, right_high);
+    }
+    return cc2_u32_less(left_low, right_low);
+}
+
+function cc2_u64_multiply(left_low, left_high, right_low, right_high,
+    result)
+{
+    var output_low;
+    var output_high;
+    var carry;
+    var index;
+    output_low = 0;
+    output_high = 0;
+    index = 0;
+    while (lt(index, 64)) {
+        if (and(right_low, 1)) {
+            carry = cc2_u32_less(add(output_low, left_low), output_low);
+            output_low = add(output_low, left_low);
+            output_high = add(add(output_high, left_high), carry);
+        }
+        left_high = or(shl(left_high, 1), ushr(left_low, 31));
+        left_low = shl(left_low, 1);
+        right_low = or(ushr(right_low, 1), shl(right_high, 31));
+        right_high = ushr(right_high, 1);
+        index = add(index, 1);
+    }
+    wi32(result, output_low);
+    wi32(add(result, 4), output_high);
+    return 0;
+}
+
+function cc2_u64_divide(dividend_low, dividend_high, divisor_low,
+    divisor_high, result)
+{
+    var quotient_low;
+    var quotient_high;
+    var remainder_low;
+    var remainder_high;
+    var top_bit;
+    var borrow;
+    var index;
+    quotient_low = 0;
+    quotient_high = 0;
+    remainder_low = 0;
+    remainder_high = 0;
+    index = 0;
+    while (lt(index, 64)) {
+        top_bit = ushr(dividend_high, 31);
+        dividend_high = or(shl(dividend_high, 1), ushr(dividend_low, 31));
+        dividend_low = shl(dividend_low, 1);
+        remainder_high = or(shl(remainder_high, 1),
+            ushr(remainder_low, 31));
+        remainder_low = or(shl(remainder_low, 1), top_bit);
+        quotient_high = or(shl(quotient_high, 1), ushr(quotient_low, 31));
+        quotient_low = shl(quotient_low, 1);
+        if (not(cc2_u64_less(remainder_low, remainder_high, divisor_low,
+            divisor_high))) {
+            borrow = cc2_u32_less(remainder_low, divisor_low);
+            remainder_low = sub(remainder_low, divisor_low);
+            remainder_high = sub(sub(remainder_high, divisor_high), borrow);
+            quotient_low = or(quotient_low, 1);
+        }
+        index = add(index, 1);
+    }
+    wi32(result, quotient_low);
+    wi32(add(result, 4), quotient_high);
+    wi32(add(result, 8), remainder_low);
+    wi32(add(result, 12), remainder_high);
+    return 0;
+}
+
+function cc2_u64_negate(words)
+{
+    var low;
+    low = add(bnot(ri32(words)), 1);
+    wi32(words, low);
+    wi32(add(words, 4), add(bnot(ri32(add(words, 4))), eq(low, 0)));
+    return 0;
+}
+
+function gen_opic_fold_constant(operation)
+{
+    var first;
+    var second;
+    var first_type;
+    var second_type;
+    var first_low;
+    var first_high;
+    var second_low;
+    var second_high;
+    var result;
+    var carry;
+    var borrow;
+    var shift;
+    var sign_first;
+    var sign_second;
+    var truth;
+    first = sub(vtop, CC2_SVALUE_BYTES);
+    second = vtop;
+    first_type = ri32(first);
+    second_type = ri32(second);
+    first_low = ri32(add(first, CC2_SVALUE_CONSTANT_OFFSET));
+    first_high = ri32(add(first, add(CC2_SVALUE_CONSTANT_OFFSET, 4)));
+    second_low = ri32(add(second, CC2_SVALUE_CONSTANT_OFFSET));
+    second_high = ri32(add(second, add(CC2_SVALUE_CONSTANT_OFFSET, 4)));
+    if (not(eq(and(first_type, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE))) {
+        if (and(first_type, CC2_TCC_UNSIGNED_TYPE)) {
+            first_high = 0;
+        } else if (lt(first_low, 0)) {
+            first_high = sub(0, 1);
+        } else {
+            first_high = 0;
+        }
+    }
+    if (not(eq(and(second_type, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE))) {
+        if (and(second_type, CC2_TCC_UNSIGNED_TYPE)) {
+            second_high = 0;
+        } else if (lt(second_low, 0)) {
+            second_high = sub(0, 1);
+        } else {
+            second_high = 0;
+        }
+    }
+    result = malloc(16);
+    if (eq(operation, CC2_ASCII_PLUS)) {
+        first_high = add(add(first_high, second_high),
+            cc2_u32_less(add(first_low, second_low), first_low));
+        first_low = add(first_low, second_low);
+    } else if (eq(operation, CC2_ASCII_MINUS)) {
+        borrow = cc2_u32_less(first_low, second_low);
+        first_low = sub(first_low, second_low);
+        first_high = sub(sub(first_high, second_high), borrow);
+    } else if (eq(operation, CC2_ASCII_AMPERSAND)) {
+        first_low = and(first_low, second_low);
+        first_high = and(first_high, second_high);
+    } else if (eq(operation, CC2_ASCII_CARET)) {
+        first_low = xor(first_low, second_low);
+        first_high = xor(first_high, second_high);
+    } else if (eq(operation, CC2_ASCII_VERTICAL_BAR)) {
+        first_low = or(first_low, second_low);
+        first_high = or(first_high, second_high);
+    } else if (eq(operation, CC2_ASCII_ASTERISK)) {
+        cc2_u64_multiply(first_low, first_high, second_low, second_high,
+            result);
+        first_low = ri32(result);
+        first_high = ri32(add(result, 4));
+    } else if (or(or(eq(operation, CC2_ASCII_SLASH),
+        eq(operation, CC2_ASCII_PERCENT)), or(or(eq(operation,
+        CC2_TOKEN_POINTER_DIVIDE), eq(operation, CC2_TOKEN_UNSIGNED_DIVIDE)),
+        eq(operation, CC2_TOKEN_UNSIGNED_MODULO)))) {
+        if (and(eq(second_low, 0), eq(second_high, 0))) {
+            free(result);
+            if (const_wanted) {
+                tcc_error(mks("division by zero in constant"), 0);
+            }
+            return 0;
+        }
+        sign_first = 0;
+        sign_second = 0;
+        wi32(result, first_low);
+        wi32(add(result, 4), first_high);
+        if (and(or(eq(operation, CC2_ASCII_SLASH), eq(operation,
+            CC2_ASCII_PERCENT)), lt(first_high, 0))) {
+            sign_first = 1;
+            cc2_u64_negate(result);
+        }
+        first_low = ri32(result);
+        first_high = ri32(add(result, 4));
+        wi32(result, second_low);
+        wi32(add(result, 4), second_high);
+        if (and(or(eq(operation, CC2_ASCII_SLASH), eq(operation,
+            CC2_ASCII_PERCENT)), lt(second_high, 0))) {
+            sign_second = 1;
+            cc2_u64_negate(result);
+        }
+        cc2_u64_divide(first_low, first_high, ri32(result),
+            ri32(add(result, 4)), result);
+        if (or(eq(operation, CC2_ASCII_PERCENT),
+            eq(operation, CC2_TOKEN_UNSIGNED_MODULO))) {
+            first_low = ri32(add(result, 8));
+            first_high = ri32(add(result, 12));
+            if (sign_first) {
+                wi32(result, first_low);
+                wi32(add(result, 4), first_high);
+                cc2_u64_negate(result);
+                first_low = ri32(result);
+                first_high = ri32(add(result, 4));
+            }
+        } else {
+            first_low = ri32(result);
+            first_high = ri32(add(result, 4));
+            if (not(eq(sign_first, sign_second))) {
+                cc2_u64_negate(result);
+                first_low = ri32(result);
+                first_high = ri32(add(result, 4));
+            }
+        }
+    } else if (or(or(eq(operation, CC2_TOKEN_SHIFT_LEFT),
+        eq(operation, CC2_TOKEN_UNSIGNED_SHIFT_RIGHT)),
+        eq(operation, CC2_TOKEN_SHIFT_RIGHT))) {
+        if (eq(and(first_type, CC2_TCC_BASIC_TYPE_MASK),
+            CC2_TCC_LONG_LONG_TYPE)) {
+            shift = and(second_low, 63);
+        } else {
+            shift = and(second_low, 31);
+        }
+        if (eq(operation, CC2_TOKEN_SHIFT_LEFT)) {
+            if (not(eq(shift, 0))) {
+                if (lt(shift, 32)) {
+                    first_high = or(shl(first_high, shift),
+                        ushr(first_low, sub(32, shift)));
+                    first_low = shl(first_low, shift);
+                } else {
+                    first_high = shl(first_low, sub(shift, 32));
+                    first_low = 0;
+                }
+            }
+        } else if (not(eq(shift, 0))) {
+            if (lt(shift, 32)) {
+                first_low = or(ushr(first_low, shift),
+                    shl(first_high, sub(32, shift)));
+                if (eq(operation, CC2_TOKEN_SHIFT_RIGHT)) {
+                    first_high = shr(first_high, shift);
+                } else {
+                    first_high = ushr(first_high, shift);
+                }
+            } else {
+                if (eq(operation, CC2_TOKEN_SHIFT_RIGHT)) {
+                    first_low = shr(first_high, sub(shift, 32));
+                    if (lt(first_high, 0)) {
+                        first_high = sub(0, 1);
+                    } else {
+                        first_high = 0;
+                    }
+                } else {
+                    first_low = ushr(first_high, sub(shift, 32));
+                    first_high = 0;
+                }
+            }
+        }
+    } else {
+        truth = sub(0, 1);
+        if (eq(operation, CC2_TOKEN_UNSIGNED_LESS)) {
+            truth = cc2_u64_less(first_low, first_high, second_low, second_high);
+        } else if (eq(operation, CC2_TOKEN_UNSIGNED_GREATER_EQUAL)) {
+            truth = not(cc2_u64_less(first_low, first_high, second_low,
+                second_high));
+        } else if (eq(operation, CC2_TOKEN_EQUAL)) {
+            truth = and(eq(first_low, second_low), eq(first_high, second_high));
+        } else if (eq(operation, CC2_TOKEN_NOT_EQUAL)) {
+            truth = not(and(eq(first_low, second_low),
+                eq(first_high, second_high)));
+        } else if (eq(operation, CC2_TOKEN_UNSIGNED_LESS_EQUAL)) {
+            truth = not(cc2_u64_less(second_low, second_high, first_low,
+                first_high));
+        } else if (eq(operation, CC2_TOKEN_UNSIGNED_GREATER)) {
+            truth = cc2_u64_less(second_low, second_high, first_low, first_high);
+        } else if (eq(operation, CC2_TOKEN_LESS)) {
+            truth = or(lt(first_high, second_high), and(eq(first_high,
+                second_high), cc2_u32_less(first_low, second_low)));
+        } else if (eq(operation, CC2_TOKEN_GREATER_EQUAL)) {
+            truth = not(or(lt(first_high, second_high), and(eq(first_high,
+                second_high), cc2_u32_less(first_low, second_low))));
+        } else if (eq(operation, CC2_TOKEN_LESS_EQUAL)) {
+            truth = not(or(lt(second_high, first_high), and(eq(first_high,
+                second_high), cc2_u32_less(second_low, first_low))));
+        } else if (eq(operation, CC2_TOKEN_GREATER)) {
+            truth = or(lt(second_high, first_high), and(eq(first_high,
+                second_high), cc2_u32_less(second_low, first_low)));
+        } else if (eq(operation, CC2_TOKEN_LOGICAL_AND)) {
+            truth = and(or(first_low, first_high), or(second_low, second_high));
+        } else if (eq(operation, CC2_TOKEN_LOGICAL_OR)) {
+            truth = or(or(first_low, first_high), or(second_low, second_high));
+        }
+        if (lt(truth, 0)) {
+            free(result);
+            return 0;
+        }
+        first_low = truth;
+        first_high = 0;
+    }
+    free(result);
+    if (not(eq(and(first_type, CC2_TCC_BASIC_TYPE_MASK),
+        CC2_TCC_LONG_LONG_TYPE))) {
+        if (and(first_type, CC2_TCC_UNSIGNED_TYPE)) {
+            first_high = 0;
+        } else if (lt(first_low, 0)) {
+            first_high = sub(0, 1);
+        } else {
+            first_high = 0;
+        }
+    }
+    wi32(add(first, CC2_SVALUE_CONSTANT_OFFSET), first_low);
+    wi32(add(first, add(CC2_SVALUE_CONSTANT_OFFSET, 4)), first_high);
+    vtop = first;
+    return 1;
+}
+
 function gen_opic_merge_addend(operation)
 {
     var left;
@@ -26583,6 +26896,9 @@ function cc2_init_constants()
     CC2_TOKEN_EQUAL = 148;
     CC2_TOKEN_NOT_EQUAL = 149;
     CC2_TOKEN_UNSIGNED_LESS_EQUAL = 150;
+    CC2_TOKEN_LESS = 156;
+    CC2_TOKEN_GREATER_EQUAL = 157;
+    CC2_TOKEN_LESS_EQUAL = 158;
     CC2_TOKEN_GREATER = 159;
     CC2_TOKEN_LOGICAL_AND = 160;
     CC2_TOKEN_LOGICAL_OR = 161;
