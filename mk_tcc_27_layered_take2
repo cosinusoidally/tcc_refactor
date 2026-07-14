@@ -14,6 +14,17 @@ CRTN=$(gcc -m32 -print-file-name=crtn.o)
 HOST_LIBC=$(gcc -m32 -print-file-name=libc.so)
 HOST_LIBGCC=$(gcc -m32 -print-file-name=libgcc.a)
 
+# The published layered executable uses the same runtime-only link as the
+# JavaScript bootstrap path, independent of the native validation CRT above.
+RUNTIME_LIBDIR=/lib/i386-linux-gnu
+if test ! -f "$RUNTIME_LIBDIR/libc.so.6"; then
+    RUNTIME_LIBDIR=/usr/lib/i386-linux-gnu
+fi
+RUNTIME_LIBC=$RUNTIME_LIBDIR/libc.so.6
+RUNTIME_LIBM=$RUNTIME_LIBDIR/libm.so.6
+RUNTIME_LIBDL=$RUNTIME_LIBDIR/libdl.so.2
+test -f "$RUNTIME_LIBC" -a -f "$RUNTIME_LIBM" -a -f "$RUNTIME_LIBDL"
+
 # Keep stable local runtime names for compiler paths that perform discovery.
 ln -s "$CRT1" crt1.o
 ln -s "$CRTI" crti.o
@@ -211,11 +222,28 @@ chmod +x cc2_compile_smoke.exe
 chmod +x cc2_typed_smoke.exe
 ./cc2_typed_smoke.exe
 
-# The compiler under compatibility test is a real component link.  cc2 built
-# every compiler-owned object used here; only the low-level runtime is native C.
-./cc2.exe -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
-    cc0.o cc1.o cc2.o tcc_rest.o libtcc1_layered_take2_2.o \
-    "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+# Publish the same full-cc2 rebuild as mk_tcc_layered_via_cc0.  Earlier staged
+# objects remain useful validation inputs but are not part of the final image.
+./cc0.exe -c ../tcc_27_layered_take2/crt1.c -o crt1_layered.o
+./cc2.exe -nostdinc -c ../tcc_27_layered_take2/prims.c -o prims_final.o
+./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take2/cc0.c \
+    -o cc0_final.o
+./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take2/cc1.c \
+    -o cc1_final.o
+./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take2/cc2.c \
+    -o cc2_final.o
+./cc2.exe -nostdinc -c ../tcc_27_layered_take2/cc2_runtime.c \
+    -o cc2_runtime_final.o
+./cc2.exe \
+    -nostdinc \
+    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
+    -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ \
+    -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ \
+    -o tcc_rest_final.o
+./cc2.exe -nostdlib crt1_layered.o \
+    prims_final.o cc0_final.o cc1_final.o cc2_final.o tcc_rest_final.o \
+    cc2_runtime_final.o \
+    "$RUNTIME_LIBC" "$RUNTIME_LIBM" "$RUNTIME_LIBDL" \
     -o tcc_layered.exe
 chmod +x tcc_layered.exe
 mv tcc_27_layered_take2 tcc_27_layered_take2_monolithic
