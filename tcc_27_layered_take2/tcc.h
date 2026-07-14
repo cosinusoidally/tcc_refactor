@@ -1753,6 +1753,7 @@ ST_FUNC int tcc_tool_ar(TCCState *s, int argc, char **argv);
 ST_FUNC int tcc_tool_impdef(TCCState *s, int argc, char **argv);
 #endif
 #endif
+extern int tcc_tool_ar(TCCState *s, int argc, char **argv);
 extern void tcc_tool_cross(TCCState *s, char **argv, int option);
 extern void gen_makedeps(TCCState *s, const char *target, const char *filename);
 

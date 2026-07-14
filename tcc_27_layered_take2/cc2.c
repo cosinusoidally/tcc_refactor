@@ -828,6 +828,13 @@ var CC2_LINKER_TOKEN_EOF;
 var CC2_LINKER_COMMAND_BYTES;
 var CC2_LINKER_FILENAME_BYTES;
 var CC2_BINARY_FILE_FLAG;
+var CC2_ARCHIVE_DATE_OFFSET;
+var CC2_ARCHIVE_UID_OFFSET;
+var CC2_ARCHIVE_GID_OFFSET;
+var CC2_ARCHIVE_MODE_OFFSET;
+var CC2_ARCHIVE_MAGIC_OFFSET;
+var CC2_ARCHIVE_MEMBER_NAME_LIMIT;
+var CC2_ARCHIVE_MODE_TEXT_BYTES;
 var CC2_ELF_SECTION_HEADER_NAME_OFFSET;
 var CC2_ELF_SECTION_HEADER_FLAGS_OFFSET;
 var CC2_ELF_SECTION_HEADER_INFO_OFFSET;
@@ -6176,6 +6183,331 @@ function gen_makedeps(state, target, filename)
     fclose(output);
     free(allocated_filename);
     return 0;
+}
+
+function cc2_ar_big_endian_word(value)
+{
+    return or(or(shl(and(value, 255), 24),
+        shl(and(ushr(value, 8), 255), 16)),
+        or(shl(and(ushr(value, 16), 255), 8),
+        and(ushr(value, 24), 255)));
+}
+
+function cc2_ar_new_header()
+{
+    var header;
+    header = malloc(CC2_ARCHIVE_HEADER_BYTES);
+    memset(header, mkC(" "), CC2_ARCHIVE_HEADER_BYTES);
+    wi8(add(header, CC2_ARCHIVE_UID_OFFSET), mkC("0"));
+    wi8(add(header, CC2_ARCHIVE_GID_OFFSET), mkC("0"));
+    wi8(add(header, CC2_ARCHIVE_MODE_OFFSET), mkC("0"));
+    wi8(add(header, CC2_ARCHIVE_MAGIC_OFFSET), mkC("`"));
+    wi8(add(header, add(CC2_ARCHIVE_MAGIC_OFFSET, 1)),
+        CC2_CHARACTER_LINE_FEED);
+    return header;
+}
+
+function cc2_ar_set_size(header, size, text)
+{
+    snprintf(text, 20, mks("%-10d"), size);
+    memcpy(add(header, CC2_ARCHIVE_SIZE_OFFSET), text,
+        CC2_ARCHIVE_SIZE_BYTES);
+    return 0;
+}
+
+function cc2_ar_usage(result)
+{
+    puts(mks("usage: tcc -ar [rcsv] lib file..."));
+    puts(mks("create library ([abdioptxN] not supported)."));
+    return result;
+}
+
+/* Build a Unix archive and its big-endian ELF symbol index without GNU ar. */
+function tcc_tool_ar(state, argument_count, arguments)
+{
+    var library_index;
+    var object_index;
+    var index;
+    var argument;
+    var result;
+    var failed;
+    var verbose;
+    var archive;
+    var temporary;
+    var input;
+    var temporary_name;
+    var symbol_header;
+    var member_header;
+    var size_text;
+    var buffer;
+    var file_size;
+    var header;
+    var section_headers;
+    var section_names;
+    var section_count;
+    var section_index;
+    var section_header;
+    var symbol_table;
+    var symbol_table_size;
+    var string_table;
+    var symbol_count;
+    var symbol;
+    var symbol_name;
+    var symbol_name_size;
+    var symbol_names;
+    var symbol_names_size;
+    var member_offsets;
+    var member_offset_capacity;
+    var exported_symbol_count;
+    var temporary_offset;
+    var member_name;
+    var member_name_size;
+    var header_size;
+    var padding;
+    library_index = 0;
+    object_index = 0;
+    result = 2;
+    failed = 0;
+    verbose = 0;
+    index = 1;
+    while (lt(index, argument_count)) {
+        argument = ri32(add(arguments, shl(index, 2)));
+        if (and(eq(ri8(argument), mkC("-")),
+            not(eq(strstr(argument, mks(".")), 0)))) {
+            result = 1;
+        }
+        if (or(eq(ri8(argument), mkC("-")), and(eq(index, 1),
+            eq(strstr(argument, mks(".")), 0)))) {
+            if (not(eq(strpbrk(argument, mks("habdioptxN")), 0))) {
+                result = 1;
+            }
+            if (not(eq(strstr(argument, mks("v")), 0))) {
+                verbose = 1;
+            }
+        } else {
+            if (eq(library_index, 0)) {
+                library_index = index;
+            } else {
+                if (eq(object_index, 0)) {
+                    object_index = index;
+                }
+            }
+        }
+        index = add(index, 1);
+    }
+    if (eq(object_index, 0)) {
+        result = 1;
+    }
+    if (eq(result, 1)) {
+        return cc2_ar_usage(result);
+    }
+    argument = ri32(add(arguments, shl(library_index, 2)));
+    archive = fopen(argument, mks("wb"));
+    if (eq(archive, 0)) {
+        printf(mks("tcc: ar: can't open file %s "), argument);
+        puts(mks(""));
+        return result;
+    }
+    temporary_name = malloc(add(strlen(argument), 5));
+    strcpy(temporary_name, argument);
+    strcat(temporary_name, mks(".tmp"));
+    temporary = fopen(temporary_name, mks("wb+"));
+    if (eq(temporary, 0)) {
+        printf(mks("tcc: ar: can't create temporary file %s"),
+            temporary_name);
+        puts(mks(""));
+        fclose(archive);
+        free(temporary_name);
+        return result;
+    }
+    symbol_header = cc2_ar_new_header();
+    member_header = cc2_ar_new_header();
+    memcpy(add(member_header, CC2_ARCHIVE_MODE_OFFSET), mks("100666"),
+        CC2_ARCHIVE_MODE_TEXT_BYTES);
+    size_text = malloc(20);
+    symbol_names = 0;
+    symbol_names_size = 0;
+    member_offset_capacity = 1;
+    member_offsets = malloc(CC2_I386_WORD_BYTES);
+    exported_symbol_count = 0;
+    temporary_offset = 0;
+    while (and(lt(object_index, argument_count), eq(failed, 0))) {
+        argument = ri32(add(arguments, shl(object_index, 2)));
+        if (not(eq(ri8(argument), mkC("-")))) {
+            input = fopen(argument, mks("rb"));
+            if (eq(input, 0)) {
+                printf(mks("tcc: ar: can't open file %s "), argument);
+                puts(mks(""));
+                failed = 1;
+            } else {
+                if (verbose) {
+                    printf(mks("a - %s"), argument);
+                    puts(mks(""));
+                }
+                fseek(input, 0, 2);
+                file_size = ftell(input);
+                fseek(input, 0, 0);
+                buffer = malloc(add(file_size, 1));
+                fread(buffer, file_size, 1, input);
+                fclose(input);
+                header = buffer;
+                if (not(eq(ri8(add(header, 4)), CC2_ELF_CLASS_32))) {
+                    printf(mks("tcc: ar: Unsupported Elf Class: %s"),
+                        argument);
+                    puts(mks(""));
+                    failed = 1;
+                } else {
+                    section_headers = add(buffer, ri32(add(header,
+                        CC2_ELF_HEADER_SECTION_OFFSET_OFFSET)));
+                    section_count = cc2_read_little_u16(add(header,
+                        CC2_ELF_HEADER_SECTION_COUNT_OFFSET));
+                    section_header = add(section_headers, mul(
+                        cc2_read_little_u16(add(header,
+                        CC2_ELF_HEADER_STRING_SECTION_OFFSET)),
+                        CC2_ELF_SECTION_HEADER_BYTES));
+                    section_names = add(buffer, ri32(add(section_header,
+                        CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET)));
+                    symbol_table = 0;
+                    symbol_table_size = 0;
+                    string_table = 0;
+                    section_index = 0;
+                    while (lt(section_index, section_count)) {
+                        section_header = add(section_headers, mul(section_index,
+                            CC2_ELF_SECTION_HEADER_BYTES));
+                        if (not(eq(ri32(add(section_header,
+                            CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET)), 0))) {
+                            if (eq(ri32(add(section_header,
+                                CC2_ELF_SECTION_HEADER_TYPE_OFFSET)),
+                                CC2_ELF_SECTION_SYMBOL_TABLE)) {
+                                symbol_table = add(buffer, ri32(add(
+                                    section_header,
+                                    CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET)));
+                                symbol_table_size = ri32(add(section_header,
+                                    CC2_ELF_SECTION_HEADER_SIZE_OFFSET));
+                            }
+                            if (and(eq(ri32(add(section_header,
+                                CC2_ELF_SECTION_HEADER_TYPE_OFFSET)),
+                                CC2_ELF_SECTION_STRING_TABLE), eq(strcmp(add(
+                                section_names, ri32(add(section_header,
+                                CC2_ELF_SECTION_HEADER_NAME_OFFSET))),
+                                mks(".strtab")), 0))) {
+                                string_table = add(buffer, ri32(add(
+                                    section_header,
+                                    CC2_ELF_SECTION_HEADER_FILE_OFFSET_OFFSET)));
+                            }
+                        }
+                        section_index = add(section_index, 1);
+                    }
+                    if (and(not(eq(symbol_table, 0)),
+                        not(eq(symbol_table_size, 0)))) {
+                        symbol_count = sdiv(symbol_table_size,
+                            CC2_ELF_SYMBOL_BYTES);
+                        index = 1;
+                        while (lt(index, symbol_count)) {
+                            symbol = add(symbol_table, mul(index,
+                                CC2_ELF_SYMBOL_BYTES));
+                            if (and(not(eq(cc2_read_little_u16(add(symbol,
+                                CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)), 0)), or(
+                                or(eq(ri8(add(symbol,
+                                CC2_ELF_SYMBOL_INFO_OFFSET)), 16), eq(ri8(add(
+                                symbol, CC2_ELF_SYMBOL_INFO_OFFSET)), 17)), eq(
+                                ri8(add(symbol,
+                                CC2_ELF_SYMBOL_INFO_OFFSET)), 18)))) {
+                                symbol_name = add(string_table, ri32(add(symbol,
+                                    CC2_ELF_SYMBOL_NAME_OFFSET)));
+                                symbol_name_size = add(strlen(symbol_name), 1);
+                                symbol_names = realloc(symbol_names, add(
+                                    symbol_names_size, symbol_name_size));
+                                strcpy(add(symbol_names, symbol_names_size),
+                                    symbol_name);
+                                symbol_names_size = add(symbol_names_size,
+                                    symbol_name_size);
+                                exported_symbol_count = add(
+                                    exported_symbol_count, 1);
+                                while (not(lt(exported_symbol_count,
+                                    member_offset_capacity))) {
+                                    member_offset_capacity = mul(
+                                        member_offset_capacity, 2);
+                                    member_offsets = realloc(member_offsets,
+                                        mul(member_offset_capacity,
+                                        CC2_I386_WORD_BYTES));
+                                }
+                                wi32(add(member_offsets, shl(
+                                    exported_symbol_count, 2)),
+                                    temporary_offset);
+                            }
+                            index = add(index, 1);
+                        }
+                    }
+                    member_name = tcc_basename(argument);
+                    member_name_size = strlen(member_name);
+                    if (not(lt(member_name_size,
+                        CC2_ARCHIVE_MEMBER_NAME_LIMIT))) {
+                        member_name_size = CC2_ARCHIVE_MEMBER_NAME_LIMIT;
+                    }
+                    memset(member_header, mkC(" "),
+                        CC2_ARCHIVE_NAME_BYTES);
+                    memcpy(member_header, member_name, member_name_size);
+                    wi8(add(member_header, member_name_size), mkC("/"));
+                    cc2_ar_set_size(member_header, file_size, size_text);
+                    fwrite(member_header, CC2_ARCHIVE_HEADER_BYTES, 1,
+                        temporary);
+                    fwrite(buffer, file_size, 1, temporary);
+                    temporary_offset = add(temporary_offset,
+                        add(file_size, CC2_ARCHIVE_HEADER_BYTES));
+                }
+                free(buffer);
+            }
+        }
+        object_index = add(object_index, 1);
+    }
+    if (eq(failed, 0)) {
+        header_size = add(add(add(CC2_ARCHIVE_MAGIC_BYTES,
+            CC2_ARCHIVE_HEADER_BYTES), symbol_names_size), mul(add(
+            exported_symbol_count, 1), CC2_I386_WORD_BYTES));
+        padding = 0;
+        if (and(header_size, 1)) {
+            header_size = add(header_size, 1);
+            padding = 1;
+        }
+        fwrite(mks("!<arch>"), 7, 1, archive);
+        fputc(CC2_CHARACTER_LINE_FEED, archive);
+        wi8(symbol_header, mkC("/"));
+        cc2_ar_set_size(symbol_header, add(symbol_names_size, mul(add(
+            exported_symbol_count, 1), CC2_I386_WORD_BYTES)), size_text);
+        fwrite(symbol_header, CC2_ARCHIVE_HEADER_BYTES, 1, archive);
+        wi32(member_offsets, cc2_ar_big_endian_word(exported_symbol_count));
+        index = 1;
+        while (le(index, exported_symbol_count)) {
+            wi32(add(member_offsets, shl(index, 2)), cc2_ar_big_endian_word(add(
+                ri32(add(member_offsets, shl(index, 2))), header_size)));
+            index = add(index, 1);
+        }
+        fwrite(member_offsets, mul(add(exported_symbol_count, 1),
+            CC2_I386_WORD_BYTES), 1, archive);
+        fwrite(symbol_names, symbol_names_size, 1, archive);
+        if (padding) {
+            fputc(0, archive);
+        }
+        fseek(temporary, 0, 2);
+        file_size = ftell(temporary);
+        fseek(temporary, 0, 0);
+        buffer = malloc(add(file_size, 1));
+        fread(buffer, file_size, 1, temporary);
+        fwrite(buffer, file_size, 1, archive);
+        free(buffer);
+        result = 0;
+    }
+    free(symbol_names);
+    free(member_offsets);
+    free(size_text);
+    free(member_header);
+    free(symbol_header);
+    fclose(archive);
+    fclose(temporary);
+    remove(temporary_name);
+    free(temporary_name);
+    return result;
 }
 
 function tccelf_begin_file(state)
@@ -21064,6 +21396,13 @@ function cc2_init_constants()
     CC2_LINKER_COMMAND_BYTES = 64;
     CC2_LINKER_FILENAME_BYTES = 1024;
     CC2_BINARY_FILE_FLAG = 64;
+    CC2_ARCHIVE_DATE_OFFSET = 16;
+    CC2_ARCHIVE_UID_OFFSET = 28;
+    CC2_ARCHIVE_GID_OFFSET = 34;
+    CC2_ARCHIVE_MODE_OFFSET = 40;
+    CC2_ARCHIVE_MAGIC_OFFSET = 58;
+    CC2_ARCHIVE_MEMBER_NAME_LIMIT = 15;
+    CC2_ARCHIVE_MODE_TEXT_BYTES = 6;
     CC2_ELF_SECTION_HEADER_NAME_OFFSET = 0;
     CC2_ELF_SECTION_HEADER_FLAGS_OFFSET = 8;
     CC2_ELF_SECTION_HEADER_INFO_OFFSET = 28;

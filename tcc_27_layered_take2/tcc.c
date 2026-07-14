@@ -22,8 +22,6 @@
 #if ONE_SOURCE
 # include "libtcc.c"
 #endif
-#include "tcctools.c"
-
 static const char help[] =
     "Tiny C Compiler "TCC_VERSION" - Copyright (C) 2001-2006 Fabrice Bellard\n"
     "Usage: tcc [options...] [-o outfile] [-c] infile(s)...\n"
