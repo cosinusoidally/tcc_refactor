@@ -10933,8 +10933,8 @@ function bind_exe_dynsyms(state)
                 if (or(eq(symbol_type, CC2_ELF_SYMBOL_FUNCTION_TYPE),
                     eq(symbol_type,
                     CC2_ELF_SYMBOL_INDIRECT_FUNCTION_TYPE))) {
-                    dynamic_index = put_elf_sym(dynamic_symbols, 0, ri32(add(
-                        loaded_symbol, CC2_ELF_SYMBOL_SIZE_OFFSET)), or(shl(
+                    /* Undefined function size is not part of its import ABI. */
+                    dynamic_index = put_elf_sym(dynamic_symbols, 0, 0, or(shl(
                         CC2_ELF_SYMBOL_GLOBAL_BINDING,
                         CC2_ELF_SYMBOL_BIND_SHIFT),
                         CC2_ELF_SYMBOL_FUNCTION_TYPE), 0,
