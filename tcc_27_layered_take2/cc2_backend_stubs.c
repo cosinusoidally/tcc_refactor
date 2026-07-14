@@ -8,12 +8,6 @@ function decl_record_inline(symbol)
     return 0;
 }
 
-function put_elf_reloca(symbol_table, section, offset, type, symbol,
-    addend)
-{
-    return 0;
-}
-
 function cc2_put_stabs_reloc(text, type, other, description, value, section,
     symbol)
 {

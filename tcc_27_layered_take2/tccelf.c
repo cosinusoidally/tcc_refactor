@@ -54,6 +54,7 @@ static int new_undef_sym = 0; /* Is there a new undefined sym since last new_und
 
 ST_FUNC void tccelf_new(TCCState *s)
 {
+    cc2_set_tcc_state((int)s);
     /* no section zero */
     dynarray_add(&s->sections, &s->nb_sections, NULL);
 
@@ -190,35 +191,6 @@ ST_FUNC void tccelf_end_file(TCCState *s1)
 }
 
 
-ST_FUNC Section *new_symtab(TCCState *s1,
-                           const char *symtab_name, int sh_type, int sh_flags,
-                           const char *strtab_name,
-                           const char *hash_name, int hash_sh_flags)
-{
-    Section *symtab, *strtab, *hash;
-    int *ptr, nb_buckets;
-
-    symtab = new_section(s1, symtab_name, sh_type, sh_flags);
-    symtab->sh_entsize = sizeof(ElfW(Sym));
-    strtab = new_section(s1, strtab_name, SHT_STRTAB, sh_flags);
-    put_elf_str(strtab, "");
-    symtab->link = strtab;
-    put_elf_sym(symtab, 0, 0, 0, 0, 0, NULL);
-
-    nb_buckets = 1;
-
-    hash = new_section(s1, hash_name, SHT_HASH, hash_sh_flags);
-    hash->sh_entsize = sizeof(int);
-    symtab->hash = hash;
-    hash->link = symtab;
-
-    ptr = section_ptr_add(hash, (2 + nb_buckets + 1) * sizeof(int));
-    ptr[0] = nb_buckets;
-    ptr[1] = 1;
-    memset(ptr + 2, 0, (nb_buckets + 1) * sizeof(int));
-    return symtab;
-}
-
 /* realloc section and set its content to zero */
 /* return elf symbol value, signal error if 'err' is nonzero */
 ST_FUNC addr_t get_elf_sym_addr(TCCState *s, const char *name, int err)
@@ -336,43 +308,6 @@ ST_FUNC int set_elf_sym(Section *s, addr_t value, unsigned long size,
                                 shndx, name);
     }
     return sym_index;
-}
-
-/* put relocation */
-void put_elf_reloca(Section *symtab, Section *s, unsigned long offset,
-                            int type, int symbol, addr_t addend)
-{
-    char buf[256];
-    Section *sr;
-    ElfW_Rel *rel;
-
-    sr = s->reloc;
-    if (!sr) {
-        /* if no relocation section, create it */
-        snprintf(buf, sizeof(buf), REL_SECTION_FMT, s->name);
-        /* if the symtab is allocated, then we consider the relocation
-           are also */
-        sr = new_section(tcc_state, buf, SHT_RELX, symtab->sh_flags);
-        sr->sh_entsize = sizeof(ElfW_Rel);
-        sr->link = symtab;
-        sr->sh_info = s->sh_num;
-        s->reloc = sr;
-    }
-    rel = section_ptr_add(sr, sizeof(ElfW_Rel));
-    rel->r_offset = offset;
-    rel->r_info = ELFW(R_INFO)(symbol, type);
-#if SHT_RELX == SHT_RELA
-    rel->r_addend = addend;
-#else
-    if (addend)
-        tcc_error("non-zero addend on REL architecture");
-#endif
-}
-
-ST_FUNC void put_elf_reloc(Section *symtab, Section *s, unsigned long offset,
-                           int type, int symbol)
-{
-    put_elf_reloca(symtab, s, offset, type, symbol, 0);
 }
 
 /* Remove relocations for section S->reloc starting at oldrelocoffset

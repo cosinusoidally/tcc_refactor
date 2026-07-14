@@ -704,6 +704,9 @@ var CC2_ELF_SYMBOL_BYTES;
 var CC2_ELF_SYMBOL_NAME_OFFSET;
 var CC2_ELF_SYMBOL_INFO_OFFSET;
 var CC2_ELF_LOCAL_BINDING;
+var CC2_ELF_INITIAL_HASH_BUCKET_COUNT;
+var CC2_ELF_HASH_HEADER_WORDS;
+var CC2_ELF_RELOCATION_SECTION_PREFIX;
 var CC2_TOKEN_GENERIC;
 var CC2_TOKEN_DEFAULT;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD;
@@ -5635,6 +5638,86 @@ function find_elf_sym(section, name)
             symbol_index), CC2_I386_WORD_BYTES)));
     }
     return 0;
+}
+
+function new_symtab(state, symbol_table_name, section_type, section_flags,
+    string_table_name, hash_name, hash_flags)
+{
+    var symbol_table;
+    var string_table;
+    var hash_section;
+    var hash_words;
+    symbol_table = new_section(state, symbol_table_name, section_type,
+        section_flags);
+    wi32(add(symbol_table, CC2_SECTION_ENTRY_SIZE_OFFSET),
+        CC2_ELF_SYMBOL_BYTES);
+    string_table = new_section(state, string_table_name,
+        CC2_ELF_SECTION_STRING_TABLE, section_flags);
+    put_elf_str(string_table, mks(""));
+    wi32(add(symbol_table, CC2_SECTION_LINK_OFFSET), string_table);
+    put_elf_sym(symbol_table, 0, 0, 0, 0, 0, 0);
+
+    hash_section = new_section(state, hash_name, CC2_ELF_SECTION_HASH,
+        hash_flags);
+    wi32(add(hash_section, CC2_SECTION_ENTRY_SIZE_OFFSET),
+        CC2_I386_WORD_BYTES);
+    wi32(add(symbol_table, CC2_SECTION_HASH_OFFSET), hash_section);
+    wi32(add(hash_section, CC2_SECTION_LINK_OFFSET), symbol_table);
+    hash_words = section_ptr_add(hash_section, mul(add(
+        add(CC2_ELF_HASH_HEADER_WORDS, CC2_ELF_INITIAL_HASH_BUCKET_COUNT), 1),
+        CC2_I386_WORD_BYTES));
+    wi32(hash_words, CC2_ELF_INITIAL_HASH_BUCKET_COUNT);
+    wi32(add(hash_words, CC2_I386_WORD_BYTES), 1);
+    memset(add(hash_words, mul(CC2_ELF_HASH_HEADER_WORDS,
+        CC2_I386_WORD_BYTES)), 0, mul(add(
+        CC2_ELF_INITIAL_HASH_BUCKET_COUNT, 1), CC2_I386_WORD_BYTES));
+    return symbol_table;
+}
+
+function cc2_set_tcc_state(state)
+{
+    tcc_state_address = state;
+    return 0;
+}
+
+function put_elf_reloca(symbol_table, section, offset, type, symbol, addend)
+{
+    var relocation_section;
+    var relocation;
+    var name;
+    var name_bytes;
+    relocation_section = ri32(add(section, CC2_SECTION_RELOCATION_OFFSET));
+    if (eq(relocation_section, 0)) {
+        name_bytes = add(add(strlen(CC2_ELF_RELOCATION_SECTION_PREFIX),
+            strlen(add(section, CC2_SECTION_NAME_OFFSET))), 1);
+        name = malloc(name_bytes);
+        strcpy(name, CC2_ELF_RELOCATION_SECTION_PREFIX);
+        strcat(name, add(section, CC2_SECTION_NAME_OFFSET));
+        relocation_section = new_section(tcc_state_address, name,
+            CC2_ELF_SECTION_REL, ri32(add(symbol_table,
+            CC2_SECTION_FLAGS_OFFSET)));
+        free(name);
+        wi32(add(relocation_section, CC2_SECTION_ENTRY_SIZE_OFFSET),
+            CC2_ELF_RELOCATION_BYTES);
+        wi32(add(relocation_section, CC2_SECTION_LINK_OFFSET), symbol_table);
+        wi32(add(relocation_section, CC2_SECTION_INFO_OFFSET),
+            ri32(add(section, CC2_SECTION_NUMBER_OFFSET)));
+        wi32(add(section, CC2_SECTION_RELOCATION_OFFSET), relocation_section);
+    }
+    relocation = section_ptr_add(relocation_section,
+        CC2_ELF_RELOCATION_BYTES);
+    wi32(add(relocation, CC2_ELF_RELOCATION_OFFSET_OFFSET), offset);
+    wi32(add(relocation, CC2_ELF_RELOCATION_INFO_OFFSET), or(
+        shl(symbol, CC2_ELF_RELOCATION_SYMBOL_SHIFT), type));
+    if (not(eq(addend, 0))) {
+        tcc_error(mks("non-zero addend on REL architecture"), 0);
+    }
+    return 0;
+}
+
+function put_elf_reloc(symbol_table, section, offset, type, symbol)
+{
+    return put_elf_reloca(symbol_table, section, offset, type, symbol, 0);
 }
 
 /* Grow the pool pointer vector with the same power-of-two rule as TCC. */
@@ -17060,6 +17143,9 @@ function cc2_init_constants()
     CC2_ELF_SYMBOL_NAME_OFFSET = 0;
     CC2_ELF_SYMBOL_INFO_OFFSET = 12;
     CC2_ELF_LOCAL_BINDING = 0;
+    CC2_ELF_INITIAL_HASH_BUCKET_COUNT = 1;
+    CC2_ELF_HASH_HEADER_WORDS = 2;
+    CC2_ELF_RELOCATION_SECTION_PREFIX = mks(".rel");
     CC2_TOKEN_GENERIC = 292;
     CC2_TOKEN_DEFAULT = 300;
     CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;
