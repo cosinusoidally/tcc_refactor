@@ -359,6 +359,32 @@ var CC0_LINK_IMPORT_SHIFT;
 var CC0_LINK_IMPORT_NAME_OFFSET;
 var CC0_LINK_IMPORT_LENGTH_OFFSET;
 var CC0_LINK_IMPORT_INDEX_OFFSET;
+var CC0_LINK_IMPORT_STRING_OFFSET;
+var CC0_LINK_BASE_ADDRESS;
+var CC0_LINK_PAGE_BYTES;
+var CC0_LINK_PROGRAM_HEADER_BYTES;
+var CC0_LINK_PROGRAM_HEADER_COUNT;
+var CC0_LINK_INTERPRETER;
+var CC0_LINK_INTERPRETER_BYTES;
+var CC0_LINK_DYNAMIC_RECORD_BYTES;
+var CC0_LINK_DYNAMIC_RECORD_COUNT;
+var CC0_LINK_STARTUP_BYTES;
+var CC0_LINK_PLT_ENTRY_BYTES;
+var CC0_LINK_GOT_ENTRY_BYTES;
+var CC0_LINK_DYNSTR_OFFSET;
+var CC0_LINK_DYNSTR_BYTES;
+var CC0_LINK_DYNSYM_OFFSET;
+var CC0_LINK_HASH_OFFSET;
+var CC0_LINK_REL_OFFSET;
+var CC0_LINK_STARTUP_OFFSET;
+var CC0_LINK_PLT_OFFSET;
+var CC0_LINK_TEXT_OFFSET;
+var CC0_LINK_DATA_OFFSET;
+var CC0_LINK_DYNAMIC_OFFSET;
+var CC0_LINK_GOT_OFFSET;
+var CC0_LINK_BSS_OFFSET;
+var CC0_LINK_OUTPUT;
+var CC0_LINK_OUTPUT_BYTES;
 var CC0_ELF_HEADER_BYTES;
 var CC0_ELF_SECTION_HEADER_BYTES;
 var CC0_ELF_TYPE_RELOCATABLE;
@@ -716,6 +742,32 @@ function cc0_init()
     CC0_LINK_IMPORT_NAME_OFFSET = 0;
     CC0_LINK_IMPORT_LENGTH_OFFSET = 4;
     CC0_LINK_IMPORT_INDEX_OFFSET = 8;
+    CC0_LINK_IMPORT_STRING_OFFSET = 12;
+    CC0_LINK_BASE_ADDRESS = 134512640;
+    CC0_LINK_PAGE_BYTES = 4096;
+    CC0_LINK_PROGRAM_HEADER_BYTES = 32;
+    CC0_LINK_PROGRAM_HEADER_COUNT = 5;
+    CC0_LINK_INTERPRETER = mks("/lib/ld-linux.so.2");
+    CC0_LINK_INTERPRETER_BYTES = 19;
+    CC0_LINK_DYNAMIC_RECORD_BYTES = 8;
+    CC0_LINK_DYNAMIC_RECORD_COUNT = 10;
+    CC0_LINK_STARTUP_BYTES = 19;
+    CC0_LINK_PLT_ENTRY_BYTES = 6;
+    CC0_LINK_GOT_ENTRY_BYTES = 4;
+    CC0_LINK_DYNSTR_OFFSET = 0;
+    CC0_LINK_DYNSTR_BYTES = 0;
+    CC0_LINK_DYNSYM_OFFSET = 0;
+    CC0_LINK_HASH_OFFSET = 0;
+    CC0_LINK_REL_OFFSET = 0;
+    CC0_LINK_STARTUP_OFFSET = 0;
+    CC0_LINK_PLT_OFFSET = 0;
+    CC0_LINK_TEXT_OFFSET = 0;
+    CC0_LINK_DATA_OFFSET = 0;
+    CC0_LINK_DYNAMIC_OFFSET = 0;
+    CC0_LINK_GOT_OFFSET = 0;
+    CC0_LINK_BSS_OFFSET = 0;
+    CC0_LINK_OUTPUT = 0;
+    CC0_LINK_OUTPUT_BYTES = 0;
     CC0_ELF_HEADER_BYTES = 52;
     CC0_ELF_SECTION_HEADER_BYTES = 40;
     CC0_ELF_TYPE_RELOCATABLE = 1;
@@ -6243,6 +6295,62 @@ function cc0_link_collect_imports_(index, relocation, object, symbol, name,
 function cc0_link_collect_imports()
 {
     return cc0_link_collect_imports_(0, 0, 0, 0, 0, 0);
+}
+
+function cc0_link_layout_(offset, index, entry, name_bytes, symbol_count,
+    hash_bytes, relocation_bytes, dynamic_bytes, got_bytes)
+{
+    offset = add(CC0_ELF_HEADER_BYTES, mul(CC0_LINK_PROGRAM_HEADER_COUNT,
+        CC0_LINK_PROGRAM_HEADER_BYTES));
+    offset = add(offset, CC0_LINK_INTERPRETER_BYTES);
+    CC0_LINK_DYNSTR_OFFSET = cc0_elf_align(offset, 4);
+    name_bytes = 11;
+    index = 0;
+    while (lt(index, CC0_LINK_IMPORT_COUNT)) {
+        entry = cc0_link_import_entry(index);
+        wi32(add(entry, CC0_LINK_IMPORT_STRING_OFFSET), name_bytes);
+        name_bytes = add(name_bytes, add(ri32(add(entry,
+            CC0_LINK_IMPORT_LENGTH_OFFSET)), 1));
+        index = add(index, 1);
+    }
+    CC0_LINK_DYNSTR_BYTES = name_bytes;
+    CC0_LINK_DYNSYM_OFFSET = cc0_elf_align(add(CC0_LINK_DYNSTR_OFFSET,
+        CC0_LINK_DYNSTR_BYTES), 4);
+    symbol_count = add(CC0_LINK_IMPORT_COUNT, 1);
+    CC0_LINK_HASH_OFFSET = add(CC0_LINK_DYNSYM_OFFSET,
+        mul(symbol_count, CC0_ELF_SYMBOL_BYTES));
+    hash_bytes = shl(add(symbol_count, 3), 2);
+    CC0_LINK_REL_OFFSET = add(CC0_LINK_HASH_OFFSET, hash_bytes);
+    relocation_bytes = mul(CC0_LINK_IMPORT_COUNT,
+        CC0_ELF_RELOCATION_BYTES);
+    CC0_LINK_STARTUP_OFFSET = cc0_elf_align(add(CC0_LINK_REL_OFFSET,
+        relocation_bytes), 16);
+    CC0_LINK_PLT_OFFSET = add(CC0_LINK_STARTUP_OFFSET,
+        CC0_LINK_STARTUP_BYTES);
+    CC0_LINK_TEXT_OFFSET = cc0_elf_align(add(CC0_LINK_PLT_OFFSET,
+        mul(CC0_LINK_IMPORT_COUNT, CC0_LINK_PLT_ENTRY_BYTES)), 16);
+    CC0_LINK_DATA_OFFSET = cc0_elf_align(add(CC0_LINK_TEXT_OFFSET,
+        CC0_LINK_TEXT_LENGTH), CC0_LINK_PAGE_BYTES);
+    CC0_LINK_DYNAMIC_OFFSET = cc0_elf_align(add(CC0_LINK_DATA_OFFSET,
+        CC0_LINK_DATA_LENGTH), 4);
+    dynamic_bytes = mul(CC0_LINK_DYNAMIC_RECORD_COUNT,
+        CC0_LINK_DYNAMIC_RECORD_BYTES);
+    CC0_LINK_GOT_OFFSET = add(CC0_LINK_DYNAMIC_OFFSET, dynamic_bytes);
+    got_bytes = mul(CC0_LINK_IMPORT_COUNT, CC0_LINK_GOT_ENTRY_BYTES);
+    CC0_LINK_BSS_OFFSET = cc0_elf_align(add(CC0_LINK_GOT_OFFSET,
+        got_bytes), 4);
+    CC0_LINK_OUTPUT_BYTES = CC0_LINK_BSS_OFFSET;
+    CC0_LINK_OUTPUT = alloc(CC0_LINK_OUTPUT_BYTES);
+    if (eq(CC0_LINK_OUTPUT, 0)) {
+        return CC0_TRUE;
+    }
+    cc0_link_zero(CC0_LINK_OUTPUT, CC0_LINK_OUTPUT_BYTES);
+    return CC0_FALSE;
+}
+
+function cc0_link_layout()
+{
+    return cc0_link_layout_(0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function cc0_write_object_(name, descriptor, index)
