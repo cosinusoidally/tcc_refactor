@@ -159,52 +159,6 @@ ST_FUNC void* tcc_get_symbol_err(TCCState *s, const char *name)
    the global and weak ones. Since TCC cannot sort it while generating
    the code, we must do it after. All the relocation tables are also
    modified to take into account the symbol table sorting */
-/* relocate symbol table, resolve undefined symbols if do_resolve is
-   true and output error if undefined symbol. */
-ST_FUNC void relocate_syms(TCCState *s1, Section *symtab, int do_resolve)
-{
-    ElfW(Sym) *sym;
-    int sym_bind, sh_num;
-    const char *name;
-
-    for_each_elem(symtab, 1, sym, ElfW(Sym)) {
-        sh_num = sym->st_shndx;
-        if (sh_num == SHN_UNDEF) {
-            name = (char *) s1->symtab->link->data + sym->st_name;
-            /* Use ld.so to resolve symbol for us (for tcc -run) */
-            if (do_resolve) {
-#if defined TCC_IS_NATIVE && !defined TCC_TARGET_PE
-                void *addr = dlsym(RTLD_DEFAULT, name);
-                if (addr) {
-                    sym->st_value = (addr_t) addr;
-#ifdef DEBUG_RELOC
-		    printf ("relocate_sym: %s -> 0x%lx\n", name, sym->st_value);
-#endif
-                    goto found;
-                }
-#endif
-            /* if dynamic symbol exist, it will be used in relocate_section */
-            } else if (s1->dynsym && find_elf_sym(s1->dynsym, name))
-                goto found;
-            /* XXX: _fp_hw seems to be part of the ABI, so we ignore
-               it */
-            if (!strcmp(name, "_fp_hw"))
-                goto found;
-            /* only weak symbols are accepted to be undefined. Their
-               value is zero */
-            sym_bind = ELFW(ST_BIND)(sym->st_info);
-            if (sym_bind == STB_WEAK)
-                sym->st_value = 0;
-            else
-                tcc_error_noabort("undefined symbol '%s'", name);
-        } else if (sh_num < SHN_LORESERVE) {
-            /* add section base */
-            sym->st_value += s1->sections[sym->st_shndx]->sh_addr;
-        }
-    found: ;
-    }
-}
-
 /* relocate a given section (CPU dependent) by applying the relocations
    in the associated relocation section */
 ST_FUNC void relocate_section(TCCState *s1, Section *s)

@@ -177,6 +177,11 @@ function tcc_error_noabort(format, value)
     return 0;
 }
 
+function cc2_dlsym_default(name)
+{
+    return 0;
+}
+
 function gen_cast_constant(type)
 {
     return 0;

@@ -58,6 +58,11 @@ static const unsigned char tok_two_chars[] = {
 
 extern int case_cmp(const void *first, const void *second);
 
+int cc2_dlsym_default(const char *name)
+{
+    return (int)dlsym(RTLD_DEFAULT, name);
+}
+
 /* The cc2 dialect cannot pass its comparator as a C function pointer. */
 void case_sort(void **base, int count)
 {
