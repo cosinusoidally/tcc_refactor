@@ -786,6 +786,27 @@ var CC2_TCC_OUTPUT_FORMAT_ELF;
 var CC2_ELF_PAGE_BYTES;
 var CC2_ELF_EXECUTABLE_START_ADDRESS;
 var CC2_ELF_LOAD_TYPE;
+var CC2_TCC_STATE_VERBOSE_OFFSET;
+var CC2_ELF_SECTION_HEADER_BYTES;
+var CC2_ELF_HEADER_TYPE_OFFSET;
+var CC2_ELF_HEADER_MACHINE_OFFSET;
+var CC2_ELF_HEADER_VERSION_OFFSET;
+var CC2_ELF_HEADER_ENTRY_OFFSET;
+var CC2_ELF_HEADER_PROGRAM_OFFSET_OFFSET;
+var CC2_ELF_HEADER_SECTION_OFFSET_OFFSET;
+var CC2_ELF_HEADER_SIZE_OFFSET;
+var CC2_ELF_HEADER_PROGRAM_ENTRY_SIZE_OFFSET;
+var CC2_ELF_HEADER_PROGRAM_COUNT_OFFSET;
+var CC2_ELF_HEADER_SECTION_ENTRY_SIZE_OFFSET;
+var CC2_ELF_HEADER_SECTION_COUNT_OFFSET;
+var CC2_ELF_HEADER_STRING_SECTION_OFFSET;
+var CC2_ELF_EXECUTABLE_TYPE;
+var CC2_ELF_SHARED_TYPE;
+var CC2_ELF_RELOCATABLE_TYPE;
+var CC2_ELF_I386_MACHINE;
+var CC2_ELF_CURRENT_VERSION;
+var CC2_ELF_CLASS_32;
+var CC2_ELF_LITTLE_ENDIAN;
 var CC2_TOKEN_GENERIC;
 var CC2_TOKEN_DEFAULT;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD;
@@ -7488,6 +7509,206 @@ function layout_sections(state, program_headers, header_count,
         section_index = add(section_index, 1);
     }
     return file_offset;
+}
+
+function cc2_write_little_u16(address, value)
+{
+    wi8(address, and(value, 255));
+    wi8(add(address, 1), and(ushr(value, 8), 255));
+    return 0;
+}
+
+function cc2_output_padding(output, offset, target)
+{
+    while (lt(offset, target)) {
+        fputc(0, output);
+        offset = add(offset, 1);
+    }
+    return offset;
+}
+
+function tcc_output_binary(state, output, section_order)
+{
+    var section_index;
+    var section_count;
+    var sections;
+    var section;
+    var offset;
+    var size;
+    offset = 0;
+    section_index = 1;
+    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    while (lt(section_index, section_count)) {
+        sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+        section = ri32(add(sections, shl(ri32(add(section_order,
+            shl(section_index, 2))), 2)));
+        if (and(not(eq(ri32(add(section, CC2_SECTION_TYPE_OFFSET)),
+            CC2_ELF_SECTION_NOBITS)), not(eq(and(ri32(add(section,
+            CC2_SECTION_FLAGS_OFFSET)), CC2_ELF_ALLOCATE_SECTION_FLAG), 0)))) {
+            offset = cc2_output_padding(output, offset, ri32(add(section,
+                CC2_SECTION_FILE_OFFSET_OFFSET)));
+            size = ri32(add(section, CC2_SECTION_SIZE_OFFSET));
+            fwrite(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)), 1,
+                size, output);
+            offset = add(offset, size);
+        }
+        section_index = add(section_index, 1);
+    }
+    return 0;
+}
+
+function cc2_fill_elf_header(state, header, header_count, file_offset,
+    section_count)
+{
+    var file_type;
+    var entry;
+    memset(header, 0, CC2_ELF_HEADER_BYTES);
+    wi8(header, 127);
+    wi8(add(header, 1), mkC("E"));
+    wi8(add(header, 2), mkC("L"));
+    wi8(add(header, 3), mkC("F"));
+    wi8(add(header, 4), CC2_ELF_CLASS_32);
+    wi8(add(header, 5), CC2_ELF_LITTLE_ENDIAN);
+    wi8(add(header, 6), CC2_ELF_CURRENT_VERSION);
+    file_type = ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET));
+    entry = 0;
+    if (eq(file_type, CC2_TCC_OUTPUT_DLL)) {
+        cc2_write_little_u16(add(header, CC2_ELF_HEADER_TYPE_OFFSET),
+            CC2_ELF_SHARED_TYPE);
+        entry = ri32(add(ri32(text_section_address),
+            CC2_SECTION_ADDRESS_OFFSET));
+    } else if (eq(file_type, CC2_TCC_OUTPUT_OBJECT)) {
+        cc2_write_little_u16(add(header, CC2_ELF_HEADER_TYPE_OFFSET),
+            CC2_ELF_RELOCATABLE_TYPE);
+    } else {
+        cc2_write_little_u16(add(header, CC2_ELF_HEADER_TYPE_OFFSET),
+            CC2_ELF_EXECUTABLE_TYPE);
+        entry = get_elf_sym_addr(state, mks("_start"), 1);
+    }
+    cc2_write_little_u16(add(header, CC2_ELF_HEADER_MACHINE_OFFSET),
+        CC2_ELF_I386_MACHINE);
+    wi32(add(header, CC2_ELF_HEADER_VERSION_OFFSET),
+        CC2_ELF_CURRENT_VERSION);
+    wi32(add(header, CC2_ELF_HEADER_ENTRY_OFFSET), entry);
+    if (not(eq(header_count, 0))) {
+        wi32(add(header, CC2_ELF_HEADER_PROGRAM_OFFSET_OFFSET),
+            CC2_ELF_HEADER_BYTES);
+        cc2_write_little_u16(add(header,
+            CC2_ELF_HEADER_PROGRAM_ENTRY_SIZE_OFFSET),
+            CC2_ELF_PROGRAM_HEADER_BYTES);
+        cc2_write_little_u16(add(header,
+            CC2_ELF_HEADER_PROGRAM_COUNT_OFFSET), header_count);
+    }
+    wi32(add(header, CC2_ELF_HEADER_SECTION_OFFSET_OFFSET), file_offset);
+    cc2_write_little_u16(add(header, CC2_ELF_HEADER_SIZE_OFFSET),
+        CC2_ELF_HEADER_BYTES);
+    cc2_write_little_u16(add(header,
+        CC2_ELF_HEADER_SECTION_ENTRY_SIZE_OFFSET),
+        CC2_ELF_SECTION_HEADER_BYTES);
+    cc2_write_little_u16(add(header, CC2_ELF_HEADER_SECTION_COUNT_OFFSET),
+        section_count);
+    cc2_write_little_u16(add(header,
+        CC2_ELF_HEADER_STRING_SECTION_OFFSET), sub(section_count, 1));
+    return 0;
+}
+
+function cc2_fill_section_header(header, section)
+{
+    var link;
+    memset(header, 0, CC2_ELF_SECTION_HEADER_BYTES);
+    if (eq(section, 0)) {
+        return 0;
+    }
+    wi32(header, ri32(add(section, CC2_SECTION_NAME_INDEX_OFFSET)));
+    wi32(add(header, 4), ri32(add(section, CC2_SECTION_TYPE_OFFSET)));
+    wi32(add(header, 8), ri32(add(section, CC2_SECTION_FLAGS_OFFSET)));
+    wi32(add(header, 12), ri32(add(section, CC2_SECTION_ADDRESS_OFFSET)));
+    wi32(add(header, 16), ri32(add(section,
+        CC2_SECTION_FILE_OFFSET_OFFSET)));
+    wi32(add(header, 20), ri32(add(section, CC2_SECTION_SIZE_OFFSET)));
+    link = ri32(add(section, CC2_SECTION_LINK_OFFSET));
+    if (not(eq(link, 0))) {
+        wi32(add(header, 24), ri32(add(link, CC2_SECTION_NUMBER_OFFSET)));
+    }
+    wi32(add(header, 28), ri32(add(section, CC2_SECTION_INFO_OFFSET)));
+    wi32(add(header, 32), ri32(add(section, CC2_SECTION_ALIGNMENT_OFFSET)));
+    wi32(add(header, 36), ri32(add(section, CC2_SECTION_ENTRY_SIZE_OFFSET)));
+    return 0;
+}
+
+function tcc_output_elf(state, output, header_count, program_headers,
+    file_offset, section_order)
+{
+    var elf_header;
+    var section_header;
+    var section_count;
+    var section_index;
+    var sections;
+    var section;
+    var offset;
+    var size;
+    file_offset = cc2_align_up(file_offset, CC2_I386_WORD_BYTES);
+    section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
+    elf_header = malloc(CC2_ELF_HEADER_BYTES);
+    section_header = malloc(CC2_ELF_SECTION_HEADER_BYTES);
+    cc2_fill_elf_header(state, elf_header, header_count, file_offset,
+        section_count);
+    fwrite(elf_header, 1, CC2_ELF_HEADER_BYTES, output);
+    fwrite(program_headers, 1,
+        mul(header_count, CC2_ELF_PROGRAM_HEADER_BYTES), output);
+    offset = add(CC2_ELF_HEADER_BYTES,
+        mul(header_count, CC2_ELF_PROGRAM_HEADER_BYTES));
+    sort_syms(state, ri32(symtab_section_address));
+    section_index = 1;
+    while (lt(section_index, section_count)) {
+        sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+        section = ri32(add(sections, shl(ri32(add(section_order,
+            shl(section_index, 2))), 2)));
+        if (not(eq(ri32(add(section, CC2_SECTION_TYPE_OFFSET)),
+            CC2_ELF_SECTION_NOBITS))) {
+            offset = cc2_output_padding(output, offset, ri32(add(section,
+                CC2_SECTION_FILE_OFFSET_OFFSET)));
+            size = ri32(add(section, CC2_SECTION_SIZE_OFFSET));
+            if (not(eq(size, 0))) {
+                fwrite(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)), 1,
+                    size, output);
+            }
+            offset = add(offset, size);
+        }
+        section_index = add(section_index, 1);
+    }
+    offset = cc2_output_padding(output, offset, file_offset);
+    section_index = 0;
+    while (lt(section_index, section_count)) {
+        sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
+        section = ri32(add(sections, shl(section_index, 2)));
+        cc2_fill_section_header(section_header, section);
+        fwrite(section_header, 1, CC2_ELF_SECTION_HEADER_BYTES, output);
+        section_index = add(section_index, 1);
+    }
+    free(section_header);
+    free(elf_header);
+    return 0;
+}
+
+function tcc_write_elf_file(state, filename, header_count, program_headers,
+    file_offset, section_order)
+{
+    var output;
+    unlink(filename);
+    output = fopen(filename, mks("wb"));
+    if (ri32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET))) {
+        printf(mks("<- %s\n"), filename);
+    }
+    if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_FORMAT_OFFSET)),
+        CC2_TCC_OUTPUT_FORMAT_ELF)) {
+        tcc_output_elf(state, output, header_count, program_headers,
+            file_offset, section_order);
+    } else {
+        tcc_output_binary(state, output, section_order);
+    }
+    fclose(output);
+    return 0;
 }
 
 function add_init_array_defines(state, section_name)
@@ -19164,6 +19385,27 @@ function cc2_init_constants()
     CC2_ELF_PAGE_BYTES = 4096;
     CC2_ELF_EXECUTABLE_START_ADDRESS = 134512640;
     CC2_ELF_LOAD_TYPE = 1;
+    CC2_TCC_STATE_VERBOSE_OFFSET = 0;
+    CC2_ELF_SECTION_HEADER_BYTES = 40;
+    CC2_ELF_HEADER_TYPE_OFFSET = 16;
+    CC2_ELF_HEADER_MACHINE_OFFSET = 18;
+    CC2_ELF_HEADER_VERSION_OFFSET = 20;
+    CC2_ELF_HEADER_ENTRY_OFFSET = 24;
+    CC2_ELF_HEADER_PROGRAM_OFFSET_OFFSET = 28;
+    CC2_ELF_HEADER_SECTION_OFFSET_OFFSET = 32;
+    CC2_ELF_HEADER_SIZE_OFFSET = 40;
+    CC2_ELF_HEADER_PROGRAM_ENTRY_SIZE_OFFSET = 42;
+    CC2_ELF_HEADER_PROGRAM_COUNT_OFFSET = 44;
+    CC2_ELF_HEADER_SECTION_ENTRY_SIZE_OFFSET = 46;
+    CC2_ELF_HEADER_SECTION_COUNT_OFFSET = 48;
+    CC2_ELF_HEADER_STRING_SECTION_OFFSET = 50;
+    CC2_ELF_EXECUTABLE_TYPE = 2;
+    CC2_ELF_SHARED_TYPE = 3;
+    CC2_ELF_RELOCATABLE_TYPE = 1;
+    CC2_ELF_I386_MACHINE = 3;
+    CC2_ELF_CURRENT_VERSION = 1;
+    CC2_ELF_CLASS_32 = 1;
+    CC2_ELF_LITTLE_ENDIAN = 1;
     CC2_TOKEN_GENERIC = 292;
     CC2_TOKEN_DEFAULT = 300;
     CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;
