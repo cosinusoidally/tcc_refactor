@@ -8,17 +8,6 @@ function decl_record_inline(symbol)
     return 0;
 }
 
-function cc2_put_stabs_reloc(text, type, other, description, value, section,
-    symbol)
-{
-    return 0;
-}
-
-function cc2_put_stabs_number(type, other, description, value)
-{
-    return 0;
-}
-
 function neg_zero(basic_type)
 {
     return 0;
@@ -74,11 +63,6 @@ function tcc_set_options(state, text)
 }
 
 function cc2_pstrcpy(destination, capacity, source)
-{
-    return 0;
-}
-
-function cc2_put_stabs(text, type, other, description, value)
 {
     return 0;
 }

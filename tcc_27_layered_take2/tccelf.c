@@ -149,44 +149,6 @@ ST_FUNC void* tcc_get_symbol_err(TCCState *s, const char *name)
 }
 #endif
 
-/* put stab debug information */
-
-ST_FUNC void put_stabs(const char *str, int type, int other, int desc,
-                      unsigned long value)
-{
-    Stab_Sym *sym;
-
-    sym = section_ptr_add(stab_section, sizeof(Stab_Sym));
-    if (str) {
-        sym->n_strx = put_elf_str(stabstr_section, str);
-    } else {
-        sym->n_strx = 0;
-    }
-    sym->n_type = type;
-    sym->n_other = other;
-    sym->n_desc = desc;
-    sym->n_value = value;
-}
-
-ST_FUNC void put_stabs_r(const char *str, int type, int other, int desc,
-                        unsigned long value, Section *sec, int sym_index)
-{
-    put_stabs(str, type, other, desc, value);
-    put_elf_reloc(symtab_section, stab_section,
-                  stab_section->data_offset - sizeof(unsigned int),
-                  R_DATA_32, sym_index);
-}
-
-ST_FUNC void put_stabn(int type, int other, int desc, int value)
-{
-    put_stabs(NULL, type, other, desc, value);
-}
-
-ST_FUNC void put_stabd(int type, int other, int desc)
-{
-    put_stabs(NULL, type, other, desc, 0);
-}
-
 ST_FUNC struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc)
 {
     int n;

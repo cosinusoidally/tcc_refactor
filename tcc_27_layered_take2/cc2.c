@@ -612,6 +612,8 @@ var cur_text_section_address;
 var bss_section_address;
 var common_section_address;
 var text_section_address;
+var stab_section_address;
+var stabstr_section_address;
 var tcc_state_address;
 var gnu_ext_address;
 var tcc_ext_address;
@@ -720,6 +722,13 @@ var CC2_NEW_UNDEFINED_SYMBOL;
 var CC2_ELF_INITIAL_HASH_BUCKET_COUNT;
 var CC2_ELF_HASH_HEADER_WORDS;
 var CC2_ELF_RELOCATION_SECTION_PREFIX;
+var CC2_STABS_RECORD_BYTES;
+var CC2_STABS_STRING_OFFSET;
+var CC2_STABS_TYPE_OFFSET;
+var CC2_STABS_OTHER_OFFSET;
+var CC2_STABS_DESCRIPTION_OFFSET;
+var CC2_STABS_VALUE_OFFSET;
+var CC2_I386_ABSOLUTE_RELOCATION;
 var CC2_TOKEN_GENERIC;
 var CC2_TOKEN_DEFAULT;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD;
@@ -1667,7 +1676,7 @@ function cc2_lex_end_of_buffer_(pointer, character, state, source_file,
         flags = and(flags, bnot(CC2_TOKEN_FLAG_ENDIF));
     }
     if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
-        cc2_put_stabs(0, CC2_STABS_END_INCLUDE_TYPE, 0, 0, 0);
+        put_stabs(0, CC2_STABS_END_INCLUDE_TYPE, 0, 0, 0);
     }
     cc2_tcc_close();
     wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
@@ -4364,7 +4373,7 @@ function preprocess_line_directive(state, directive)
     }
     wi32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET), line);
     if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
-        cc2_put_stabs(add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET),
+        put_stabs(add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET),
             CC2_STABS_INCLUDE_TYPE, 0, 0, 0);
     }
     return 0;
@@ -4620,7 +4629,7 @@ function preprocess_include(state, directive)
             wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
                 add(include_pointer, CC2_I386_WORD_BYTES));
             if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
-                cc2_put_stabs(add(source_file,
+                put_stabs(add(source_file,
                     CC2_BUFFERED_FILE_FILENAME_OFFSET),
                     CC2_STABS_INCLUDE_TYPE, 0, 0, 0);
             }
@@ -6060,6 +6069,48 @@ function squeeze_multi_relocs(section, old_relocation_offset)
     wi32(add(relocation_section, CC2_SECTION_DATA_OFFSET),
         add(destination_offset, CC2_ELF_RELOCATION_BYTES));
     return 0;
+}
+
+function put_stabs(text, type, other, description, value)
+{
+    var record;
+    var string_offset;
+    record = section_ptr_add(ri32(stab_section_address),
+        CC2_STABS_RECORD_BYTES);
+    string_offset = 0;
+    if (text) {
+        string_offset = put_elf_str(ri32(stabstr_section_address), text);
+    }
+    wi32(add(record, CC2_STABS_STRING_OFFSET), string_offset);
+    wi8(add(record, CC2_STABS_TYPE_OFFSET), type);
+    wi8(add(record, CC2_STABS_OTHER_OFFSET), other);
+    wi8(add(record, CC2_STABS_DESCRIPTION_OFFSET), and(description, 255));
+    wi8(add(record, add(CC2_STABS_DESCRIPTION_OFFSET, 1)),
+        and(ushr(description, 8), 255));
+    wi32(add(record, CC2_STABS_VALUE_OFFSET), value);
+    return 0;
+}
+
+function put_stabs_r(text, type, other, description, value, section,
+    symbol_index)
+{
+    var stab_section;
+    put_stabs(text, type, other, description, value);
+    stab_section = ri32(stab_section_address);
+    put_elf_reloc(ri32(symtab_section_address), stab_section, sub(ri32(add(
+        stab_section, CC2_SECTION_DATA_OFFSET)), CC2_I386_WORD_BYTES),
+        CC2_I386_ABSOLUTE_RELOCATION, symbol_index);
+    return 0;
+}
+
+function put_stabn(type, other, description, value)
+{
+    return put_stabs(0, type, other, description, value);
+}
+
+function put_stabd(type, other, description)
+{
+    return put_stabs(0, type, other, description, 0);
 }
 
 /* Grow the pool pointer vector with the same power-of-two rule as TCC. */
@@ -11713,12 +11764,12 @@ function tcc_debug_start(state)
         wi8(path, 0);
         cc2_type_string_append(path, add(strlen(directory), 2), directory);
         cc2_type_string_append(path, add(strlen(directory), 2), mks("/"));
-        cc2_put_stabs_reloc(path, CC2_STABS_SOURCE_FILE, 0, 0,
+        put_stabs_r(path, CC2_STABS_SOURCE_FILE, 0, 0,
             ri32(add(text_section, CC2_SECTION_DATA_OFFSET)), text_section,
             section_sym);
         free(path);
         free(directory);
-        cc2_put_stabs_reloc(add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET),
+        put_stabs_r(add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET),
             CC2_STABS_SOURCE_FILE, 0, 0,
             ri32(add(text_section, CC2_SECTION_DATA_OFFSET)), text_section,
             section_sym);
@@ -11738,7 +11789,7 @@ function tcc_debug_end(state)
         return 0;
     }
     text_section = ri32(text_section_address);
-    cc2_put_stabs_reloc(0, CC2_STABS_SOURCE_FILE, 0, 0,
+    put_stabs_r(0, CC2_STABS_SOURCE_FILE, 0, 0,
         ri32(add(text_section, CC2_SECTION_DATA_OFFSET)), text_section,
         section_sym);
     return 0;
@@ -11754,7 +11805,7 @@ function tcc_debug_line(state)
     source_file = ri32(file_address);
     line = ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET));
     if (or(not(eq(last_line_num, line)), not(eq(last_ind, ind)))) {
-        cc2_put_stabs_number(CC2_STABS_SOURCE_LINE, 0, line,
+        put_stabn(CC2_STABS_SOURCE_LINE, 0, line,
             sub(ind, func_ind));
         last_ind = ind;
         last_line_num = line;
@@ -11782,12 +11833,12 @@ function tcc_debug_funcstart(state, symbol)
     } else {
         cc2_type_string_append(buffer, buffer_size, mks("F1"));
     }
-    cc2_put_stabs_reloc(buffer, CC2_STABS_FUNCTION, 0,
+    put_stabs_r(buffer, CC2_STABS_FUNCTION, 0,
         ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 0,
         ri32(cur_text_section_address),
         ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)));
     free(buffer);
-    cc2_put_stabs_number(CC2_STABS_SOURCE_LINE, 0,
+    put_stabn(CC2_STABS_SOURCE_LINE, 0,
         ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 0);
     last_ind = 0;
     last_line_num = 0;
@@ -11797,7 +11848,7 @@ function tcc_debug_funcstart(state, symbol)
 function tcc_debug_funcend(state, size)
 {
     if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
-        cc2_put_stabs_number(CC2_STABS_FUNCTION, 0, 0, size);
+        put_stabn(CC2_STABS_FUNCTION, 0, 0, size);
     }
     return 0;
 }
@@ -17501,6 +17552,13 @@ function cc2_init_constants()
     CC2_ELF_INITIAL_HASH_BUCKET_COUNT = 1;
     CC2_ELF_HASH_HEADER_WORDS = 2;
     CC2_ELF_RELOCATION_SECTION_PREFIX = mks(".rel");
+    CC2_STABS_RECORD_BYTES = 12;
+    CC2_STABS_STRING_OFFSET = 0;
+    CC2_STABS_TYPE_OFFSET = 4;
+    CC2_STABS_OTHER_OFFSET = 5;
+    CC2_STABS_DESCRIPTION_OFFSET = 6;
+    CC2_STABS_VALUE_OFFSET = 8;
+    CC2_I386_ABSOLUTE_RELOCATION = 1;
     CC2_TOKEN_GENERIC = 292;
     CC2_TOKEN_DEFAULT = 300;
     CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;

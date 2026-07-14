@@ -72,18 +72,6 @@ ElfSym *elfsym(Sym *s)
     return &((ElfSym *)symtab_section->data)[s->c];
 }
 
-/* STABS storage is private to tccelf.c; expose only its record operations. */
-void cc2_put_stabs_reloc(const char *text, int type, int other, int desc,
-                         unsigned long value, Section *section, int symbol)
-{
-    put_stabs_r(text, type, other, desc, value, section, symbol);
-}
-
-void cc2_put_stabs_number(int type, int other, int desc, int value)
-{
-    put_stabn(type, other, desc, value);
-}
-
 ST_FUNC int ieee_finite(double d)
 {
     int p[4];
@@ -427,12 +415,6 @@ void cc2_pstrcpy(char *destination, int capacity, const char *source)
     pstrcpy(destination, capacity, source);
 }
 
-void cc2_put_stabs(const char *text, int type, int other, int description,
-                   unsigned long value)
-{
-    put_stabs(text, type, other, description, value);
-}
-
 int cc2_tcc_open(TCCState *state, const char *filename)
 {
     return tcc_open(state, filename);
@@ -500,6 +482,8 @@ int cc2_bind_tcc_globals(TCCState *state)
     bss_section_address = &bss_section;
     common_section_address = &common_section;
     text_section_address = &text_section;
+    stab_section_address = &stab_section;
+    stabstr_section_address = &stabstr_section;
     tcc_state_address = state;
     return 0;
 }
