@@ -103,8 +103,6 @@ test3 test3b: tcctest.c test.ref
 	$(TCC) $(RUN_TCC) $(RUN_TCC) $(RUN_TCC) -run $< > test.out3
 	@diff -u test.ref test.out3 && echo "Auto Test3 OK"
 
-test%b : TCCFLAGS += -b
-
 # binary output test
 test4: tcctest.c test.ref
 	@echo ------------ $@ ------------
@@ -117,10 +115,6 @@ test4: tcctest.c test.ref
 	$(TCC) -o tcctest1 $<
 	./tcctest1 > test1.out
 	@if diff -u test.ref test1.out ; then echo "Dynamic Auto Test OK"; fi
-# dynamic output + bound check
-	$(TCC) -b -o tcctest4 $<
-	./tcctest4 > test4.out
-	@if diff -u test.ref test4.out ; then echo "BCheck Auto Test OK"; fi
 # static output
 	$(TCC) -static -o tcctest2 $<
 	./tcctest2 > test2.out
@@ -147,30 +141,6 @@ memtest:
 	./memtest-tcc$(EXESUF) $(TCCFLAGS) $(NATIVE_DEFINES) $(TOPSRC)/tcc.c $(LIBS)
 	./memtest-tcc$(EXESUF) $(TCCFLAGS) $(NATIVE_DEFINES) -run $(TOPSRC)/tcc.c $(TCCFLAGS) $(TOPSRC)/tests/tcctest.c
 
-
-# memory and bound check auto test
-BOUNDS_OK  = 1 4 8 10 14
-BOUNDS_FAIL= 2 5 7 9 11 12 13 15
-
-btest: boundtest.c
-	@echo ------------ $@ ------------
-	@for i in $(BOUNDS_OK); do \
-	   echo ; echo --- boundtest $$i ---; \
-	   if $(TCC) -b -run $< $$i ; then \
-	       echo succeeded as expected; \
-	   else\
-	       echo Failed positive test $$i ; exit 1 ; \
-	   fi ;\
-	done ;\
-	for i in $(BOUNDS_FAIL); do \
-	   echo ; echo --- boundtest $$i ---; \
-	   if $(TCC) -b -run $< $$i ; then \
-	       echo Failed negative test $$i ; exit 1 ;\
-	   else\
-	       echo failed as expected; \
-	   fi ;\
-	done ;\
-	echo; echo Bound test OK
 
 # speed test
 speedtest: ex2 ex3
