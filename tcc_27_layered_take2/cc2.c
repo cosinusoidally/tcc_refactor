@@ -703,6 +703,7 @@ var CC2_ELF_SECTION_REL;
 var CC2_ELF_SECTION_DYNAMIC_SYMBOLS;
 var CC2_ELF_PRIVATE_SECTION_FLAG;
 var CC2_ELF_ALLOCATE_SECTION_FLAG;
+var CC2_ELF_WRITE_SECTION_FLAG;
 var CC2_ELF_HASH_HIGH_MASK;
 var CC2_ELF_SYMBOL_BYTES;
 var CC2_ELF_SYMBOL_NAME_OFFSET;
@@ -731,6 +732,10 @@ var CC2_STABS_DESCRIPTION_OFFSET;
 var CC2_STABS_VALUE_OFFSET;
 var CC2_I386_ABSOLUTE_RELOCATION;
 var CC2_SYMBOL_ATTRIBUTE_BYTES;
+var CC2_I386_RESERVED_GOT_WORDS;
+var CC2_ELF_DYNAMIC_RECORD_BYTES;
+var CC2_ELF_DYNAMIC_TAG_OFFSET;
+var CC2_ELF_DYNAMIC_VALUE_OFFSET;
 var CC2_TOKEN_GENERIC;
 var CC2_TOKEN_DEFAULT;
 var CC2_IEEE_DOUBLE_NAN_HIGH_WORD;
@@ -6413,6 +6418,32 @@ function prepare_dynamic_rel(state, relocation_section)
             mul(count, CC2_ELF_RELOCATION_BYTES));
     }
     return count;
+}
+
+function build_got(state)
+{
+    var got;
+    got = new_section(state, mks(".got"), CC2_ELF_SECTION_PROGBITS,
+        or(CC2_ELF_ALLOCATE_SECTION_FLAG, CC2_ELF_WRITE_SECTION_FLAG));
+    wi32(add(state, CC2_TCC_STATE_GOT_OFFSET), got);
+    wi32(add(got, CC2_SECTION_ENTRY_SIZE_OFFSET), CC2_I386_WORD_BYTES);
+    set_elf_sym(ri32(symtab_section_address), 0, CC2_I386_WORD_BYTES,
+        or(shl(CC2_ELF_SYMBOL_GLOBAL_BINDING,
+        CC2_ELF_SYMBOL_BIND_SHIFT), CC2_ELF_SYMBOL_OBJECT_TYPE), 0,
+        ri32(add(got, CC2_SECTION_NUMBER_OFFSET)),
+        mks("_GLOBAL_OFFSET_TABLE_"));
+    section_ptr_add(got, mul(CC2_I386_RESERVED_GOT_WORDS,
+        CC2_I386_WORD_BYTES));
+    return 0;
+}
+
+function put_dt(dynamic_section, tag, value)
+{
+    var record;
+    record = section_ptr_add(dynamic_section, CC2_ELF_DYNAMIC_RECORD_BYTES);
+    wi32(add(record, CC2_ELF_DYNAMIC_TAG_OFFSET), tag);
+    wi32(add(record, CC2_ELF_DYNAMIC_VALUE_OFFSET), value);
+    return 0;
 }
 
 /* Grow the pool pointer vector with the same power-of-two rule as TCC. */
@@ -17835,6 +17866,7 @@ function cc2_init_constants()
     CC2_ELF_SECTION_DYNAMIC_SYMBOLS = 11;
     CC2_ELF_PRIVATE_SECTION_FLAG = 2147483648;
     CC2_ELF_ALLOCATE_SECTION_FLAG = 2;
+    CC2_ELF_WRITE_SECTION_FLAG = 1;
     CC2_ELF_HASH_HIGH_MASK = 4026531840;
     CC2_ELF_SYMBOL_BYTES = 16;
     CC2_ELF_SYMBOL_NAME_OFFSET = 0;
@@ -17863,6 +17895,10 @@ function cc2_init_constants()
     CC2_STABS_VALUE_OFFSET = 8;
     CC2_I386_ABSOLUTE_RELOCATION = 1;
     CC2_SYMBOL_ATTRIBUTE_BYTES = 16;
+    CC2_I386_RESERVED_GOT_WORDS = 3;
+    CC2_ELF_DYNAMIC_RECORD_BYTES = 8;
+    CC2_ELF_DYNAMIC_TAG_OFFSET = 0;
+    CC2_ELF_DYNAMIC_VALUE_OFFSET = 4;
     CC2_TOKEN_GENERIC = 292;
     CC2_TOKEN_DEFAULT = 300;
     CC2_IEEE_DOUBLE_NAN_HIGH_WORD = 2146959360;

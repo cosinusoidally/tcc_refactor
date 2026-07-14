@@ -159,17 +159,6 @@ ST_FUNC void* tcc_get_symbol_err(TCCState *s, const char *name)
    the global and weak ones. Since TCC cannot sort it while generating
    the code, we must do it after. All the relocation tables are also
    modified to take into account the symbol table sorting */
-static void build_got(TCCState *s1)
-{
-    /* if no got, then create it */
-    s1->got = new_section(s1, ".got", SHT_PROGBITS, SHF_ALLOC | SHF_WRITE);
-    s1->got->sh_entsize = 4;
-    set_elf_sym(symtab_section, 0, 4, ELFW(ST_INFO)(STB_GLOBAL, STT_OBJECT),
-                0, s1->got->sh_num, "_GLOBAL_OFFSET_TABLE_");
-    /* keep space for _DYNAMIC pointer and two dummy got entries */
-    section_ptr_add(s1->got, 3 * PTR_SIZE);
-}
-
 /* Create a GOT and (for function call) a PLT entry corresponding to a symbol
    in s1->symtab. When creating the dynamic symbol table entry for the GOT
    relocation, use 'size' and 'info' for the corresponding symbol metadata.
@@ -356,15 +345,6 @@ ST_FUNC void build_got_entries(TCCState *s1)
                 rel->r_info = ELFW(R_INFO)(attr->plt_sym, type);
         }
     }
-}
-
-/* put dynamic tag */
-static void put_dt(Section *dynamic, int dt, addr_t val)
-{
-    ElfW(Dyn) *dyn;
-    dyn = section_ptr_add(dynamic, sizeof(ElfW(Dyn)));
-    dyn->d_tag = dt;
-    dyn->d_un.d_val = val;
 }
 
 #ifndef TCC_TARGET_PE
