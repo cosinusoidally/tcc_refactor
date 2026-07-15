@@ -30,6 +30,21 @@ function libc_smoke_word_bytes()
     return 4;
 }
 
+function libc_smoke_standard_output()
+{
+    return 1;
+}
+
+function libc_smoke_write_message()
+{
+    return mks("write smoke ok\n");
+}
+
+function libc_smoke_write_message_bytes()
+{
+    return 15;
+}
+
 function main_(argc, argv, first, second, first_argument, second_argument)
 {
     if (not(eq(argc, 3))) {
@@ -79,8 +94,13 @@ function main_(argc, argv, first, second, first_argument, second_argument)
     if (not(eq(ri8(add(second, 8)), mkC("C")))) {
         return 12;
     }
-    if (not(eq(puts(mks("libc smoke ok")), 0))) {
+    if (not(eq(write(libc_smoke_standard_output(),
+        libc_smoke_write_message(), libc_smoke_write_message_bytes()),
+        libc_smoke_write_message_bytes()))) {
         return 13;
+    }
+    if (not(eq(puts(mks("libc smoke ok")), 0))) {
+        return 14;
     }
     return 0;
 }

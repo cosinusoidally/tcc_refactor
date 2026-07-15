@@ -148,7 +148,7 @@ function read(descriptor, buffer, count)
 
 function write(descriptor, buffer, count)
 {
-    return cc0_libc_unimplemented(mks("write"));
+    return cc0_runtime_write(descriptor, buffer, count);
 }
 
 function close(descriptor)

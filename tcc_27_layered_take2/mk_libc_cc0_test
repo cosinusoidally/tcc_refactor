@@ -13,7 +13,8 @@ if ! test -x "$CC0" || ! test -f "$CC0_OBJECT" || \
 fi
 
 TEST_ARTIFACTS=artifacts/libc_cc0_test
-EXPECTED_UNIMPLEMENTED=write
+EXPECTED_SMOKE_OUTPUT=$(printf 'write smoke ok\nlibc smoke ok')
+EXPECTED_UNIMPLEMENTED=open
 rm -rf "$TEST_ARTIFACTS"
 mkdir -p "$TEST_ARTIFACTS"
 
@@ -50,7 +51,7 @@ check_smoke()
     stderr_file="$TEST_ARTIFACTS/$label.stderr"
 
     "$executable" first second >"$stdout_file" 2>"$stderr_file"
-    test "$(cat "$stdout_file")" = "libc smoke ok"
+    test "$(cat "$stdout_file")" = "$EXPECTED_SMOKE_OUTPUT"
     test ! -s "$stderr_file"
     printf '%s: libc smoke ok\n' "$label"
 }
@@ -82,7 +83,9 @@ check_unimplemented()
     stderr_file="$TEST_ARTIFACTS/$label.stderr"
 
     status=0
-    "$executable" >"$stdout_file" 2>"$stderr_file" || status=$?
+    "$executable" -c tcc_27_layered_take2/tests/layered/libc_smoke.c \
+        -o "$TEST_ARTIFACTS/$label.output.o" \
+        >"$stdout_file" 2>"$stderr_file" || status=$?
     test "$status" -eq 1
     test ! -s "$stdout_file"
     test "$(wc -l < "$stderr_file")" -eq 1
