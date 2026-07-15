@@ -251,9 +251,40 @@ function ftell(stream)
     return cc1_libc_unimplemented(mks("ftell"));
 }
 
+function fwrite_(buffer, size, count, stream, bytes, written, result,
+    descriptor)
+{
+    if (or(eq(size, 0), eq(count, 0))) {
+        return 0;
+    }
+    if (or(eq(stream, 0), eq(ri32(add(stream,
+        CC1_LIBC_STREAM_WRITABLE_OFFSET)), 0))) {
+        if (not(eq(stream, 0))) {
+            wi32(add(stream, CC1_LIBC_STREAM_ERROR_OFFSET), 1);
+        }
+        return 0;
+    }
+    bytes = cc1_libc_size_product_(size, count, 0, 0, 0, 0, 0, 0);
+    if (eq(bytes, 0)) {
+        wi32(add(stream, CC1_LIBC_STREAM_ERROR_OFFSET), 1);
+        return 0;
+    }
+    descriptor = cc1_libc_stream_descriptor(stream);
+    written = 0;
+    while (lt(written, bytes)) {
+        result = write(descriptor, add(buffer, written), sub(bytes, written));
+        if (le(result, 0)) {
+            wi32(add(stream, CC1_LIBC_STREAM_ERROR_OFFSET), 1);
+            return sdiv(written, size);
+        }
+        written = add(written, result);
+    }
+    return count;
+}
+
 function fwrite(buffer, size, count, stream)
 {
-    return cc1_libc_unimplemented(mks("fwrite"));
+    return fwrite_(buffer, size, count, stream, 0, 0, 0, 0);
 }
 
 function getcwd(buffer, size)
