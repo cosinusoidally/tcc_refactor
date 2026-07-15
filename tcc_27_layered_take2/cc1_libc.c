@@ -246,7 +246,8 @@ function sprintf(output, format, value)
 
 function strcat(destination, source)
 {
-    return cc1_libc_unimplemented(mks("strcat"));
+    strcpy(add(destination, strlen(destination)), source);
+    return destination;
 }
 
 function strchr(text, character)
