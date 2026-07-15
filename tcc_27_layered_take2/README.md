@@ -59,6 +59,7 @@ Its source dialect uses:
 - Lowercase primitive calls such as `add`, `sub`, `eq`, `ri32`, and `wi8`
   instead of source-language operators.
 - `mkC("x")` for byte-valued character constants.
+- Inline `asm` limited to adjacent strings containing `.byte 0xNN` lists.
 - Extra worker parameters as local storage where mawkcc has no local-variable
   declaration facility.
 - Braces around every control-flow body.
@@ -73,11 +74,13 @@ The same `cc0.c` text has three relevant interpretations:
   supplies the few runtime spellings not built into mawkcc.
 
 cc0 compiles the base dialect into i386 ELF relocatable objects. Its lower
-linker merges those objects, resolves their symbols and relocations, creates a
-dynamic ELF image, supplies the process-entry adapter, and records direct
-dependencies on libc, libm, and libdl. The lower linker is sufficient for the
-cc0, cc1, cc2 bootstrap executables; the final compiler uses the full TCC ELF
-linker in cc2.
+linker merges those objects and resolves their symbols and relocations. An
+object set defining `main` becomes a dynamic ELF image with a process-entry
+adapter and direct dependencies on libc, libm, and libdl. A freestanding object
+set defining `_start` and containing no unresolved imports becomes a static
+ELF image with separate executable and writable load segments. The lower
+linker is sufficient for the cc0, cc1, cc2 bootstrap executables and small
+static runtime tests; the final compiler uses the full TCC ELF linker in cc2.
 
 `main` is in `cc0.c`. Every layer therefore inherits the same help, usage,
 file/line/column diagnostics, compile dispatch, and link dispatch. Higher
@@ -346,6 +349,22 @@ provided by libgcc. It implements those operations from explicit 32-bit words
 and the i386 x87 extended representation. The layered bootstrap never links
 `libgcc_s.so.1` or a static `libgcc.a` into its canonical result.
 
+The developing static cc0 runtime is kept in replaceable layers:
+
+- `linux_i386_syscalls.c` contains the `.byte` implementation of the single
+  five-argument `int 0x80` entry.
+- `cc0_static_syscalls.c` implements the private read, write, brk, and exit
+  runtime operations in terms of that entry.
+- `cc0_dynamic_syscalls.c` adapts read, write, and brk to glibc; the normal
+  dynamic startup retains responsibility for process exit.
+- `cc0_static_start.c` supplies the initial freestanding `_start` policy.
+- `cc0_libc.c` contains environment-neutral libc functions, currently string
+  length and `puts`.
+
+`mk_libc_test` compiles each matrix entry's `cc0_libc.o` and
+`hello_world_test.o` once and feeds those exact objects to both its static and
+dynamic links. This is the initial path toward a fully static `cc0_static.exe`.
+
 ## Important Artifacts
 
 The bootstrap may create these files under `artifacts/`:
@@ -360,6 +379,8 @@ The bootstrap may create these files under `artifacts/`:
 | `cc2.exe` | Full typed TCC compiler used for the final rebuild. |
 | `tcc_layered.exe` | Canonical final layered TCC executable. |
 | `tcc_27_boot_static.exe` | Stock compatibility executable covered by `sums_tcc_27`. |
+| `syscall_test/` | GCC, TCC, mixed cc0, and cc0-self raw-syscall tests. |
+| `libc_test/` | Matching static/dynamic libc tests across the same matrix. |
 
 Names ending in `_boot.o` or `_final.o` make the producing stage explicit.
 Generated source and binaries must not be added to this directory.
@@ -400,6 +421,19 @@ cmp /tmp/cc0.mawkcc.exe ../artifacts/cc0.exe
 
 For the strongest non-native test, build cc0 from either seed and then run the
 entire compiler-only chain through `mk_tcc_layered_via_cc0`.
+
+The focused freestanding tests are run from this directory after cleaning:
+
+```sh
+./mk_syscall_test
+./mk_libc_test
+```
+
+Both scripts build missing compiler prerequisites automatically. The libc test
+produces static and glibc-linked hello executables for GCC, layered TCC, the
+stock static bootstrap TCC, mixed cc0, and cc0-self object paths. Every pair
+must print identical output; the script also checks that static images have no
+interpreter and dynamic images have both an interpreter and a needed DSO.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.
