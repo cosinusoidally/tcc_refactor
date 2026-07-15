@@ -2,6 +2,7 @@
 var CC0_STATIC_SYSCALL_EXIT;
 var CC0_STATIC_SYSCALL_READ;
 var CC0_STATIC_SYSCALL_WRITE;
+var CC0_STATIC_SYSCALL_OPEN;
 var CC0_STATIC_SYSCALL_BRK;
 
 function cc0_static_syscalls_init()
@@ -9,6 +10,7 @@ function cc0_static_syscalls_init()
     CC0_STATIC_SYSCALL_EXIT = 1;
     CC0_STATIC_SYSCALL_READ = 3;
     CC0_STATIC_SYSCALL_WRITE = 4;
+    CC0_STATIC_SYSCALL_OPEN = 5;
     CC0_STATIC_SYSCALL_BRK = 45;
 }
 
@@ -22,6 +24,12 @@ function cc0_runtime_write(descriptor, buffer, count)
 {
     return linux_i386_syscall5(CC0_STATIC_SYSCALL_WRITE, descriptor,
         buffer, count, 0, 0);
+}
+
+function cc0_runtime_open(path, flags, mode)
+{
+    return linux_i386_syscall5(CC0_STATIC_SYSCALL_OPEN, path, flags, mode,
+        0, 0);
 }
 
 function cc0_runtime_exit(status)

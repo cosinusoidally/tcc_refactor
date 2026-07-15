@@ -9,6 +9,11 @@ function cc0_runtime_write(descriptor, buffer, count)
     return __write(descriptor, buffer, count);
 }
 
+function cc0_runtime_open(path, flags, mode)
+{
+    return __open(path, flags, mode);
+}
+
 function cc0_runtime_exit(status)
 {
     _exit(status);

@@ -138,7 +138,7 @@ function realloc(address, size)
 
 function open(path, flags, mode)
 {
-    return cc0_libc_unimplemented(mks("open"));
+    return cc0_runtime_open(path, flags, mode);
 }
 
 function read(descriptor, buffer, count)

@@ -14,7 +14,7 @@ fi
 
 TEST_ARTIFACTS=artifacts/libc_cc0_test
 EXPECTED_SMOKE_OUTPUT=$(printf 'write smoke ok\nlibc smoke ok')
-EXPECTED_UNIMPLEMENTED=open
+EXPECTED_UNIMPLEMENTED=read
 rm -rf "$TEST_ARTIFACTS"
 mkdir -p "$TEST_ARTIFACTS"
 
