@@ -378,9 +378,26 @@ function free(address)
     return cc0_libc_release(address);
 }
 
+function fseek_(stream, offset, origin, position)
+{
+    if (eq(stream, 0)) {
+        return sub(0, 1);
+    }
+    if (lt(cc1_libc_stream_flush(stream), 0)) {
+        return sub(0, 1);
+    }
+    position = lseek(cc1_libc_stream_descriptor(stream), offset, origin);
+    if (lt(position, 0)) {
+        wi32(add(stream, CC1_LIBC_STREAM_ERROR_OFFSET), 1);
+        return sub(0, 1);
+    }
+    wi32(add(stream, CC1_LIBC_STREAM_EOF_OFFSET), 0);
+    return 0;
+}
+
 function fseek(stream, offset, origin)
 {
-    return cc1_libc_unimplemented(mks("fseek"));
+    return fseek_(stream, offset, origin, 0);
 }
 
 function ftell(stream)
