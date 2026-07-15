@@ -135,9 +135,27 @@ function memcpy(destination, source, size)
     return cc1_libc_unimplemented(mks("memcpy"));
 }
 
+function memmove_(destination, source, size, index)
+{
+    if (cc0_libc_unsigned_less(destination, source)) {
+        index = 0;
+        while (lt(index, size)) {
+            wi8(add(destination, index), ri8(add(source, index)));
+            index = add(index, 1);
+        }
+        return destination;
+    }
+    index = size;
+    while (not(eq(index, 0))) {
+        index = sub(index, 1);
+        wi8(add(destination, index), ri8(add(source, index)));
+    }
+    return destination;
+}
+
 function memmove(destination, source, size)
 {
-    return cc1_libc_unimplemented(mks("memmove"));
+    return memmove_(destination, source, size, 0);
 }
 
 function memset_(destination, value, size, index, byte)

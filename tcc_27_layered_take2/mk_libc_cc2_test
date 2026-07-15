@@ -101,6 +101,7 @@ build_and_check_function_smoke calloc
 build_and_check_function_smoke free
 build_and_check_function_smoke strlen
 build_and_check_function_smoke strcpy
+build_and_check_function_smoke memmove
 
 # cc1 owns the cc2 bootstrap sources and lower static linker owns this link.
 "$CC1_STATIC" -c tcc_27_layered_take2/cc2_boot_unified.c \
