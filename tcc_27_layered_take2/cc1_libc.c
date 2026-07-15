@@ -198,7 +198,7 @@ function strcpy(destination, source)
 
 function strlen(text)
 {
-    return cc1_libc_unimplemented(mks("strlen"));
+    return cc0_libc_string_length(text);
 }
 
 function strncmp(left, right, size)
