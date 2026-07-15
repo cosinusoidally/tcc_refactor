@@ -27,6 +27,40 @@ mkdir -p "$TEST_ARTIFACTS"
     -o "$TEST_ARTIFACTS/cc0_static_start.o"
 "$CC0" -c tcc_27_layered_take2/cc0_libc.c \
     -o "$TEST_ARTIFACTS/cc0_libc.o"
+"$CC0" -c tcc_27_layered_take2/tests/layered/libc_smoke.c \
+    -o "$TEST_ARTIFACTS/libc_smoke.o"
+
+"$CC0" "$TEST_ARTIFACTS/cc0_static_start.o" \
+    "$TEST_ARTIFACTS/linux_i386_syscalls.o" \
+    "$TEST_ARTIFACTS/cc0_static_syscalls.o" \
+    "$TEST_ARTIFACTS/cc0_libc.o" "$TEST_ARTIFACTS/libc_smoke.o" \
+    -o "$TEST_ARTIFACTS/libc_smoke_static.exe"
+"$CC0" "$TEST_ARTIFACTS/libc_smoke.o" \
+    "$TEST_ARTIFACTS/cc0_libc.o" \
+    "$TEST_ARTIFACTS/cc0_dynamic_syscalls.o" \
+    -o "$TEST_ARTIFACTS/libc_smoke_dynamic.exe"
+chmod +x "$TEST_ARTIFACTS/libc_smoke_static.exe" \
+    "$TEST_ARTIFACTS/libc_smoke_dynamic.exe"
+
+check_smoke()
+{
+    executable=$1
+    label=$2
+    stdout_file="$TEST_ARTIFACTS/$label.stdout"
+    stderr_file="$TEST_ARTIFACTS/$label.stderr"
+
+    "$executable" first second >"$stdout_file" 2>"$stderr_file"
+    test "$(cat "$stdout_file")" = "libc smoke ok"
+    test ! -s "$stderr_file"
+    printf '%s: libc smoke ok\n' "$label"
+}
+
+check_smoke "$TEST_ARTIFACTS/libc_smoke_static.exe" libc_smoke_static
+check_smoke "$TEST_ARTIFACTS/libc_smoke_dynamic.exe" libc_smoke_dynamic
+cmp "$TEST_ARTIFACTS/libc_smoke_static.stdout" \
+    "$TEST_ARTIFACTS/libc_smoke_dynamic.stdout"
+cmp "$TEST_ARTIFACTS/libc_smoke_static.stderr" \
+    "$TEST_ARTIFACTS/libc_smoke_dynamic.stderr"
 
 "$CC0" "$TEST_ARTIFACTS/cc0_static_start.o" \
     "$TEST_ARTIFACTS/linux_i386_syscalls.o" \

@@ -382,7 +382,7 @@ The bootstrap may create these files under `artifacts/`:
 | `tcc_27_boot_static.exe` | Stock compatibility executable covered by `sums_tcc_27`. |
 | `syscall_test/` | GCC, TCC, mixed cc0, and cc0-self raw-syscall tests. |
 | `libc_test/` | Matching static/dynamic libc tests across the same matrix. |
-| `libc_cc0_test/` | Static and dynamic cc0 executables using the in-tree libc. |
+| `libc_cc0_test/` | Static/dynamic libc smoke and cc0 compiler executables. |
 
 Names ending in `_boot.o` or `_final.o` make the producing stage explicit.
 Generated source and binaries must not be added to this directory.
@@ -439,9 +439,12 @@ must print identical output; the script also checks that static images have no
 interpreter and dynamic images have both an interpreter and a needed DSO.
 
 `mk_libc_cc0_test` links the canonical `cc0.o` and `cc1_stubs.o` against the
-cc0-built runtime objects. It retains `cc0_static.exe` and `cc0_dynamic.exe`
-under `artifacts/libc_cc0_test/` and currently requires both to stop at the
-`write` fail-fast stub with status 1.
+cc0-built runtime objects. Before that compiler check, it builds static and
+dynamic copies of `tests/layered/libc_smoke.c` against the same runtime. The
+smoke test checks `argc`/`argv`, writable aligned `malloc` allocations, and
+`puts`. It must succeed identically in both modes. The retained `cc0_static.exe`
+and `cc0_dynamic.exe` currently must both stop at the `write` fail-fast stub
+with status 1.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.
