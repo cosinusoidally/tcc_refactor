@@ -213,7 +213,8 @@ cd tcc_27_layered_take2
 
 `mk_cc0_js` loads `prims.js`, `cc0.c`, and `cc1_stubs.c` into JavaScript. cc0
 then compiles its own canonical object, compiles the canonical stub object, and
-links `artifacts/cc0.exe` through its own lower linker.
+links `artifacts/cc0.exe` through its own lower linker. It then invokes
+`mk_cc0_static` to produce and self-verify `artifacts/cc0_static.exe`.
 
 The JavaScript host models integer-addressed memory with a growable typed
 array. Compiler policy remains in `cc0.c`; `prims.js` implements only the host
@@ -255,6 +256,8 @@ arena allocation, copying reallocation, and primitive spelling adapters.
 compile the unmodified `cc0.c` and `cc1_stubs.c`, then to link
 `artifacts/cc0.exe`. The script rebuilds both objects with that canonical cc0
 and compares them byte-for-byte before returning.
+It then invokes the same `mk_cc0_static` stage used by the JavaScript seed, so
+the mawkcc path also returns canonical dynamic and static cc0 executables.
 
 ### Native Validation Seed
 
@@ -353,9 +356,9 @@ The developing static cc0 runtime is kept in replaceable layers:
 
 - `linux_i386_syscalls.c` contains the `.byte` implementation of the single
   five-argument `int 0x80` entry.
-- `cc0_static_syscalls.c` implements the private read, write, brk, and exit
-  runtime operations in terms of that entry.
-- `cc0_dynamic_syscalls.c` adapts read, write, brk, and process exit to glibc.
+- `cc0_static_syscalls.c` implements private open, read, write, close, brk, and
+  exit runtime operations in terms of that entry.
+- `cc0_dynamic_syscalls.c` adapts the same operations to glibc.
 - `cc0_static_start.c` supplies the initial freestanding `_start` policy.
 - `cc0_libc.c` contains environment-neutral libc functions. String length,
   `puts`, `write`, `open`, `exit`, and a monotonic `brk`-backed `malloc` work
@@ -364,7 +367,8 @@ The developing static cc0 runtime is kept in replaceable layers:
 
 `mk_libc_test` compiles each matrix entry's `cc0_libc.o` and
 `hello_world_test.o` once and feeds those exact objects to both its static and
-dynamic links. This is the initial path toward a fully static `cc0_static.exe`.
+dynamic links. `mk_cc0_static` uses that runtime to build and self-reproduce the
+fully static `cc0_static.exe` emitted by both non-native seed paths.
 
 ## Important Artifacts
 
@@ -375,6 +379,8 @@ The bootstrap may create these files under `artifacts/`:
 | `cc0_mawkcc.c` | Generated mawkcc-compatible seed translation unit. |
 | `cc0_mawkcc.exe` | Disposable compiler seed produced by mawkcc. |
 | `cc0.exe` | Canonical self-hosted base compiler and lower linker. |
+| `cc0_static.exe` | Canonical statically linked base compiler. |
+| `cc0_static_self.exe` | Byte-identical rebuild produced by static cc0. |
 | `cc1.exe` | Preprocessing and scalar-source layer. |
 | `cc2_boot.exe` | Transitional typed layer with bootstrap services. |
 | `cc2.exe` | Full typed TCC compiler used for the final rebuild. |

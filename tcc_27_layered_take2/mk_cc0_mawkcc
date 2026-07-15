@@ -24,3 +24,6 @@ cd artifacts
 ./cc0.exe -c ../tcc_27_layered_take2/cc1_stubs.c -o cc1_stubs_self.o
 cmp cc0.o cc0_self.o
 cmp cc1_stubs.o cc1_stubs_self.o
+
+cd ../tcc_27_layered_take2
+./mk_cc0_static

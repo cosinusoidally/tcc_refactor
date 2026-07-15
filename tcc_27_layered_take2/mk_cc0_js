@@ -12,3 +12,5 @@ mv -f cc1_stubs_js.o cc1_stubs.o
 mv -f cc0_js.exe cc0.exe
 chmod +x cc0.exe
 
+cd ../tcc_27_layered_take2
+./mk_cc0_static
