@@ -497,6 +497,28 @@ function getenv(name)
     return getenv_(name, 0, 0, 0, 0, 0, 0);
 }
 
+/* Typed cc2 calls these through its normal C ABI; each boundary stays fatal
+ * until its real layer-one implementation and focused smoke test are added. */
+function gettimeofday(value, timezone)
+{
+    return cc1_libc_unimplemented(mks("gettimeofday"));
+}
+
+function ldexp(value_low, value_high, exponent)
+{
+    return cc1_libc_unimplemented(mks("ldexp"));
+}
+
+function localtime(value)
+{
+    return cc1_libc_unimplemented(mks("localtime"));
+}
+
+function longjmp(environment, value)
+{
+    return cc1_libc_unimplemented(mks("longjmp"));
+}
+
 function memcmp_(left, right, size, index, left_byte, right_byte)
 {
     index = 0;
@@ -568,6 +590,11 @@ function printf(format, value)
     return cc1_libc_unimplemented(mks("printf"));
 }
 
+function qsort(base, count, size, compare)
+{
+    return cc1_libc_unimplemented(mks("qsort"));
+}
+
 function remove(path)
 {
     return cc1_libc_unimplemented(mks("remove"));
@@ -581,6 +608,11 @@ function snprintf(output, size, format, value)
 function sprintf(output, format, value)
 {
     return cc1_libc_unimplemented(mks("sprintf"));
+}
+
+function setjmp(environment)
+{
+    return cc1_libc_unimplemented(mks("setjmp"));
 }
 
 function strcat(destination, source)
@@ -661,12 +693,37 @@ function strtol(text, end, base)
     return cc1_libc_unimplemented(mks("strtol"));
 }
 
+function strtod(text, end)
+{
+    return cc1_libc_unimplemented(mks("strtod"));
+}
+
+function strtof(text, end)
+{
+    return cc1_libc_unimplemented(mks("strtof"));
+}
+
+function strtold(text, end)
+{
+    return cc1_libc_unimplemented(mks("strtold"));
+}
+
 function strtoul(text, end, base)
 {
     return cc1_libc_unimplemented(mks("strtoul"));
 }
 
+function time(value)
+{
+    return cc1_libc_unimplemented(mks("time"));
+}
+
 function unlink(path)
 {
     return cc0_runtime_unlink(path);
+}
+
+function vsnprintf(output, size, format, arguments)
+{
+    return cc1_libc_unimplemented(mks("vsnprintf"));
 }

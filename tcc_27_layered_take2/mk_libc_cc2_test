@@ -123,6 +123,8 @@ build_and_check_function_smoke ftell
 # cc1 owns the cc2 bootstrap sources and lower static linker owns this link.
 "$CC1_STATIC" -c tcc_27_layered_take2/cc2_boot_unified.c \
     -o "$TEST_ARTIFACTS/cc2_boot_unified.o"
+"$CC1_STATIC" -c tcc_27_layered_take2/cc2.c \
+    -o "$TEST_ARTIFACTS/cc2.o"
 "$CC1_STATIC" -c tcc_27_layered_take2/cc2_backend_stubs.c \
     -o "$TEST_ARTIFACTS/cc2_backend_stubs.o"
 "$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
@@ -131,11 +133,29 @@ build_and_check_function_smoke ftell
     "$TEST_ARTIFACTS/cc2_boot_unified.o" \
     "$TEST_ARTIFACTS/cc2_backend_stubs.o" \
     "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    -o "$TEST_ARTIFACTS/cc2_boot_static.exe"
+chmod +x "$TEST_ARTIFACTS/cc2_boot_static.exe"
+
+# The transitional compiler builds the typed TCC bridge and runtime. Linking
+# these with the separate cc2 layer produces the complete static cc2 compiler.
+"$TEST_ARTIFACTS/cc2_boot_static.exe" \
+    -nostdinc \
+    -I tcc_27_layered_take2/bootstrap_include/ \
+    -I tcc_27_layered_take2/include -I tcc_27_layered_take2/ \
+    -c tcc_27_layered_take2/tcc_unified.c -U__linux__ \
+    -o "$TEST_ARTIFACTS/tcc_rest.o"
+"$TEST_ARTIFACTS/cc2_boot_static.exe" -nostdinc \
+    -c tcc_27_layered_take2/cc2_runtime.c \
+    -o "$TEST_ARTIFACTS/cc2_runtime.o"
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    artifacts/cc0.o "$LOWER/cc1.o" "$TEST_ARTIFACTS/cc2.o" \
+    "$TEST_ARTIFACTS/tcc_rest.o" "$TEST_ARTIFACTS/cc2_runtime.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
     -o "$TEST_ARTIFACTS/cc2_static.exe"
 chmod +x "$TEST_ARTIFACTS/cc2_static.exe"
 
-# The executable is complete enough to enter cc2; the first missing service is
-# now a runtime boundary rather than an unresolved link symbol.
+# Enter the complete compiler to expose the first remaining libc boundary.
 status=0
 "$TEST_ARTIFACTS/cc2_static.exe" \
     -c tcc_27_layered_take2/tests/layered/cc2_compile_smoke.c \
