@@ -393,9 +393,9 @@ The developing static cc0 runtime is kept in replaceable layers:
 dynamic links. The JavaScript and mawkcc compiler seeds use that runtime to
 emit the fully static `cc0_static.exe` without running dynamic cc0.
 
-The static allocator remains based on `brk`. It reserves break space in
-one-megabyte growth quanta and serves allocations from a bump cursor, while
-allowing allocations larger than a quantum to extend to their required end.
+The static allocator remains based on `brk`. It reserves break space in 4 KiB
+growth quanta and serves allocations from a bump cursor, while allowing
+allocations larger than a quantum to extend to their required end.
 Seekable input descriptors have dynamically allocated 64 KiB read caches so
 the compiler does not issue one raw syscall per source byte. Non-seekable
 descriptors bypass the cache, and `lseek`, `write`, and `close` reconcile or

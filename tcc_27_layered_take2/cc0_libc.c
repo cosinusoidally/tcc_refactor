@@ -17,8 +17,8 @@ function cc0_libc_init()
 {
     CC0_LIBC_HEAP_CURSOR = 0;
     CC0_LIBC_HEAP_LIMIT = 0;
-    /* Amortize brk calls without imposing a maximum allocation size. */
-    CC0_LIBC_HEAP_GROWTH_BYTES = mul(1024, 1024);
+    /* Grow by one i386 page without imposing a maximum allocation size. */
+    CC0_LIBC_HEAP_GROWTH_BYTES = mul(4, 1024);
     CC0_LIBC_READ_CACHE_HEAD = 0;
     CC0_LIBC_READ_CACHE_NEXT_OFFSET = 0;
     CC0_LIBC_READ_CACHE_DESCRIPTOR_OFFSET = 4;
