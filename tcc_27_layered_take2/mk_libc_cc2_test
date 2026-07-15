@@ -124,6 +124,7 @@ build_and_check_function_smoke fprintf
 build_and_check_function_smoke snprintf
 build_and_check_function_smoke sprintf
 build_and_check_function_smoke strncmp
+build_and_check_function_smoke setjmp
 
 "$CC1_STATIC" -c tcc_27_layered_take2/tests/layered/cc1_libc_printf_smoke.c \
     -o "$TEST_ARTIFACTS/cc1_libc_printf_smoke.o"

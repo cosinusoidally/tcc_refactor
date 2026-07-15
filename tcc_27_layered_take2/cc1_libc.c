@@ -671,6 +671,13 @@ function setjmp(environment)
     return 0;
 }
 
+function _setjmp(environment)
+{
+    /* Historical TCC headers select this spelling for the same temporary
+     * bootstrap behavior. */
+    return setjmp(environment);
+}
+
 function strcat(destination, source)
 {
     strcpy(add(destination, strlen(destination)), source);
