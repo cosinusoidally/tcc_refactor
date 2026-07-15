@@ -80,13 +80,13 @@ chmod +x "$STATIC_BOOT_ARTIFACTS/syscall_hello.exe"
 output=$("$STATIC_BOOT_ARTIFACTS/syscall_hello.exe")
 test "$output" = "hello world"
 
-# cc0 builds the dialect source; layered TCC provides asm and freestanding link.
+# Layered TCC provides asm; cc0 builds the dialect source and static executable.
 "$LAYERED_TCC" -nostdinc -O0 -Dfunction=int \
     -c tcc_27_layered_take2/linux_i386_syscalls.c \
     -o "$CC0_ARTIFACTS/linux_i386_syscalls.o"
 "$CC0" -c tcc_27_layered_take2/tests/layered/syscall_hello.c \
     -o "$CC0_ARTIFACTS/syscall_hello.o"
-"$LAYERED_TCC" -nostdlib -static \
+"$CC0" \
     "$CC0_ARTIFACTS/syscall_hello.o" \
     "$CC0_ARTIFACTS/linux_i386_syscalls.o" \
     -o "$CC0_ARTIFACTS/syscall_hello.exe"

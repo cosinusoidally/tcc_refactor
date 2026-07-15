@@ -365,6 +365,8 @@ var CC0_LINK_BASE_ADDRESS;
 var CC0_LINK_PAGE_BYTES;
 var CC0_LINK_PROGRAM_HEADER_BYTES;
 var CC0_LINK_PROGRAM_HEADER_COUNT;
+var CC0_LINK_STATIC_PROGRAM_HEADER_COUNT;
+var CC0_LINK_STATIC;
 var CC0_LINK_INTERPRETER;
 var CC0_LINK_INTERPRETER_BYTES;
 var CC0_LINK_DYNAMIC_RECORD_BYTES;
@@ -770,6 +772,8 @@ function cc0_init()
     CC0_LINK_PAGE_BYTES = 4096;
     CC0_LINK_PROGRAM_HEADER_BYTES = 32;
     CC0_LINK_PROGRAM_HEADER_COUNT = 5;
+    CC0_LINK_STATIC_PROGRAM_HEADER_COUNT = 2;
+    CC0_LINK_STATIC = CC0_FALSE;
     CC0_LINK_INTERPRETER = mks("/lib/ld-linux.so.2");
     CC0_LINK_INTERPRETER_BYTES = 19;
     CC0_LINK_DYNAMIC_RECORD_BYTES = 8;
@@ -6367,6 +6371,9 @@ function cc0_link_collect_imports_(index, relocation, object, symbol, name,
         }
         index = add(index, 1);
     }
+    if (CC0_LINK_STATIC) {
+        return CC0_FALSE;
+    }
     return cc0_link_add_import(mks("exit"), 4);
 }
 
@@ -6430,6 +6437,30 @@ function cc0_link_layout_(offset, index, entry, name_bytes, symbol_count,
 function cc0_link_layout()
 {
     return cc0_link_layout_(0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc0_link_layout_static_(offset)
+{
+    offset = add(CC0_ELF_HEADER_BYTES,
+        mul(CC0_LINK_STATIC_PROGRAM_HEADER_COUNT,
+        CC0_LINK_PROGRAM_HEADER_BYTES));
+    CC0_LINK_TEXT_OFFSET = cc0_elf_align(offset, 16);
+    CC0_LINK_DATA_OFFSET = cc0_elf_align(add(CC0_LINK_TEXT_OFFSET,
+        CC0_LINK_TEXT_LENGTH), CC0_LINK_PAGE_BYTES);
+    CC0_LINK_BSS_OFFSET = cc0_elf_align(add(CC0_LINK_DATA_OFFSET,
+        CC0_LINK_DATA_LENGTH), 4);
+    CC0_LINK_OUTPUT_BYTES = CC0_LINK_BSS_OFFSET;
+    CC0_LINK_OUTPUT = alloc(CC0_LINK_OUTPUT_BYTES);
+    if (eq(CC0_LINK_OUTPUT, 0)) {
+        return CC0_TRUE;
+    }
+    cc0_link_zero(CC0_LINK_OUTPUT, CC0_LINK_OUTPUT_BYTES);
+    return CC0_FALSE;
+}
+
+function cc0_link_layout_static()
+{
+    return cc0_link_layout_static_(0);
 }
 
 function cc0_link_address(offset)
@@ -6516,6 +6547,53 @@ function cc0_link_write_elf_header_(header, interpreter_offset,
 function cc0_link_write_elf_header()
 {
     return cc0_link_write_elf_header_(0, 0, 0, 0, 0);
+}
+
+function cc0_link_write_static_elf_header_(header, entry_symbol,
+    writable_file_bytes, writable_memory_bytes)
+{
+    entry_symbol = cc0_link_find_global(mks("_start"), 6);
+    if (eq(entry_symbol, 0)) {
+        return CC0_TRUE;
+    }
+    header = CC0_LINK_OUTPUT;
+    wi8(header, CC0_ELF_MAGIC_DELETE);
+    wi8(add(header, 1), CC0_ELF_MAGIC_E);
+    wi8(add(header, 2), CC0_ELF_MAGIC_L);
+    wi8(add(header, 3), CC0_ELF_MAGIC_F);
+    wi8(add(header, 4), CC0_ELF_CLASS_32);
+    wi8(add(header, 5), CC0_ELF_DATA_LITTLE_ENDIAN);
+    wi8(add(header, 6), CC0_ELF_CURRENT_VERSION);
+    cc0_elf_write_half(add(header, 16), CC0_LINK_ELF_TYPE_EXECUTABLE);
+    cc0_elf_write_half(add(header, 18), CC0_ELF_MACHINE_I386);
+    wi32(add(header, 20), CC0_ELF_CURRENT_VERSION);
+    wi32(add(header, 24), cc0_link_global_address(entry_symbol));
+    wi32(add(header, 28), CC0_ELF_HEADER_BYTES);
+    wi32(add(header, 32), 0);
+    wi32(add(header, 36), 0);
+    cc0_elf_write_half(add(header, 40), CC0_ELF_HEADER_BYTES);
+    cc0_elf_write_half(add(header, 42), CC0_LINK_PROGRAM_HEADER_BYTES);
+    cc0_elf_write_half(add(header, 44),
+        CC0_LINK_STATIC_PROGRAM_HEADER_COUNT);
+    cc0_elf_write_half(add(header, 46), 0);
+    cc0_elf_write_half(add(header, 48), 0);
+    cc0_elf_write_half(add(header, 50), 0);
+    cc0_link_write_program_header(0, CC0_LINK_ELF_PROGRAM_LOAD, 0,
+        CC0_LINK_DATA_OFFSET, CC0_LINK_DATA_OFFSET,
+        or(CC0_LINK_ELF_PROGRAM_READ, CC0_LINK_ELF_PROGRAM_EXECUTE),
+        CC0_LINK_PAGE_BYTES);
+    writable_file_bytes = sub(CC0_LINK_OUTPUT_BYTES,
+        CC0_LINK_DATA_OFFSET);
+    writable_memory_bytes = add(writable_file_bytes, CC0_LINK_BSS_LENGTH);
+    return cc0_link_write_program_header(1, CC0_LINK_ELF_PROGRAM_LOAD,
+        CC0_LINK_DATA_OFFSET, writable_file_bytes, writable_memory_bytes,
+        or(CC0_LINK_ELF_PROGRAM_READ, CC0_LINK_ELF_PROGRAM_WRITE),
+        CC0_LINK_PAGE_BYTES);
+}
+
+function cc0_link_write_static_elf_header()
+{
+    return cc0_link_write_static_elf_header_(0, 0, 0, 0);
 }
 
 function cc0_link_put_dynamic_(index, tag, value, record)
@@ -6872,6 +6950,16 @@ function cc0_link_write_startup()
 
 function cc0_link_build_image()
 {
+    if (CC0_LINK_STATIC) {
+        if (cc0_link_write_static_elf_header()) {
+            return CC0_TRUE;
+        }
+        cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT,
+            CC0_LINK_TEXT_OFFSET), CC0_LINK_TEXT, CC0_LINK_TEXT_LENGTH);
+        cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT,
+            CC0_LINK_DATA_OFFSET), CC0_LINK_DATA, CC0_LINK_DATA_LENGTH);
+        return cc0_link_apply_relocations();
+    }
     cc0_link_write_elf_header();
     cc0_link_write_dynamic();
     cc0_link_write_plt();
@@ -6940,11 +7028,21 @@ function cc0_link_(argc, argv, index, argument, output)
     if (cc0_link_collect_relocations()) {
         return CC0_TRUE;
     }
+    CC0_LINK_STATIC = not(eq(cc0_link_find_global(mks("_start"), 6), 0));
     if (cc0_link_collect_imports()) {
         return CC0_TRUE;
     }
-    if (cc0_link_layout()) {
-        return CC0_TRUE;
+    if (CC0_LINK_STATIC) {
+        if (not(eq(CC0_LINK_IMPORT_COUNT, 0))) {
+            return CC0_TRUE;
+        }
+        if (cc0_link_layout_static()) {
+            return CC0_TRUE;
+        }
+    } else {
+        if (cc0_link_layout()) {
+            return CC0_TRUE;
+        }
     }
     if (cc0_link_build_image()) {
         return CC0_TRUE;
