@@ -400,9 +400,22 @@ function fseek(stream, offset, origin)
     return fseek_(stream, offset, origin, 0);
 }
 
+function ftell_(stream, position)
+{
+    if (eq(stream, 0)) {
+        return sub(0, 1);
+    }
+    position = lseek(cc1_libc_stream_descriptor(stream), 0, 1);
+    if (lt(position, 0)) {
+        wi32(add(stream, CC1_LIBC_STREAM_ERROR_OFFSET), 1);
+        return sub(0, 1);
+    }
+    return position;
+}
+
 function ftell(stream)
 {
-    return cc1_libc_unimplemented(mks("ftell"));
+    return ftell_(stream, 0);
 }
 
 function fwrite_(buffer, size, count, stream, bytes, written, result,

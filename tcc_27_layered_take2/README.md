@@ -515,7 +515,7 @@ dynamic smoke images verify that a cc1-only stub identifies itself and exits
 with status 1. Function-specific pairs exercise the implemented `memset`,
 `calloc`, `free`, `strlen`, `strcpy`, `memmove`, `memcpy`, `memcmp`, and
 `getenv`, `strcmp`, `strcat`, `unlink`, `fopen`, `fwrite`, `fputc`, `fclose`,
-`fflush`, `fread`, `fputs`, and `fseek`, including range, return-value,
+`fflush`, `fread`, `fputs`, `fseek`, and `ftell`, including range, return-value,
 zero-fill, overflow, allocation-reuse, string termination, overlapping-copy,
 and environment-name behavior.
 Finally, static cc1 compiles the cc2 bootstrap sources and the lower static
@@ -523,6 +523,13 @@ linker creates `libc_cc2_test/cc2_static.exe`. Running that image on a real
 compile command must reach and report the first still-unimplemented cc1 libc
 service. The current `cc2_static.exe` now completes the cc2 compile smoke;
 remaining libc functions continue to receive direct functional coverage.
+
+The cc1 stdio implementation uses dynamically allocated, linked `FILE`
+records rather than a fixed stream table. It provides standard-stream records,
+mode parsing, element-counted reads and writes, character and string output,
+flush-all shutdown, descriptor closure, and logical seek/tell behavior. The
+stdio layer is deliberately unbuffered; cc0's existing descriptor caches retain
+bootstrap performance and are reconciled by the shared seek/flush operations.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.
