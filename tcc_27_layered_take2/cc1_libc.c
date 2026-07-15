@@ -146,9 +146,67 @@ function calloc(count, size)
     return calloc_(count, size, 0, 0);
 }
 
+/* This hook becomes the single buffer-drain point when buffering is added. */
+function cc1_libc_stream_flush(stream)
+{
+    if (eq(stream, 0)) {
+        return sub(0, 1);
+    }
+    return 0;
+}
+
+function cc1_libc_stream_unlink_(stream, previous, current, next)
+{
+    previous = 0;
+    current = CC1_LIBC_STREAM_HEAD;
+    while (not(eq(current, 0))) {
+        next = ri32(add(current, CC1_LIBC_STREAM_NEXT_OFFSET));
+        if (eq(current, stream)) {
+            if (eq(previous, 0)) {
+                CC1_LIBC_STREAM_HEAD = next;
+            } else {
+                wi32(add(previous, CC1_LIBC_STREAM_NEXT_OFFSET), next);
+            }
+            return 1;
+        }
+        previous = current;
+        current = next;
+    }
+    return 0;
+}
+
+function cc1_libc_stream_unlink(stream)
+{
+    return cc1_libc_stream_unlink_(stream, 0, 0, 0);
+}
+
+function fclose_(stream, result, close_result)
+{
+    if (eq(stream, 0)) {
+        return sub(0, 1);
+    }
+    result = cc1_libc_stream_flush(stream);
+    close_result = close(cc1_libc_stream_descriptor(stream));
+    if (lt(close_result, 0)) {
+        result = sub(0, 1);
+    }
+    cc1_libc_stream_unlink(stream);
+    if (eq(stream, stdin)) {
+        stdin = 0;
+    }
+    if (eq(stream, stdout)) {
+        stdout = 0;
+    }
+    if (eq(stream, stderr)) {
+        stderr = 0;
+    }
+    free(stream);
+    return result;
+}
+
 function fclose(stream)
 {
-    return cc1_libc_unimplemented(mks("fclose"));
+    return fclose_(stream, 0, 0);
 }
 
 function fflush(stream)

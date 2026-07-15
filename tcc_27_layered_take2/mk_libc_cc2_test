@@ -113,6 +113,7 @@ build_and_check_function_smoke unlink
 build_and_check_function_smoke fopen
 build_and_check_function_smoke fwrite
 build_and_check_function_smoke fputc
+build_and_check_function_smoke fclose
 
 # cc1 owns the cc2 bootstrap sources and lower static linker owns this link.
 "$CC1_STATIC" -c tcc_27_layered_take2/cc2_boot_unified.c \
@@ -136,12 +137,18 @@ status=0
     -o "$TEST_ARTIFACTS/cc2_compile_smoke.o" \
     >"$TEST_ARTIFACTS/cc2_static.stdout" \
     2>"$TEST_ARTIFACTS/cc2_static.stderr" || status=$?
-test "$status" -eq 1
 test ! -s "$TEST_ARTIFACTS/cc2_static.stdout"
-grep -E '^[a-z][a-z0-9]* is unimplemented$' \
-    "$TEST_ARTIFACTS/cc2_static.stderr" >/dev/null
-printf 'cc2_static: first missing service: %s\n' \
-    "$(cat "$TEST_ARTIFACTS/cc2_static.stderr")"
+if test "$status" -eq 0; then
+    test ! -s "$TEST_ARTIFACTS/cc2_static.stderr"
+    test -s "$TEST_ARTIFACTS/cc2_compile_smoke.o"
+    printf 'cc2_static: compiled cc2 smoke successfully\n'
+else
+    test "$status" -eq 1
+    grep -E '^[a-z][a-z0-9]* is unimplemented$' \
+        "$TEST_ARTIFACTS/cc2_static.stderr" >/dev/null
+    printf 'cc2_static: first missing service: %s\n' \
+        "$(cat "$TEST_ARTIFACTS/cc2_static.stderr")"
+fi
 
 if readelf -l "$TEST_ARTIFACTS/cc2_static.exe" 2>/dev/null | \
     grep -q INTERP; then
