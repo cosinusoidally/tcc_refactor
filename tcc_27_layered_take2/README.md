@@ -510,12 +510,12 @@ executable to be byte-identical. The rebuilt executable performs one more
 byte-identical `cc1_libc.o` through both cc1 environments. Separate static and
 dynamic smoke images verify that a cc1-only stub identifies itself and exits
 with status 1. Function-specific pairs exercise the implemented `memset`,
-`calloc`, `free`, and `strlen`, including range, return-value, zero-fill,
-overflow, allocation-reuse, and string-termination behavior. Finally, static
-cc1 compiles the cc2 bootstrap sources and the lower static linker creates
-`libc_cc2_test/cc2_static.exe`. Running that image on a real compile command
-must reach and report the first still-unimplemented cc1 libc service; at the
-current boundary that service is `strcpy`.
+`calloc`, `free`, `strlen`, and `strcpy`, including range, return-value,
+zero-fill, overflow, allocation-reuse, and string-termination behavior.
+Finally, static cc1 compiles the cc2 bootstrap sources and the lower static
+linker creates `libc_cc2_test/cc2_static.exe`. Running that image on a real
+compile command must reach and report the first still-unimplemented cc1 libc
+service; at the current boundary that service is `memmove`.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.

@@ -191,9 +191,22 @@ function strcmp(left, right)
     return cc1_libc_unimplemented(mks("strcmp"));
 }
 
+function strcpy_(destination, source, index, byte)
+{
+    index = 0;
+    while (1) {
+        byte = ri8(add(source, index));
+        wi8(add(destination, index), byte);
+        if (eq(byte, 0)) {
+            return destination;
+        }
+        index = add(index, 1);
+    }
+}
+
 function strcpy(destination, source)
 {
-    return cc1_libc_unimplemented(mks("strcpy"));
+    return strcpy_(destination, source, 0, 0);
 }
 
 function strlen(text)
