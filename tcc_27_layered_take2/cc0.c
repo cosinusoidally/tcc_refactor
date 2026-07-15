@@ -5177,6 +5177,128 @@ function cc0_compiler_parse_local()
     return cc0_compiler_parse_local_(0, 0, 0);
 }
 
+/* Inline assembly is intentionally limited to adjacent .byte 0xNN strings. */
+function cc0_compiler_asm_skip_layout_(text, length, index, character,
+    value)
+{
+    while (lt(index, length)) {
+        character = ri8(add(text, index));
+        if (or(cc0_is_space(character),
+            eq(character, CC0_ASCII_LINE_FEED))) {
+            index = add(index, 1);
+        } else if (eq(character, CC0_ASCII_BACKSLASH)) {
+            if (not(lt(add(index, 1), length))) {
+                break;
+            }
+            value = cc0_compiler_character_value_(add(text, index), 2, 0);
+            if (or(lt(value, 0), not(or(cc0_is_space(value),
+                eq(value, CC0_ASCII_LINE_FEED))))) {
+                break;
+            }
+            index = add(index, 2);
+        } else {
+            break;
+        }
+    }
+    return index;
+}
+
+function cc0_compiler_asm_skip_layout(text, length, index)
+{
+    return cc0_compiler_asm_skip_layout_(text, length, index, 0, 0);
+}
+
+function cc0_compiler_parse_asm_bytes_(text, length, index, character,
+    digit, digit_count, value)
+{
+    index = cc0_compiler_asm_skip_layout(text, length, 0);
+    if (not(le(add(index, 5), length))) {
+        return cc0_compiler_fail();
+    }
+    if (not(cc0_compiler_slice_equal(add(text, index), 5,
+        mks(".byte"), 5))) {
+        return cc0_compiler_fail();
+    }
+    index = cc0_compiler_asm_skip_layout(text, length, add(index, 5));
+    while (CC0_TRUE) {
+        if (not(lt(add(index, 2), length))) {
+            return cc0_compiler_fail();
+        }
+        if (not(eq(ri8(add(text, index)), CC0_ASCII_ZERO))) {
+            return cc0_compiler_fail();
+        }
+        character = ri8(add(text, add(index, 1)));
+        if (and(not(eq(character, CC0_ASCII_LOWER_X)),
+            not(eq(character, CC0_ASCII_UPPER_X)))) {
+            return cc0_compiler_fail();
+        }
+        index = add(index, 2);
+        value = 0;
+        digit_count = 0;
+        while (lt(index, length)) {
+            digit = cc0_hexadecimal_digit(ri8(add(text, index)));
+            if (lt(digit, 0)) {
+                break;
+            }
+            value = add(shl(value, 4), digit);
+            digit_count = add(digit_count, 1);
+            index = add(index, 1);
+        }
+        if (or(eq(digit_count, 0), not(lt(value,
+            CC0_BYTE_VALUE_COUNT)))) {
+            return cc0_compiler_fail();
+        }
+        if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+            if (cc0_compiler_emit_byte(value)) {
+                return CC0_TRUE;
+            }
+        }
+        index = cc0_compiler_asm_skip_layout(text, length, index);
+        if (eq(index, length)) {
+            return CC0_FALSE;
+        }
+        if (not(eq(ri8(add(text, index)), CC0_PUNCTUATION_COMMA))) {
+            return cc0_compiler_fail();
+        }
+        index = cc0_compiler_asm_skip_layout(text, length, add(index, 1));
+        if (eq(index, length)) {
+            return cc0_compiler_fail();
+        }
+    }
+}
+
+function cc0_compiler_parse_asm_bytes(text, length)
+{
+    return cc0_compiler_parse_asm_bytes_(text, length, 0, 0, 0, 0, 0);
+}
+
+function cc0_compiler_parse_asm_()
+{
+    cc0_compiler_next_token();
+    if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    if (not(eq(CC0_TOKEN, CC0_TOKEN_STRING_LITERAL))) {
+        return cc0_compiler_fail();
+    }
+    while (eq(CC0_TOKEN, CC0_TOKEN_STRING_LITERAL)) {
+        if (cc0_compiler_parse_asm_bytes(CC0_TOKEN_START,
+            CC0_TOKEN_LENGTH)) {
+            return CC0_TRUE;
+        }
+        cc0_compiler_next_token();
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    return cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON);
+}
+
+function cc0_compiler_parse_asm()
+{
+    return cc0_compiler_parse_asm_();
+}
+
 function cc0_compiler_parse_statement()
 {
     if (CC0_COMPILER_ERROR) {
@@ -5218,6 +5340,12 @@ function cc0_compiler_parse_statement()
     }
     if (eq(CC0_TOKEN, CC0_TOKEN_VAR)) {
         return cc0_compiler_parse_local();
+    }
+    if (eq(CC0_TOKEN, CC0_TOKEN_IDENTIFIER)) {
+        if (cc0_text_equal(CC0_TOKEN_START, CC0_TOKEN_LENGTH,
+            mks("asm"))) {
+            return cc0_compiler_parse_asm();
+        }
     }
     if (cc0_compiler_parse_expression()) {
         return CC0_TRUE;

@@ -18,9 +18,10 @@ GCC_ARTIFACTS="$TEST_ARTIFACTS/gcc"
 LAYERED_ARTIFACTS="$TEST_ARTIFACTS/tcc_layered"
 STATIC_BOOT_ARTIFACTS="$TEST_ARTIFACTS/tcc_27_boot_static"
 CC0_ARTIFACTS="$TEST_ARTIFACTS/cc0"
+CC0_SELF_ARTIFACTS="$TEST_ARTIFACTS/cc0_self"
 rm -rf "$TEST_ARTIFACTS"
 mkdir -p "$GCC_ARTIFACTS" "$LAYERED_ARTIFACTS" \
-    "$STATIC_BOOT_ARTIFACTS" "$CC0_ARTIFACTS"
+    "$STATIC_BOOT_ARTIFACTS" "$CC0_ARTIFACTS" "$CC0_SELF_ARTIFACTS"
 
 gcc -m32 -O0 -std=gnu89 -nostdinc \
     -c tcc_27_layered_take2/prims.c \
@@ -93,4 +94,18 @@ test "$output" = "hello world"
 chmod +x "$CC0_ARTIFACTS/syscall_hello.exe"
 
 output=$("$CC0_ARTIFACTS/syscall_hello.exe")
+test "$output" = "hello world"
+
+# The self path compiles and links every input using only cc0.
+"$CC0" -c tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o "$CC0_SELF_ARTIFACTS/linux_i386_syscalls.o"
+"$CC0" -c tcc_27_layered_take2/tests/layered/syscall_hello.c \
+    -o "$CC0_SELF_ARTIFACTS/syscall_hello.o"
+"$CC0" \
+    "$CC0_SELF_ARTIFACTS/syscall_hello.o" \
+    "$CC0_SELF_ARTIFACTS/linux_i386_syscalls.o" \
+    -o "$CC0_SELF_ARTIFACTS/syscall_hello.exe"
+chmod +x "$CC0_SELF_ARTIFACTS/syscall_hello.exe"
+
+output=$("$CC0_SELF_ARTIFACTS/syscall_hello.exe")
 test "$output" = "hello world"
