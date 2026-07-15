@@ -151,11 +151,11 @@ bootstrap graph.
 
 ## Bootstrap Sequence
 
-After a seed has produced `artifacts/cc0.exe`,
+After a seed has produced the canonical dynamic and static cc0 executables,
 `mk_tcc_layered_via_cc0` performs this chain. The separate
-`mk_tcc_layered_via_cc0_static` chain currently substitutes
-`cc0_static.exe` for both cc0 compilation and lower linking; it is kept
-independent so later static layers can diverge cleanly.
+`mk_tcc_layered_via_cc0_static` chain builds and uses both `cc0_static.exe`
+and `cc1_static.exe`; it is kept independent so later static layers can
+diverge cleanly.
 
 ```text
 cc0.exe
@@ -188,6 +188,18 @@ full cc2/TCC linker
 tcc_layered.exe
   -> stock TCC 0.9.27 compatibility objects and static executable
   -> sums_tcc_27 verification
+```
+
+The current static chain diverges through its first two executables:
+
+```text
+cc0_static.exe
+  -> static runtime objects + cc0.o + cc1.o + cc2_stubs.o
+  -> cc1_static.exe
+
+cc1_static.exe
+  -> cc2_boot_unified.o + cc2.o + cc2_backend_stubs.o
+  -> cc2_boot.exe
 ```
 
 The transitional `cc2.exe` is linked by cc0 because the full linker is being
@@ -315,10 +327,10 @@ Do not run `mk_clean` between a seed script and either full-chain script. The
 dynamic chain consumes `artifacts/cc0.exe`; the static chain consumes
 `artifacts/cc0_static.exe`. Neither seed script cleans artifacts itself.
 
-Neither full-chain script invokes GCC or a pre-existing TCC. The upper layers
-of the static-seed chain are not static yet, so both currently need only the
-same versioned i386 runtime shared objects. They search these directories in
-order:
+Neither full-chain script invokes GCC or a pre-existing TCC. The static-seed
+chain is static through cc1, but cc2 and its upper layers are not static yet,
+so both chains currently need the same versioned i386 runtime shared objects.
+They search these directories in order:
 
 ```text
 /lib/i386-linux-gnu

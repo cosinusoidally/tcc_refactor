@@ -9,8 +9,8 @@ cd artifacts
 
 test -x cc0_static.exe
 
-# The upper layers are still dynamically linked for now, so this first static
-# path retains the versioned runtime DSOs used by the existing bootstrap.
+# cc2 and the upper layers are still dynamically linked for now, so this path
+# retains the versioned runtime DSOs used by the existing bootstrap.
 RUNTIME_LIBDIR=/lib/i386-linux-gnu
 if test ! -f "$RUNTIME_LIBDIR/libc.so.6"; then
     RUNTIME_LIBDIR=/usr/lib/i386-linux-gnu
@@ -24,14 +24,25 @@ test -f "$HOST_LIBC" -a -f "$HOST_LIBM" -a -f "$HOST_LIBDL"
 ./cc0_static.exe -c ../tcc_27_layered_take2/cc1.c -o cc1.o
 ./cc0_static.exe -c ../tcc_27_layered_take2/cc2_stubs.c -o cc2_stubs.o
 ./cc0_static.exe -c ../tcc_27_layered_take2/crt1.c -o crt1.o
-./cc0_static.exe cc0.o cc1.o cc2_stubs.o -o cc1.exe
+./cc0_static.exe -c ../tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o linux_i386_syscalls_static.o
+./cc0_static.exe -c ../tcc_27_layered_take2/cc0_static_syscalls.c \
+    -o cc0_static_syscalls_static.o
+./cc0_static.exe -c ../tcc_27_layered_take2/cc0_static_start.c \
+    -o cc0_static_start_static.o
+./cc0_static.exe -c ../tcc_27_layered_take2/cc0_libc.c \
+    -o cc0_libc_static.o
+./cc0_static.exe cc0_static_start_static.o \
+    linux_i386_syscalls_static.o cc0_static_syscalls_static.o \
+    cc0.o cc1.o cc2_stubs.o cc0_libc_static.o -o cc1_static.exe
+chmod +x cc1_static.exe
 
-./cc1.exe -c ../tcc_27_layered_take2/cc2_boot_unified.c \
+./cc1_static.exe -c ../tcc_27_layered_take2/cc2_boot_unified.c \
     -o cc2_boot_unified.o
-./cc1.exe -c ../tcc_27_layered_take2/cc2.c -o cc2.o
-./cc1.exe -c ../tcc_27_layered_take2/cc2_backend_stubs.c \
+./cc1_static.exe -c ../tcc_27_layered_take2/cc2.c -o cc2.o
+./cc1_static.exe -c ../tcc_27_layered_take2/cc2_backend_stubs.c \
     -o cc2_backend_stubs.o
-./cc1.exe cc0.o cc1.o cc2_boot_unified.o cc2_backend_stubs.o \
+./cc1_static.exe cc0.o cc1.o cc2_boot_unified.o cc2_backend_stubs.o \
     -o cc2_boot.exe
 
 # The bootstrap backend is sufficient for cc2 to compile its typed bridge and
