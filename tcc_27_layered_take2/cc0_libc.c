@@ -1,4 +1,6 @@
 /* Small environment-neutral libc surface shared by static and dynamic links. */
+var CC0_LIBC_HEAP_END;
+
 function cc0_libc_standard_output()
 {
     return 1;
@@ -68,9 +70,65 @@ function exit(status)
     return 0;
 }
 
+function cc0_libc_allocation_alignment()
+{
+    return 8;
+}
+
+function cc0_libc_unsigned_less_(left, right, left_high, right_high)
+{
+    left_high = ushr(left, 31);
+    right_high = ushr(right, 31);
+    if (not(eq(left_high, right_high))) {
+        return lt(left_high, right_high);
+    }
+    return lt(left, right);
+}
+
+function cc0_libc_unsigned_less(left, right)
+{
+    return cc0_libc_unsigned_less_(left, right, 0, 0);
+}
+
+/* cc0 does not free yet, so extending the process break cannot fragment. */
+function malloc_(size, alignment, mask, allocation, current, start, next,
+    result)
+{
+    if (le(size, 0)) {
+        return 0;
+    }
+    alignment = cc0_libc_allocation_alignment();
+    mask = sub(alignment, 1);
+    allocation = and(add(size, mask), bnot(mask));
+    if (lt(allocation, size)) {
+        return 0;
+    }
+    current = CC0_LIBC_HEAP_END;
+    if (eq(current, 0)) {
+        current = cc0_runtime_brk(0);
+        if (eq(current, 0)) {
+            return 0;
+        }
+    }
+    start = and(add(current, mask), bnot(mask));
+    if (cc0_libc_unsigned_less(start, current)) {
+        return 0;
+    }
+    next = add(start, allocation);
+    if (cc0_libc_unsigned_less(next, start)) {
+        return 0;
+    }
+    result = cc0_runtime_brk(next);
+    if (not(eq(result, next))) {
+        return 0;
+    }
+    CC0_LIBC_HEAP_END = next;
+    return start;
+}
+
 function malloc(size)
 {
-    return cc0_libc_unimplemented(mks("malloc"));
+    return malloc_(size, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function realloc(address, size)

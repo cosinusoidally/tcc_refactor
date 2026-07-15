@@ -358,9 +358,9 @@ The developing static cc0 runtime is kept in replaceable layers:
 - `cc0_dynamic_syscalls.c` adapts read, write, brk, and process exit to glibc.
 - `cc0_static_start.c` supplies the initial freestanding `_start` policy.
 - `cc0_libc.c` contains environment-neutral libc functions. String length,
-  `puts`, and `exit` work now. The remaining cc0 dependencies (`malloc`,
-  `realloc`, `open`, `read`, `write`, and `close`) are fail-fast stubs that name
-  the missing service and exit with status 1.
+  `puts`, `exit`, and a monotonic `brk`-backed `malloc` work now. The remaining
+  cc0 dependencies (`realloc`, `open`, `read`, `write`, and `close`) are
+  fail-fast stubs that name the missing service and exit with status 1.
 
 `mk_libc_test` compiles each matrix entry's `cc0_libc.o` and
 `hello_world_test.o` once and feeds those exact objects to both its static and
@@ -441,7 +441,7 @@ interpreter and dynamic images have both an interpreter and a needed DSO.
 `mk_libc_cc0_test` links the canonical `cc0.o` and `cc1_stubs.o` against the
 cc0-built runtime objects. It retains `cc0_static.exe` and `cc0_dynamic.exe`
 under `artifacts/libc_cc0_test/` and currently requires both to stop at the
-`malloc` fail-fast stub with status 1.
+`write` fail-fast stub with status 1.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.

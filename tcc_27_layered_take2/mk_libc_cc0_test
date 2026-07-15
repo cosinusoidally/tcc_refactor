@@ -13,6 +13,7 @@ if ! test -x "$CC0" || ! test -f "$CC0_OBJECT" || \
 fi
 
 TEST_ARTIFACTS=artifacts/libc_cc0_test
+EXPECTED_UNIMPLEMENTED=write
 rm -rf "$TEST_ARTIFACTS"
 mkdir -p "$TEST_ARTIFACTS"
 
@@ -51,8 +52,10 @@ check_unimplemented()
     test "$status" -eq 1
     test ! -s "$stdout_file"
     test "$(wc -l < "$stderr_file")" -eq 1
-    test "$(cat "$stderr_file")" = "malloc is unimplemented"
-    printf '%s: malloc is unimplemented (exit 1)\n' "$label"
+    test "$(cat "$stderr_file")" = \
+        "$EXPECTED_UNIMPLEMENTED is unimplemented"
+    printf '%s: %s is unimplemented (exit 1)\n' \
+        "$label" "$EXPECTED_UNIMPLEMENTED"
 }
 
 check_unimplemented "$TEST_ARTIFACTS/cc0_static.exe" cc0_static
