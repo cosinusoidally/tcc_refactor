@@ -5,6 +5,7 @@ function _start(argc, argv)
 
     cc0_static_syscalls_init();
     cc0_libc_init();
+    cc0_libc_set_environment_from_arguments(argc, argv);
     status = main(argc, argv);
     cc0_libc_finish();
     cc0_runtime_exit(status);

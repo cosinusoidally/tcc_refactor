@@ -120,9 +120,42 @@ function getcwd(buffer, size)
     return cc1_libc_unimplemented(mks("getcwd"));
 }
 
+function getenv_(name, environment, entry, name_index, entry_index,
+    name_byte, entry_byte)
+{
+    environment = cc0_libc_environment();
+    if (eq(environment, 0)) {
+        return 0;
+    }
+    entry_index = 0;
+    while (1) {
+        entry = ri32(add(environment, mul(entry_index, 4)));
+        if (eq(entry, 0)) {
+            return 0;
+        }
+        name_index = 0;
+        while (1) {
+            name_byte = ri8(add(name, name_index));
+            entry_byte = ri8(add(entry, name_index));
+            if (eq(name_byte, 0)) {
+                if (eq(entry_byte, mkC("="))) {
+                    return add(entry, add(name_index, 1));
+                }
+                break;
+            }
+            if (or(eq(name_byte, mkC("=")),
+                not(eq(name_byte, entry_byte)))) {
+                break;
+            }
+            name_index = add(name_index, 1);
+        }
+        entry_index = add(entry_index, 1);
+    }
+}
+
 function getenv(name)
 {
-    return cc1_libc_unimplemented(mks("getenv"));
+    return getenv_(name, 0, 0, 0, 0, 0, 0);
 }
 
 function memcmp_(left, right, size, index, left_byte, right_byte)

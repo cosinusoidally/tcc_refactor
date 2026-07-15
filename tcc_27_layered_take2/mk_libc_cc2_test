@@ -81,10 +81,10 @@ build_and_check_function_smoke()
         -o "$dynamic_executable"
     chmod +x "$static_executable" "$dynamic_executable"
 
-    "$static_executable" \
+    CC1_LIBC_SMOKE_VALUE=layered "$static_executable" \
         >"$TEST_ARTIFACTS/${function_name}_static.stdout" \
         2>"$TEST_ARTIFACTS/${function_name}_static.stderr"
-    "$dynamic_executable" \
+    CC1_LIBC_SMOKE_VALUE=layered "$dynamic_executable" \
         >"$TEST_ARTIFACTS/${function_name}_dynamic.stdout" \
         2>"$TEST_ARTIFACTS/${function_name}_dynamic.stderr"
     test ! -s "$TEST_ARTIFACTS/${function_name}_static.stdout"
@@ -104,6 +104,7 @@ build_and_check_function_smoke strcpy
 build_and_check_function_smoke memmove
 build_and_check_function_smoke memcpy
 build_and_check_function_smoke memcmp
+build_and_check_function_smoke getenv
 
 # cc1 owns the cc2 bootstrap sources and lower static linker owns this link.
 "$CC1_STATIC" -c tcc_27_layered_take2/cc2_boot_unified.c \

@@ -5,6 +5,7 @@ var CC0_LIBC_HEAP_GROWTH_BYTES;
 var CC0_LIBC_FREE_HEAD;
 var CC0_LIBC_ALLOCATION_SIZE_OFFSET;
 var CC0_LIBC_ALLOCATION_NEXT_OFFSET;
+var CC0_LIBC_ENVIRONMENT;
 var CC0_LIBC_READ_CACHE_HEAD;
 var CC0_LIBC_READ_CACHE_NEXT_OFFSET;
 var CC0_LIBC_READ_CACHE_DESCRIPTOR_OFFSET;
@@ -32,6 +33,7 @@ function cc0_libc_init()
     CC0_LIBC_FREE_HEAD = 0;
     CC0_LIBC_ALLOCATION_SIZE_OFFSET = 0;
     CC0_LIBC_ALLOCATION_NEXT_OFFSET = 4;
+    CC0_LIBC_ENVIRONMENT = 0;
     /* Grow by one i386 page without imposing a maximum allocation size. */
     CC0_LIBC_HEAP_GROWTH_BYTES = mul(4, 1024);
     CC0_LIBC_READ_CACHE_HEAD = 0;
@@ -73,6 +75,22 @@ function cc0_libc_newline()
 function cc0_libc_newline_bytes()
 {
     return 1;
+}
+
+function cc0_libc_set_environment(environment)
+{
+    CC0_LIBC_ENVIRONMENT = environment;
+    return 0;
+}
+
+function cc0_libc_set_environment_from_arguments(argc, argv)
+{
+    return cc0_libc_set_environment(add(argv, mul(add(argc, 1), 4)));
+}
+
+function cc0_libc_environment()
+{
+    return CC0_LIBC_ENVIRONMENT;
 }
 
 function cc0_libc_string_length_(text, length)
