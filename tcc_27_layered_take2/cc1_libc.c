@@ -254,9 +254,28 @@ function strchr(text, character)
     return cc1_libc_unimplemented(mks("strchr"));
 }
 
+function strcmp_(left, right, index, left_byte, right_byte)
+{
+    index = 0;
+    while (1) {
+        left_byte = ri8(add(left, index));
+        right_byte = ri8(add(right, index));
+        if (not(eq(left_byte, right_byte))) {
+            if (lt(left_byte, right_byte)) {
+                return sub(0, 1);
+            }
+            return 1;
+        }
+        if (eq(left_byte, 0)) {
+            return 0;
+        }
+        index = add(index, 1);
+    }
+}
+
 function strcmp(left, right)
 {
-    return cc1_libc_unimplemented(mks("strcmp"));
+    return strcmp_(left, right, 0, 0, 0);
 }
 
 function strcpy_(destination, source, index, byte)
