@@ -684,9 +684,25 @@ function strcat(destination, source)
     return destination;
 }
 
+function strchr_(text, character, index, byte, target)
+{
+    index = 0;
+    target = and(character, 255);
+    while (1) {
+        byte = ri8(add(text, index));
+        if (eq(byte, target)) {
+            return add(text, index);
+        }
+        if (eq(byte, 0)) {
+            return 0;
+        }
+        index = add(index, 1);
+    }
+}
+
 function strchr(text, character)
 {
-    return cc1_libc_unimplemented(mks("strchr"));
+    return strchr_(text, character, 0, 0, 0);
 }
 
 function strcmp_(left, right, index, left_byte, right_byte)
