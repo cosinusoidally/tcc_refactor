@@ -75,6 +75,11 @@ function cc0_libc_allocation_alignment()
     return 8;
 }
 
+function cc0_libc_allocation_header_bytes()
+{
+    return 8;
+}
+
 function cc0_libc_unsigned_less_(left, right, left_high, right_high)
 {
     left_high = ushr(left, 31);
@@ -91,8 +96,8 @@ function cc0_libc_unsigned_less(left, right)
 }
 
 /* cc0 does not free yet, so extending the process break cannot fragment. */
-function malloc_(size, alignment, mask, allocation, current, start, next,
-    result)
+function malloc_(size, alignment, mask, allocation, current, header, start,
+    next, result)
 {
     if (le(size, 0)) {
         return 0;
@@ -110,8 +115,12 @@ function malloc_(size, alignment, mask, allocation, current, start, next,
             return 0;
         }
     }
-    start = and(add(current, mask), bnot(mask));
-    if (cc0_libc_unsigned_less(start, current)) {
+    header = and(add(current, mask), bnot(mask));
+    if (cc0_libc_unsigned_less(header, current)) {
+        return 0;
+    }
+    start = add(header, cc0_libc_allocation_header_bytes());
+    if (cc0_libc_unsigned_less(start, header)) {
         return 0;
     }
     next = add(start, allocation);
@@ -122,18 +131,55 @@ function malloc_(size, alignment, mask, allocation, current, start, next,
     if (not(eq(result, next))) {
         return 0;
     }
+    wi32(header, allocation);
     CC0_LIBC_HEAP_END = next;
     return start;
 }
 
 function malloc(size)
 {
-    return malloc_(size, 0, 0, 0, 0, 0, 0, 0);
+    return malloc_(size, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc0_libc_copy_(destination, source, count, index)
+{
+    index = 0;
+    while (lt(index, count)) {
+        wi8(add(destination, index), ri8(add(source, index)));
+        index = add(index, 1);
+    }
+    return destination;
+}
+
+function cc0_libc_copy(destination, source, count)
+{
+    return cc0_libc_copy_(destination, source, count, 0);
+}
+
+function realloc_(address, size, header, old_size, replacement)
+{
+    if (eq(address, 0)) {
+        return malloc(size);
+    }
+    if (le(size, 0)) {
+        return 0;
+    }
+    header = sub(address, cc0_libc_allocation_header_bytes());
+    old_size = ri32(header);
+    if (le(size, old_size)) {
+        return address;
+    }
+    replacement = malloc(size);
+    if (eq(replacement, 0)) {
+        return 0;
+    }
+    cc0_libc_copy(replacement, address, old_size);
+    return replacement;
 }
 
 function realloc(address, size)
 {
-    return cc0_libc_unimplemented(mks("realloc"));
+    return realloc_(address, size, 0, 0, 0);
 }
 
 function open(path, flags, mode)

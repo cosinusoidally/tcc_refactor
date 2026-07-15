@@ -55,8 +55,8 @@ function libc_smoke_read_only()
     return 0;
 }
 
-function main_(argc, argv, first, second, first_argument, second_argument,
-    descriptor)
+function main_(argc, argv, first, second, grown, first_argument,
+    second_argument, descriptor)
 {
     if (not(eq(argc, 3))) {
         return 1;
@@ -115,18 +115,38 @@ function main_(argc, argv, first, second, first_argument, second_argument,
     if (not(eq(ri8(add(second, 8)), mkC("C")))) {
         return 15;
     }
+    grown = realloc(second, 17);
+    if (eq(grown, 0)) {
+        return 16;
+    }
+    if (not(eq(and(grown, libc_smoke_allocation_mask()), 0))) {
+        return 17;
+    }
+    if (not(eq(ri8(grown), mkC("B")))) {
+        return 18;
+    }
+    if (not(eq(ri8(add(grown, 8)), mkC("C")))) {
+        return 19;
+    }
+    wi8(add(grown, 16), mkC("D"));
+    if (not(eq(ri8(add(grown, 16)), mkC("D")))) {
+        return 20;
+    }
+    if (not(eq(ri8(first), mkC("A")))) {
+        return 21;
+    }
     if (not(eq(write(libc_smoke_standard_output(),
         libc_smoke_write_message(), libc_smoke_write_message_bytes()),
         libc_smoke_write_message_bytes()))) {
-        return 16;
+        return 22;
     }
     if (not(eq(puts(mks("libc smoke ok")), 0))) {
-        return 17;
+        return 23;
     }
     return 0;
 }
 
 function main(argc, argv)
 {
-    return main_(argc, argv, 0, 0, 0, 0, 0);
+    return main_(argc, argv, 0, 0, 0, 0, 0, 0);
 }
