@@ -99,6 +99,53 @@ cmp "$TEST_ARTIFACTS/cc0_static.stderr" \
 cmp "$TEST_ARTIFACTS/cc0_static.output.o" \
     "$TEST_ARTIFACTS/cc0_dynamic.output.o"
 
+SELF_ARTIFACTS="$TEST_ARTIFACTS/cc0_static_self"
+mkdir -p "$SELF_ARTIFACTS"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o "$SELF_ARTIFACTS/linux_i386_syscalls.o"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take2/cc0_static_syscalls.c \
+    -o "$SELF_ARTIFACTS/cc0_static_syscalls.o"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take2/cc0_static_start.c \
+    -o "$SELF_ARTIFACTS/cc0_static_start.o"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take2/cc0_libc.c \
+    -o "$SELF_ARTIFACTS/cc0_libc.o"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take2/cc0.c \
+    -o "$SELF_ARTIFACTS/cc0.o"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take2/cc1_stubs.c \
+    -o "$SELF_ARTIFACTS/cc1_stubs.o"
+
+cmp "$TEST_ARTIFACTS/linux_i386_syscalls.o" \
+    "$SELF_ARTIFACTS/linux_i386_syscalls.o"
+cmp "$TEST_ARTIFACTS/cc0_static_syscalls.o" \
+    "$SELF_ARTIFACTS/cc0_static_syscalls.o"
+cmp "$TEST_ARTIFACTS/cc0_static_start.o" \
+    "$SELF_ARTIFACTS/cc0_static_start.o"
+cmp "$TEST_ARTIFACTS/cc0_libc.o" "$SELF_ARTIFACTS/cc0_libc.o"
+cmp "$CC0_OBJECT" "$SELF_ARTIFACTS/cc0.o"
+cmp "$CC1_STUBS_OBJECT" "$SELF_ARTIFACTS/cc1_stubs.o"
+
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    "$SELF_ARTIFACTS/cc0_static_start.o" \
+    "$SELF_ARTIFACTS/linux_i386_syscalls.o" \
+    "$SELF_ARTIFACTS/cc0_static_syscalls.o" \
+    "$SELF_ARTIFACTS/cc0.o" "$SELF_ARTIFACTS/cc1_stubs.o" \
+    "$SELF_ARTIFACTS/cc0_libc.o" \
+    -o "$SELF_ARTIFACTS/cc0_static.exe"
+chmod +x "$SELF_ARTIFACTS/cc0_static.exe"
+cmp "$TEST_ARTIFACTS/cc0_static.exe" \
+    "$SELF_ARTIFACTS/cc0_static.exe"
+
+"$SELF_ARTIFACTS/cc0_static.exe" -c tcc_27_layered_take2/cc0.c \
+    -o "$SELF_ARTIFACTS/cc0_second.o"
+cmp "$SELF_ARTIFACTS/cc0.o" "$SELF_ARTIFACTS/cc0_second.o"
+printf 'cc0_static: self rebuild is byte-identical\n'
+
 if readelf -l "$TEST_ARTIFACTS/cc0_static.exe" 2>/dev/null | \
     grep -q INTERP; then
     exit 1

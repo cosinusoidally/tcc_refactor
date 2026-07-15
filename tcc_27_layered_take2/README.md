@@ -445,6 +445,10 @@ smoke test checks `argc`/`argv`, writable aligned `malloc` allocations, and
 direct `write` plus `puts` output. It must succeed identically in both modes.
 The retained `cc0_static.exe` and `cc0_dynamic.exe` compile the smoke source as
 their probe; both compilations must succeed and produce byte-identical objects.
+The static compiler then recompiles every source and object needed for itself,
+links `cc0_static_self/cc0_static.exe`, and requires the rebuilt objects and
+executable to be byte-identical. The rebuilt executable performs one more
+`cc0.c` compilation to close the self-hosting loop.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.
