@@ -16,8 +16,7 @@ if test ! -f "$RUNTIME_LIBDIR/libc.so.6"; then
 fi
 HOST_LIBC=$RUNTIME_LIBDIR/libc.so.6
 HOST_LIBM=$RUNTIME_LIBDIR/libm.so.6
-HOST_LIBDL=$RUNTIME_LIBDIR/libdl.so.2
-test -f "$HOST_LIBC" -a -f "$HOST_LIBM" -a -f "$HOST_LIBDL"
+test -f "$HOST_LIBC" -a -f "$HOST_LIBM"
 
 ./cc0.exe -c ../tcc_27_layered_take2/cc0.c -o cc0.o
 ./cc0.exe -c ../tcc_27_layered_take2/cc1.c -o cc1.o
@@ -66,7 +65,7 @@ chmod +x cc2.exe
 ./cc2.exe -nostdlib crt1.o \
     prims_final.o cc0_final.o cc1_final.o cc2_final.o tcc_rest_final.o \
     cc2_runtime_final.o \
-    "$HOST_LIBC" "$HOST_LIBM" "$HOST_LIBDL" \
+    "$HOST_LIBC" "$HOST_LIBM" \
     -o tcc_layered.exe
 chmod +x tcc_layered.exe
 

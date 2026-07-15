@@ -20,10 +20,15 @@ The implemented target is deliberately narrow:
 - ELF32 little-endian objects and executables.
 - The i386 System V C calling convention at typed-C and libc boundaries.
 - Dynamic bootstrap tools using `/lib/ld-linux.so.2`.
-- Final runtime dependencies on `libc.so.6`, `libm.so.6`, and `libdl.so.2`.
+- Final runtime dependencies on `libc.so.6` and `libm.so.6`.
 - No `libgcc`, GNU linker, GCC CRT, or libc development-file dependency in the
   JavaScript or mawkcc layered bootstrap path.
 - No `tccrun` or in-memory execution requirement.
+
+Because in-memory execution is outside the supported target, cc2 contains no
+`dlopen`, `dlsym`, or `dlclose` hooks and `tcc_layered.exe` does not depend on
+`libdl`. Normal file-output linking is unaffected: TCC parses ELF shared
+libraries itself through its `tcc_load_dll` path.
 
 The compatibility contract is the repository-level `sums_tcc_27` file. A
 successful full build reproduces all five stock TCC 0.9.27 artifacts without
@@ -342,7 +347,6 @@ The required files are:
 ```text
 libc.so.6
 libm.so.6
-libdl.so.2
 ```
 
 The explicit libm and libdl dependencies are intentional. Older glibc releases
