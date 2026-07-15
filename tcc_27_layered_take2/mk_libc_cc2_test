@@ -1,0 +1,97 @@
+#!/bin/sh
+
+set -eu
+
+# Establish and verify the lower libc/compiler layer before consuming it.
+./mk_libc_cc0_test
+
+cd ..
+
+LOWER=artifacts/libc_cc0_test
+TEST_ARTIFACTS=artifacts/libc_cc2_test
+CC1_STATIC=$LOWER/cc1_static.exe
+CC1_DYNAMIC=$LOWER/cc1_dynamic.exe
+EXPECTED_STUB_ERROR=$(printf 'atoi is unimplemented')
+
+rm -rf "$TEST_ARTIFACTS"
+mkdir -p "$TEST_ARTIFACTS"
+
+# Both environments consume a byte-identical layer-one libc object.
+"$CC1_STATIC" -c tcc_27_layered_take2/cc1_libc.c \
+    -o "$TEST_ARTIFACTS/cc1_libc.o"
+"$CC1_DYNAMIC" -c tcc_27_layered_take2/cc1_libc.c \
+    -o "$TEST_ARTIFACTS/cc1_libc_dynamic.o"
+cmp "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc1_libc_dynamic.o"
+
+"$CC1_STATIC" -c tcc_27_layered_take2/tests/layered/cc1_libc_smoke.c \
+    -o "$TEST_ARTIFACTS/cc1_libc_smoke.o"
+"$CC1_STATIC" "$LOWER/cc0_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc1_libc_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc1_libc_smoke_static.exe"
+"$CC1_DYNAMIC" "$LOWER/cc0_libc.o" "$LOWER/cc0_dynamic_syscalls.o" \
+    "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc1_libc_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc1_libc_smoke_dynamic.exe"
+chmod +x "$TEST_ARTIFACTS/cc1_libc_smoke_static.exe" \
+    "$TEST_ARTIFACTS/cc1_libc_smoke_dynamic.exe"
+
+check_stub_smoke()
+{
+    executable=$1
+    label=$2
+    stdout_file="$TEST_ARTIFACTS/$label.stdout"
+    stderr_file="$TEST_ARTIFACTS/$label.stderr"
+
+    status=0
+    "$executable" >"$stdout_file" 2>"$stderr_file" || status=$?
+    test "$status" -eq 1
+    test ! -s "$stdout_file"
+    test "$(cat "$stderr_file")" = "$EXPECTED_STUB_ERROR"
+    printf '%s: cc1 libc stub diagnostic ok\n' "$label"
+}
+
+check_stub_smoke "$TEST_ARTIFACTS/cc1_libc_smoke_static.exe" \
+    cc1_libc_smoke_static
+check_stub_smoke "$TEST_ARTIFACTS/cc1_libc_smoke_dynamic.exe" \
+    cc1_libc_smoke_dynamic
+cmp "$TEST_ARTIFACTS/cc1_libc_smoke_static.stdout" \
+    "$TEST_ARTIFACTS/cc1_libc_smoke_dynamic.stdout"
+cmp "$TEST_ARTIFACTS/cc1_libc_smoke_static.stderr" \
+    "$TEST_ARTIFACTS/cc1_libc_smoke_dynamic.stderr"
+
+# cc1 owns the cc2 bootstrap sources and lower static linker owns this link.
+"$CC1_STATIC" -c tcc_27_layered_take2/cc2_boot_unified.c \
+    -o "$TEST_ARTIFACTS/cc2_boot_unified.o"
+"$CC1_STATIC" -c tcc_27_layered_take2/cc2_backend_stubs.c \
+    -o "$TEST_ARTIFACTS/cc2_backend_stubs.o"
+"$CC1_STATIC" "$LOWER/cc0_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    artifacts/cc0.o "$LOWER/cc1.o" \
+    "$TEST_ARTIFACTS/cc2_boot_unified.o" \
+    "$TEST_ARTIFACTS/cc2_backend_stubs.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    -o "$TEST_ARTIFACTS/cc2_static.exe"
+chmod +x "$TEST_ARTIFACTS/cc2_static.exe"
+
+# The executable is complete enough to enter cc2; the first missing service is
+# now a runtime boundary rather than an unresolved link symbol.
+status=0
+"$TEST_ARTIFACTS/cc2_static.exe" \
+    -c tcc_27_layered_take2/tests/layered/cc2_compile_smoke.c \
+    -o "$TEST_ARTIFACTS/cc2_compile_smoke.o" \
+    >"$TEST_ARTIFACTS/cc2_static.stdout" \
+    2>"$TEST_ARTIFACTS/cc2_static.stderr" || status=$?
+test "$status" -eq 1
+test ! -s "$TEST_ARTIFACTS/cc2_static.stdout"
+grep -E '^[a-z][a-z0-9]* is unimplemented$' \
+    "$TEST_ARTIFACTS/cc2_static.stderr" >/dev/null
+printf 'cc2_static: first missing service: %s\n' \
+    "$(cat "$TEST_ARTIFACTS/cc2_static.stderr")"
+
+if readelf -l "$TEST_ARTIFACTS/cc2_static.exe" 2>/dev/null | \
+    grep -q INTERP; then
+    exit 1
+fi

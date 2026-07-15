@@ -81,7 +81,7 @@ The same `cc0.c` text has three relevant interpretations:
 cc0 compiles the base dialect into i386 ELF relocatable objects. Its lower
 linker merges those objects and resolves their symbols and relocations. An
 object set defining `main` becomes a dynamic ELF image with a process-entry
-adapter and direct dependencies on libc, libm, and libdl. A freestanding object
+adapter and direct dependencies on libc and libm. A freestanding object
 set defining `_start` and containing no unresolved imports becomes a static
 ELF image with separate executable and writable load segments. The lower
 linker is sufficient for the cc0, cc1, cc2 bootstrap executables and small
@@ -187,7 +187,7 @@ cc2.exe
   -> tcc_rest_final.o
 
 full cc2/TCC linker
-  -> project crt1.o + every final object + libc + libm + libdl
+  -> project crt1.o + every final object + libc + libm
   -> tcc_layered.exe
 
 tcc_layered.exe
@@ -349,9 +349,10 @@ libc.so.6
 libm.so.6
 ```
 
-The explicit libm and libdl dependencies are intentional. Older glibc releases
-such as Ubuntu Bionic keep those facilities in separate shared libraries,
-whereas newer releases have merged many of their symbols into libc.
+The explicit libm dependency is intentional. Older glibc releases such as
+Ubuntu Bionic keep the math facilities in a separate shared library, whereas
+newer releases may merge more facilities into libc. The supported compiler
+path has no dynamic-loader API dependency and does not link libdl.
 
 The full build also uses the repository sibling header tree:
 
@@ -387,10 +388,12 @@ The developing static cc0 runtime is kept in replaceable layers:
   exit runtime operations in terms of that entry.
 - `cc0_dynamic_syscalls.c` adapts the same operations to glibc.
 - `cc0_static_start.c` supplies the initial freestanding `_start` policy.
-- `cc0_libc.c` contains environment-neutral libc functions. String length,
-  `puts`, `write`, `open`, `exit`, and a monotonic `brk`-backed `malloc` work
-  now. `realloc` grows those allocations while preserving their contents, and
-  `close` completes the file-descriptor surface needed by cc0.
+- `cc0_libc.c` contains environment-neutral libc functions. It implements the
+  allocation, process exit, raw file-descriptor I/O, seeking, and `puts`
+  surface needed by cc0 and cc1.
+- `cc1_libc.c` declares the additional ordinary libc ABI needed to enter cc2.
+  Its functions are currently explicit fatal stubs; this keeps cc2 linkable
+  while making the next function to implement observable at runtime.
 
 `mk_libc_test` compiles each matrix entry's `cc0_libc.o` and
 `hello_world_test.o` once and feeds those exact objects to both its static and
@@ -427,6 +430,7 @@ The bootstrap may create these files under `artifacts/`:
 | `syscall_test/` | GCC, TCC, mixed cc0, and cc0-self raw-syscall tests. |
 | `libc_test/` | Matching static/dynamic libc tests across the same matrix. |
 | `libc_cc0_test/` | Static/dynamic libc smoke and cc0 compiler executables. |
+| `libc_cc2_test/` | cc1 libc smoke images and the developing static cc2 executable. |
 
 Names ending in `_boot.o` or `_final.o` make the producing stage explicit.
 Generated source and binaries must not be added to this directory.
@@ -474,6 +478,7 @@ The focused freestanding tests are run from this directory after cleaning:
 ./mk_syscall_test
 ./mk_libc_test
 ./mk_libc_cc0_test
+./mk_libc_cc2_test
 ```
 
 These scripts build missing compiler prerequisites automatically. The libc test
@@ -498,6 +503,14 @@ The static compiler then recompiles every source and object needed for itself,
 links `cc0_static_self/cc0_static.exe`, and requires the rebuilt objects and
 executable to be byte-identical. The rebuilt executable performs one more
 `cc0.c` compilation to close the self-hosting loop.
+
+`mk_libc_cc2_test` first runs the complete cc0 libc test, then compiles one
+byte-identical `cc1_libc.o` through both cc1 environments. Separate static and
+dynamic smoke images verify that a cc1-only stub identifies itself and exits
+with status 1. Finally, static cc1 compiles the cc2 bootstrap sources and the
+lower static linker creates `libc_cc2_test/cc2_static.exe`. Running that image
+on a real compile command must reach and report the first still-unimplemented
+cc1 libc service; at the current boundary that service is `memset`.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.
