@@ -634,11 +634,6 @@ function printf(format)
     return length;
 }
 
-function qsort(base, count, size, compare)
-{
-    return cc1_libc_unimplemented(mks("qsort"));
-}
-
 function remove(path)
 {
     return cc1_libc_unimplemented(mks("remove"));

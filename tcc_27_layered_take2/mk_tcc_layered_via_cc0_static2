@@ -32,12 +32,14 @@ cp cc1_static.exe ../cc1_static.exe
 # Static cc1 adds the layer-one libc and constructs the temporary static cc2.
 ./cc1_static.exe -c "$SOURCE/cc1_static_start.c" -o cc1_static_start.o
 ./cc1_static.exe -c "$SOURCE/cc1_libc.c" -o cc1_libc.o
+./cc1_static.exe -c "$SOURCE/cc2_libc_stubs.c" -o cc2_libc_stubs.o
 ./cc1_static.exe -c "$SOURCE/cc2.c" -o cc2.o
 ./cc1_static.exe -c "$SOURCE/cc2_boot_unified.c" -o cc2_boot_unified.o
 ./cc1_static.exe -c "$SOURCE/cc2_backend_stubs.c" -o cc2_backend_stubs.o
 ./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
     cc0_static_syscalls.o cc0.o cc1.o cc2_boot_unified.o \
-    cc2_backend_stubs.o cc0_libc.o cc1_libc.o -o cc2_boot_static.exe
+    cc2_backend_stubs.o cc0_libc.o cc1_libc.o cc2_libc_stubs.o \
+    -o cc2_boot_static.exe
 chmod +x cc2_boot_static.exe
 
 # The temporary cc2 can compile the typed TCC bridge and typed arithmetic
@@ -47,9 +49,12 @@ chmod +x cc2_boot_static.exe
     -c "$SOURCE/tcc_unified.c" -U__linux__ -o tcc_rest_boot.o
 ./cc2_boot_static.exe -nostdinc -c "$SOURCE/cc2_runtime.c" \
     -o cc2_runtime_boot.o
+./cc2_boot_static.exe -nostdinc -c "$SOURCE/cc2_libc.c" \
+    -o cc2_libc_boot.o
 ./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
     cc0_static_syscalls.o cc0.o cc1.o cc2.o tcc_rest_boot.o \
-    cc2_runtime_boot.o cc0_libc.o cc1_libc.o -o cc2_static.exe
+    cc2_runtime_boot.o cc0_libc.o cc1_libc.o cc2_libc_boot.o \
+    -o cc2_static.exe
 chmod +x cc2_static.exe
 cp cc2_static.exe ../cc2_static.exe
 
@@ -60,6 +65,8 @@ cp cc2_static.exe ../cc2_static.exe
 ./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc2.c" -o cc2_final.o
 ./cc2_static.exe -nostdinc -c "$SOURCE/cc2_runtime.c" \
     -o cc2_runtime_final.o
+./cc2_static.exe -nostdinc -c "$SOURCE/cc2_libc.c" \
+    -o cc2_libc_final.o
 ./cc2_static.exe -nostdinc \
     -I ../../../tcc_bootstrap_alt/woody/usr/include \
     -I "$SOURCE/include" -I "$SOURCE" \
@@ -77,7 +84,7 @@ cp cc2_static.exe ../cc2_static.exe
 ./cc2_static.exe -nostdlib -static cc1_static_start.o \
     linux_i386_syscalls.o cc0_static_syscalls_final.o prims_final.o \
     cc0_final.o cc1_final.o cc2_final.o tcc_rest_final.o \
-    cc2_runtime_final.o cc0_libc_final.o cc1_libc_final.o \
+    cc2_runtime_final.o cc0_libc_final.o cc1_libc_final.o cc2_libc_final.o \
     -o ../tcc_layered_static2.exe
 chmod +x ../tcc_layered_static2.exe
 
