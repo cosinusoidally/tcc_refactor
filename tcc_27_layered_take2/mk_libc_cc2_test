@@ -112,6 +112,7 @@ build_and_check_function_smoke strcat
 build_and_check_function_smoke unlink
 build_and_check_function_smoke fopen
 build_and_check_function_smoke fwrite
+build_and_check_function_smoke fputc
 
 # cc1 owns the cc2 bootstrap sources and lower static linker owns this link.
 "$CC1_STATIC" -c tcc_27_layered_take2/cc2_boot_unified.c \

@@ -223,7 +223,15 @@ function fprintf(stream, format, value)
 
 function fputc(character, stream)
 {
-    return cc1_libc_unimplemented(mks("fputc"));
+    if (eq(stream, 0)) {
+        return sub(0, 1);
+    }
+    wi8(add(stream, CC1_LIBC_STREAM_SCRATCH_OFFSET), character);
+    if (not(eq(fwrite(add(stream, CC1_LIBC_STREAM_SCRATCH_OFFSET),
+        1, 1, stream), 1))) {
+        return sub(0, 1);
+    }
+    return and(character, 255);
 }
 
 function fputs(text, stream)
