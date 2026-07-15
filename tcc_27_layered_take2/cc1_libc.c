@@ -132,7 +132,7 @@ function memcmp(left, right, size)
 
 function memcpy(destination, source, size)
 {
-    return cc1_libc_unimplemented(mks("memcpy"));
+    return cc0_libc_copy(destination, source, size);
 }
 
 function memmove_(destination, source, size, index)
