@@ -321,9 +321,44 @@ function fputs(text, stream)
     return cc1_libc_unimplemented(mks("fputs"));
 }
 
+function fread_(buffer, size, count, stream, bytes, consumed, result,
+    descriptor)
+{
+    if (or(eq(size, 0), eq(count, 0))) {
+        return 0;
+    }
+    if (or(eq(stream, 0), eq(ri32(add(stream,
+        CC1_LIBC_STREAM_READABLE_OFFSET)), 0))) {
+        if (not(eq(stream, 0))) {
+            wi32(add(stream, CC1_LIBC_STREAM_ERROR_OFFSET), 1);
+        }
+        return 0;
+    }
+    bytes = cc1_libc_size_product_(size, count, 0, 0, 0, 0, 0, 0);
+    if (eq(bytes, 0)) {
+        wi32(add(stream, CC1_LIBC_STREAM_ERROR_OFFSET), 1);
+        return 0;
+    }
+    descriptor = cc1_libc_stream_descriptor(stream);
+    consumed = 0;
+    while (lt(consumed, bytes)) {
+        result = read(descriptor, add(buffer, consumed), sub(bytes, consumed));
+        if (eq(result, 0)) {
+            wi32(add(stream, CC1_LIBC_STREAM_EOF_OFFSET), 1);
+            return sdiv(consumed, size);
+        }
+        if (lt(result, 0)) {
+            wi32(add(stream, CC1_LIBC_STREAM_ERROR_OFFSET), 1);
+            return sdiv(consumed, size);
+        }
+        consumed = add(consumed, result);
+    }
+    return count;
+}
+
 function fread(buffer, size, count, stream)
 {
-    return cc1_libc_unimplemented(mks("fread"));
+    return fread_(buffer, size, count, stream, 0, 0, 0, 0);
 }
 
 function free(address)
