@@ -65,6 +65,11 @@ function libc_smoke_seek_end()
     return 2;
 }
 
+function libc_smoke_seek_current()
+{
+    return 1;
+}
+
 function main_(argc, argv, first, second, grown, first_argument,
     second_argument, descriptor)
 {
@@ -105,6 +110,9 @@ function main_(argc, argv, first, second, grown, first_argument,
     }
     if (not(eq(ri8(first), mkC("/")))) {
         return 10;
+    }
+    if (not(eq(lseek(descriptor, 0, libc_smoke_seek_current()), 1))) {
+        return 29;
     }
     if (le(lseek(descriptor, 0, libc_smoke_seek_end()), 0)) {
         return 25;

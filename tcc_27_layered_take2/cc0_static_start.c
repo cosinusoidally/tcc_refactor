@@ -2,6 +2,7 @@
 function _start(argc, argv)
 {
     cc0_static_syscalls_init();
+    cc0_libc_init();
     cc0_runtime_exit(main(argc, argv));
     return 0;
 }
