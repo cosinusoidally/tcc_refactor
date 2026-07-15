@@ -359,9 +359,8 @@ The developing static cc0 runtime is kept in replaceable layers:
 - `cc0_static_start.c` supplies the initial freestanding `_start` policy.
 - `cc0_libc.c` contains environment-neutral libc functions. String length,
   `puts`, `write`, `open`, `exit`, and a monotonic `brk`-backed `malloc` work
-  now. `realloc` grows those allocations while preserving their contents. The
-  remaining cc0 dependency, `close`, is a fail-fast stub that names the missing
-  service and exits with status 1.
+  now. `realloc` grows those allocations while preserving their contents, and
+  `close` completes the file-descriptor surface needed by cc0.
 
 `mk_libc_test` compiles each matrix entry's `cc0_libc.o` and
 `hello_world_test.o` once and feeds those exact objects to both its static and
@@ -445,8 +444,7 @@ dynamic copies of `tests/layered/libc_smoke.c` against the same runtime. The
 smoke test checks `argc`/`argv`, writable aligned `malloc` allocations, and
 direct `write` plus `puts` output. It must succeed identically in both modes.
 The retained `cc0_static.exe` and `cc0_dynamic.exe` compile the smoke source as
-their probe and currently must both stop at the `close` fail-fast stub with
-status 1.
+their probe; both compilations must succeed and produce byte-identical objects.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.

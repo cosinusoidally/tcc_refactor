@@ -135,13 +135,16 @@ function main_(argc, argv, first, second, grown, first_argument,
     if (not(eq(ri8(first), mkC("A")))) {
         return 21;
     }
+    if (not(eq(close(descriptor), 0))) {
+        return 22;
+    }
     if (not(eq(write(libc_smoke_standard_output(),
         libc_smoke_write_message(), libc_smoke_write_message_bytes()),
         libc_smoke_write_message_bytes()))) {
-        return 22;
+        return 23;
     }
     if (not(eq(puts(mks("libc smoke ok")), 0))) {
-        return 23;
+        return 24;
     }
     return 0;
 }

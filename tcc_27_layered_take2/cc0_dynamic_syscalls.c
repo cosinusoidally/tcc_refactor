@@ -14,6 +14,11 @@ function cc0_runtime_open(path, flags, mode)
     return __open(path, flags, mode);
 }
 
+function cc0_runtime_close(descriptor)
+{
+    return __close(descriptor);
+}
+
 function cc0_runtime_exit(status)
 {
     _exit(status);

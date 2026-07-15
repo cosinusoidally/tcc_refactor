@@ -199,5 +199,5 @@ function write(descriptor, buffer, count)
 
 function close(descriptor)
 {
-    return cc0_libc_unimplemented(mks("close"));
+    return cc0_runtime_close(descriptor);
 }
