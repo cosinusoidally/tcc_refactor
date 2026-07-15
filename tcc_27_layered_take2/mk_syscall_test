@@ -2,22 +2,77 @@
 
 set -eu
 cd ..
+
+LAYERED_TCC=artifacts/tcc_layered.exe
+STATIC_BOOT_TCC=artifacts/tcc_27_boot_static.exe
+
+if ! test -f "$LAYERED_TCC" || ! test -f "$STATIC_BOOT_TCC"; then
+    ./mk_tcc_27_layered_take2
+fi
+chmod +x "$LAYERED_TCC" "$STATIC_BOOT_TCC"
+
 TEST_ARTIFACTS=artifacts/syscall_test
+GCC_ARTIFACTS="$TEST_ARTIFACTS/gcc"
+LAYERED_ARTIFACTS="$TEST_ARTIFACTS/tcc_layered"
+STATIC_BOOT_ARTIFACTS="$TEST_ARTIFACTS/tcc_27_boot_static"
 rm -rf "$TEST_ARTIFACTS"
-mkdir -p "$TEST_ARTIFACTS"
+mkdir -p "$GCC_ARTIFACTS" "$LAYERED_ARTIFACTS" \
+    "$STATIC_BOOT_ARTIFACTS"
 
+gcc -m32 -O0 -std=gnu89 -nostdinc \
+    -c tcc_27_layered_take2/prims.c \
+    -o "$GCC_ARTIFACTS/prims.o"
 gcc -m32 -O0 -std=gnu89 -fno-omit-frame-pointer -fno-pic -fno-pie \
-    -fno-stack-protector -Dfunction=int \
+    -fno-stack-protector -nostdinc -Dfunction=int \
     -c tcc_27_layered_take2/linux_i386_syscalls.c \
-    -o "$TEST_ARTIFACTS/linux_i386_syscalls.o"
+    -o "$GCC_ARTIFACTS/linux_i386_syscalls.o"
 gcc -m32 -O0 -std=gnu89 -fno-omit-frame-pointer -fno-pic -fno-pie \
-    -fno-stack-protector -Dfunction=int -Dvar=int -Dmks= \
+    -fno-stack-protector -nostdinc -Dfunction=int -Dvar=int \
     -c tcc_27_layered_take2/tests/layered/syscall_hello.c \
-    -o "$TEST_ARTIFACTS/syscall_hello.o"
+    -o "$GCC_ARTIFACTS/syscall_hello.o"
 gcc -m32 -nostdlib -static -Wl,-e,_start -Wl,--build-id=none \
-    "$TEST_ARTIFACTS/syscall_hello.o" \
-    "$TEST_ARTIFACTS/linux_i386_syscalls.o" \
-    -o "$TEST_ARTIFACTS/syscall_hello.exe"
+    "$GCC_ARTIFACTS/syscall_hello.o" \
+    "$GCC_ARTIFACTS/linux_i386_syscalls.o" \
+    "$GCC_ARTIFACTS/prims.o" \
+    -o "$GCC_ARTIFACTS/syscall_hello.exe"
 
-output=$("$TEST_ARTIFACTS/syscall_hello.exe")
+output=$("$GCC_ARTIFACTS/syscall_hello.exe")
+test "$output" = "hello world"
+
+"$LAYERED_TCC" -nostdinc -O0 \
+    -c tcc_27_layered_take2/prims.c \
+    -o "$LAYERED_ARTIFACTS/prims.o"
+"$LAYERED_TCC" -nostdinc -O0 -Dfunction=int \
+    -c tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o "$LAYERED_ARTIFACTS/linux_i386_syscalls.o"
+"$LAYERED_TCC" -nostdinc -O0 -std=cc0 \
+    -c tcc_27_layered_take2/tests/layered/syscall_hello.c \
+    -o "$LAYERED_ARTIFACTS/syscall_hello.o"
+"$LAYERED_TCC" -nostdlib -static \
+    "$LAYERED_ARTIFACTS/syscall_hello.o" \
+    "$LAYERED_ARTIFACTS/linux_i386_syscalls.o" \
+    "$LAYERED_ARTIFACTS/prims.o" \
+    -o "$LAYERED_ARTIFACTS/syscall_hello.exe"
+chmod +x "$LAYERED_ARTIFACTS/syscall_hello.exe"
+
+output=$("$LAYERED_ARTIFACTS/syscall_hello.exe")
+test "$output" = "hello world"
+
+"$STATIC_BOOT_TCC" -nostdinc -O0 \
+    -c tcc_27_layered_take2/prims.c \
+    -o "$STATIC_BOOT_ARTIFACTS/prims.o"
+"$STATIC_BOOT_TCC" -nostdinc -O0 -Dfunction=int \
+    -c tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o "$STATIC_BOOT_ARTIFACTS/linux_i386_syscalls.o"
+"$STATIC_BOOT_TCC" -nostdinc -O0 -Dfunction=int -Dvar=int \
+    -c tcc_27_layered_take2/tests/layered/syscall_hello.c \
+    -o "$STATIC_BOOT_ARTIFACTS/syscall_hello.o"
+"$STATIC_BOOT_TCC" -nostdlib -static \
+    "$STATIC_BOOT_ARTIFACTS/syscall_hello.o" \
+    "$STATIC_BOOT_ARTIFACTS/linux_i386_syscalls.o" \
+    "$STATIC_BOOT_ARTIFACTS/prims.o" \
+    -o "$STATIC_BOOT_ARTIFACTS/syscall_hello.exe"
+chmod +x "$STATIC_BOOT_ARTIFACTS/syscall_hello.exe"
+
+output=$("$STATIC_BOOT_ARTIFACTS/syscall_hello.exe")
 test "$output" = "hello world"
