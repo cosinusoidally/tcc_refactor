@@ -69,14 +69,12 @@ cp cc2_static.exe ../cc2_static.exe
 # chain, while retaining byte-identical compiler source objects.
 ./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc1_libc.c" \
     -o cc1_libc_final.o
-./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc1_static_start.c" \
-    -o cc1_static_start_final.o
 ./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc0_libc.c" \
     -o cc0_libc_final.o
 ./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc0_static_syscalls.c" \
     -o cc0_static_syscalls_final.o
 
-./cc2_static.exe -nostdlib -static cc1_static_start_final.o \
+./cc2_static.exe -nostdlib -static cc1_static_start.o \
     linux_i386_syscalls.o cc0_static_syscalls_final.o prims_final.o \
     cc0_final.o cc1_final.o cc2_final.o tcc_rest_final.o \
     cc2_runtime_final.o cc0_libc_final.o cc1_libc_final.o \
