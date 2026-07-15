@@ -1,0 +1,26 @@
+#!/bin/sh
+
+# Run from tcc_27_layered_take2.  mawkcc builds a disposable cc0 seed; that
+# seed then emits the canonical objects and executable through cc0 itself.
+set -eu
+cd ..
+mkdir -p artifacts
+
+cat tcc_27_layered_take2/cc0.c \
+    tcc_27_layered_take2/cc1_stubs.c \
+    tcc_27_layered_take2/cc0_mawkcc_compat.c \
+    > artifacts/cc0_mawkcc.c
+
+../ai_experiments/mawkcc/artifacts/mawkcc.self.exe \
+    artifacts/cc0_mawkcc.c -o artifacts/cc0_mawkcc.exe
+chmod +x artifacts/cc0_mawkcc.exe
+
+cd artifacts
+./cc0_mawkcc.exe -c ../tcc_27_layered_take2/cc0.c -o cc0.o
+./cc0_mawkcc.exe -c ../tcc_27_layered_take2/cc1_stubs.c \
+    -o cc1_stubs.o
+./cc0_mawkcc.exe cc0.o cc1_stubs.o -o cc0.exe
+./cc0.exe -c ../tcc_27_layered_take2/cc0.c -o cc0_self.o
+./cc0.exe -c ../tcc_27_layered_take2/cc1_stubs.c -o cc1_stubs_self.o
+cmp cc0.o cc0_self.o
+cmp cc1_stubs.o cc1_stubs_self.o

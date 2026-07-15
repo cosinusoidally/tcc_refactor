@@ -1,0 +1,93 @@
+#!/bin/sh
+
+# Run from tcc_27_layered_take2 after mk_cc0_js.  Every compiler object below
+# is produced by the preceding layer; no native C compiler is part of the path.
+set -eu
+cd ..
+cd artifacts
+
+test -x cc0.exe
+
+# Only runtime DSOs are required.  In particular, a minbase installation does
+# not need libc development files, GCC startup objects, or static libgcc.
+RUNTIME_LIBDIR=/lib/i386-linux-gnu
+if test ! -f "$RUNTIME_LIBDIR/libc.so.6"; then
+    RUNTIME_LIBDIR=/usr/lib/i386-linux-gnu
+fi
+HOST_LIBC=$RUNTIME_LIBDIR/libc.so.6
+HOST_LIBM=$RUNTIME_LIBDIR/libm.so.6
+HOST_LIBDL=$RUNTIME_LIBDIR/libdl.so.2
+test -f "$HOST_LIBC" -a -f "$HOST_LIBM" -a -f "$HOST_LIBDL"
+
+./cc0.exe -c ../tcc_27_layered_take2/cc0.c -o cc0.o
+./cc0.exe -c ../tcc_27_layered_take2/cc1.c -o cc1.o
+./cc0.exe -c ../tcc_27_layered_take2/cc2_stubs.c -o cc2_stubs.o
+./cc0.exe -c ../tcc_27_layered_take2/crt1.c -o crt1.o
+./cc0.exe cc0.o cc1.o cc2_stubs.o -o cc1.exe
+
+./cc1.exe -c ../tcc_27_layered_take2/cc2_boot_unified.c \
+    -o cc2_boot_unified.o
+./cc1.exe -c ../tcc_27_layered_take2/cc2.c -o cc2.o
+./cc1.exe -c ../tcc_27_layered_take2/cc2_backend_stubs.c \
+    -o cc2_backend_stubs.o
+./cc1.exe cc0.o cc1.o cc2_boot_unified.o cc2_backend_stubs.o \
+    -o cc2_boot.exe
+
+# The bootstrap backend is sufficient for cc2 to compile its typed bridge and
+# immutable i386 tables.  Re-linking with those objects yields the full cc2.
+./cc2_boot.exe \
+    -nostdinc \
+    -I ../tcc_27_layered_take2/bootstrap_include/ \
+    -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ \
+    -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ -o tcc_rest.o
+./cc2_boot.exe -nostdinc -c ../tcc_27_layered_take2/cc2_runtime.c \
+    -o cc2_runtime_boot.o
+# The transitional executable still uses the lower linker, which owns the
+# base-case ELF entry adapter.  The resulting full cc2 performs the final link.
+./cc0.exe cc0.o cc1.o cc2.o tcc_rest.o cc2_runtime_boot.o -o cc2.exe
+chmod +x cc2.exe
+
+# cc2 is the full TCC layer.  It rebuilds every final compiler-owned object.
+./cc2.exe -nostdinc -c ../tcc_27_layered_take2/prims.c -o prims_final.o
+./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take2/cc0.c \
+    -o cc0_final.o
+./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take2/cc1.c \
+    -o cc1_final.o
+./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take2/cc2.c \
+    -o cc2_final.o
+./cc2.exe -nostdinc -c ../tcc_27_layered_take2/cc2_runtime.c \
+    -o cc2_runtime_final.o
+./cc2.exe \
+    -nostdinc \
+    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
+    -I ../tcc_27_layered_take2/include -I ../tcc_27_layered_take2/ \
+    -c ../tcc_27_layered_take2/tcc_unified.c -U__linux__ \
+    -o tcc_rest_final.o
+./cc2.exe -nostdlib crt1.o \
+    prims_final.o cc0_final.o cc1_final.o cc2_final.o tcc_rest_final.o \
+    cc2_runtime_final.o \
+    "$HOST_LIBC" "$HOST_LIBM" "$HOST_LIBDL" \
+    -o tcc_layered.exe
+chmod +x tcc_layered.exe
+
+# Build the stock TCC 0.9.27 compatibility artifacts and verify their fixed
+# reference hashes.  The source is stock tcc_27; the compiler is layered TCC.
+ln -sf ../tcc_27/libc_boot4.c libc_boot4.c
+ln -sf ../tcc_27/libc_static.c libc_static.c
+ln -sf ../tcc_27/tcc.c tcc.c
+mkdir -p lib
+ln -sf ../../tcc_27/lib/libtcc1.c lib/libtcc1.c
+
+./tcc_layered.exe \
+    -nostdinc \
+    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
+    -I ../tcc_27/include -I ../tcc_27/ \
+    -c tcc.c -U__linux__ -DONE_SOURCE -o tcc.o
+./tcc_layered.exe -nostdinc -c ./lib/libtcc1.c -o libtcc1.o
+./tcc_layered.exe -nostdinc -c libc_boot4.c -o libc_boot4.o
+./tcc_layered.exe -nostdinc -c libc_static.c -o libc_static.o
+./tcc_layered.exe -nostdlib -static libc_static.o libc_boot4.o libtcc1.o \
+    tcc.o -o tcc_27_boot_static.exe
+
+cd ..
+sha256sum -c sums_tcc_27
