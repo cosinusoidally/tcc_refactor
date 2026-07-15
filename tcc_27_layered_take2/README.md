@@ -457,10 +457,15 @@ interpreter and dynamic images have both an interpreter and a needed DSO.
 `mk_libc_cc0_test` links the canonical `cc0.o` and `cc1_stubs.o` against the
 cc0-built runtime objects. Before that compiler check, it builds static and
 dynamic copies of `tests/layered/libc_smoke.c` against the same runtime. The
-smoke test checks `argc`/`argv`, writable aligned `malloc` allocations, and
-direct `write` plus `puts` output. It must succeed identically in both modes.
+smoke test checks `argc`/`argv`, writable aligned `malloc` allocations,
+`open`/`read`/`lseek`/`close`, and direct `write` plus `puts` output. It must
+succeed identically in both modes.
 The retained `cc0_static.exe` and `cc0_dynamic.exe` compile the smoke source as
 their probe; both compilations must succeed and produce byte-identical objects.
+Static cc0 then compiles canonical `cc1.o` and `cc2_stubs.o`. Those same
+objects are linked into `cc1_static.exe` and `cc1_dynamic.exe`; both cc1 images
+must compile the smoke source byte-identically, and their ELF interpreter state
+must match their declared link mode.
 The static compiler then recompiles every source and object needed for itself,
 links `cc0_static_self/cc0_static.exe`, and requires the rebuilt objects and
 executable to be byte-identical. The rebuilt executable performs one more

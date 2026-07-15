@@ -99,6 +99,38 @@ cmp "$TEST_ARTIFACTS/cc0_static.stderr" \
 cmp "$TEST_ARTIFACTS/cc0_static.output.o" \
     "$TEST_ARTIFACTS/cc0_dynamic.output.o"
 
+# Advance one complete compiler layer using objects produced by static cc0.
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take2/cc1.c -o "$TEST_ARTIFACTS/cc1.o"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take2/cc2_stubs.c \
+    -o "$TEST_ARTIFACTS/cc2_stubs.o"
+cmp artifacts/cc1.o "$TEST_ARTIFACTS/cc1.o"
+cmp artifacts/cc2_stubs.o "$TEST_ARTIFACTS/cc2_stubs.o"
+
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    "$TEST_ARTIFACTS/cc0_static_start.o" \
+    "$TEST_ARTIFACTS/linux_i386_syscalls.o" \
+    "$TEST_ARTIFACTS/cc0_static_syscalls.o" \
+    "$CC0_OBJECT" "$TEST_ARTIFACTS/cc1.o" \
+    "$TEST_ARTIFACTS/cc2_stubs.o" "$TEST_ARTIFACTS/cc0_libc.o" \
+    -o "$TEST_ARTIFACTS/cc1_static.exe"
+"$CC0" "$CC0_OBJECT" "$TEST_ARTIFACTS/cc1.o" \
+    "$TEST_ARTIFACTS/cc2_stubs.o" "$TEST_ARTIFACTS/cc0_libc.o" \
+    "$TEST_ARTIFACTS/cc0_dynamic_syscalls.o" \
+    -o "$TEST_ARTIFACTS/cc1_dynamic.exe"
+chmod +x "$TEST_ARTIFACTS/cc1_static.exe" \
+    "$TEST_ARTIFACTS/cc1_dynamic.exe"
+
+check_compile "$TEST_ARTIFACTS/cc1_static.exe" cc1_static
+check_compile "$TEST_ARTIFACTS/cc1_dynamic.exe" cc1_dynamic
+cmp "$TEST_ARTIFACTS/cc1_static.stdout" \
+    "$TEST_ARTIFACTS/cc1_dynamic.stdout"
+cmp "$TEST_ARTIFACTS/cc1_static.stderr" \
+    "$TEST_ARTIFACTS/cc1_dynamic.stderr"
+cmp "$TEST_ARTIFACTS/cc1_static.output.o" \
+    "$TEST_ARTIFACTS/cc1_dynamic.output.o"
+
 SELF_ARTIFACTS="$TEST_ARTIFACTS/cc0_static_self"
 mkdir -p "$SELF_ARTIFACTS"
 "$TEST_ARTIFACTS/cc0_static.exe" \
@@ -150,5 +182,11 @@ if readelf -l "$TEST_ARTIFACTS/cc0_static.exe" 2>/dev/null | \
     grep -q INTERP; then
     exit 1
 fi
+if readelf -l "$TEST_ARTIFACTS/cc1_static.exe" 2>/dev/null | \
+    grep -q INTERP; then
+    exit 1
+fi
 readelf -l "$TEST_ARTIFACTS/cc0_dynamic.exe" 2>/dev/null | grep -q INTERP
 readelf -d "$TEST_ARTIFACTS/cc0_dynamic.exe" 2>/dev/null | grep -q NEEDED
+readelf -l "$TEST_ARTIFACTS/cc1_dynamic.exe" 2>/dev/null | grep -q INTERP
+readelf -d "$TEST_ARTIFACTS/cc1_dynamic.exe" 2>/dev/null | grep -q NEEDED
