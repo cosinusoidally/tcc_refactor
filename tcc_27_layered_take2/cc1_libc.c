@@ -632,9 +632,17 @@ function snprintf(output, size, format)
     return vsnprintf(output, size, format, arguments);
 }
 
-function sprintf(output, format, value)
+function sprintf(output, format)
 {
-    return cc1_libc_unimplemented(mks("sprintf"));
+    var arguments;
+    var length;
+
+    arguments = add(&format, 4);
+    length = vsnprintf(0, 0, format, arguments);
+    if (lt(length, 0)) {
+        return length;
+    }
+    return vsnprintf(output, add(length, 1), format, arguments);
 }
 
 function setjmp(environment)
