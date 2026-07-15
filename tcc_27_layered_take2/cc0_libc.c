@@ -143,7 +143,7 @@ function open(path, flags, mode)
 
 function read(descriptor, buffer, count)
 {
-    return cc0_libc_unimplemented(mks("read"));
+    return cc0_runtime_read(descriptor, buffer, count);
 }
 
 function write(descriptor, buffer, count)
