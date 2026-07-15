@@ -119,6 +119,7 @@ build_and_check_function_smoke fread
 build_and_check_function_smoke fputs
 build_and_check_function_smoke fseek
 build_and_check_function_smoke ftell
+build_and_check_function_smoke vsnprintf
 
 # cc1 owns the cc2 bootstrap sources and lower static linker owns this link.
 "$CC1_STATIC" -c tcc_27_layered_take2/cc2_boot_unified.c \

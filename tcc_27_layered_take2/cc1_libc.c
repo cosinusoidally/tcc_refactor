@@ -728,7 +728,274 @@ function unlink(path)
     return cc0_runtime_unlink(path);
 }
 
+/* Append one logical output byte while retaining snprintf truncation rules. */
+function cc1_libc_format_byte_(output, size, total, byte)
+{
+    if (and(lt(add(total, 1), size), not(eq(output, 0)))) {
+        wi8(add(output, total), byte);
+    }
+    return add(total, 1);
+}
+
+/* Divide an unsigned i386 word by ten without requiring a typed primitive. */
+function cc1_libc_unsigned_divide_ten_(value, result, bit, quotient,
+    remainder, incoming)
+{
+    bit = 31;
+    quotient = 0;
+    remainder = 0;
+    while (not(lt(bit, 0))) {
+        incoming = and(ushr(value, bit), 1);
+        remainder = add(shl(remainder, 1), incoming);
+        if (not(lt(remainder, 10))) {
+            remainder = sub(remainder, 10);
+            quotient = or(quotient, shl(1, bit));
+        }
+        bit = sub(bit, 1);
+    }
+    wi32(result, quotient);
+    wi32(add(result, 4), remainder);
+    return 0;
+}
+
+function cc1_libc_format_unsigned_(output, size, total, value, base, width,
+    precision, left, zero, negative, digits, division, count, digit, padding,
+    prefix)
+{
+    /* 32 binary digits are the longest representation of one i386 word. */
+    digits = malloc(32);
+    division = malloc(8);
+    if (or(eq(digits, 0), eq(division, 0))) {
+        if (not(eq(digits, 0))) {
+            free(digits);
+        }
+        if (not(eq(division, 0))) {
+            free(division);
+        }
+        return cc1_libc_unimplemented(mks("vsnprintf allocation"));
+    }
+    count = 0;
+    if (and(eq(value, 0), eq(precision, 0))) {
+        count = 0;
+    } else {
+        while (1) {
+            if (eq(base, 10)) {
+                cc1_libc_unsigned_divide_ten_(value, division, 0, 0, 0, 0);
+                digit = ri32(add(division, 4));
+                value = ri32(division);
+            } else {
+                digit = and(value, 15);
+                value = ushr(value, 4);
+            }
+            if (lt(digit, 10)) {
+                wi8(add(digits, count), add(mkC("0"), digit));
+            } else {
+                wi8(add(digits, count), add(mkC("a"), sub(digit, 10)));
+            }
+            count = add(count, 1);
+            if (eq(value, 0)) {
+                break;
+            }
+        }
+    }
+    prefix = negative;
+    padding = sub(width, add(count, prefix));
+    if (not(lt(precision, 0))) {
+        if (lt(count, precision)) {
+            padding = sub(width, add(precision, prefix));
+        }
+        zero = 0;
+    }
+    if (lt(padding, 0)) {
+        padding = 0;
+    }
+    if (and(not(left), not(zero))) {
+        while (not(eq(padding, 0))) {
+            total = cc1_libc_format_byte_(output, size, total, mkC(" "));
+            padding = sub(padding, 1);
+        }
+    }
+    if (negative) {
+        total = cc1_libc_format_byte_(output, size, total, mkC("-"));
+    }
+    if (and(not(left), zero)) {
+        while (not(eq(padding, 0))) {
+            total = cc1_libc_format_byte_(output, size, total, mkC("0"));
+            padding = sub(padding, 1);
+        }
+    }
+    while (lt(count, precision)) {
+        total = cc1_libc_format_byte_(output, size, total, mkC("0"));
+        precision = sub(precision, 1);
+    }
+    while (not(eq(count, 0))) {
+        count = sub(count, 1);
+        total = cc1_libc_format_byte_(output, size, total,
+            ri8(add(digits, count)));
+    }
+    if (left) {
+        while (not(eq(padding, 0))) {
+            total = cc1_libc_format_byte_(output, size, total, mkC(" "));
+            padding = sub(padding, 1);
+        }
+    }
+    free(division);
+    free(digits);
+    return total;
+}
+
+function cc1_libc_format_text_(output, size, total, text, width, precision,
+    left, length, padding, index)
+{
+    if (eq(text, 0)) {
+        text = mks("(null)");
+    }
+    length = strlen(text);
+    if (and(not(lt(precision, 0)), lt(precision, length))) {
+        length = precision;
+    }
+    padding = sub(width, length);
+    if (lt(padding, 0)) {
+        padding = 0;
+    }
+    if (not(left)) {
+        while (not(eq(padding, 0))) {
+            total = cc1_libc_format_byte_(output, size, total, mkC(" "));
+            padding = sub(padding, 1);
+        }
+    }
+    index = 0;
+    while (lt(index, length)) {
+        total = cc1_libc_format_byte_(output, size, total,
+            ri8(add(text, index)));
+        index = add(index, 1);
+    }
+    if (left) {
+        padding = sub(width, length);
+        while (lt(0, padding)) {
+            total = cc1_libc_format_byte_(output, size, total, mkC(" "));
+            padding = sub(padding, 1);
+        }
+    }
+    return total;
+}
+
+function vsnprintf_(output, size, format, arguments, total, format_index,
+    byte, left, zero, width, precision, value, negative)
+{
+    total = 0;
+    format_index = 0;
+    while (not(eq(ri8(add(format, format_index)), 0))) {
+        byte = ri8(add(format, format_index));
+        format_index = add(format_index, 1);
+        if (not(eq(byte, mkC("%")))) {
+            total = cc1_libc_format_byte_(output, size, total, byte);
+        } else {
+            left = 0;
+            zero = 0;
+            if (eq(ri8(add(format, format_index)), mkC("-"))) {
+                left = 1;
+                format_index = add(format_index, 1);
+            }
+            if (eq(ri8(add(format, format_index)), mkC("0"))) {
+                zero = 1;
+                format_index = add(format_index, 1);
+            }
+            width = 0;
+            if (eq(ri8(add(format, format_index)), mkC("*"))) {
+                width = ri32(arguments);
+                arguments = add(arguments, 4);
+                format_index = add(format_index, 1);
+                if (lt(width, 0)) {
+                    left = 1;
+                    width = sub(0, width);
+                }
+            } else {
+                while (and(not(lt(ri8(add(format, format_index)), mkC("0"))),
+                    not(lt(mkC("9"), ri8(add(format, format_index)))))) {
+                    width = add(mul(width, 10), sub(ri8(add(format,
+                        format_index)), mkC("0")));
+                    format_index = add(format_index, 1);
+                }
+            }
+            precision = sub(0, 1);
+            if (eq(ri8(add(format, format_index)), mkC("."))) {
+                format_index = add(format_index, 1);
+                precision = 0;
+                if (eq(ri8(add(format, format_index)), mkC("*"))) {
+                    precision = ri32(arguments);
+                    arguments = add(arguments, 4);
+                    format_index = add(format_index, 1);
+                } else {
+                    while (and(not(lt(ri8(add(format, format_index)),
+                        mkC("0"))), not(lt(mkC("9"), ri8(add(format,
+                        format_index)))))) {
+                        precision = add(mul(precision, 10), sub(ri8(add(format,
+                            format_index)), mkC("0")));
+                        format_index = add(format_index, 1);
+                    }
+                }
+            }
+            byte = ri8(add(format, format_index));
+            format_index = add(format_index, 1);
+            if (eq(byte, mkC("%"))) {
+                total = cc1_libc_format_byte_(output, size, total, byte);
+            } else if (eq(byte, mkC("s"))) {
+                value = ri32(arguments);
+                arguments = add(arguments, 4);
+                total = cc1_libc_format_text_(output, size, total, value,
+                    width, precision, left, 0, 0, 0);
+            } else if (eq(byte, mkC("c"))) {
+                value = ri32(arguments);
+                arguments = add(arguments, 4);
+                if (not(left)) {
+                    while (lt(1, width)) {
+                        total = cc1_libc_format_byte_(output, size, total,
+                            mkC(" "));
+                        width = sub(width, 1);
+                    }
+                }
+                total = cc1_libc_format_byte_(output, size, total, value);
+                if (left) {
+                    while (lt(1, width)) {
+                        total = cc1_libc_format_byte_(output, size, total,
+                            mkC(" "));
+                        width = sub(width, 1);
+                    }
+                }
+            } else if (or(eq(byte, mkC("d")), eq(byte, mkC("u")))) {
+                value = ri32(arguments);
+                arguments = add(arguments, 4);
+                negative = 0;
+                if (and(eq(byte, mkC("d")), lt(value, 0))) {
+                    negative = 1;
+                    value = sub(0, value);
+                }
+                total = cc1_libc_format_unsigned_(output, size, total, value,
+                    10, width, precision, left, zero, negative, 0, 0, 0, 0,
+                    0, 0);
+            } else if (eq(byte, mkC("x"))) {
+                value = ri32(arguments);
+                arguments = add(arguments, 4);
+                total = cc1_libc_format_unsigned_(output, size, total, value,
+                    16, width, precision, left, zero, 0, 0, 0, 0, 0, 0, 0);
+            } else {
+                return cc1_libc_unimplemented(mks("vsnprintf conversion"));
+            }
+        }
+    }
+    if (and(not(eq(output, 0)), not(eq(size, 0)))) {
+        if (lt(total, size)) {
+            wi8(add(output, total), 0);
+        } else {
+            wi8(add(output, sub(size, 1)), 0);
+        }
+    }
+    return total;
+}
+
 function vsnprintf(output, size, format, arguments)
 {
-    return cc1_libc_unimplemented(mks("vsnprintf"));
+    return vsnprintf_(output, size, format, arguments, 0, 0, 0, 0, 0, 0,
+        0, 0, 0);
 }
