@@ -329,5 +329,5 @@ function strtoul(text, end, base)
 
 function unlink(path)
 {
-    return cc1_libc_unimplemented(mks("unlink"));
+    return cc0_runtime_unlink(path);
 }

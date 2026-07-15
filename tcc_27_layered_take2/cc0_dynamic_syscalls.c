@@ -47,3 +47,14 @@ function cc0_runtime_brk(address)
 {
     return cc0_runtime_brk_(address, 0);
 }
+
+function cc0_dynamic_syscall_unlink()
+{
+    return 10;
+}
+
+/* Avoid interposing cc1's public unlink while still using the glibc ABI. */
+function cc0_runtime_unlink(path)
+{
+    return syscall(cc0_dynamic_syscall_unlink(), path);
+}

@@ -385,7 +385,8 @@ The developing static cc0 runtime is kept in replaceable layers:
 - `linux_i386_syscalls.c` contains the `.byte` implementation of the single
   five-argument `int 0x80` entry.
 - `cc0_static_syscalls.c` implements private open, read, write, close, brk, and
-  exit runtime operations in terms of that entry.
+  exit runtime operations in terms of that entry. The cc1 extension also uses
+  its unlink adapter.
 - `cc0_dynamic_syscalls.c` adapts the same operations to glibc.
 - `cc0_static_start.c` supplies the initial freestanding `_start` policy.
 - `cc0_libc.c` contains environment-neutral libc functions. It implements the
@@ -511,13 +512,13 @@ byte-identical `cc1_libc.o` through both cc1 environments. Separate static and
 dynamic smoke images verify that a cc1-only stub identifies itself and exits
 with status 1. Function-specific pairs exercise the implemented `memset`,
 `calloc`, `free`, `strlen`, `strcpy`, `memmove`, `memcpy`, `memcmp`, and
-`getenv`, `strcmp`, and `strcat`, including range, return-value, zero-fill, overflow,
-allocation-reuse, string termination, overlapping-copy, and environment-name
-behavior.
+`getenv`, `strcmp`, `strcat`, and `unlink`, including range, return-value,
+zero-fill, overflow, allocation-reuse, string termination, overlapping-copy,
+and environment-name behavior.
 Finally, static cc1 compiles the cc2 bootstrap sources and the lower static
 linker creates `libc_cc2_test/cc2_static.exe`. Running that image on a real
 compile command must reach and report the first still-unimplemented cc1 libc
-service; at the current boundary that service is `unlink`.
+service; at the current boundary that service is `fopen`.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.

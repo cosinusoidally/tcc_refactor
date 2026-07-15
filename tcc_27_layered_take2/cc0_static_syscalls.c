@@ -6,6 +6,7 @@ var CC0_STATIC_SYSCALL_OPEN;
 var CC0_STATIC_SYSCALL_CLOSE;
 var CC0_STATIC_SYSCALL_LSEEK;
 var CC0_STATIC_SYSCALL_BRK;
+var CC0_STATIC_SYSCALL_UNLINK;
 
 function cc0_static_syscalls_init()
 {
@@ -16,6 +17,7 @@ function cc0_static_syscalls_init()
     CC0_STATIC_SYSCALL_CLOSE = 6;
     CC0_STATIC_SYSCALL_LSEEK = 19;
     CC0_STATIC_SYSCALL_BRK = 45;
+    CC0_STATIC_SYSCALL_UNLINK = 10;
 }
 
 function cc0_runtime_read(descriptor, buffer, count)
@@ -58,5 +60,11 @@ function cc0_runtime_exit(status)
 function cc0_runtime_brk(address)
 {
     return linux_i386_syscall5(CC0_STATIC_SYSCALL_BRK, address,
+        0, 0, 0, 0);
+}
+
+function cc0_runtime_unlink(path)
+{
+    return linux_i386_syscall5(CC0_STATIC_SYSCALL_UNLINK, path,
         0, 0, 0, 0);
 }
