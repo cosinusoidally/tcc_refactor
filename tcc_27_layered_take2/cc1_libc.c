@@ -16,9 +16,48 @@ function atoi(text)
     return cc1_libc_unimplemented(mks("atoi"));
 }
 
+/* Return zero when the unsigned product does not fit in one i386 word. */
+function cc1_libc_size_product_(left, right, low, high, multiplicand_low,
+    multiplicand_high, next_low, carry)
+{
+    low = 0;
+    high = 0;
+    multiplicand_low = left;
+    multiplicand_high = 0;
+    while (not(eq(right, 0))) {
+        if (not(eq(and(right, 1), 0))) {
+            next_low = add(low, multiplicand_low);
+            carry = cc0_libc_unsigned_less(next_low, low);
+            high = add(high, add(multiplicand_high, carry));
+            low = next_low;
+        }
+        multiplicand_high = or(shl(multiplicand_high, 1),
+            ushr(multiplicand_low, 31));
+        multiplicand_low = shl(multiplicand_low, 1);
+        right = ushr(right, 1);
+    }
+    if (not(eq(high, 0))) {
+        return 0;
+    }
+    return low;
+}
+
+function calloc_(count, size, bytes, address)
+{
+    bytes = cc1_libc_size_product_(count, size, 0, 0, 0, 0, 0, 0);
+    if (eq(bytes, 0)) {
+        return 0;
+    }
+    address = malloc(bytes);
+    if (eq(address, 0)) {
+        return 0;
+    }
+    return memset(address, 0, bytes);
+}
+
 function calloc(count, size)
 {
-    return cc1_libc_unimplemented(mks("calloc"));
+    return calloc_(count, size, 0, 0);
 }
 
 function fclose(stream)
