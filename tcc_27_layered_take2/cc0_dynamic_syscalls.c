@@ -1,12 +1,18 @@
 /* Adapt the private cc0 runtime interface to the dynamically linked libc. */
 function cc0_runtime_read(descriptor, buffer, count)
 {
-    return read(descriptor, buffer, count);
+    return __read(descriptor, buffer, count);
 }
 
 function cc0_runtime_write(descriptor, buffer, count)
 {
-    return write(descriptor, buffer, count);
+    return __write(descriptor, buffer, count);
+}
+
+function cc0_runtime_exit(status)
+{
+    _exit(status);
+    return 0;
 }
 
 /* Emulate the raw Linux brk return contract through glibc. */

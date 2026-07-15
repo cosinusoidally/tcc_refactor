@@ -355,11 +355,12 @@ The developing static cc0 runtime is kept in replaceable layers:
   five-argument `int 0x80` entry.
 - `cc0_static_syscalls.c` implements the private read, write, brk, and exit
   runtime operations in terms of that entry.
-- `cc0_dynamic_syscalls.c` adapts read, write, and brk to glibc; the normal
-  dynamic startup retains responsibility for process exit.
+- `cc0_dynamic_syscalls.c` adapts read, write, brk, and process exit to glibc.
 - `cc0_static_start.c` supplies the initial freestanding `_start` policy.
-- `cc0_libc.c` contains environment-neutral libc functions, currently string
-  length and `puts`.
+- `cc0_libc.c` contains environment-neutral libc functions. String length,
+  `puts`, and `exit` work now. The remaining cc0 dependencies (`malloc`,
+  `realloc`, `open`, `read`, `write`, and `close`) are fail-fast stubs that name
+  the missing service and exit with status 1.
 
 `mk_libc_test` compiles each matrix entry's `cc0_libc.o` and
 `hello_world_test.o` once and feeds those exact objects to both its static and
