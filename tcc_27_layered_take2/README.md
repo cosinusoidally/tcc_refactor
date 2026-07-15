@@ -211,10 +211,10 @@ cd tcc_27_layered_take2
 ./mk_cc0_js
 ```
 
-`mk_cc0_js` loads `prims.js`, `cc0.c`, and `cc1_stubs.c` into JavaScript. cc0
-then compiles its own canonical object, compiles the canonical stub object, and
-links `artifacts/cc0.exe` through its own lower linker. It then invokes
-`mk_cc0_static` to produce and self-verify `artifacts/cc0_static.exe`.
+`mk_cc0_js` loads `prims.js`, `cc0.c`, and `cc1_stubs.c` into JavaScript. The
+in-process cc0 compiles its canonical objects and the static runtime, links
+`artifacts/cc0_static.exe`, and then links `artifacts/cc0.exe`. It never runs
+the dynamically linked executable.
 
 The JavaScript host models integer-addressed memory with a growable typed
 array. Compiler policy remains in `cc0.c`; `prims.js` implements only the host
@@ -252,12 +252,10 @@ mawkcc compiles that combined source into the disposable
 `artifacts/cc0_mawkcc.exe`. The compatibility suffix contains only the seed's
 arena allocation, copying reallocation, and primitive spelling adapters.
 
-`cc0_mawkcc.exe` is not the canonical result. It is immediately used to
-compile the unmodified `cc0.c` and `cc1_stubs.c`, then to link
-`artifacts/cc0.exe`. The script rebuilds both objects with that canonical cc0
-and compares them byte-for-byte before returning.
-It then invokes the same `mk_cc0_static` stage used by the JavaScript seed, so
-the mawkcc path also returns canonical dynamic and static cc0 executables.
+`cc0_mawkcc.exe` is not the canonical result. It compiles the unmodified
+`cc0.c`, `cc1_stubs.c`, and static runtime, then links
+`artifacts/cc0_static.exe` before linking `artifacts/cc0.exe`. It does not run
+the dynamically linked executable or rebuild the objects a second time.
 
 ### Native Validation Seed
 
@@ -367,8 +365,8 @@ The developing static cc0 runtime is kept in replaceable layers:
 
 `mk_libc_test` compiles each matrix entry's `cc0_libc.o` and
 `hello_world_test.o` once and feeds those exact objects to both its static and
-dynamic links. `mk_cc0_static` uses that runtime to build and self-reproduce the
-fully static `cc0_static.exe` emitted by both non-native seed paths.
+dynamic links. The JavaScript and mawkcc compiler seeds use that runtime to
+emit the fully static `cc0_static.exe` without running dynamic cc0.
 
 ## Important Artifacts
 
@@ -380,7 +378,6 @@ The bootstrap may create these files under `artifacts/`:
 | `cc0_mawkcc.exe` | Disposable compiler seed produced by mawkcc. |
 | `cc0.exe` | Canonical self-hosted base compiler and lower linker. |
 | `cc0_static.exe` | Canonical statically linked base compiler. |
-| `cc0_static_self.exe` | Byte-identical rebuild produced by static cc0. |
 | `cc1.exe` | Preprocessing and scalar-source layer. |
 | `cc2_boot.exe` | Transitional typed layer with bootstrap services. |
 | `cc2.exe` | Full typed TCC compiler used for the final rebuild. |
