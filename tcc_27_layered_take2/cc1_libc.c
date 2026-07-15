@@ -624,9 +624,12 @@ function remove(path)
     return cc1_libc_unimplemented(mks("remove"));
 }
 
-function snprintf(output, size, format, value)
+function snprintf(output, size, format)
 {
-    return cc1_libc_unimplemented(mks("snprintf"));
+    var arguments;
+
+    arguments = add(&format, 4);
+    return vsnprintf(output, size, format, arguments);
 }
 
 function sprintf(output, format, value)
