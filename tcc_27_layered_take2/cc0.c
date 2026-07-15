@@ -2954,26 +2954,47 @@ function cc0_compiler_record_relocation(name, length, position, addend)
     return CC0_FALSE;
 }
 
-function cc0_compiler_register_string_(text, length, start, index)
+function cc0_compiler_register_string_(text, length, start, index,
+    character, value)
 {
     start = CC0_DATA_LENGTH;
     index = 0;
     while (lt(index, length)) {
-        cc0_compiler_emit_data_byte(ri8(add(text, index)));
+        character = ri8(add(text, index));
+        if (eq(character, CC0_ASCII_BACKSLASH)) {
+            if (not(lt(add(index, 1), length))) {
+                return sub(0, 1);
+            }
+            value = cc0_compiler_character_value_(add(text, index), 2, 0);
+            if (lt(value, 0)) {
+                return sub(0, 1);
+            }
+            index = add(index, 1);
+        } else {
+            value = character;
+        }
+        if (cc0_compiler_emit_data_byte(value)) {
+            return sub(0, 1);
+        }
         index = add(index, 1);
     }
-    cc0_compiler_emit_data_byte(0);
+    if (cc0_compiler_emit_data_byte(0)) {
+        return sub(0, 1);
+    }
     return start;
 }
 
 function cc0_compiler_register_string(text, length)
 {
-    return cc0_compiler_register_string_(text, length, 0, 0);
+    return cc0_compiler_register_string_(text, length, 0, 0, 0, 0);
 }
 
 function cc0_compiler_emit_data_address_(text, length, addend, position)
 {
     addend = cc0_compiler_register_string(text, length);
+    if (lt(addend, 0)) {
+        return cc0_compiler_fail();
+    }
     cc0_compiler_emit_byte(CC0_X86_MOV_EAX_IMMEDIATE);
     position = CC0_CODE_LENGTH;
     cc0_compiler_emit_word(addend);

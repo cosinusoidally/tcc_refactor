@@ -5,19 +5,22 @@ cd ..
 
 LAYERED_TCC=artifacts/tcc_layered.exe
 STATIC_BOOT_TCC=artifacts/tcc_27_boot_static.exe
+CC0=artifacts/cc0.exe
 
-if ! test -f "$LAYERED_TCC" || ! test -f "$STATIC_BOOT_TCC"; then
+if ! test -f "$LAYERED_TCC" || ! test -f "$STATIC_BOOT_TCC" || \
+    ! test -f "$CC0"; then
     ./mk_tcc_27_layered_take2
 fi
-chmod +x "$LAYERED_TCC" "$STATIC_BOOT_TCC"
+chmod +x "$LAYERED_TCC" "$STATIC_BOOT_TCC" "$CC0"
 
 TEST_ARTIFACTS=artifacts/syscall_test
 GCC_ARTIFACTS="$TEST_ARTIFACTS/gcc"
 LAYERED_ARTIFACTS="$TEST_ARTIFACTS/tcc_layered"
 STATIC_BOOT_ARTIFACTS="$TEST_ARTIFACTS/tcc_27_boot_static"
+CC0_ARTIFACTS="$TEST_ARTIFACTS/cc0"
 rm -rf "$TEST_ARTIFACTS"
 mkdir -p "$GCC_ARTIFACTS" "$LAYERED_ARTIFACTS" \
-    "$STATIC_BOOT_ARTIFACTS"
+    "$STATIC_BOOT_ARTIFACTS" "$CC0_ARTIFACTS"
 
 gcc -m32 -O0 -std=gnu89 -nostdinc \
     -c tcc_27_layered_take2/prims.c \
@@ -75,4 +78,23 @@ test "$output" = "hello world"
 chmod +x "$STATIC_BOOT_ARTIFACTS/syscall_hello.exe"
 
 output=$("$STATIC_BOOT_ARTIFACTS/syscall_hello.exe")
+test "$output" = "hello world"
+
+# cc0 builds the dialect source; layered TCC provides asm and freestanding link.
+"$LAYERED_TCC" -nostdinc -O0 \
+    -c tcc_27_layered_take2/prims.c \
+    -o "$CC0_ARTIFACTS/prims.o"
+"$LAYERED_TCC" -nostdinc -O0 -Dfunction=int \
+    -c tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o "$CC0_ARTIFACTS/linux_i386_syscalls.o"
+"$CC0" -c tcc_27_layered_take2/tests/layered/syscall_hello.c \
+    -o "$CC0_ARTIFACTS/syscall_hello.o"
+"$LAYERED_TCC" -nostdlib -static \
+    "$CC0_ARTIFACTS/syscall_hello.o" \
+    "$CC0_ARTIFACTS/linux_i386_syscalls.o" \
+    "$CC0_ARTIFACTS/prims.o" \
+    -o "$CC0_ARTIFACTS/syscall_hello.exe"
+chmod +x "$CC0_ARTIFACTS/syscall_hello.exe"
+
+output=$("$CC0_ARTIFACTS/syscall_hello.exe")
 test "$output" = "hello world"
