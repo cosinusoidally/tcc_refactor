@@ -124,6 +124,33 @@ build_and_check_function_smoke fprintf
 build_and_check_function_smoke snprintf
 build_and_check_function_smoke sprintf
 
+"$CC1_STATIC" -c tcc_27_layered_take2/tests/layered/cc1_libc_printf_smoke.c \
+    -o "$TEST_ARTIFACTS/cc1_libc_printf_smoke.o"
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc1_libc_printf_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc1_libc_printf_smoke_static.exe"
+"$CC1_DYNAMIC" "$LOWER/cc0_libc.o" "$LOWER/cc0_dynamic_syscalls.o" \
+    "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc1_libc_printf_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc1_libc_printf_smoke_dynamic.exe"
+chmod +x "$TEST_ARTIFACTS/cc1_libc_printf_smoke_static.exe" \
+    "$TEST_ARTIFACTS/cc1_libc_printf_smoke_dynamic.exe"
+"$TEST_ARTIFACTS/cc1_libc_printf_smoke_static.exe" \
+    >"$TEST_ARTIFACTS/printf_static.stdout" \
+    2>"$TEST_ARTIFACTS/printf_static.stderr"
+"$TEST_ARTIFACTS/cc1_libc_printf_smoke_dynamic.exe" \
+    >"$TEST_ARTIFACTS/printf_dynamic.stdout" \
+    2>"$TEST_ARTIFACTS/printf_dynamic.stderr"
+test "$(cat "$TEST_ARTIFACTS/printf_static.stdout")" = 'printf:0a:-3'
+test ! -s "$TEST_ARTIFACTS/printf_static.stderr"
+cmp "$TEST_ARTIFACTS/printf_static.stdout" \
+    "$TEST_ARTIFACTS/printf_dynamic.stdout"
+cmp "$TEST_ARTIFACTS/printf_static.stderr" \
+    "$TEST_ARTIFACTS/printf_dynamic.stderr"
+printf 'cc1 libc printf: static/dynamic functionality ok\n'
+
 # cc1 owns the cc2 bootstrap sources and lower static linker owns this link.
 "$CC1_STATIC" -c tcc_27_layered_take2/cc2_boot_unified.c \
     -o "$TEST_ARTIFACTS/cc2_boot_unified.o"

@@ -609,9 +609,29 @@ function memset(destination, value, size)
     return memset_(destination, value, size, 0, 0);
 }
 
-function printf(format, value)
+function printf(format)
 {
-    return cc1_libc_unimplemented(mks("printf"));
+    var arguments;
+    var length;
+    var buffer;
+    var written;
+
+    arguments = add(&format, 4);
+    length = vsnprintf(0, 0, format, arguments);
+    if (lt(length, 0)) {
+        return sub(0, 1);
+    }
+    buffer = malloc(add(length, 1));
+    if (eq(buffer, 0)) {
+        return sub(0, 1);
+    }
+    vsnprintf(buffer, add(length, 1), format, arguments);
+    written = fwrite(buffer, 1, length, stdout);
+    free(buffer);
+    if (not(eq(written, length))) {
+        return sub(0, 1);
+    }
+    return length;
 }
 
 function qsort(base, count, size, compare)
