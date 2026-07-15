@@ -2,19 +2,22 @@
 
 set -eu
 cd ..
-mkdir -p artifacts
+TEST_ARTIFACTS=artifacts/syscall_test
+rm -rf "$TEST_ARTIFACTS"
+mkdir -p "$TEST_ARTIFACTS"
 
 gcc -m32 -O0 -std=gnu89 -fno-omit-frame-pointer -fno-pic -fno-pie \
     -fno-stack-protector -Dfunction=int \
     -c tcc_27_layered_take2/linux_i386_syscalls.c \
-    -o artifacts/linux_i386_syscalls.o
+    -o "$TEST_ARTIFACTS/linux_i386_syscalls.o"
 gcc -m32 -O0 -std=gnu89 -fno-omit-frame-pointer -fno-pic -fno-pie \
     -fno-stack-protector -Dfunction=int -Dvar=int -Dmks= \
     -c tcc_27_layered_take2/tests/layered/syscall_hello.c \
-    -o artifacts/syscall_hello.o
+    -o "$TEST_ARTIFACTS/syscall_hello.o"
 gcc -m32 -nostdlib -static -Wl,-e,_start -Wl,--build-id=none \
-    artifacts/syscall_hello.o artifacts/linux_i386_syscalls.o \
-    -o artifacts/syscall_hello.exe
+    "$TEST_ARTIFACTS/syscall_hello.o" \
+    "$TEST_ARTIFACTS/linux_i386_syscalls.o" \
+    -o "$TEST_ARTIFACTS/syscall_hello.exe"
 
-output=$(artifacts/syscall_hello.exe)
+output=$("$TEST_ARTIFACTS/syscall_hello.exe")
 test "$output" = "hello world"
