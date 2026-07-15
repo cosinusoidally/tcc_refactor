@@ -201,3 +201,8 @@ function close(descriptor)
 {
     return cc0_runtime_close(descriptor);
 }
+
+function lseek(descriptor, offset, whence)
+{
+    return cc0_runtime_lseek(descriptor, offset, whence);
+}

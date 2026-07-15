@@ -4,6 +4,7 @@ var CC0_STATIC_SYSCALL_READ;
 var CC0_STATIC_SYSCALL_WRITE;
 var CC0_STATIC_SYSCALL_OPEN;
 var CC0_STATIC_SYSCALL_CLOSE;
+var CC0_STATIC_SYSCALL_LSEEK;
 var CC0_STATIC_SYSCALL_BRK;
 
 function cc0_static_syscalls_init()
@@ -13,6 +14,7 @@ function cc0_static_syscalls_init()
     CC0_STATIC_SYSCALL_WRITE = 4;
     CC0_STATIC_SYSCALL_OPEN = 5;
     CC0_STATIC_SYSCALL_CLOSE = 6;
+    CC0_STATIC_SYSCALL_LSEEK = 19;
     CC0_STATIC_SYSCALL_BRK = 45;
 }
 
@@ -38,6 +40,12 @@ function cc0_runtime_close(descriptor)
 {
     return linux_i386_syscall5(CC0_STATIC_SYSCALL_CLOSE, descriptor, 0, 0,
         0, 0);
+}
+
+function cc0_runtime_lseek(descriptor, offset, whence)
+{
+    return linux_i386_syscall5(CC0_STATIC_SYSCALL_LSEEK, descriptor,
+        offset, whence, 0, 0);
 }
 
 function cc0_runtime_exit(status)

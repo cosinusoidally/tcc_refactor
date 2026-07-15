@@ -55,6 +55,16 @@ function libc_smoke_read_only()
     return 0;
 }
 
+function libc_smoke_seek_start()
+{
+    return 0;
+}
+
+function libc_smoke_seek_end()
+{
+    return 2;
+}
+
 function main_(argc, argv, first, second, grown, first_argument,
     second_argument, descriptor)
 {
@@ -95,6 +105,18 @@ function main_(argc, argv, first, second, grown, first_argument,
     }
     if (not(eq(ri8(first), mkC("/")))) {
         return 10;
+    }
+    if (le(lseek(descriptor, 0, libc_smoke_seek_end()), 0)) {
+        return 25;
+    }
+    if (not(eq(lseek(descriptor, 0, libc_smoke_seek_start()), 0))) {
+        return 26;
+    }
+    if (not(eq(read(descriptor, first, 1), 1))) {
+        return 27;
+    }
+    if (not(eq(ri8(first), mkC("/")))) {
+        return 28;
     }
     if (or(not(eq(and(first, libc_smoke_allocation_mask()), 0)),
         not(eq(and(second, libc_smoke_allocation_mask()), 0)))) {

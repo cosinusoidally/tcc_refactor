@@ -19,6 +19,11 @@ function cc0_runtime_close(descriptor)
     return __close(descriptor);
 }
 
+function cc0_runtime_lseek(descriptor, offset, whence)
+{
+    return __lseek(descriptor, offset, whence);
+}
+
 function cc0_runtime_exit(status)
 {
     _exit(status);
