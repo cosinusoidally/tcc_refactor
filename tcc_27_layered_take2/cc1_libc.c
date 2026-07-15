@@ -516,7 +516,11 @@ function localtime(value)
 
 function longjmp(environment, value)
 {
-    return cc1_libc_unimplemented(mks("longjmp"));
+    /* Temporary bootstrap behavior: fatal errors terminate instead of
+     * restoring cc2's compilation scope. */
+    cc1_libc_finish();
+    exit(1);
+    return 0;
 }
 
 function memcmp_(left, right, size, index, left_byte, right_byte)
@@ -612,7 +616,8 @@ function sprintf(output, format, value)
 
 function setjmp(environment)
 {
-    return cc1_libc_unimplemented(mks("setjmp"));
+    /* Temporary bootstrap behavior: cc2 always enters the protected body. */
+    return 0;
 }
 
 function strcat(destination, source)
