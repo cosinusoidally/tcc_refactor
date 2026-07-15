@@ -389,6 +389,8 @@ The developing static cc0 runtime is kept in replaceable layers:
   its unlink adapter.
 - `cc0_dynamic_syscalls.c` adapts the same operations to glibc.
 - `cc0_static_start.c` supplies the initial freestanding `_start` policy.
+- `cc1_static_start.c` extends that policy with standard-stream initialization
+  and cc1 libc shutdown for static cc2 and later layers.
 - `cc0_libc.c` contains environment-neutral libc functions. It implements the
   allocation, process exit, raw file-descriptor I/O, seeking, and `puts`
   surface needed by cc0 and cc1.
@@ -512,13 +514,13 @@ byte-identical `cc1_libc.o` through both cc1 environments. Separate static and
 dynamic smoke images verify that a cc1-only stub identifies itself and exits
 with status 1. Function-specific pairs exercise the implemented `memset`,
 `calloc`, `free`, `strlen`, `strcpy`, `memmove`, `memcpy`, `memcmp`, and
-`getenv`, `strcmp`, `strcat`, and `unlink`, including range, return-value,
+`getenv`, `strcmp`, `strcat`, `unlink`, and `fopen`, including range, return-value,
 zero-fill, overflow, allocation-reuse, string termination, overlapping-copy,
 and environment-name behavior.
 Finally, static cc1 compiles the cc2 bootstrap sources and the lower static
 linker creates `libc_cc2_test/cc2_static.exe`. Running that image on a real
 compile command must reach and report the first still-unimplemented cc1 libc
-service; at the current boundary that service is `fopen`.
+service; at the current boundary that service is `fwrite`.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.

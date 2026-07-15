@@ -6,6 +6,92 @@
  * public ABI and the cc2 link remain stable.
  */
 
+var stdin;
+var stdout;
+var stderr;
+var CC1_LIBC_STREAM_HEAD;
+var CC1_LIBC_STREAM_DESCRIPTOR_OFFSET;
+var CC1_LIBC_STREAM_READABLE_OFFSET;
+var CC1_LIBC_STREAM_WRITABLE_OFFSET;
+var CC1_LIBC_STREAM_EOF_OFFSET;
+var CC1_LIBC_STREAM_ERROR_OFFSET;
+var CC1_LIBC_STREAM_OWNED_OFFSET;
+var CC1_LIBC_STREAM_NEXT_OFFSET;
+var CC1_LIBC_STREAM_SCRATCH_OFFSET;
+var CC1_LIBC_STREAM_BYTES;
+var CC1_LIBC_OPEN_READ_ONLY;
+var CC1_LIBC_OPEN_WRITE_ONLY;
+var CC1_LIBC_OPEN_READ_WRITE;
+var CC1_LIBC_OPEN_CREATE;
+var CC1_LIBC_OPEN_TRUNCATE;
+var CC1_LIBC_OPEN_APPEND;
+var CC1_LIBC_CREATE_MODE;
+
+function cc1_libc_stream_create_(descriptor, readable, writable, owned,
+    stream)
+{
+    stream = malloc(CC1_LIBC_STREAM_BYTES);
+    if (eq(stream, 0)) {
+        return 0;
+    }
+    wi32(add(stream, CC1_LIBC_STREAM_DESCRIPTOR_OFFSET), descriptor);
+    wi32(add(stream, CC1_LIBC_STREAM_READABLE_OFFSET), readable);
+    wi32(add(stream, CC1_LIBC_STREAM_WRITABLE_OFFSET), writable);
+    wi32(add(stream, CC1_LIBC_STREAM_EOF_OFFSET), 0);
+    wi32(add(stream, CC1_LIBC_STREAM_ERROR_OFFSET), 0);
+    wi32(add(stream, CC1_LIBC_STREAM_OWNED_OFFSET), owned);
+    wi32(add(stream, CC1_LIBC_STREAM_NEXT_OFFSET), CC1_LIBC_STREAM_HEAD);
+    wi32(add(stream, CC1_LIBC_STREAM_SCRATCH_OFFSET), 0);
+    CC1_LIBC_STREAM_HEAD = stream;
+    return stream;
+}
+
+function cc1_libc_stream_create(descriptor, readable, writable, owned)
+{
+    return cc1_libc_stream_create_(descriptor, readable, writable, owned, 0);
+}
+
+function cc1_libc_init()
+{
+    if (not(eq(CC1_LIBC_STREAM_BYTES, 0))) {
+        return 0;
+    }
+    CC1_LIBC_STREAM_HEAD = 0;
+    CC1_LIBC_STREAM_DESCRIPTOR_OFFSET = 0;
+    CC1_LIBC_STREAM_READABLE_OFFSET = 4;
+    CC1_LIBC_STREAM_WRITABLE_OFFSET = 8;
+    CC1_LIBC_STREAM_EOF_OFFSET = 12;
+    CC1_LIBC_STREAM_ERROR_OFFSET = 16;
+    CC1_LIBC_STREAM_OWNED_OFFSET = 20;
+    CC1_LIBC_STREAM_NEXT_OFFSET = 24;
+    CC1_LIBC_STREAM_SCRATCH_OFFSET = 28;
+    CC1_LIBC_STREAM_BYTES = 32;
+    CC1_LIBC_OPEN_READ_ONLY = 0;
+    CC1_LIBC_OPEN_WRITE_ONLY = 1;
+    CC1_LIBC_OPEN_READ_WRITE = 2;
+    CC1_LIBC_OPEN_CREATE = 64;
+    CC1_LIBC_OPEN_TRUNCATE = 512;
+    CC1_LIBC_OPEN_APPEND = 1024;
+    CC1_LIBC_CREATE_MODE = 438;
+    stdin = cc1_libc_stream_create(0, 1, 0, 0);
+    stdout = cc1_libc_stream_create(1, 0, 1, 0);
+    stderr = cc1_libc_stream_create(2, 0, 1, 0);
+    if (or(eq(stdin, 0), or(eq(stdout, 0), eq(stderr, 0)))) {
+        cc1_libc_unimplemented(mks("cc1 libc stream initialization"));
+    }
+    return 0;
+}
+
+function cc1_libc_finish()
+{
+    return 0;
+}
+
+function cc1_libc_stream_descriptor(stream)
+{
+    return ri32(add(stream, CC1_LIBC_STREAM_DESCRIPTOR_OFFSET));
+}
+
 function cc1_libc_unimplemented(name)
 {
     return cc0_libc_unimplemented(name);
@@ -70,9 +156,64 @@ function fflush(stream)
     return cc1_libc_unimplemented(mks("fflush"));
 }
 
+function fopen_(path, mode, primary, index, byte, plus, flags, readable,
+    writable, descriptor, stream)
+{
+    primary = ri8(mode);
+    if (eq(primary, 0)) {
+        return 0;
+    }
+    plus = 0;
+    index = 1;
+    while (not(eq(ri8(add(mode, index)), 0))) {
+        byte = ri8(add(mode, index));
+        if (eq(byte, mkC("+"))) {
+            if (plus) {
+                return 0;
+            }
+            plus = 1;
+        } else if (not(eq(byte, mkC("b")))) {
+            return 0;
+        }
+        index = add(index, 1);
+    }
+    readable = 0;
+    writable = 0;
+    flags = 0;
+    if (eq(primary, mkC("r"))) {
+        readable = 1;
+        flags = CC1_LIBC_OPEN_READ_ONLY;
+    } else if (eq(primary, mkC("w"))) {
+        writable = 1;
+        flags = or(CC1_LIBC_OPEN_WRITE_ONLY,
+            or(CC1_LIBC_OPEN_CREATE, CC1_LIBC_OPEN_TRUNCATE));
+    } else if (eq(primary, mkC("a"))) {
+        writable = 1;
+        flags = or(CC1_LIBC_OPEN_WRITE_ONLY,
+            or(CC1_LIBC_OPEN_CREATE, CC1_LIBC_OPEN_APPEND));
+    } else {
+        return 0;
+    }
+    if (plus) {
+        readable = 1;
+        writable = 1;
+        flags = or(and(flags, bnot(3)), CC1_LIBC_OPEN_READ_WRITE);
+    }
+    descriptor = open(path, flags, CC1_LIBC_CREATE_MODE);
+    if (lt(descriptor, 0)) {
+        return 0;
+    }
+    stream = cc1_libc_stream_create(descriptor, readable, writable, 1);
+    if (eq(stream, 0)) {
+        close(descriptor);
+        return 0;
+    }
+    return stream;
+}
+
 function fopen(path, mode)
 {
-    return cc1_libc_unimplemented(mks("fopen"));
+    return fopen_(path, mode, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function fprintf(stream, format, value)

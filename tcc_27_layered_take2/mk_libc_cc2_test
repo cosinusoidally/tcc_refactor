@@ -23,10 +23,12 @@ mkdir -p "$TEST_ARTIFACTS"
     -o "$TEST_ARTIFACTS/cc1_libc_dynamic.o"
 cmp "$TEST_ARTIFACTS/cc1_libc.o" \
     "$TEST_ARTIFACTS/cc1_libc_dynamic.o"
+"$CC1_STATIC" -c tcc_27_layered_take2/cc1_static_start.c \
+    -o "$TEST_ARTIFACTS/cc1_static_start.o"
 
 "$CC1_STATIC" -c tcc_27_layered_take2/tests/layered/cc1_libc_smoke.c \
     -o "$TEST_ARTIFACTS/cc1_libc_smoke.o"
-"$CC1_STATIC" "$LOWER/cc0_static_start.o" \
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
     "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
     "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
     "$TEST_ARTIFACTS/cc1_libc_smoke.o" \
@@ -71,7 +73,7 @@ build_and_check_function_smoke()
     dynamic_executable="$TEST_ARTIFACTS/cc1_libc_${function_name}_smoke_dynamic.exe"
 
     "$CC1_STATIC" -c "$source" -o "$object"
-    "$CC1_STATIC" "$LOWER/cc0_static_start.o" \
+    "$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
         "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
         "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" "$object" \
         -o "$static_executable"
@@ -108,13 +110,14 @@ build_and_check_function_smoke getenv
 build_and_check_function_smoke strcmp
 build_and_check_function_smoke strcat
 build_and_check_function_smoke unlink
+build_and_check_function_smoke fopen
 
 # cc1 owns the cc2 bootstrap sources and lower static linker owns this link.
 "$CC1_STATIC" -c tcc_27_layered_take2/cc2_boot_unified.c \
     -o "$TEST_ARTIFACTS/cc2_boot_unified.o"
 "$CC1_STATIC" -c tcc_27_layered_take2/cc2_backend_stubs.c \
     -o "$TEST_ARTIFACTS/cc2_backend_stubs.o"
-"$CC1_STATIC" "$LOWER/cc0_static_start.o" \
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
     "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
     artifacts/cc0.o "$LOWER/cc1.o" \
     "$TEST_ARTIFACTS/cc2_boot_unified.o" \
