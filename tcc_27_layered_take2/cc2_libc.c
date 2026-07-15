@@ -1,75 +1,156 @@
 /* Libc facilities which require typed C and therefore belong to cc2. */
 
-typedef unsigned int size_t;
-
-typedef int (*cc2_compare_function)(const void *, const void *);
-
-static void cc2_qsort_swap(unsigned char *left, unsigned char *right,
-                           size_t size)
+static int cc2_strtod_space(unsigned char character)
 {
-    size_t index;
-    unsigned char byte;
-
-    for (index = 0; index < size; ++index) {
-        byte = left[index];
-        left[index] = right[index];
-        right[index] = byte;
-    }
+    return character == ' ' || character == '\t' || character == '\n' ||
+           character == '\r' || character == '\f' || character == '\v';
 }
 
-/* Restore the max-heap below root. End is the inclusive final index. */
-static void cc2_qsort_sift(unsigned char *base, size_t root, size_t end,
-                           size_t size, cc2_compare_function compare)
-{
-    size_t child;
-    size_t selected;
+/* Decimal exponents beyond this point necessarily overflow or underflow an
+ * i386 long double. Clamping also prevents signed integer wrap while scanning
+ * an arbitrarily long exponent field. */
+#define CC2_STRTOD_EXPONENT_SATURATION 10000
 
-    if (end == 0) {
-        return;
+static long double cc2_strtold_finite(const char *text, char **end_pointer)
+{
+    const char *original;
+    const char *cursor;
+    const char *exponent_marker;
+    long double value;
+    long double factor;
+    unsigned int exponent_magnitude;
+    int negative;
+    int converted;
+    int decimal_exponent;
+    int exponent_negative;
+    int explicit_exponent;
+    int digit;
+
+    original = text;
+    cursor = text;
+    while (cc2_strtod_space((unsigned char)*cursor)) {
+        ++cursor;
     }
-    while (root <= (end - 1) / 2) {
-        child = root * 2 + 1;
-        selected = root;
-        if (compare(base + selected * size, base + child * size) < 0) {
-            selected = child;
-        }
-        if (child < end &&
-            compare(base + selected * size, base + (child + 1) * size) < 0) {
-            selected = child + 1;
-        }
-        if (selected == root) {
-            return;
-        }
-        cc2_qsort_swap(base + root * size, base + selected * size, size);
-        root = selected;
+
+    negative = 0;
+    if (*cursor == '+' || *cursor == '-') {
+        negative = *cursor == '-';
+        ++cursor;
     }
+
+    value = 0;
+    converted = 0;
+    decimal_exponent = 0;
+    while (*cursor >= '0' && *cursor <= '9') {
+        digit = *cursor - '0';
+        value *= 10;
+        value += digit;
+        converted = 1;
+        ++cursor;
+    }
+    if (*cursor == '.') {
+        ++cursor;
+        while (*cursor >= '0' && *cursor <= '9') {
+            digit = *cursor - '0';
+            value *= 10;
+            value += digit;
+            if (decimal_exponent > -CC2_STRTOD_EXPONENT_SATURATION) {
+                --decimal_exponent;
+            }
+            converted = 1;
+            ++cursor;
+        }
+    }
+
+    if (!converted) {
+        if (end_pointer != 0) {
+            *end_pointer = (char *)original;
+        }
+        return value;
+    }
+
+    if (*cursor == 'e' || *cursor == 'E') {
+        exponent_marker = cursor;
+        ++cursor;
+        exponent_negative = 0;
+        if (*cursor == '+' || *cursor == '-') {
+            exponent_negative = *cursor == '-';
+            ++cursor;
+        }
+        if (*cursor < '0' || *cursor > '9') {
+            cursor = exponent_marker;
+        } else {
+            explicit_exponent = 0;
+            while (*cursor >= '0' && *cursor <= '9') {
+                digit = *cursor - '0';
+                if (explicit_exponent < CC2_STRTOD_EXPONENT_SATURATION) {
+                    explicit_exponent = explicit_exponent * 10 + digit;
+                    if (explicit_exponent >
+                        CC2_STRTOD_EXPONENT_SATURATION) {
+                        explicit_exponent =
+                            CC2_STRTOD_EXPONENT_SATURATION;
+                    }
+                }
+                ++cursor;
+            }
+            if (exponent_negative) {
+                explicit_exponent = -explicit_exponent;
+            }
+            decimal_exponent += explicit_exponent;
+            if (decimal_exponent > CC2_STRTOD_EXPONENT_SATURATION) {
+                decimal_exponent = CC2_STRTOD_EXPONENT_SATURATION;
+            }
+            if (decimal_exponent < -CC2_STRTOD_EXPONENT_SATURATION) {
+                decimal_exponent = -CC2_STRTOD_EXPONENT_SATURATION;
+            }
+        }
+    }
+
+    if (end_pointer != 0) {
+        *end_pointer = (char *)cursor;
+    }
+
+    factor = 10;
+    if (decimal_exponent < 0) {
+        exponent_magnitude = 0 - (unsigned int)decimal_exponent;
+        while (exponent_magnitude != 0) {
+            if ((exponent_magnitude & 1) != 0) {
+                value /= factor;
+            }
+            exponent_magnitude >>= 1;
+            if (exponent_magnitude != 0) {
+                factor *= factor;
+            }
+        }
+    } else {
+        exponent_magnitude = decimal_exponent;
+        while (exponent_magnitude != 0) {
+            if ((exponent_magnitude & 1) != 0) {
+                value *= factor;
+            }
+            exponent_magnitude >>= 1;
+            if (exponent_magnitude != 0) {
+                factor *= factor;
+            }
+        }
+    }
+    if (negative) {
+        value = 0 - value;
+    }
+    return value;
 }
 
-void qsort(void *array, size_t count, size_t size,
-           int (*compare)(const void *, const void *))
+double strtod(const char *text, char **end_pointer)
 {
-    unsigned char *base;
-    size_t start;
-    size_t end;
+    return (double)cc2_strtold_finite(text, end_pointer);
+}
 
-    if (count < 2 || size == 0) {
-        return;
-    }
+float strtof(const char *text, char **end_pointer)
+{
+    return (float)cc2_strtold_finite(text, end_pointer);
+}
 
-    base = array;
-    start = (count - 2) / 2;
-    for (;;) {
-        cc2_qsort_sift(base, start, count - 1, size, compare);
-        if (start == 0) {
-            break;
-        }
-        --start;
-    }
-
-    end = count - 1;
-    while (end != 0) {
-        cc2_qsort_swap(base, base + end * size, size);
-        --end;
-        cc2_qsort_sift(base, 0, end, size, compare);
-    }
+long double strtold(const char *text, char **end_pointer)
+{
+    return cc2_strtold_finite(text, end_pointer);
 }

@@ -163,6 +163,8 @@ printf 'cc1 libc printf: static/dynamic functionality ok\n'
     -o "$TEST_ARTIFACTS/cc2_backend_stubs.o"
 "$CC1_STATIC" -c tcc_27_layered_take2/cc2_libc_stubs.c \
     -o "$TEST_ARTIFACTS/cc2_libc_stubs.o"
+"$CC1_STATIC" -c tcc_27_layered_take2/cc2_float_libc_stubs.c \
+    -o "$TEST_ARTIFACTS/cc2_float_libc_stubs.o"
 "$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
     "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
     artifacts/cc0.o "$LOWER/cc1.o" \
@@ -185,6 +187,20 @@ chmod +x "$TEST_ARTIFACTS/cc2_boot_static.exe"
     -c tcc_27_layered_take2/cc2_runtime.c \
     -o "$TEST_ARTIFACTS/cc2_runtime.o"
 "$TEST_ARTIFACTS/cc2_boot_static.exe" -nostdinc \
+    -c tcc_27_layered_take2/cc2_libc_qsort.c \
+    -o "$TEST_ARTIFACTS/cc2_libc_qsort.o"
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    artifacts/cc0.o "$LOWER/cc1.o" "$TEST_ARTIFACTS/cc2.o" \
+    "$TEST_ARTIFACTS/tcc_rest.o" "$TEST_ARTIFACTS/cc2_runtime.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc2_libc_qsort.o" \
+    "$TEST_ARTIFACTS/cc2_float_libc_stubs.o" \
+    -o "$TEST_ARTIFACTS/cc2_static_boot.exe"
+chmod +x "$TEST_ARTIFACTS/cc2_static_boot.exe"
+
+# Full cc2 has the floating backend needed to build the real conversions.
+"$TEST_ARTIFACTS/cc2_static_boot.exe" -nostdinc \
     -c tcc_27_layered_take2/cc2_libc.c \
     -o "$TEST_ARTIFACTS/cc2_libc.o"
 "$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
@@ -192,7 +208,7 @@ chmod +x "$TEST_ARTIFACTS/cc2_boot_static.exe"
     artifacts/cc0.o "$LOWER/cc1.o" "$TEST_ARTIFACTS/cc2.o" \
     "$TEST_ARTIFACTS/tcc_rest.o" "$TEST_ARTIFACTS/cc2_runtime.o" \
     "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
-    "$TEST_ARTIFACTS/cc2_libc.o" \
+    "$TEST_ARTIFACTS/cc2_libc_qsort.o" "$TEST_ARTIFACTS/cc2_libc.o" \
     -o "$TEST_ARTIFACTS/cc2_static.exe"
 chmod +x "$TEST_ARTIFACTS/cc2_static.exe"
 
@@ -202,12 +218,25 @@ chmod +x "$TEST_ARTIFACTS/cc2_static.exe"
 "$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
     "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
     "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
-    "$TEST_ARTIFACTS/cc2_libc.o" \
+    "$TEST_ARTIFACTS/cc2_libc_qsort.o" \
     "$TEST_ARTIFACTS/cc2_libc_qsort_smoke.o" \
     -o "$TEST_ARTIFACTS/cc2_libc_qsort_smoke.exe"
 chmod +x "$TEST_ARTIFACTS/cc2_libc_qsort_smoke.exe"
 "$TEST_ARTIFACTS/cc2_libc_qsort_smoke.exe"
 printf 'cc2 libc qsort: functionality ok\n'
+
+"$TEST_ARTIFACTS/cc2_static.exe" -nostdinc \
+    -c tcc_27_layered_take2/tests/layered/cc2_libc_strtod_smoke.c \
+    -o "$TEST_ARTIFACTS/cc2_libc_strtod_smoke.o"
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc2_libc.o" "$TEST_ARTIFACTS/cc2_runtime.o" \
+    "$TEST_ARTIFACTS/cc2_libc_strtod_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc2_libc_strtod_smoke.exe"
+chmod +x "$TEST_ARTIFACTS/cc2_libc_strtod_smoke.exe"
+"$TEST_ARTIFACTS/cc2_libc_strtod_smoke.exe"
+printf 'cc2 libc strtod family: functionality ok\n'
 
 # Enter the complete compiler to expose the first remaining libc boundary.
 status=0

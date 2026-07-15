@@ -138,6 +138,12 @@ remainder. `cc2_runtime.c` supplies the small set of compiler-emitted i386
 operations that cannot recursively implement themselves, including 64-bit
 shift/division and extended-precision conversion helpers.
 
+The static libc follows the same boundary. `cc2_libc_qsort.c` is integer-only
+typed C and can be built by temporary cc2. `cc2_libc.c` contains the floating
+conversion family and is rebuilt by provisional full cc2 before that compiler
+relinks itself. `cc2_libc_stubs.c` and `cc2_float_libc_stubs.c` exist only to
+cross those two bootstrap links; neither is present in final cc2 or TCC.
+
 ## Source Composition
 
 The small unified files make the bootstrap composition explicit:
@@ -195,7 +201,7 @@ tcc_layered.exe
   -> sums_tcc_27 verification
 ```
 
-The current static chain diverges through its first two executables:
+The fully static chain remains divergent through every compiler executable:
 
 ```text
 cc0_static.exe
@@ -203,9 +209,35 @@ cc0_static.exe
   -> cc1_static.exe
 
 cc1_static.exe
-  -> cc2_boot_unified.o + cc2.o + cc2_backend_stubs.o
-  -> cc2_boot.exe
+  -> cc2_boot_unified.o + cc2_backend_stubs.o + libc stubs
+  -> cc2_boot_static.exe
+
+cc2_boot_static.exe
+  -> tcc_rest_boot.o + cc2_runtime_boot.o + cc2_libc_qsort_boot.o
+
+cc1_static linker
+  -> provisional full cc2 + float conversion stubs
+  -> cc2_static_boot.exe
+
+cc2_static_boot.exe
+  -> real floating cc2_libc_boot.o
+
+cc1_static linker
+  -> cc2_static.exe with real qsort and floating conversions
+
+cc2_static.exe
+  -> every final compiler and static-runtime object
+  -> tcc_layered_static2.exe
+
+tcc_layered_static2.exe
+  -> stock TCC 0.9.27 compatibility outputs
+  -> sums_tcc_27 verification
 ```
+
+The provisional and final cc2 executables are two links of the same compiler
+layer, not separate compiler layers. This self-relink is necessary because
+temporary cc2 is used only for integer-only typed library code, while full cc2
+supplies the x87 path needed to compile the real decimal conversions correctly.
 
 The transitional `cc2.exe` is linked by cc0 because the full linker is being
 brought into executable form at that point. The final `tcc_layered.exe` is
@@ -319,6 +351,20 @@ cd tcc_27_layered_take2
 ./mk_tcc_layered_via_cc0_static
 ```
 
+To keep cc0, cc1, cc2, and the final layered TCC fully static, run:
+
+```sh
+./mk_clean
+cd tcc_27_layered_take2
+./mk_cc0_js
+./mk_tcc_layered_via_cc0_static2
+```
+
+To build static cc0, cc1, and cc2 but switch the final TCC back to the normal
+dynamic runtime, use `mk_tcc_layered_via_cc0_static3` instead. Static2 and
+static3 both reproduce every `sums_tcc_27` artifact; static3 also produces the
+same byte-identical dynamic `tcc_layered.exe` as the canonical build.
+
 or:
 
 ```sh
@@ -332,10 +378,10 @@ Do not run `mk_clean` between a seed script and either full-chain script. The
 dynamic chain consumes `artifacts/cc0.exe`; the static chain consumes
 `artifacts/cc0_static.exe`. Neither seed script cleans artifacts itself.
 
-Neither full-chain script invokes GCC or a pre-existing TCC. The static-seed
-chain is static through cc1, but cc2 and its upper layers are not static yet,
-so both chains currently need the same versioned i386 runtime shared objects.
-They search these directories in order:
+None of the compiler-only full-chain scripts invokes GCC or a pre-existing
+TCC. The dynamic, original static-seed, and static3 chains need versioned i386
+runtime shared objects; static2 does not. Dynamic consumers search these
+directories in order:
 
 ```text
 /lib/i386-linux-gnu
