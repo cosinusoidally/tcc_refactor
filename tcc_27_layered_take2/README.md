@@ -382,6 +382,7 @@ The bootstrap may create these files under `artifacts/`:
 | `tcc_27_boot_static.exe` | Stock compatibility executable covered by `sums_tcc_27`. |
 | `syscall_test/` | GCC, TCC, mixed cc0, and cc0-self raw-syscall tests. |
 | `libc_test/` | Matching static/dynamic libc tests across the same matrix. |
+| `libc_cc0_test/` | Static and dynamic cc0 executables using the in-tree libc. |
 
 Names ending in `_boot.o` or `_final.o` make the producing stage explicit.
 Generated source and binaries must not be added to this directory.
@@ -428,13 +429,19 @@ The focused freestanding tests are run from this directory after cleaning:
 ```sh
 ./mk_syscall_test
 ./mk_libc_test
+./mk_libc_cc0_test
 ```
 
-Both scripts build missing compiler prerequisites automatically. The libc test
+These scripts build missing compiler prerequisites automatically. The libc test
 produces static and glibc-linked hello executables for GCC, layered TCC, the
 stock static bootstrap TCC, mixed cc0, and cc0-self object paths. Every pair
 must print identical output; the script also checks that static images have no
 interpreter and dynamic images have both an interpreter and a needed DSO.
+
+`mk_libc_cc0_test` links the canonical `cc0.o` and `cc1_stubs.o` against the
+cc0-built runtime objects. It retains `cc0_static.exe` and `cc0_dynamic.exe`
+under `artifacts/libc_cc0_test/` and currently requires both to stop at the
+`malloc` fail-fast stub with status 1.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.

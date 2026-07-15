@@ -1,0 +1,70 @@
+#!/bin/sh
+
+set -eu
+cd ..
+
+CC0=artifacts/cc0.exe
+CC0_OBJECT=artifacts/cc0.o
+CC1_STUBS_OBJECT=artifacts/cc1_stubs.o
+
+if ! test -x "$CC0" || ! test -f "$CC0_OBJECT" || \
+    ! test -f "$CC1_STUBS_OBJECT"; then
+    ./mk_tcc_27_layered_take2
+fi
+
+TEST_ARTIFACTS=artifacts/libc_cc0_test
+rm -rf "$TEST_ARTIFACTS"
+mkdir -p "$TEST_ARTIFACTS"
+
+"$CC0" -c tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o "$TEST_ARTIFACTS/linux_i386_syscalls.o"
+"$CC0" -c tcc_27_layered_take2/cc0_static_syscalls.c \
+    -o "$TEST_ARTIFACTS/cc0_static_syscalls.o"
+"$CC0" -c tcc_27_layered_take2/cc0_dynamic_syscalls.c \
+    -o "$TEST_ARTIFACTS/cc0_dynamic_syscalls.o"
+"$CC0" -c tcc_27_layered_take2/cc0_static_start.c \
+    -o "$TEST_ARTIFACTS/cc0_static_start.o"
+"$CC0" -c tcc_27_layered_take2/cc0_libc.c \
+    -o "$TEST_ARTIFACTS/cc0_libc.o"
+
+"$CC0" "$TEST_ARTIFACTS/cc0_static_start.o" \
+    "$TEST_ARTIFACTS/linux_i386_syscalls.o" \
+    "$TEST_ARTIFACTS/cc0_static_syscalls.o" \
+    "$CC0_OBJECT" "$CC1_STUBS_OBJECT" "$TEST_ARTIFACTS/cc0_libc.o" \
+    -o "$TEST_ARTIFACTS/cc0_static.exe"
+"$CC0" "$CC0_OBJECT" "$CC1_STUBS_OBJECT" \
+    "$TEST_ARTIFACTS/cc0_libc.o" \
+    "$TEST_ARTIFACTS/cc0_dynamic_syscalls.o" \
+    -o "$TEST_ARTIFACTS/cc0_dynamic.exe"
+chmod +x "$TEST_ARTIFACTS/cc0_static.exe" \
+    "$TEST_ARTIFACTS/cc0_dynamic.exe"
+
+check_unimplemented()
+{
+    executable=$1
+    label=$2
+    stdout_file="$TEST_ARTIFACTS/$label.stdout"
+    stderr_file="$TEST_ARTIFACTS/$label.stderr"
+
+    status=0
+    "$executable" >"$stdout_file" 2>"$stderr_file" || status=$?
+    test "$status" -eq 1
+    test ! -s "$stdout_file"
+    test "$(wc -l < "$stderr_file")" -eq 1
+    test "$(cat "$stderr_file")" = "malloc is unimplemented"
+    printf '%s: malloc is unimplemented (exit 1)\n' "$label"
+}
+
+check_unimplemented "$TEST_ARTIFACTS/cc0_static.exe" cc0_static
+check_unimplemented "$TEST_ARTIFACTS/cc0_dynamic.exe" cc0_dynamic
+cmp "$TEST_ARTIFACTS/cc0_static.stdout" \
+    "$TEST_ARTIFACTS/cc0_dynamic.stdout"
+cmp "$TEST_ARTIFACTS/cc0_static.stderr" \
+    "$TEST_ARTIFACTS/cc0_dynamic.stderr"
+
+if readelf -l "$TEST_ARTIFACTS/cc0_static.exe" 2>/dev/null | \
+    grep -q INTERP; then
+    exit 1
+fi
+readelf -l "$TEST_ARTIFACTS/cc0_dynamic.exe" 2>/dev/null | grep -q INTERP
+readelf -d "$TEST_ARTIFACTS/cc0_dynamic.exe" 2>/dev/null | grep -q NEEDED
