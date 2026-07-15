@@ -507,10 +507,12 @@ executable to be byte-identical. The rebuilt executable performs one more
 `mk_libc_cc2_test` first runs the complete cc0 libc test, then compiles one
 byte-identical `cc1_libc.o` through both cc1 environments. Separate static and
 dynamic smoke images verify that a cc1-only stub identifies itself and exits
-with status 1. Finally, static cc1 compiles the cc2 bootstrap sources and the
-lower static linker creates `libc_cc2_test/cc2_static.exe`. Running that image
-on a real compile command must reach and report the first still-unimplemented
-cc1 libc service; at the current boundary that service is `memset`.
+with status 1. A second pair exercises the implemented `memset`, including its
+return value, requested range, and zero-length behavior. Finally, static cc1
+compiles the cc2 bootstrap sources and the lower static linker creates
+`libc_cc2_test/cc2_static.exe`. Running that image on a real compile command
+must reach and report the first still-unimplemented cc1 libc service; at the
+current boundary that service is `calloc`.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.

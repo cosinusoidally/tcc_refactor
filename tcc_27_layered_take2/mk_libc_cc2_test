@@ -62,6 +62,43 @@ cmp "$TEST_ARTIFACTS/cc1_libc_smoke_static.stdout" \
 cmp "$TEST_ARTIFACTS/cc1_libc_smoke_static.stderr" \
     "$TEST_ARTIFACTS/cc1_libc_smoke_dynamic.stderr"
 
+"$CC1_STATIC" \
+    -c tcc_27_layered_take2/tests/layered/cc1_libc_memset_smoke.c \
+    -o "$TEST_ARTIFACTS/cc1_libc_memset_smoke.o"
+"$CC1_STATIC" "$LOWER/cc0_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc1_libc_memset_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc1_libc_memset_smoke_static.exe"
+"$CC1_DYNAMIC" "$LOWER/cc0_libc.o" "$LOWER/cc0_dynamic_syscalls.o" \
+    "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc1_libc_memset_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc1_libc_memset_smoke_dynamic.exe"
+chmod +x "$TEST_ARTIFACTS/cc1_libc_memset_smoke_static.exe" \
+    "$TEST_ARTIFACTS/cc1_libc_memset_smoke_dynamic.exe"
+
+check_memset_smoke()
+{
+    executable=$1
+    label=$2
+    stdout_file="$TEST_ARTIFACTS/$label.stdout"
+    stderr_file="$TEST_ARTIFACTS/$label.stderr"
+
+    "$executable" >"$stdout_file" 2>"$stderr_file"
+    test ! -s "$stdout_file"
+    test ! -s "$stderr_file"
+    printf '%s: memset functionality ok\n' "$label"
+}
+
+check_memset_smoke "$TEST_ARTIFACTS/cc1_libc_memset_smoke_static.exe" \
+    cc1_libc_memset_smoke_static
+check_memset_smoke "$TEST_ARTIFACTS/cc1_libc_memset_smoke_dynamic.exe" \
+    cc1_libc_memset_smoke_dynamic
+cmp "$TEST_ARTIFACTS/cc1_libc_memset_smoke_static.stdout" \
+    "$TEST_ARTIFACTS/cc1_libc_memset_smoke_dynamic.stdout"
+cmp "$TEST_ARTIFACTS/cc1_libc_memset_smoke_static.stderr" \
+    "$TEST_ARTIFACTS/cc1_libc_memset_smoke_dynamic.stderr"
+
 # cc1 owns the cc2 bootstrap sources and lower static linker owns this link.
 "$CC1_STATIC" -c tcc_27_layered_take2/cc2_boot_unified.c \
     -o "$TEST_ARTIFACTS/cc2_boot_unified.o"

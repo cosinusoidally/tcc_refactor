@@ -101,9 +101,20 @@ function memmove(destination, source, size)
     return cc1_libc_unimplemented(mks("memmove"));
 }
 
+function memset_(destination, value, size, index, byte)
+{
+    index = 0;
+    byte = and(value, 255);
+    while (lt(index, size)) {
+        wi8(add(destination, index), byte);
+        index = add(index, 1);
+    }
+    return destination;
+}
+
 function memset(destination, value, size)
 {
-    return cc1_libc_unimplemented(mks("memset"));
+    return memset_(destination, value, size, 0, 0);
 }
 
 function printf(format, value)
