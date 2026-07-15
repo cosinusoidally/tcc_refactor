@@ -97,7 +97,7 @@ function fread(buffer, size, count, stream)
 
 function free(address)
 {
-    return cc1_libc_unimplemented(mks("free"));
+    return cc0_libc_release(address);
 }
 
 function fseek(stream, offset, origin)

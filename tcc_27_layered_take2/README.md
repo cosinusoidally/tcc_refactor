@@ -401,8 +401,10 @@ dynamic links. The JavaScript and mawkcc compiler seeds use that runtime to
 emit the fully static `cc0_static.exe` without running dynamic cc0.
 
 The static allocator remains based on `brk`. It reserves break space in 4 KiB
-growth quanta and serves allocations from a bump cursor, while allowing
-allocations larger than a quantum to extend to their required end.
+growth quanta and serves new allocations from a bump cursor, while allowing
+allocations larger than a quantum to extend to their required end. Released
+allocation headers form an unbounded first-fit free list shared by `free`,
+`malloc`, and `realloc`.
 Seekable input descriptors have dynamically allocated 64 KiB read caches so
 the compiler does not issue one raw syscall per source byte. Non-seekable
 descriptors bypass the cache, and `lseek`, `write`, and `close` reconcile or
@@ -507,12 +509,13 @@ executable to be byte-identical. The rebuilt executable performs one more
 `mk_libc_cc2_test` first runs the complete cc0 libc test, then compiles one
 byte-identical `cc1_libc.o` through both cc1 environments. Separate static and
 dynamic smoke images verify that a cc1-only stub identifies itself and exits
-with status 1. Function-specific pairs exercise the implemented `memset` and
-`calloc`, including range, return-value, zero-fill, and allocation-overflow
-behavior. Finally, static cc1 compiles the cc2 bootstrap sources and the lower
-static linker creates `libc_cc2_test/cc2_static.exe`. Running that image on a
-real compile command must reach and report the first still-unimplemented cc1
-libc service; at the current boundary that service is `free`.
+with status 1. Function-specific pairs exercise the implemented `memset`,
+`calloc`, and `free`, including range, return-value, zero-fill, overflow, and
+allocation-reuse behavior. Finally, static cc1 compiles the cc2 bootstrap
+sources and the lower static linker creates `libc_cc2_test/cc2_static.exe`.
+Running that image on a real compile command must reach and report the first
+still-unimplemented cc1 libc service; at the current boundary that service is
+`strlen`.
 
 When testing either seed script, clean first. This prevents an old canonical
 object from hiding a failed seed build.

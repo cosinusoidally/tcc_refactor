@@ -2,6 +2,9 @@
 var CC0_LIBC_HEAP_CURSOR;
 var CC0_LIBC_HEAP_LIMIT;
 var CC0_LIBC_HEAP_GROWTH_BYTES;
+var CC0_LIBC_FREE_HEAD;
+var CC0_LIBC_ALLOCATION_SIZE_OFFSET;
+var CC0_LIBC_ALLOCATION_NEXT_OFFSET;
 var CC0_LIBC_READ_CACHE_HEAD;
 var CC0_LIBC_READ_CACHE_NEXT_OFFSET;
 var CC0_LIBC_READ_CACHE_DESCRIPTOR_OFFSET;
@@ -26,6 +29,9 @@ function cc0_libc_init()
 {
     CC0_LIBC_HEAP_CURSOR = 0;
     CC0_LIBC_HEAP_LIMIT = 0;
+    CC0_LIBC_FREE_HEAD = 0;
+    CC0_LIBC_ALLOCATION_SIZE_OFFSET = 0;
+    CC0_LIBC_ALLOCATION_NEXT_OFFSET = 4;
     /* Grow by one i386 page without imposing a maximum allocation size. */
     CC0_LIBC_HEAP_GROWTH_BYTES = mul(4, 1024);
     CC0_LIBC_READ_CACHE_HEAD = 0;
@@ -168,9 +174,51 @@ function cc0_libc_reserve_heap(next)
     return cc0_libc_reserve_heap_(next, 0, 0, 0);
 }
 
-/* cc0 does not free yet, so the reserved break is a simple bump arena. */
-function malloc_(size, alignment, mask, allocation, current, header, start,
-    next)
+function cc0_libc_take_free_(allocation, previous, header, next, size)
+{
+    previous = 0;
+    header = CC0_LIBC_FREE_HEAD;
+    while (not(eq(header, 0))) {
+        next = ri32(add(header, CC0_LIBC_ALLOCATION_NEXT_OFFSET));
+        size = ri32(add(header, CC0_LIBC_ALLOCATION_SIZE_OFFSET));
+        if (not(cc0_libc_unsigned_less(size, allocation))) {
+            if (eq(previous, 0)) {
+                CC0_LIBC_FREE_HEAD = next;
+            } else {
+                wi32(add(previous, CC0_LIBC_ALLOCATION_NEXT_OFFSET), next);
+            }
+            return add(header, cc0_libc_allocation_header_bytes());
+        }
+        previous = header;
+        header = next;
+    }
+    return 0;
+}
+
+function cc0_libc_take_free(allocation)
+{
+    return cc0_libc_take_free_(allocation, 0, 0, 0, 0);
+}
+
+function cc0_libc_release_(address, header)
+{
+    if (eq(address, 0)) {
+        return 0;
+    }
+    header = sub(address, cc0_libc_allocation_header_bytes());
+    wi32(add(header, CC0_LIBC_ALLOCATION_NEXT_OFFSET), CC0_LIBC_FREE_HEAD);
+    CC0_LIBC_FREE_HEAD = header;
+    return 0;
+}
+
+function cc0_libc_release(address)
+{
+    return cc0_libc_release_(address, 0);
+}
+
+/* Extend the break only when no released allocation can satisfy the request. */
+function malloc_(size, alignment, mask, allocation, reused, current, header,
+    start, next)
 {
     if (le(size, 0)) {
         return 0;
@@ -183,6 +231,10 @@ function malloc_(size, alignment, mask, allocation, current, header, start,
     }
     if (eq(CC0_LIBC_HEAP_GROWTH_BYTES, 0)) {
         cc0_libc_init();
+    }
+    reused = cc0_libc_take_free(allocation);
+    if (not(eq(reused, 0))) {
+        return reused;
     }
     current = CC0_LIBC_HEAP_CURSOR;
     if (eq(current, 0)) {
@@ -215,7 +267,7 @@ function malloc_(size, alignment, mask, allocation, current, header, start,
 
 function malloc(size)
 {
-    return malloc_(size, 0, 0, 0, 0, 0, 0, 0);
+    return malloc_(size, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function cc0_libc_copy_(destination, source, count, index)
@@ -239,6 +291,7 @@ function realloc_(address, size, header, old_size, replacement)
         return malloc(size);
     }
     if (le(size, 0)) {
+        cc0_libc_release(address);
         return 0;
     }
     header = sub(address, cc0_libc_allocation_header_bytes());
@@ -251,6 +304,7 @@ function realloc_(address, size, header, old_size, replacement)
         return 0;
     }
     cc0_libc_copy(replacement, address, old_size);
+    cc0_libc_release(address);
     return replacement;
 }
 
