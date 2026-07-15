@@ -1,0 +1,109 @@
+#!/bin/sh
+
+# Build static cc0, cc1, and cc2, then use static cc2 to produce the normal
+# dynamically linked layered TCC. No host compiler participates in the chain.
+set -eux
+
+cd ..
+test -x artifacts/cc0_static.exe
+
+RUNTIME_LIBDIR=/lib/i386-linux-gnu
+if test ! -f "$RUNTIME_LIBDIR/libc.so.6"; then
+    RUNTIME_LIBDIR=/usr/lib/i386-linux-gnu
+fi
+HOST_LIBC=$RUNTIME_LIBDIR/libc.so.6
+HOST_LIBM=$RUNTIME_LIBDIR/libm.so.6
+test -f "$HOST_LIBC" -a -f "$HOST_LIBM"
+
+BUILD=artifacts/tcc_layered_static3
+rm -rf "$BUILD"
+mkdir -p "$BUILD"
+cd "$BUILD"
+
+CC0=../cc0_static.exe
+SOURCE=../../tcc_27_layered_take2
+
+# Static cc0 constructs static cc1 and its syscall-backed runtime.
+"$CC0" -c "$SOURCE/cc0.c" -o cc0.o
+"$CC0" -c "$SOURCE/cc1.c" -o cc1.o
+"$CC0" -c "$SOURCE/cc2_stubs.c" -o cc2_stubs.o
+"$CC0" -c "$SOURCE/crt1.c" -o crt1.o
+"$CC0" -c "$SOURCE/linux_i386_syscalls.c" -o linux_i386_syscalls.o
+"$CC0" -c "$SOURCE/cc0_static_syscalls.c" -o cc0_static_syscalls.o
+"$CC0" -c "$SOURCE/cc0_static_start.c" -o cc0_static_start.o
+"$CC0" -c "$SOURCE/cc0_libc.c" -o cc0_libc.o
+"$CC0" cc0_static_start.o linux_i386_syscalls.o \
+    cc0_static_syscalls.o cc0.o cc1.o cc2_stubs.o cc0_libc.o \
+    -o cc1_static.exe
+chmod +x cc1_static.exe
+
+# Static cc1 constructs the temporary typed compiler. Only this temporary
+# executable receives the scalar qsort diagnostic stub.
+./cc1_static.exe -c "$SOURCE/cc1_static_start.c" -o cc1_static_start.o
+./cc1_static.exe -c "$SOURCE/cc1_libc.c" -o cc1_libc.o
+./cc1_static.exe -c "$SOURCE/cc2_libc_stubs.c" -o cc2_libc_stubs.o
+./cc1_static.exe -c "$SOURCE/cc2.c" -o cc2.o
+./cc1_static.exe -c "$SOURCE/cc2_boot_unified.c" -o cc2_boot_unified.o
+./cc1_static.exe -c "$SOURCE/cc2_backend_stubs.c" -o cc2_backend_stubs.o
+./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
+    cc0_static_syscalls.o cc0.o cc1.o cc2_boot_unified.o \
+    cc2_backend_stubs.o cc0_libc.o cc1_libc.o cc2_libc_stubs.o \
+    -o cc2_boot_static.exe
+chmod +x cc2_boot_static.exe
+
+# The temporary compiler builds the typed bridge and the real typed libc.
+./cc2_boot_static.exe -nostdinc \
+    -I "$SOURCE/bootstrap_include" -I "$SOURCE/include" -I "$SOURCE" \
+    -c "$SOURCE/tcc_unified.c" -U__linux__ -o tcc_rest_boot.o
+./cc2_boot_static.exe -nostdinc -c "$SOURCE/cc2_runtime.c" \
+    -o cc2_runtime_boot.o
+./cc2_boot_static.exe -nostdinc -c "$SOURCE/cc2_libc.c" \
+    -o cc2_libc_boot.o
+./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
+    cc0_static_syscalls.o cc0.o cc1.o cc2.o tcc_rest_boot.o \
+    cc2_runtime_boot.o cc0_libc.o cc1_libc.o cc2_libc_boot.o \
+    -o cc2_static.exe
+chmod +x cc2_static.exe
+cp cc2_static.exe ../cc2_static.exe
+
+# Static cc2 rebuilds the normal compiler objects. The final executable uses
+# the established dynamic entry point and the i386 runtime DSOs, not cc0_libc.
+./cc2_static.exe -nostdinc -c "$SOURCE/prims.c" -o prims_final.o
+./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc0.c" -o cc0_final.o
+./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc1.c" -o cc1_final.o
+./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc2.c" -o cc2_final.o
+./cc2_static.exe -nostdinc -c "$SOURCE/cc2_runtime.c" \
+    -o cc2_runtime_final.o
+./cc2_static.exe -nostdinc \
+    -I ../../../tcc_bootstrap_alt/woody/usr/include \
+    -I "$SOURCE/include" -I "$SOURCE" \
+    -c "$SOURCE/tcc_unified.c" -U__linux__ -o tcc_rest_final.o
+./cc2_static.exe -nostdlib crt1.o \
+    prims_final.o cc0_final.o cc1_final.o cc2_final.o tcc_rest_final.o \
+    cc2_runtime_final.o "$HOST_LIBC" "$HOST_LIBM" \
+    -o ../tcc_layered.exe
+chmod +x ../tcc_layered.exe
+
+# Use the canonical artifact-root source names because those names are retained
+# in the stock objects and are therefore part of the compatibility hashes.
+cd ..
+ln -sf ../tcc_27/libc_boot4.c libc_boot4.c
+ln -sf ../tcc_27/libc_static.c libc_static.c
+ln -sf ../tcc_27/tcc.c tcc.c
+mkdir -p lib
+ln -sf ../../tcc_27/lib/libtcc1.c lib/libtcc1.c
+
+# The dynamic layered compiler must reproduce the stock compatibility hashes.
+TCC=./tcc_layered.exe
+"$TCC" -nostdinc \
+    -I ../../tcc_bootstrap_alt/woody/usr/include \
+    -I ../tcc_27/include -I ../tcc_27 \
+    -c tcc.c -U__linux__ -DONE_SOURCE -o tcc.o
+"$TCC" -nostdinc -c ./lib/libtcc1.c -o libtcc1.o
+"$TCC" -nostdinc -c libc_boot4.c -o libc_boot4.o
+"$TCC" -nostdinc -c libc_static.c -o libc_static.o
+"$TCC" -nostdlib -static libc_static.o libc_boot4.o libtcc1.o tcc.o \
+    -o tcc_27_boot_static.exe
+
+cd ..
+sha256sum -c sums_tcc_27
