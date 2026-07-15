@@ -125,9 +125,26 @@ function getenv(name)
     return cc1_libc_unimplemented(mks("getenv"));
 }
 
+function memcmp_(left, right, size, index, left_byte, right_byte)
+{
+    index = 0;
+    while (lt(index, size)) {
+        left_byte = ri8(add(left, index));
+        right_byte = ri8(add(right, index));
+        if (not(eq(left_byte, right_byte))) {
+            if (lt(left_byte, right_byte)) {
+                return sub(0, 1);
+            }
+            return 1;
+        }
+        index = add(index, 1);
+    }
+    return 0;
+}
+
 function memcmp(left, right, size)
 {
-    return cc1_libc_unimplemented(mks("memcmp"));
+    return memcmp_(left, right, size, 0, 0, 0);
 }
 
 function memcpy(destination, source, size)
