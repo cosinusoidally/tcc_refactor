@@ -70,6 +70,31 @@ function libc_smoke_seek_current()
     return 1;
 }
 
+function libc_smoke_output_path()
+{
+    return mks("artifacts/libc_smoke_buffer.tmp");
+}
+
+function libc_smoke_write_flags()
+{
+    return 577;
+}
+
+function libc_smoke_create_mode()
+{
+    return 438;
+}
+
+function libc_smoke_buffered_message()
+{
+    return mks("buffered write");
+}
+
+function libc_smoke_buffered_message_bytes()
+{
+    return 14;
+}
+
 function main_(argc, argv, first, second, grown, first_argument,
     second_argument, descriptor)
 {
@@ -167,6 +192,36 @@ function main_(argc, argv, first, second, grown, first_argument,
     }
     if (not(eq(close(descriptor), 0))) {
         return 22;
+    }
+    descriptor = open(libc_smoke_output_path(), libc_smoke_write_flags(),
+        libc_smoke_create_mode());
+    if (lt(descriptor, 0)) {
+        return 30;
+    }
+    if (not(eq(write(descriptor, libc_smoke_buffered_message(),
+        libc_smoke_buffered_message_bytes()),
+        libc_smoke_buffered_message_bytes()))) {
+        return 31;
+    }
+    if (not(eq(close(descriptor), 0))) {
+        return 32;
+    }
+    descriptor = open(libc_smoke_output_path(), libc_smoke_read_only(), 0);
+    if (lt(descriptor, 0)) {
+        return 33;
+    }
+    if (not(eq(read(descriptor, grown,
+        libc_smoke_buffered_message_bytes()),
+        libc_smoke_buffered_message_bytes()))) {
+        return 34;
+    }
+    wi8(add(grown, libc_smoke_buffered_message_bytes()), 0);
+    if (not(libc_smoke_text_equal(grown,
+        libc_smoke_buffered_message()))) {
+        return 35;
+    }
+    if (not(eq(close(descriptor), 0))) {
+        return 36;
     }
     if (not(eq(write(libc_smoke_standard_output(),
         libc_smoke_write_message(), libc_smoke_write_message_bytes()),

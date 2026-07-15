@@ -399,7 +399,11 @@ allocations larger than a quantum to extend to their required end.
 Seekable input descriptors have dynamically allocated 64 KiB read caches so
 the compiler does not issue one raw syscall per source byte. Non-seekable
 descriptors bypass the cache, and `lseek`, `write`, and `close` reconcile or
-discard cached state as required.
+discard cached state as required. Descriptors opened writable through
+`cc0_libc` also receive dynamically allocated 64 KiB output buffers, avoiding
+one raw syscall per emitted object byte. Reads, seeks, closes, and process
+shutdown flush pending output; descriptors not opened through the wrapper,
+including standard output and standard error, retain direct-write behavior.
 
 ## Important Artifacts
 

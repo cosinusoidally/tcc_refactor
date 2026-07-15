@@ -10,6 +10,15 @@ var CC0_LIBC_READ_CACHE_CURSOR_OFFSET;
 var CC0_LIBC_READ_CACHE_END_OFFSET;
 var CC0_LIBC_READ_CACHE_RECORD_BYTES;
 var CC0_LIBC_READ_CACHE_BUFFER_BYTES;
+var CC0_LIBC_WRITE_CACHE_HEAD;
+var CC0_LIBC_WRITE_CACHE_NEXT_OFFSET;
+var CC0_LIBC_WRITE_CACHE_DESCRIPTOR_OFFSET;
+var CC0_LIBC_WRITE_CACHE_BUFFER_OFFSET;
+var CC0_LIBC_WRITE_CACHE_END_OFFSET;
+var CC0_LIBC_WRITE_CACHE_RECORD_BYTES;
+var CC0_LIBC_WRITE_CACHE_BUFFER_BYTES;
+var CC0_LIBC_OPEN_ACCESS_MASK;
+var CC0_LIBC_OPEN_READ_ONLY;
 var CC0_LIBC_SEEK_CURRENT;
 var CC0_LIBC_INVALID_DESCRIPTOR;
 
@@ -27,6 +36,15 @@ function cc0_libc_init()
     CC0_LIBC_READ_CACHE_END_OFFSET = 16;
     CC0_LIBC_READ_CACHE_RECORD_BYTES = 20;
     CC0_LIBC_READ_CACHE_BUFFER_BYTES = mul(64, 1024);
+    CC0_LIBC_WRITE_CACHE_HEAD = 0;
+    CC0_LIBC_WRITE_CACHE_NEXT_OFFSET = 0;
+    CC0_LIBC_WRITE_CACHE_DESCRIPTOR_OFFSET = 4;
+    CC0_LIBC_WRITE_CACHE_BUFFER_OFFSET = 8;
+    CC0_LIBC_WRITE_CACHE_END_OFFSET = 12;
+    CC0_LIBC_WRITE_CACHE_RECORD_BYTES = 16;
+    CC0_LIBC_WRITE_CACHE_BUFFER_BYTES = mul(64, 1024);
+    CC0_LIBC_OPEN_ACCESS_MASK = 3;
+    CC0_LIBC_OPEN_READ_ONLY = 0;
     CC0_LIBC_SEEK_CURRENT = 1;
     CC0_LIBC_INVALID_DESCRIPTOR = sub(0, 1);
 }
@@ -96,6 +114,7 @@ function cc0_libc_unimplemented(name)
 
 function exit(status)
 {
+    cc0_libc_finish();
     cc0_runtime_exit(status);
     return 0;
 }
@@ -376,13 +395,156 @@ function cc0_libc_read_(descriptor, buffer, count, cache, cursor, end,
     return amount;
 }
 
+function cc0_libc_write_cache_find_(descriptor, cache)
+{
+    cache = CC0_LIBC_WRITE_CACHE_HEAD;
+    while (not(eq(cache, 0))) {
+        if (eq(ri32(add(cache,
+            CC0_LIBC_WRITE_CACHE_DESCRIPTOR_OFFSET)), descriptor)) {
+            return cache;
+        }
+        cache = ri32(add(cache, CC0_LIBC_WRITE_CACHE_NEXT_OFFSET));
+    }
+    return 0;
+}
+
+function cc0_libc_write_cache_find(descriptor)
+{
+    return cc0_libc_write_cache_find_(descriptor, 0);
+}
+
+function cc0_libc_write_cache_create_(descriptor, cache, buffer)
+{
+    cache = malloc(CC0_LIBC_WRITE_CACHE_RECORD_BYTES);
+    if (eq(cache, 0)) {
+        return 0;
+    }
+    buffer = malloc(CC0_LIBC_WRITE_CACHE_BUFFER_BYTES);
+    if (eq(buffer, 0)) {
+        return 0;
+    }
+    wi32(add(cache, CC0_LIBC_WRITE_CACHE_NEXT_OFFSET),
+        CC0_LIBC_WRITE_CACHE_HEAD);
+    wi32(add(cache, CC0_LIBC_WRITE_CACHE_DESCRIPTOR_OFFSET), descriptor);
+    wi32(add(cache, CC0_LIBC_WRITE_CACHE_BUFFER_OFFSET), buffer);
+    wi32(add(cache, CC0_LIBC_WRITE_CACHE_END_OFFSET), 0);
+    CC0_LIBC_WRITE_CACHE_HEAD = cache;
+    return cache;
+}
+
+function cc0_libc_write_cache_create(descriptor)
+{
+    return cc0_libc_write_cache_create_(descriptor, 0, 0);
+}
+
+function cc0_libc_write_cache_flush_(cache, descriptor, buffer, end,
+    position, result)
+{
+    if (eq(cache, 0)) {
+        return 0;
+    }
+    descriptor = ri32(add(cache, CC0_LIBC_WRITE_CACHE_DESCRIPTOR_OFFSET));
+    buffer = ri32(add(cache, CC0_LIBC_WRITE_CACHE_BUFFER_OFFSET));
+    end = ri32(add(cache, CC0_LIBC_WRITE_CACHE_END_OFFSET));
+    position = 0;
+    while (lt(position, end)) {
+        result = cc0_runtime_write(descriptor, add(buffer, position),
+            sub(end, position));
+        if (le(result, 0)) {
+            return sub(0, 1);
+        }
+        position = add(position, result);
+    }
+    wi32(add(cache, CC0_LIBC_WRITE_CACHE_END_OFFSET), 0);
+    return 0;
+}
+
+function cc0_libc_write_cache_flush(cache)
+{
+    return cc0_libc_write_cache_flush_(cache, 0, 0, 0, 0, 0);
+}
+
+function cc0_libc_write_cache_flush_descriptor(descriptor)
+{
+    return cc0_libc_write_cache_flush(
+        cc0_libc_write_cache_find(descriptor));
+}
+
+function cc0_libc_finish_(cache)
+{
+    cache = CC0_LIBC_WRITE_CACHE_HEAD;
+    while (not(eq(cache, 0))) {
+        if (not(eq(ri32(add(cache,
+            CC0_LIBC_WRITE_CACHE_DESCRIPTOR_OFFSET)),
+            CC0_LIBC_INVALID_DESCRIPTOR))) {
+            cc0_libc_write_cache_flush(cache);
+        }
+        cache = ri32(add(cache, CC0_LIBC_WRITE_CACHE_NEXT_OFFSET));
+    }
+    return 0;
+}
+
+function cc0_libc_finish()
+{
+    return cc0_libc_finish_(0);
+}
+
+function cc0_libc_write_(descriptor, buffer, count, cache, written, end,
+    space, amount)
+{
+    cache = cc0_libc_write_cache_find(descriptor);
+    if (eq(cache, 0)) {
+        return cc0_runtime_write(descriptor, buffer, count);
+    }
+    written = 0;
+    while (lt(written, count)) {
+        end = ri32(add(cache, CC0_LIBC_WRITE_CACHE_END_OFFSET));
+        space = sub(CC0_LIBC_WRITE_CACHE_BUFFER_BYTES, end);
+        amount = sub(count, written);
+        if (lt(space, amount)) {
+            amount = space;
+        }
+        cc0_libc_copy(add(ri32(add(cache,
+            CC0_LIBC_WRITE_CACHE_BUFFER_OFFSET)), end),
+            add(buffer, written), amount);
+        end = add(end, amount);
+        written = add(written, amount);
+        wi32(add(cache, CC0_LIBC_WRITE_CACHE_END_OFFSET), end);
+        if (eq(end, CC0_LIBC_WRITE_CACHE_BUFFER_BYTES)) {
+            if (lt(cc0_libc_write_cache_flush(cache), 0)) {
+                return sub(0, 1);
+            }
+        }
+    }
+    return written;
+}
+
+function cc0_libc_open_(path, flags, mode, descriptor, access)
+{
+    if (eq(CC0_LIBC_HEAP_GROWTH_BYTES, 0)) {
+        cc0_libc_init();
+    }
+    descriptor = cc0_runtime_open(path, flags, mode);
+    if (lt(descriptor, 0)) {
+        return descriptor;
+    }
+    access = and(flags, CC0_LIBC_OPEN_ACCESS_MASK);
+    if (not(eq(access, CC0_LIBC_OPEN_READ_ONLY))) {
+        cc0_libc_write_cache_create(descriptor);
+    }
+    return descriptor;
+}
+
 function open(path, flags, mode)
 {
-    return cc0_runtime_open(path, flags, mode);
+    return cc0_libc_open_(path, flags, mode, 0, 0);
 }
 
 function read(descriptor, buffer, count)
 {
+    if (lt(cc0_libc_write_cache_flush_descriptor(descriptor), 0)) {
+        return sub(0, 1);
+    }
     return cc0_libc_read_(descriptor, buffer, count, 0, 0, 0, 0, 0);
 }
 
@@ -391,20 +553,31 @@ function write(descriptor, buffer, count)
     if (lt(cc0_libc_read_cache_sync(descriptor), 0)) {
         return sub(0, 1);
     }
-    return cc0_runtime_write(descriptor, buffer, count);
+    return cc0_libc_write_(descriptor, buffer, count, 0, 0, 0, 0, 0);
 }
 
 function close(descriptor)
 {
     var cache;
+    var write_cache;
+    var result;
 
+    result = cc0_libc_write_cache_flush_descriptor(descriptor);
+    write_cache = cc0_libc_write_cache_find(descriptor);
+    if (not(eq(write_cache, 0))) {
+        wi32(add(write_cache, CC0_LIBC_WRITE_CACHE_DESCRIPTOR_OFFSET),
+            CC0_LIBC_INVALID_DESCRIPTOR);
+    }
     cache = cc0_libc_read_cache_find(descriptor);
     if (not(eq(cache, 0))) {
         cc0_libc_read_cache_discard(cache);
         wi32(add(cache, CC0_LIBC_READ_CACHE_DESCRIPTOR_OFFSET),
             CC0_LIBC_INVALID_DESCRIPTOR);
     }
-    return cc0_runtime_close(descriptor);
+    if (lt(cc0_runtime_close(descriptor), 0)) {
+        return sub(0, 1);
+    }
+    return result;
 }
 
 function lseek(descriptor, offset, whence)
@@ -412,6 +585,9 @@ function lseek(descriptor, offset, whence)
     var cache;
     var unread;
 
+    if (lt(cc0_libc_write_cache_flush_descriptor(descriptor), 0)) {
+        return sub(0, 1);
+    }
     cache = cc0_libc_read_cache_find(descriptor);
     unread = cc0_libc_read_cache_unread(cache);
     if (and(eq(whence, CC0_LIBC_SEEK_CURRENT), not(eq(unread, 0)))) {
