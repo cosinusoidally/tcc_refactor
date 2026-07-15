@@ -316,9 +316,21 @@ function fputc(character, stream)
     return and(character, 255);
 }
 
+function fputs_(text, stream, length)
+{
+    length = strlen(text);
+    if (eq(length, 0)) {
+        return 0;
+    }
+    if (not(eq(fwrite(text, 1, length, stream), length))) {
+        return sub(0, 1);
+    }
+    return 0;
+}
+
 function fputs(text, stream)
 {
-    return cc1_libc_unimplemented(mks("fputs"));
+    return fputs_(text, stream, 0);
 }
 
 function fread_(buffer, size, count, stream, bytes, consumed, result,
