@@ -514,7 +514,8 @@ byte-identical `cc1_libc.o` through both cc1 environments. Separate static and
 dynamic smoke images verify that a cc1-only stub identifies itself and exits
 with status 1. Function-specific pairs exercise the implemented `memset`,
 `calloc`, `free`, `strlen`, `strcpy`, `memmove`, `memcpy`, `memcmp`, and
-`getenv`, `strcmp`, `strcat`, `unlink`, `fopen`, `fwrite`, `fputc`, and `fclose`, including range, return-value,
+`getenv`, `strcmp`, `strcat`, `unlink`, `fopen`, `fwrite`, `fputc`, `fclose`,
+and `fflush`, including range, return-value,
 zero-fill, overflow, allocation-reuse, string termination, overlapping-copy,
 and environment-name behavior.
 Finally, static cc1 compiles the cc2 bootstrap sources and the lower static

@@ -84,7 +84,7 @@ function cc1_libc_init()
 
 function cc1_libc_finish()
 {
-    return 0;
+    return fflush(0);
 }
 
 function cc1_libc_stream_descriptor(stream)
@@ -152,6 +152,14 @@ function cc1_libc_stream_flush(stream)
     if (eq(stream, 0)) {
         return sub(0, 1);
     }
+    if (eq(ri32(add(stream, CC1_LIBC_STREAM_WRITABLE_OFFSET)), 0)) {
+        return 0;
+    }
+    if (lt(cc0_libc_write_cache_flush_descriptor(
+        cc1_libc_stream_descriptor(stream)), 0)) {
+        wi32(add(stream, CC1_LIBC_STREAM_ERROR_OFFSET), 1);
+        return sub(0, 1);
+    }
     return 0;
 }
 
@@ -209,9 +217,25 @@ function fclose(stream)
     return fclose_(stream, 0, 0);
 }
 
+function fflush_(stream, current, result)
+{
+    if (not(eq(stream, 0))) {
+        return cc1_libc_stream_flush(stream);
+    }
+    result = 0;
+    current = CC1_LIBC_STREAM_HEAD;
+    while (not(eq(current, 0))) {
+        if (lt(cc1_libc_stream_flush(current), 0)) {
+            result = sub(0, 1);
+        }
+        current = ri32(add(current, CC1_LIBC_STREAM_NEXT_OFFSET));
+    }
+    return result;
+}
+
 function fflush(stream)
 {
-    return cc1_libc_unimplemented(mks("fflush"));
+    return fflush_(stream, 0, 0);
 }
 
 function fopen_(path, mode, primary, index, byte, plus, flags, readable,
