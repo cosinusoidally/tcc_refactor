@@ -1,4 +1,118 @@
 /* Layer two owns typed syntax. It lowers that syntax into cc1's scalar C. */
+/* cc2 owns these small lexical helpers so its executable does not link cc1. */
+function cc0_init()
+{
+    return 0;
+}
+
+function cc0_is_decimal_digit(value)
+{
+    return and(le(mkC("0"), value), le(value, mkC("9")));
+}
+
+function cc0_is_uppercase(value)
+{
+    return and(le(mkC("A"), value), le(value, mkC("Z")));
+}
+
+function cc0_is_lowercase(value)
+{
+    return and(le(mkC("a"), value), le(value, mkC("z")));
+}
+
+function cc0_is_name_start(value)
+{
+    return or(or(cc0_is_uppercase(value), cc0_is_lowercase(value)),
+        eq(value, mkC("_")));
+}
+
+function cc0_is_space(value)
+{
+    if (or(eq(value, mkC(" ")), eq(value, mkC("\t")))) {
+        return 1;
+    }
+    return or(or(eq(value, mkC("\v")), eq(value, mkC("\f"))),
+        eq(value, mkC("\r")));
+}
+
+function cc0_to_upper(value)
+{
+    if (cc0_is_lowercase(value)) {
+        return add(sub(value, mkC("a")), mkC("A"));
+    }
+    return value;
+}
+
+/* TCC's byte-class table starts with the EOF entry, then byte values. */
+function cc0_set_idnum(table, character, flags)
+{
+    var address;
+    var previous;
+    address = add(table, add(character, 1));
+    previous = ri8(address);
+    wi8(address, flags);
+    return previous;
+}
+
+function cc0_check_space(table, token, space_pointer)
+{
+    var flags;
+    if (lt(token, 256)) {
+        flags = ri8(add(table, add(token, 1)));
+        if (and(flags, 1)) {
+            if (ri32(space_pointer)) {
+                return 1;
+            }
+            wi32(space_pointer, 1);
+            return 0;
+        }
+    }
+    wi32(space_pointer, 0);
+    return 0;
+}
+
+/* TCC uses a 14-bit bucket index from its rotating identifier hash. */
+function cc0_token_hash_(text, length, index, hash, character, left_part,
+    right_part)
+{
+    index = 0;
+    hash = 1;
+    while (lt(index, length)) {
+        character = ri8(add(text, index));
+        left_part = shl(hash, 5);
+        right_part = ushr(hash, 27);
+        hash = add(hash, left_part);
+        hash = add(hash, right_part);
+        hash = add(hash, character);
+        index = add(index, 1);
+    }
+    return and(hash, 16383);
+}
+
+function cc0_token_hash(text, length)
+{
+    return cc0_token_hash_(text, length, 0, 0, 0, 0, 0);
+}
+
+function cc0_number_zero(number)
+{
+    wi32(number, 0);
+    wi32(add(number, 4), 0);
+    return 0;
+}
+
+function cc0_number_lshift(number, shift, low_bits)
+{
+    var low;
+    var high;
+    low = ri32(number);
+    high = ri32(add(number, 4));
+    wi32(number, add(shl(low, shift), low_bits));
+    wi32(add(number, 4), add(shl(high, shift),
+        ushr(low, sub(32, shift))));
+    return 0;
+}
+
 var CC2_CONSTANTS_INITIALIZED;
 var CC2_INTEGER_TEXT_BYTES;
 /* Stable TCC CType basic-type encoding used at the cc2/remainder boundary. */
@@ -27031,12 +27145,6 @@ function cc2_init()
     return 0;
 }
 
-function cc2_compile(source, length, file)
-{
-    cc2_init();
-    return cc0_compile(source, length);
-}
-
 /* Return log2(value) + 1 for positive values, or zero for zero. */
 function exact_log2p1(value)
 {
@@ -27112,4 +27220,10 @@ function vla_sp_restore_root()
 function cc2_driver(argc, argv)
 {
     return cc2_driver_bridge(argc, argv);
+}
+
+function main(argc, argv)
+{
+    cc2_init();
+    return cc2_driver(argc, argv);
 }

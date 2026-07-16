@@ -13,7 +13,7 @@ bootstrap paths. `tccrun` and dynamic-loader APIs are outside this bootstrap.
 
 ### cc1
 
-`cc1.c` is the permanent base compiler. It contains:
+`cc1.c` is the standalone base compiler. It contains:
 
 - The operator-free cc0 source dialect parser and i386 code generator.
 - The ELF32 relocatable object writer.
@@ -44,6 +44,13 @@ preprocessor, parser, i386 backend, assembler, archive support, and ELF linker.
 It is also directly valid SpiderMonkey JavaScript and directly compilable by
 cc1.
 
+cc1 is used as a bootstrap tool to produce the first cc2 objects, but no
+`cc1.o` code is linked into `cc2.exe`, `cc2_static.exe`, or either final TCC.
+cc2 owns its `main` entry point and the small lexical/number helper surface it
+needs. Its object and typed bridge have no unresolved `cc0_*` or `cc1_*`
+dependencies. The two layers are independently runnable compilers, not
+cumulative executable links.
+
 The first cc2 executable uses `cc2_boot_storage.c` and
 `cc2_backend_stubs.c`. Build scripts concatenate `cc2.c` and the boot storage
 into an artifact-local translation unit because cc1 deliberately has no
@@ -62,7 +69,7 @@ The dynamic graph is:
 SpiderMonkey or mawkcc
   -> cc1.o + cc2_stubs.o
   -> cc1.exe
-  -> cc2_boot.exe
+  -> independent cc2_boot.exe (no cc1.o)
   -> cc2.exe
   -> tcc_layered.exe
   -> stock TCC 0.9.27 outputs
@@ -74,7 +81,7 @@ The fully static graph is independent after the seed:
 ```text
 SpiderMonkey or mawkcc
   -> cc1_static.exe
-  -> cc2_boot_static.exe
+  -> independent cc2_boot_static.exe (no cc1.o)
   -> cc2_static_boot.exe
   -> cc2_static.exe
   -> tcc_layered_static.exe

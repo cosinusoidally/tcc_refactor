@@ -18,6 +18,8 @@
 - There is no separate cc0 compiler layer or executable in take3. The name
   cc0 refers only to the operator-free source dialect.
 - Higher `ccN.c` files add compiler facilities in explicit, reviewable layers.
+- `cc1.exe` and `cc2.exe` are independently linked compilers. cc1 may build
+  cc2, but no cc1 object may be linked into a cc2 or final TCC executable.
 - A lower layer must not depend on an implementation from a higher layer.
 - Prefer ordinary source and direct function calls over generated tables,
   encoded programs, macro metaprogramming, or other opaque mechanisms.

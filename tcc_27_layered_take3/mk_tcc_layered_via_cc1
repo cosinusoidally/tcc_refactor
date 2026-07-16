@@ -27,7 +27,7 @@ cat ../tcc_27_layered_take3/cc2.c \
 ./cc1.exe -c ../tcc_27_layered_take3/cc2.c -o cc2.o
 ./cc1.exe -c ../tcc_27_layered_take3/cc2_backend_stubs.c \
     -o cc2_backend_stubs.o
-./cc1.exe cc1.o cc2_boot_combined.o cc2_backend_stubs.o \
+./cc1.exe cc2_boot_combined.o cc2_backend_stubs.o \
     -o cc2_boot.exe
 
 # The bootstrap backend is sufficient for cc2 to compile its typed bridge and
@@ -41,13 +41,11 @@ cat ../tcc_27_layered_take3/cc2.c \
     -o cc2_runtime_boot.o
 # The transitional executable still uses the lower linker, which owns the
 # base-case ELF entry adapter.  The resulting full cc2 performs the final link.
-./cc1.exe cc1.o cc2.o tcc_rest.o cc2_runtime_boot.o -o cc2.exe
+./cc1.exe cc2.o tcc_rest.o cc2_runtime_boot.o -o cc2.exe
 chmod +x cc2.exe
 
 # cc2 is the full TCC layer.  It rebuilds every final compiler-owned object.
 ./cc2.exe -nostdinc -c ../tcc_27_layered_take3/prims.c -o prims_final.o
-./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take3/cc1.c \
-    -o cc1_final.o
 ./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take3/cc2.c \
     -o cc2_final.o
 ./cc2.exe -nostdinc -c ../tcc_27_layered_take3/cc2_runtime.c \
@@ -59,7 +57,7 @@ chmod +x cc2.exe
     -c ../tcc_27_layered_take3/tcc_unified.c -U__linux__ \
     -o tcc_rest_final.o
 ./cc2.exe -nostdlib crt1.o \
-    prims_final.o cc1_final.o cc2_final.o tcc_rest_final.o \
+    prims_final.o cc2_final.o tcc_rest_final.o \
     cc2_runtime_final.o \
     "$HOST_LIBC" "$HOST_LIBM" \
     -o tcc_layered.exe

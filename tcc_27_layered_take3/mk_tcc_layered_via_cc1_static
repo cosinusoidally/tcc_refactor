@@ -39,7 +39,7 @@ cat "$SOURCE/cc2.c" "$SOURCE/cc2_boot_storage.c" > cc2_boot_combined.c
 ./cc1_static.exe -c cc2_boot_combined.c -o cc2_boot_combined.o
 ./cc1_static.exe -c "$SOURCE/cc2_backend_stubs.c" -o cc2_backend_stubs.o
 ./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
-    cc0_static_syscalls.o cc1.o cc2_boot_combined.o \
+    cc0_static_syscalls.o cc2_boot_combined.o \
     cc2_backend_stubs.o cc0_libc.o cc1_libc.o cc2_libc_stubs.o \
     -o cc2_boot_static.exe
 chmod +x cc2_boot_static.exe
@@ -54,7 +54,7 @@ chmod +x cc2_boot_static.exe
 ./cc2_boot_static.exe -nostdinc -c "$SOURCE/cc2_libc_qsort.c" \
     -o cc2_libc_qsort_boot.o
 ./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
-    cc0_static_syscalls.o cc1.o cc2.o tcc_rest_boot.o \
+    cc0_static_syscalls.o cc2.o tcc_rest_boot.o \
     cc2_runtime_boot.o cc0_libc.o cc1_libc.o cc2_libc_qsort_boot.o \
     cc2_float_libc_stubs.o -o cc2_static_boot.exe
 chmod +x cc2_static_boot.exe
@@ -64,7 +64,7 @@ chmod +x cc2_static_boot.exe
 ./cc2_static_boot.exe -nostdinc -c "$SOURCE/cc2_libc.c" \
     -o cc2_libc_boot.o
 ./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
-    cc0_static_syscalls.o cc1.o cc2.o tcc_rest_boot.o \
+    cc0_static_syscalls.o cc2.o tcc_rest_boot.o \
     cc2_runtime_boot.o cc0_libc.o cc1_libc.o cc2_libc_qsort_boot.o \
     cc2_libc_boot.o -o cc2_static.exe
 chmod +x cc2_static.exe
@@ -72,7 +72,6 @@ cp cc2_static.exe ../cc2_static.exe
 
 # Complete static cc2 rebuilds every compiler-owned object in the final TCC.
 ./cc2_static.exe -nostdinc -c "$SOURCE/prims.c" -o prims_final.o
-./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc1.c" -o cc1_final.o
 ./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc2.c" -o cc2_final.o
 ./cc2_static.exe -nostdinc -c "$SOURCE/cc2_runtime.c" \
     -o cc2_runtime_final.o
@@ -94,7 +93,7 @@ cp cc2_static.exe ../cc2_static.exe
 
 ./cc2_static.exe -nostdlib -static cc1_static_start.o \
     linux_i386_syscalls.o cc0_static_syscalls_final.o prims_final.o \
-    cc1_final.o cc2_final.o tcc_rest_final.o \
+    cc2_final.o tcc_rest_final.o \
     cc2_runtime_final.o cc0_libc_final.o cc1_libc.o \
     cc2_libc_qsort_final.o cc2_libc_final.o \
     -o ../tcc_layered_static.exe

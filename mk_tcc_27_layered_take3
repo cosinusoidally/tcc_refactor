@@ -21,13 +21,17 @@ gcc -nostdinc -O0 -m32 -c "$SOURCE/prims.c" -o host_prims.o
 gcc -nostdinc -O0 -m32 -std=gnu89 -Dfunction=int -Dvar=int \
     -c "$SOURCE/cc1.c" -o host_cc1.o
 gcc -nostdinc -O0 -m32 -std=gnu89 -Dfunction=int -Dvar=int \
+    -c "$SOURCE/cc2_stubs.c" -o host_cc2_stubs.o
+gcc -nostdinc -O0 -m32 -std=gnu89 -Dfunction=int -Dvar=int \
     -c "$SOURCE/cc2.c" -o host_cc2.o
 gcc -nostdinc -O0 -m32 -I "$INCLUDE" -I "$SOURCE" -I "$SOURCE/include" \
     -c "$SOURCE/tcc_unified.c" -o host_tcc_rest.o
-gcc -m32 host_prims.o host_cc1.o host_cc2.o host_tcc_rest.o \
-    -o tcc_take3_native
-./tcc_take3_native --help > native_help.txt || test "$?" -eq 1
-test -s native_help.txt
+gcc -m32 host_prims.o host_cc1.o host_cc2_stubs.o -o cc1_take3_native
+./cc1_take3_native --help > cc1_native_help.txt
+test -s cc1_native_help.txt
+gcc -m32 host_prims.o host_cc2.o host_tcc_rest.o -o cc2_take3_native
+./cc2_take3_native --help > cc2_native_help.txt || test "$?" -eq 1
+test -s cc2_native_help.txt
 
 # Both shared layer sources must load directly in SpiderMonkey 45.
 cd "$SOURCE"
@@ -43,4 +47,9 @@ cd ../tcc_27_layered_take3
 ./mk_tcc_layered_via_cc1
 
 cd ..
+if nm -u artifacts/cc2.o artifacts/tcc_rest.o artifacts/cc2_final.o | \
+    grep -E ' U cc(0|1)_'; then
+    echo 'cc2 retains a cc0/cc1 object dependency' >&2
+    exit 1
+fi
 sha256sum -c sums_tcc_27
