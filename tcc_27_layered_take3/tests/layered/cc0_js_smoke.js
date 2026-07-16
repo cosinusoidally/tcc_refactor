@@ -1,5 +1,5 @@
 load("../tcc_27_layered_take3/prims.js");
-load("../tcc_27_layered_take3/cc0.c");
+load("../tcc_27_layered_take3/cc1.c");
 
 cc0_init();
 if (add(20, 22) !== 42 || sub(50, 8) !== 42) {

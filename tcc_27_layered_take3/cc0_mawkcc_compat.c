@@ -1,6 +1,6 @@
 /*
  * Runtime services used only by the mawkcc-compiled cc0 seed.  The canonical
- * cc0.exe rebuild uses the normal cc0.c and does not contain these functions.
+ * cc1.exe rebuild uses the normal cc1.c and does not contain these functions.
  */
 function malloc_(size, allocation_size, base)
 {

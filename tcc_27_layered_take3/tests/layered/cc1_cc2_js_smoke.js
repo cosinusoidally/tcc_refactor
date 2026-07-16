@@ -1,14 +1,10 @@
 /* Load the production shared sources directly in SpiderMonkey 45. */
 load("prims.js");
-load("cc0.c");
 load("cc1.c");
 
-cc1_expression_init();
-if (CC1_EXPRESSION_CONDITIONAL_KIND !== 25) {
-    throw new Error("cc1 expression constants were not initialized");
-}
-if (cc1_expression_new(CC1_EXPRESSION_ATOM_KIND, 7, 0, 0) === 0) {
-    throw new Error("cc1 could not allocate an expression record");
+cc0_init();
+if (!cc0_is_name_start(mkC("_")) || cc0_is_name_start(mkC("-"))) {
+    throw new Error("cc1 character classification failed");
 }
 
 load("cc2.c");

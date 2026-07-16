@@ -103,7 +103,7 @@ function wi32(address, value) {
     return value | 0;
 }
 
-/* These functions model the small libc surface used by cc0.c. */
+/* These functions model the small libc surface used by cc1.c. */
 var cc0_prims_files = {};
 var cc0_prims_next_file = 3;
 

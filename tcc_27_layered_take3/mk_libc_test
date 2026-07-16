@@ -5,7 +5,7 @@ cd ..
 
 LAYERED_TCC=artifacts/tcc_layered.exe
 STATIC_BOOT_TCC=artifacts/tcc_27_boot_static.exe
-CC0=artifacts/cc0.exe
+CC0=artifacts/cc1.exe
 
 if ! test -f "$LAYERED_TCC" || ! test -f "$STATIC_BOOT_TCC" || \
     ! test -f "$CC0"; then

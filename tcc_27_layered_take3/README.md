@@ -1,38 +1,182 @@
 # TCC 0.9.27 Layered Bootstrap, Take 3
 
-This directory contains the third layered refactor of Tiny C Compiler 0.9.27.
-It is a working i386 Linux bootstrap, not a sketch of a future design. The
-compiler is built in permanent layers from a small, auditable base dialect up
-to the complete TCC frontend, i386 backend, ELF linker, and archive support.
+Take3 is a two-layer i386 Linux refactor of TCC 0.9.27. The compiler starts
+from a source file that is simultaneously valid C, SpiderMonkey 45 JavaScript,
+and mawkcc input, then advances directly to the full typed TCC layer.
 
-The central property is that the lower compilers are not independent throwaway
-implementations. `cc0.c`, `cc1.c`, and `cc2.c` remain linked into the final
-layered TCC and provide services used by that final executable.
+The supported target is deliberately limited to 32-bit i386 Linux. The final
+compiler provides TCC's i386 code generator, assembler, archive handling, and
+ELF linker. It does not use a GNU linker or `libgcc` in the compiler-only
+bootstrap paths. `tccrun` and dynamic-loader APIs are outside this bootstrap.
 
-The inherited file named `README` is the upstream TCC document. This file
-describes the layered take3 implementation and its bootstrap paths.
+## Layers
 
-## Status And Contract
+### cc1
 
-The implemented target is deliberately narrow:
+`cc1.c` is the permanent base compiler. It contains:
 
-- Linux on 32-bit i386 only.
-- ELF32 little-endian objects and executables.
-- The i386 System V C calling convention at typed-C and libc boundaries.
-- Dynamic bootstrap tools using `/lib/ld-linux.so.2`.
-- Final runtime dependencies on `libc.so.6` and `libm.so.6`.
-- No `libgcc`, GNU linker, GCC CRT, or libc development-file dependency in the
-  JavaScript or mawkcc layered bootstrap path.
-- No `tccrun` or in-memory execution requirement.
+- The operator-free cc0 source dialect parser and i386 code generator.
+- The ELF32 relocatable object writer.
+- The lower ELF linker used before the full TCC linker is executable.
+- Shared file/line/column diagnostics and the command-line driver.
+- Dynamic storage throughout; it introduces no fixed compiler limits beyond
+  limits already present in TCC.
 
-Because in-memory execution is outside the supported target, cc2 contains no
-`dlopen`, `dlsym`, or `dlclose` hooks and `tcc_layered.exe` does not depend on
-`libdl`. Normal file-output linking is unaffected: TCC parses ELF shared
-libraries itself through its `tcc_load_dll` path.
+The old take2 split between `cc0.c` and a separate preprocessing `cc1.c` is
+gone. Once `cc2.c` became valid in the base dialect, the extra preprocessing
+and enum/typedef/array lowering pass was redundant. Take3 therefore seeds
+`cc1.c` directly and retains no `cc0.exe`, `cc0_static.exe`, or
+`cc1_stubs.c` stage.
 
-The compatibility contract is the repository-level `sums_tcc_27` file. A
-successful full build reproduces all five stock TCC 0.9.27 artifacts without
-changing that file:
+The dialect remains named `cc0` in the `-std=cc0` option. That name describes
+the source language, not a compiler layer.
+
+`cc1.c` uses `function`, `var`, assignments, calls, and lowercase primitives
+such as `add`, `sub`, `ri32`, and `wi8`. Operators are implemented by host
+support during seeding and by compiler builtins after self-hosting. Character
+codes use `mkC("x")`; address formation uses `addr(name)`. Every control-flow
+body uses braces.
+
+### cc2
+
+`cc2.c` is the complete typed-C and TCC layer. It contains the migrated TCC
+preprocessor, parser, i386 backend, assembler, archive support, and ELF linker.
+It is also directly valid SpiderMonkey JavaScript and directly compilable by
+cc1.
+
+The first cc2 executable uses `cc2_boot_storage.c` and
+`cc2_backend_stubs.c`. Build scripts concatenate `cc2.c` and the boot storage
+into an artifact-local translation unit because cc1 deliberately has no
+general C preprocessor. Full cc2 then compiles `tcc_unified.c`, whose typed C
+bridge is in `cc2_tcc_prims.c`.
+
+`cc2_runtime.c` provides the i386 arithmetic and floating helpers otherwise
+supplied by libgcc. The static chain extends the libc in explicit levels:
+`cc0_libc.c`, `cc1_libc.c`, `cc2_libc_qsort.c`, and `cc2_libc.c`.
+
+## Bootstrap Graph
+
+The dynamic graph is:
+
+```text
+SpiderMonkey or mawkcc
+  -> cc1.o + cc2_stubs.o
+  -> cc1.exe
+  -> cc2_boot.exe
+  -> cc2.exe
+  -> tcc_layered.exe
+  -> stock TCC 0.9.27 outputs
+  -> sums_tcc_27 verification
+```
+
+The fully static graph is independent after the seed:
+
+```text
+SpiderMonkey or mawkcc
+  -> cc1_static.exe
+  -> cc2_boot_static.exe
+  -> cc2_static_boot.exe
+  -> cc2_static.exe
+  -> tcc_layered_static.exe
+  -> stock TCC 0.9.27 outputs
+  -> sums_tcc_27 verification
+```
+
+The temporary and provisional cc2 executables are links of the same cc2
+compiler layer. They are needed to cross typed runtime and floating conversion
+dependencies; they do not constitute another source layer.
+
+## JavaScript Seed
+
+Run from the repository root:
+
+```sh
+./mk_clean
+cd tcc_27_layered_take3
+./mk_cc1_js
+```
+
+`js` must be SpiderMonkey jsshell 45 for i686 Linux. The script loads
+`prims.js`, `cc1.c`, and `cc2_stubs.c` directly. JavaScript cc1 compiles the
+canonical `cc1.o` and `cc2_stubs.o`, compiles the static runtime, and links:
+
+```text
+artifacts/cc1.exe
+artifacts/cc1_static.exe
+```
+
+The seed script does not clean artifacts. Clean before testing it so stale
+objects cannot conceal a failure.
+
+## mawkcc Seed
+
+Run from the repository root:
+
+```sh
+./mk_clean
+cd tcc_27_layered_take3
+./mk_cc1_mawkcc
+```
+
+The required seed is:
+
+```text
+../ai_experiments/mawkcc/artifacts/mawkcc.self.exe
+```
+
+The script concatenates `cc1.c`, `cc2_stubs.c`, and
+`cc0_mawkcc_compat.c` into `artifacts/cc1_mawkcc.c`. mawkcc produces the
+disposable `cc1_mawkcc.exe`, which then compiles the canonical cc1 objects and
+links `cc1.exe` and `cc1_static.exe`. The compatibility suffix is present only
+in the disposable seed.
+
+## Full Builds
+
+After either seed, build the dynamic compiler with:
+
+```sh
+./mk_tcc_layered_via_cc1
+```
+
+Build the completely static compiler chain with:
+
+```sh
+./mk_tcc_layered_via_cc1_static
+```
+
+Do not run `mk_clean` between the seed and full-chain script. Neither full
+chain invokes GCC or a pre-existing TCC. The dynamic chain links against the
+versioned i386 `libc.so.6` and `libm.so.6` runtime DSOs so it also works with
+older split glibc installations. The static chain has no host runtime
+dependency.
+
+The native validation entry point is:
+
+```sh
+./mk_tcc_27_layered_take3
+```
+
+It starts with `mk_clean`, builds the two permanent layers as GNU89 C, loads
+both shared sources directly in SpiderMonkey, seeds canonical cc1 through
+JavaScript, verifies a self-compiled `cc1.o`, runs the complete dynamic chain,
+and checks every fixed stock hash.
+
+## JavaScript Source Test
+
+From this directory:
+
+```sh
+./mk_js_layers_test
+```
+
+The test loads production `prims.js`, `cc1.c`, and `cc2.c` without source
+rewriting, initializes both layers, and exercises representative base and cc2
+operations.
+
+## Compatibility Contract
+
+The repository-level `sums_tcc_27` file is immutable. Every successful full
+build reproduces:
 
 - `artifacts/libc_boot4.o`
 - `artifacts/libc_static.o`
@@ -40,575 +184,40 @@ changing that file:
 - `artifacts/tcc.o`
 - `artifacts/tcc_27_boot_static.exe`
 
-The canonical `cc0.o`, `cc1_stubs.o`, and `cc0.exe` are byte-identical whether
-the initial seed is SpiderMonkey JavaScript or self-hosted mawkcc. The canonical
-`tcc_layered.exe` is byte-identical when produced by the native validation
-script or by the compiler-only path through `cc0.exe`. Host shared-library
-function sizes are deliberately not copied into undefined ELF function imports,
-so changing the glibc version does not perturb the executable.
-
-## Layer Model
-
-The bootstrap has three permanent compiler layers. There is no `cc3`.
-
-### cc0
-
-`cc0.c` is the base compiler, object writer, small executable linker, shared
-diagnostic implementation, and command-line entry point.
-
-Its source dialect uses:
-
-- `var name;` for globals.
-- `function name(args) { ... }` for functions.
-- Assignments and calls as the basic expression forms.
-- Lowercase primitive calls such as `add`, `sub`, `eq`, `ri32`, and `wi8`
-  instead of source-language operators.
-- `mkC("x")` for byte-valued character constants.
-- Inline `asm` limited to adjacent strings containing `.byte 0xNN` lists.
-- Extra worker parameters as local storage where mawkcc has no local-variable
-  declaration facility.
-- Braces around every control-flow body.
-
-The same `cc0.c` text has three relevant interpretations:
-
-- GNU89 C maps `function` and `var` to `int` and obtains primitives from
-  `prims.c` or libc.
-- SpiderMonkey jsshell 45 loads the file directly and obtains primitives from
-  `prims.js`.
-- mawkcc parses the source dialect directly. A seed-only compatibility suffix
-  supplies the few runtime spellings not built into mawkcc.
-
-Take3 extends the shared JavaScript source property through `cc1.c` and
-`cc2.c`. SpiderMonkey loads the production layer files directly, without
-preprocessing or source rewriting. Run `mk_js_layers_test` from this directory
-to check parsing, layer initialization, shared-memory allocation, and selected
-cc1/cc2 operations.
-
-cc0 compiles the base dialect into i386 ELF relocatable objects. Its lower
-linker merges those objects and resolves their symbols and relocations. An
-object set defining `main` becomes a dynamic ELF image with a process-entry
-adapter and direct dependencies on libc and libm. A freestanding object
-set defining `_start` and containing no unresolved imports becomes a static
-ELF image with separate executable and writable load segments. The lower
-linker is sufficient for the cc0, cc1, cc2 bootstrap executables and small
-static runtime tests; the final compiler uses the full TCC ELF linker in cc2.
-
-`main` is in `cc0.c`. Every layer therefore inherits the same help, usage,
-file/line/column diagnostics, compile dispatch, and link dispatch. Higher
-layers replace services through ordinary linked definitions rather than
-conditional compilation.
-
-### cc1
-
-`cc1.c` adds the source-processing facilities needed to express cc2:
-
-- Token records with source file, offset, line, and column origins.
-- Include processing and macro expansion.
-- Conditional preprocessing.
-- Expression parsing and normalization.
-- Scalar type and symbol records.
-- Source lowering back into the cc0-compilable representation.
-- Error remapping from normalized source to the original input location.
-
-`cc1_stubs.c` lets cc0 stand alone before the real cc1 service is linked.
-`cc2_stubs.c` lets cc1 stand alone before cc2 is available. The stubs preserve
-the permanent dispatch shape; they do not select a hidden monolithic compiler.
-
-cc1 continues to use cc0's object writer and lower linker. Its purpose is to
-make the next source layer expressible, not to duplicate the final TCC backend.
-
-### cc2
-
-`cc2.c` is the full typed-C and TCC layer. It owns the remaining compiler and
-toolchain facilities needed by the final executable, including:
-
-- Typed declarations, typedefs, enums, arrays, structs, unions, pointers, and
-  function types.
-- Integer, long-long, floating-point, and x87 conversions.
-- The TCC preprocessor, parser, initializer handling, and i386 code generator.
-- Inline and standalone i386 assembly support.
-- ELF object, archive, linker-script, and shared-library loading.
-- ELF executable and shared-object layout, relocation, PLT, GOT, and dynamic
-  symbol handling.
-- Static archive creation through `-ar`.
-- The final TCC-compatible command-line driver.
-
-`cc2_boot_storage.c` and `cc2_backend_stubs.c` provide temporary representation
-and backend services while cc1 is first compiling cc2. They are bootstrap
-components, not alternative final compilers.
-
-`cc2_tcc_prims.c` is the typed bridge between migrated cc2 code and the
-remaining TCC representation declared through the inherited headers.
-`cc2_i386_tables.c` contains immutable i386 data compiled into the typed
-remainder. `cc2_runtime.c` supplies the small set of compiler-emitted i386
-operations that cannot recursively implement themselves, including 64-bit
-shift/division and extended-precision conversion helpers.
-
-The static libc follows the same boundary. `cc2_libc_qsort.c` is integer-only
-typed C and can be built by temporary cc2. `cc2_libc.c` contains the floating
-conversion family and is rebuilt by provisional full cc2 before that compiler
-relinks itself. `cc2_libc_stubs.c` and `cc2_float_libc_stubs.c` exist only to
-cross those two bootstrap links; neither is present in final cc2 or TCC.
-
-## Source Composition
-
-The small unified files make the bootstrap composition explicit:
-
-- `cc2_boot_unified.c` includes `cc2.c` and `cc2_boot_storage.c` so cc1 can
-  build the temporary cc2 service in one translation unit.
-- `tcc_unified.c` selects i386, includes `tcc.h`, and adds
-  `cc2_tcc_prims.c` plus `cc2_i386_tables.c`.
-- `tcc_unified_cc0.c` includes `tcc_unified.c` for the root script's cc0
-  dialect-entry validation.
-
-The directory still contains inherited TCC headers, tests, documentation, and
-build files. Their presence does not imply that each inherited file is a
-separate bootstrap component. The scripts listed below define the active
-bootstrap graph.
-
-## Bootstrap Sequence
-
-After a seed has produced the canonical dynamic and static cc0 executables,
-`mk_tcc_layered_via_cc0` performs this chain. The separate
-`mk_tcc_layered_via_cc0_static` chain keeps every compiler executable static,
-from `cc0_static.exe` through the final `tcc_layered_static.exe`.
-
-```text
-cc0.exe
-  -> cc0.o + cc1.o + cc2_stubs.o
-  -> cc1.exe
-
-cc1.exe
-  -> cc2_boot_unified.o + cc2.o + cc2_backend_stubs.o
-  -> cc2_boot.exe
-
-cc2_boot.exe
-  -> tcc_rest.o + cc2_runtime_boot.o
-
-cc0 linker
-  -> cc0.o + cc1.o + cc2.o + tcc_rest.o + cc2_runtime_boot.o
-  -> cc2.exe
-
-cc2.exe
-  -> prims_final.o
-  -> cc0_final.o
-  -> cc1_final.o
-  -> cc2_final.o
-  -> cc2_runtime_final.o
-  -> tcc_rest_final.o
-
-full cc2/TCC linker
-  -> project crt1.o + every final object + libc + libm
-  -> tcc_layered.exe
-
-tcc_layered.exe
-  -> stock TCC 0.9.27 compatibility objects and static executable
-  -> sums_tcc_27 verification
-```
-
-The fully static chain remains divergent through every compiler executable:
-
-```text
-cc0_static.exe
-  -> static runtime objects + cc0.o + cc1.o + cc2_stubs.o
-  -> cc1_static.exe
-
-cc1_static.exe
-  -> cc2_boot_unified.o + cc2_backend_stubs.o + libc stubs
-  -> cc2_boot_static.exe
-
-cc2_boot_static.exe
-  -> tcc_rest_boot.o + cc2_runtime_boot.o + cc2_libc_qsort_boot.o
-
-cc1_static linker
-  -> provisional full cc2 + float conversion stubs
-  -> cc2_static_boot.exe
-
-cc2_static_boot.exe
-  -> real floating cc2_libc_boot.o
-
-cc1_static linker
-  -> cc2_static.exe with real qsort and floating conversions
-
-cc2_static.exe
-  -> every final compiler and static-runtime object
-  -> tcc_layered_static.exe
-
-tcc_layered_static.exe
-  -> stock TCC 0.9.27 compatibility outputs
-  -> sums_tcc_27 verification
-```
-
-The provisional and final cc2 executables are two links of the same compiler
-layer, not separate compiler layers. This self-relink is necessary because
-temporary cc2 is used only for integer-only typed library code, while full cc2
-supplies the x87 path needed to compile the real decimal conversions correctly.
-
-The transitional `cc2.exe` is linked by cc0 because the full linker is being
-brought into executable form at that point. The final `tcc_layered.exe` is
-linked by the full TCC linker. It does not depend on a GNU linker.
-
-## Seed Paths
-
-All build products belong in the repository-level `artifacts/` directory.
-Run the two-part seed scripts from `tcc_27_layered_take3`, as shown below.
-
-### SpiderMonkey JavaScript Seed
-
-Requirements:
-
-- `js` in `PATH` must be SpiderMonkey jsshell 45 for i686 Linux.
-- The shell must be able to execute i386 ELF programs.
-
-From the repository root:
-
-```sh
-./mk_clean
-cd tcc_27_layered_take3
-./mk_cc0_js
-```
-
-`mk_cc0_js` loads `prims.js`, `cc0.c`, and `cc1_stubs.c` into JavaScript. The
-in-process cc0 compiles its canonical objects and the static runtime, links
-`artifacts/cc0_static.exe`, and then links `artifacts/cc0.exe`. It never runs
-the dynamically linked executable.
-
-The JavaScript host models integer-addressed memory with a growable typed
-array. Compiler policy remains in `cc0.c`; `prims.js` implements only the host
-meanings of otherwise inexpressible operations and file/memory services.
-
-### Self-Hosted mawkcc Seed
-
-Requirement:
-
-```text
-../ai_experiments/mawkcc/artifacts/mawkcc.self.exe
-```
-
-must exist relative to the repository root. It is a statically linked i386
-self-hosted mawkcc executable.
-
-From the repository root:
-
-```sh
-./mk_clean
-cd tcc_27_layered_take3
-./mk_cc0_mawkcc
-```
-
-The script concatenates these checked-in sources into the generated
-`artifacts/cc0_mawkcc.c`:
-
-```text
-cc0.c
-cc1_stubs.c
-cc0_mawkcc_compat.c
-```
-
-mawkcc compiles that combined source into the disposable
-`artifacts/cc0_mawkcc.exe`. The compatibility suffix contains only the seed's
-arena allocation, copying reallocation, and primitive spelling adapters.
-
-`cc0_mawkcc.exe` is not the canonical result. It compiles the unmodified
-`cc0.c`, `cc1_stubs.c`, and static runtime, then links
-`artifacts/cc0_static.exe` before linking `artifacts/cc0.exe`. It does not run
-the dynamically linked executable or rebuild the objects a second time.
-
-### Native Validation Seed
-
-From the repository root:
-
-```sh
-./mk_tcc_27_layered_take3
-```
-
-This comprehensive script cleans `artifacts/` itself. It requires a host GCC
-with working `-m32` support, i386 development CRT objects, libc development
-files, and SpiderMonkey jsshell for its cross-check.
-
-The native stages validate that the shared source compiles as GNU89 C, that the
-unified compiler can reproduce its own objects, that the explicit cc0 -> cc1
--> cc2 chain works, and that help and source-location diagnostics work. Native
-CRT and libgcc inputs are validation-only.
-
-The script's published `tcc_layered.exe` is rebuilt with full cc2 and uses the
-same project CRT, final object order, and versioned runtime DSOs as
-`mk_tcc_layered_via_cc0`. It is therefore byte-identical to the compiler-only
-bootstrap result.
-
-## Full Compiler-Only Build
-
-After either non-native seed, run:
-
-```sh
-./mk_clean
-cd tcc_27_layered_take3
-./mk_cc0_js
-./mk_tcc_layered_via_cc0
-```
-
-To bootstrap through a completely static compiler chain, run:
-
-```sh
-./mk_clean
-cd tcc_27_layered_take3
-./mk_cc0_js
-./mk_tcc_layered_via_cc0_static
-```
-
-or:
-
-```sh
-./mk_clean
-cd tcc_27_layered_take3
-./mk_cc0_mawkcc
-./mk_tcc_layered_via_cc0
-```
-
-Do not run `mk_clean` between a seed script and either full-chain script. The
-dynamic chain consumes `artifacts/cc0.exe`; the static chain consumes
-`artifacts/cc0_static.exe`. Neither seed script cleans artifacts itself.
-
-Neither compiler-only full-chain script invokes GCC or a pre-existing TCC.
-Only the dynamic chain needs versioned i386 runtime shared objects; the static
-chain has no host runtime dependency. Dynamic consumers search these
-directories in order:
-
-```text
-/lib/i386-linux-gnu
-/usr/lib/i386-linux-gnu
-```
-
-The required files are:
-
-```text
-libc.so.6
-libm.so.6
-```
-
-The explicit libm dependency is intentional. Older glibc releases such as
-Ubuntu Bionic keep the math facilities in a separate shared library, whereas
-newer releases may merge more facilities into libc. The supported compiler
-path has no dynamic-loader API dependency and does not link libdl.
-
-The full build also uses the repository sibling header tree:
-
-```text
-../tcc_bootstrap_alt/woody/usr/include
-```
-
-All bootstrap compile commands use `-nostdinc` with explicit include paths so
-they do not scan or silently depend on host headers. `-nostdinc` is not the
-compiler default for normal user invocations.
-
-## CRT And Runtime
-
-`crt1.c` is the project process-startup source. cc0 recognizes the specifically
-named `_start` function and emits the small i386 stack adapter that presents
-the kernel's initial stack as ordinary `(argc, argv)` C arguments. The source
-body calls `main` and then glibc `exit`.
-
-The JavaScript-generated cc0 lower linker is the irreducible base case and
-generates its own entry adapter. Once canonical cc0 exists, `crt1.c` is
-compiled by cc0 and used by the full linker for `tcc_layered.exe`.
-
-`cc2_runtime.c` replaces compiler helper dependencies that would otherwise be
-provided by libgcc. It implements those operations from explicit 32-bit words
-and the i386 x87 extended representation. The layered bootstrap never links
-`libgcc_s.so.1` or a static `libgcc.a` into its canonical result.
-
-The developing static cc0 runtime is kept in replaceable layers:
-
-- `linux_i386_syscalls.c` contains the `.byte` implementation of the single
-  five-argument `int 0x80` entry.
-- `cc0_static_syscalls.c` implements private open, read, write, close, brk, and
-  exit runtime operations in terms of that entry. The cc1 extension also uses
-  its unlink adapter.
-- `cc0_dynamic_syscalls.c` adapts the same operations to glibc.
-- `cc0_static_start.c` supplies the initial freestanding `_start` policy.
-- `cc1_static_start.c` extends that policy with standard-stream initialization
-  and cc1 libc shutdown for static cc2 and later layers.
-- `cc0_libc.c` contains environment-neutral libc functions. It implements the
-  allocation, process exit, raw file-descriptor I/O, seeking, and `puts`
-  surface needed by cc0 and cc1.
-- `cc1_libc.c` declares the additional ordinary libc ABI needed to enter cc2.
-  Its functions are currently explicit fatal stubs; this keeps cc2 linkable
-  while making the next function to implement observable at runtime.
-
-`mk_libc_test` compiles each matrix entry's `cc0_libc.o` and
-`hello_world_test.o` once and feeds those exact objects to both its static and
-dynamic links. The JavaScript and mawkcc compiler seeds use that runtime to
-emit the fully static `cc0_static.exe` without running dynamic cc0.
-
-The static allocator remains based on `brk`. It reserves break space in 4 KiB
-growth quanta and serves new allocations from a bump cursor, while allowing
-allocations larger than a quantum to extend to their required end. Released
-allocation headers form an unbounded first-fit free list shared by `free`,
-`malloc`, and `realloc`.
-Seekable input descriptors have dynamically allocated 64 KiB read caches so
-the compiler does not issue one raw syscall per source byte. Non-seekable
-descriptors bypass the cache, and `lseek`, `write`, and `close` reconcile or
-discard cached state as required. Descriptors opened writable through
-`cc0_libc` also receive dynamically allocated 64 KiB output buffers, avoiding
-one raw syscall per emitted object byte. Reads, seeks, closes, and process
-shutdown flush pending output; descriptors not opened through the wrapper,
-including standard output and standard error, retain direct-write behavior.
-
-## Important Artifacts
-
-The bootstrap may create these files under `artifacts/`:
-
-| Artifact | Purpose |
-| --- | --- |
-| `cc0_mawkcc.c` | Generated mawkcc-compatible seed translation unit. |
-| `cc0_mawkcc.exe` | Disposable compiler seed produced by mawkcc. |
-| `cc0.exe` | Canonical self-hosted base compiler and lower linker. |
-| `cc0_static.exe` | Canonical statically linked base compiler. |
-| `cc1.exe` | Preprocessing and scalar-source layer. |
-| `cc2_boot.exe` | Transitional typed layer with bootstrap services. |
-| `cc2.exe` | Full typed TCC compiler used for the final rebuild. |
-| `tcc_layered.exe` | Canonical final layered TCC executable. |
-| `tcc_27_boot_static.exe` | Stock compatibility executable covered by `sums_tcc_27`. |
-| `syscall_test/` | GCC, TCC, mixed cc0, and cc0-self raw-syscall tests. |
-| `libc_test/` | Matching static/dynamic libc tests across the same matrix. |
-| `libc_cc0_test/` | Static/dynamic libc smoke and cc0 compiler executables. |
-| `libc_cc2_test/` | cc1 libc smoke images and the developing static cc2 executable. |
-
-Names ending in `_boot.o` or `_final.o` make the producing stage explicit.
-Generated source and binaries must not be added to this directory.
-
-## Verification
-
-The main verification command is:
-
-```sh
-./mk_tcc_27_layered_take3
-```
-
-It checks, among other things:
-
-- GNU89 C compilation of the cc0/cc1/cc2 sources.
-- Repeated full-compiler object identity.
-- `-std=cc0` equivalence for cc0 source.
-- Consecutive `cc0.o` and `cc1_stubs.o` self-host identity.
-- cc1 and cc2 smoke compilation.
-- Help output from cc0, cc1, and cc2.
-- File, line, and column information for intentional errors.
-- SpiderMonkey reproduction of canonical cc0 objects and executable.
-- Full stock TCC compatibility hashes.
-
-For a cross-seed cc0 comparison:
-
-```sh
-./mk_clean
-cd tcc_27_layered_take3
-./mk_cc0_mawkcc
-cp ../artifacts/cc0.exe /tmp/cc0.mawkcc.exe
-cd ..
-./mk_clean
-cd tcc_27_layered_take3
-./mk_cc0_js
-cmp /tmp/cc0.mawkcc.exe ../artifacts/cc0.exe
-```
-
-For the strongest non-native test, build cc0 from either seed and then run the
-entire compiler-only chain through `mk_tcc_layered_via_cc0`.
-
-The focused freestanding tests are run from this directory after cleaning:
-
-```sh
-./mk_syscall_test
-./mk_libc_test
-./mk_libc_cc0_test
-./mk_libc_cc2_test
-```
-
-These scripts build missing compiler prerequisites automatically. The libc test
-produces static and glibc-linked hello executables for GCC, layered TCC, the
-stock static bootstrap TCC, mixed cc0, and cc0-self object paths. Every pair
-must print identical output; the script also checks that static images have no
-interpreter and dynamic images have both an interpreter and a needed DSO.
-
-`mk_libc_cc0_test` links the canonical `cc0.o` and `cc1_stubs.o` against the
-cc0-built runtime objects. Before that compiler check, it builds static and
-dynamic copies of `tests/layered/libc_smoke.c` against the same runtime. The
-smoke test checks `argc`/`argv`, writable aligned `malloc` allocations,
-`open`/`read`/`lseek`/`close`, and direct `write` plus `puts` output. It must
-succeed identically in both modes.
-The retained `cc0_static.exe` and `cc0_dynamic.exe` compile the smoke source as
-their probe; both compilations must succeed and produce byte-identical objects.
-Static cc0 then compiles canonical `cc1.o` and `cc2_stubs.o`. Those same
-objects are linked into `cc1_static.exe` and `cc1_dynamic.exe`; both cc1 images
-must compile the smoke source byte-identically, and their ELF interpreter state
-must match their declared link mode.
-The static compiler then recompiles every source and object needed for itself,
-links `cc0_static_self/cc0_static.exe`, and requires the rebuilt objects and
-executable to be byte-identical. The rebuilt executable performs one more
-`cc0.c` compilation to close the self-hosting loop.
-
-`mk_libc_cc2_test` first runs the complete cc0 libc test, then compiles one
-byte-identical `cc1_libc.o` through both cc1 environments. Separate static and
-dynamic smoke images verify that a cc1-only stub identifies itself and exits
-with status 1. Function-specific pairs exercise the implemented `memset`,
-`calloc`, `free`, `strlen`, `strcpy`, `memmove`, `memcpy`, `memcmp`, and
-`getenv`, `strcmp`, `strcat`, `unlink`, `fopen`, `fwrite`, `fputc`, `fclose`,
-`fflush`, `fread`, `fputs`, `fseek`, and `ftell`, including range, return-value,
-zero-fill, overflow, allocation-reuse, string termination, overlapping-copy,
-and environment-name behavior.
-Finally, static cc1 compiles the cc2 bootstrap sources and the lower static
-linker creates `libc_cc2_test/cc2_static.exe`. Running that image on a real
-compile command must reach and report the first still-unimplemented cc1 libc
-service. The current `cc2_static.exe` now completes the cc2 compile smoke;
-remaining libc functions continue to receive direct functional coverage.
-
-The cc1 stdio implementation uses dynamically allocated, linked `FILE`
-records rather than a fixed stream table. It provides standard-stream records,
-mode parsing, element-counted reads and writes, character and string output,
-flush-all shutdown, descriptor closure, and logical seek/tell behavior. The
-stdio layer is deliberately unbuffered; cc0's existing descriptor caches retain
-bootstrap performance and are reconciled by the shared seek/flush operations.
-
-When testing either seed script, clean first. This prevents an old canonical
-object from hiding a failed seed build.
+All generated objects, executables, and combined sources belong under the
+repository-level `artifacts/` directory.
+
+## Static Runtime
+
+`linux_i386_syscalls.c` contains the auditable `.byte` implementation of the
+five-argument i386 `int 0x80` entry. Higher syscall wrappers call that function;
+cc1 never inlines syscalls.
+
+`cc0_static_syscalls.c` implements the low-level file and break operations.
+`cc0_static_start.c` and `cc1_static_start.c` provide process startup.
+`cc0_libc.c` provides the base allocation and descriptor operations, while
+`cc1_libc.c` adds the libc surface needed to enter cc2. The allocator uses
+`brk` in 4 KiB increments. Descriptor caching avoids per-byte compiler I/O.
+
+The dynamic and static links consume identical compiler objects. Runtime and
+startup objects determine link mode; compiler source files do not contain
+conditional dynamic/static implementations.
 
 ## Development Rules
 
-The detailed repository-local rules are in `AGENTS.md`. The most important
-constraints are:
+See `AGENTS.md`. In particular:
 
-- Modify layered compiler code only in this directory and the permitted root
+- Modify take3 compiler code only in this directory and the permitted root
   build script.
-- Keep every build product in `artifacts/`.
-- Do not use `tcc_27_layered` as a reference implementation.
-- Do not change `sums_tcc_27` to accommodate compiler output changes.
-- Do not add target abstraction for architectures other than i386 Linux.
-- Do not introduce fixed compiler capacities or other implementation limits
-  absent from TCC; storage must grow dynamically.
-- Keep cc0 operator-free and use lowercase primitive calls.
+- Support only i386 Linux.
+- Keep `cc1.c` and `cc2.c` directly valid SpiderMonkey 45 JavaScript.
+- Keep base-dialect code operator-free and use `mkC` for character codes.
+- Do not introduce arbitrary implementation limits.
 - Keep all control-flow bodies braced.
-- Initialize cc0 global constants through initialization functions rather than
-  at declaration sites.
-- Keep low-level host support in `prims.c`, `prims.js`, or a seed-only
-  compatibility file; compiler policy belongs in the permanent layers.
-- Keep the full TCC linker responsible for the final layered executable.
-- Verify the standard build and the relevant non-native seed before every
-  commit that changes a bootstrap path.
-
-## Scope Boundaries
-
-This project is not trying to make TCC portable to every host during the
-bootstrap. It intentionally assumes i386 Linux process, ELF, and dynamic-loader
-semantics. Portability mechanisms that obscure those assumptions make the
-bootstrap harder to audit and are out of scope.
-
-The project also does not treat the mawkcc compatibility suffix as another
-compiler layer. It is a host adapter for producing the first executable. The
-canonical cc0 immediately recompiles the shared source without that suffix,
-and every later executable is built from the permanent layered sources.
+- Do not use the discarded `tcc_27_layered` directory as a reference.
+- Never change `sums_tcc_27` to accommodate output changes.
 
 ## Licensing
 
-This tree is derived from TinyCC 0.9.27. See `COPYING` for the inherited GNU
-Lesser General Public License 2.1 terms and `RELICENSING` for TinyCC's ongoing
-relicensing record. Source provenance and copyright notices in inherited files
-remain authoritative for those files.
+This tree is derived from TinyCC 0.9.27. See `COPYING` and `RELICENSING` for
+the inherited licensing terms and provenance.

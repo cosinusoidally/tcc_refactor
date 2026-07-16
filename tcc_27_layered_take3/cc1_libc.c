@@ -305,7 +305,7 @@ function fprintf(stream, format)
     var buffer;
     var written;
 
-    arguments = add(&format, 4);
+    arguments = add(addr(format), 4);
     length = vsnprintf(0, 0, format, arguments);
     if (lt(length, 0)) {
         return sub(0, 1);
@@ -616,7 +616,7 @@ function printf(format)
     var buffer;
     var written;
 
-    arguments = add(&format, 4);
+    arguments = add(addr(format), 4);
     length = vsnprintf(0, 0, format, arguments);
     if (lt(length, 0)) {
         return sub(0, 1);
@@ -643,7 +643,7 @@ function snprintf(output, size, format)
 {
     var arguments;
 
-    arguments = add(&format, 4);
+    arguments = add(addr(format), 4);
     return vsnprintf(output, size, format, arguments);
 }
 
@@ -652,7 +652,7 @@ function sprintf(output, format)
     var arguments;
     var length;
 
-    arguments = add(&format, 4);
+    arguments = add(addr(format), 4);
     length = vsnprintf(0, 0, format, arguments);
     if (lt(length, 0)) {
         return length;

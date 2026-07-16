@@ -14,7 +14,9 @@
 
 ## Layering
 
-- `cc0.c` is the minimal bootstrap dialect and must remain human-auditable.
+- `cc1.c` is the minimal bootstrap compiler and must remain human-auditable.
+- There is no separate cc0 compiler layer or executable in take3. The name
+  cc0 refers only to the operator-free source dialect.
 - Higher `ccN.c` files add compiler facilities in explicit, reviewable layers.
 - A lower layer must not depend on an implementation from a higher layer.
 - Prefer ordinary source and direct function calls over generated tables,
@@ -23,9 +25,9 @@
 
 ## cc0 C/JavaScript Dialect
 
-- The same `cc0.c` text must execute as SpiderMonkey jsshell 45 JavaScript and
+- The same `cc1.c` text must execute as SpiderMonkey jsshell 45 JavaScript and
   compile as GNU89 C and as TCC input.
-- JavaScript reads `cc0.c` without preprocessing or source rewriting.
+- JavaScript reads `cc1.c` without preprocessing or source rewriting.
 - When function or global declarations are added, use the shared source shape
   `function name(args) { ... }` and `var name;`. C builds may map `function`
   and `var` explicitly to `int`; do not hide additional translation in that
@@ -33,7 +35,7 @@
 - Use `/* ... */` comments so comments have identical lexical meaning in both
   languages.
 - Do not use arithmetic, comparison, logical, bitwise, or pointer operators in
-  `cc0.c`. Use lowercase primitive calls such as `add(a, b)`, `eq(a, b)`, and
+  `cc1.c`. Use lowercase primitive calls such as `add(a, b)`, `eq(a, b)`, and
   `ri32(address)` instead. Assignment remains part of the cc0 statement syntax.
 - Express single-byte character constants as `mkC("x")`. Do not use C character
   literals or numeric ASCII values for characters in dialect code.
@@ -48,7 +50,7 @@
 - Treat compiler values as signed 32-bit integers unless a documented helper
   has different semantics.
 - Keep host support primitives small, named, and documented. Compiler policy
-  belongs in `cc0.c`, not in a host runner or compatibility shim.
+  belongs in `cc1.c`, not in a host runner or compatibility shim.
 - Do not depend on JavaScript features newer than SpiderMonkey 45.
 
 ## Auditability
@@ -73,7 +75,7 @@
   the build script compile or execute those checked-in files.
 - Run the repository-level `./mk_tcc_27_layered_take3` after changes affecting
   the compiler or build.
-- Verify `cc0.c` with GCC, the self-hosted compiler, the `cc0` dialect path, and
+- Verify `cc1.c` with GCC, the self-hosted compiler, the `cc0` dialect path, and
   `/home/foo/src/jsshell/js`.
 - Require consecutive self-hosted compiler objects to be byte-identical.
 - Require every hash in `sums_tcc_27` to pass without updating the hash file.

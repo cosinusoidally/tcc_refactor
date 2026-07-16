@@ -1,0 +1,43 @@
+#!/bin/sh
+
+# Verify the libc needed by the permanent static cc1 seed and close its
+# self-hosting loop without constructing an obsolete cc0 executable.
+set -eux
+cd ..
+
+if ! test -x artifacts/cc1_static.exe; then
+    ./mk_tcc_27_layered_take3
+fi
+
+BUILD=artifacts/libc_cc1_test
+rm -rf "$BUILD"
+mkdir -p "$BUILD"
+CC1=artifacts/cc1_static.exe
+SOURCE=tcc_27_layered_take3
+
+"$CC1" -c "$SOURCE/linux_i386_syscalls.c" -o "$BUILD/syscalls.o"
+"$CC1" -c "$SOURCE/cc0_static_syscalls.c" -o "$BUILD/runtime.o"
+"$CC1" -c "$SOURCE/cc0_static_start.c" -o "$BUILD/start.o"
+"$CC1" -c "$SOURCE/cc0_libc.c" -o "$BUILD/libc.o"
+"$CC1" -c "$SOURCE/cc1.c" -o "$BUILD/cc1.o"
+"$CC1" -c "$SOURCE/cc2_stubs.c" -o "$BUILD/cc2_stubs.o"
+cmp artifacts/cc1.o "$BUILD/cc1.o"
+cmp artifacts/cc2_stubs.o "$BUILD/cc2_stubs.o"
+
+"$CC1" "$BUILD/start.o" "$BUILD/syscalls.o" "$BUILD/runtime.o" \
+    "$BUILD/cc1.o" "$BUILD/cc2_stubs.o" "$BUILD/libc.o" \
+    -o "$BUILD/cc1_static.exe"
+chmod +x "$BUILD/cc1_static.exe"
+cmp artifacts/cc1_static.exe "$BUILD/cc1_static.exe"
+
+"$BUILD/cc1_static.exe" -c "$SOURCE/cc1.c" -o "$BUILD/cc1_self.o"
+cmp "$BUILD/cc1.o" "$BUILD/cc1_self.o"
+
+"$BUILD/cc1_static.exe" -c "$SOURCE/tests/layered/libc_smoke.c" \
+    -o "$BUILD/libc_smoke.o"
+"$BUILD/cc1_static.exe" "$BUILD/start.o" "$BUILD/syscalls.o" \
+    "$BUILD/runtime.o" "$BUILD/libc.o" "$BUILD/libc_smoke.o" \
+    -o "$BUILD/libc_smoke.exe"
+chmod +x "$BUILD/libc_smoke.exe"
+"$BUILD/libc_smoke.exe" first second > "$BUILD/libc_smoke.stdout"
+grep '^libc smoke ok$' "$BUILD/libc_smoke.stdout"
