@@ -1,0 +1,196 @@
+#!/bin/sh
+
+set -eu
+cd ..
+
+CC0=artifacts/cc0.exe
+CC0_OBJECT=artifacts/cc0.o
+CC1_STUBS_OBJECT=artifacts/cc1_stubs.o
+
+if ! test -x "$CC0" || ! test -f "$CC0_OBJECT" || \
+    ! test -f "$CC1_STUBS_OBJECT"; then
+    ./mk_tcc_27_layered_take3
+fi
+
+TEST_ARTIFACTS=artifacts/libc_cc0_test
+EXPECTED_SMOKE_OUTPUT=$(printf 'write smoke ok\nlibc smoke ok')
+rm -rf "$TEST_ARTIFACTS"
+mkdir -p "$TEST_ARTIFACTS"
+
+"$CC0" -c tcc_27_layered_take3/linux_i386_syscalls.c \
+    -o "$TEST_ARTIFACTS/linux_i386_syscalls.o"
+"$CC0" -c tcc_27_layered_take3/cc0_static_syscalls.c \
+    -o "$TEST_ARTIFACTS/cc0_static_syscalls.o"
+"$CC0" -c tcc_27_layered_take3/cc0_dynamic_syscalls.c \
+    -o "$TEST_ARTIFACTS/cc0_dynamic_syscalls.o"
+"$CC0" -c tcc_27_layered_take3/cc0_static_start.c \
+    -o "$TEST_ARTIFACTS/cc0_static_start.o"
+"$CC0" -c tcc_27_layered_take3/cc0_libc.c \
+    -o "$TEST_ARTIFACTS/cc0_libc.o"
+"$CC0" -c tcc_27_layered_take3/tests/layered/libc_smoke.c \
+    -o "$TEST_ARTIFACTS/libc_smoke.o"
+
+"$CC0" "$TEST_ARTIFACTS/cc0_static_start.o" \
+    "$TEST_ARTIFACTS/linux_i386_syscalls.o" \
+    "$TEST_ARTIFACTS/cc0_static_syscalls.o" \
+    "$TEST_ARTIFACTS/cc0_libc.o" "$TEST_ARTIFACTS/libc_smoke.o" \
+    -o "$TEST_ARTIFACTS/libc_smoke_static.exe"
+"$CC0" "$TEST_ARTIFACTS/libc_smoke.o" \
+    "$TEST_ARTIFACTS/cc0_libc.o" \
+    "$TEST_ARTIFACTS/cc0_dynamic_syscalls.o" \
+    -o "$TEST_ARTIFACTS/libc_smoke_dynamic.exe"
+chmod +x "$TEST_ARTIFACTS/libc_smoke_static.exe" \
+    "$TEST_ARTIFACTS/libc_smoke_dynamic.exe"
+
+check_smoke()
+{
+    executable=$1
+    label=$2
+    stdout_file="$TEST_ARTIFACTS/$label.stdout"
+    stderr_file="$TEST_ARTIFACTS/$label.stderr"
+
+    "$executable" first second >"$stdout_file" 2>"$stderr_file"
+    test "$(cat "$stdout_file")" = "$EXPECTED_SMOKE_OUTPUT"
+    test ! -s "$stderr_file"
+    printf '%s: libc smoke ok\n' "$label"
+}
+
+check_smoke "$TEST_ARTIFACTS/libc_smoke_static.exe" libc_smoke_static
+check_smoke "$TEST_ARTIFACTS/libc_smoke_dynamic.exe" libc_smoke_dynamic
+cmp "$TEST_ARTIFACTS/libc_smoke_static.stdout" \
+    "$TEST_ARTIFACTS/libc_smoke_dynamic.stdout"
+cmp "$TEST_ARTIFACTS/libc_smoke_static.stderr" \
+    "$TEST_ARTIFACTS/libc_smoke_dynamic.stderr"
+
+"$CC0" "$TEST_ARTIFACTS/cc0_static_start.o" \
+    "$TEST_ARTIFACTS/linux_i386_syscalls.o" \
+    "$TEST_ARTIFACTS/cc0_static_syscalls.o" \
+    "$CC0_OBJECT" "$CC1_STUBS_OBJECT" "$TEST_ARTIFACTS/cc0_libc.o" \
+    -o "$TEST_ARTIFACTS/cc0_static.exe"
+"$CC0" "$CC0_OBJECT" "$CC1_STUBS_OBJECT" \
+    "$TEST_ARTIFACTS/cc0_libc.o" \
+    "$TEST_ARTIFACTS/cc0_dynamic_syscalls.o" \
+    -o "$TEST_ARTIFACTS/cc0_dynamic.exe"
+chmod +x "$TEST_ARTIFACTS/cc0_static.exe" \
+    "$TEST_ARTIFACTS/cc0_dynamic.exe"
+
+check_compile()
+{
+    executable=$1
+    label=$2
+    stdout_file="$TEST_ARTIFACTS/$label.stdout"
+    stderr_file="$TEST_ARTIFACTS/$label.stderr"
+
+    "$executable" -c tcc_27_layered_take3/tests/layered/libc_smoke.c \
+        -o "$TEST_ARTIFACTS/$label.output.o" \
+        >"$stdout_file" 2>"$stderr_file"
+    test ! -s "$stdout_file"
+    test ! -s "$stderr_file"
+    test -s "$TEST_ARTIFACTS/$label.output.o"
+    printf '%s: compiled libc smoke\n' "$label"
+}
+
+check_compile "$TEST_ARTIFACTS/cc0_static.exe" cc0_static
+check_compile "$TEST_ARTIFACTS/cc0_dynamic.exe" cc0_dynamic
+cmp "$TEST_ARTIFACTS/cc0_static.stdout" \
+    "$TEST_ARTIFACTS/cc0_dynamic.stdout"
+cmp "$TEST_ARTIFACTS/cc0_static.stderr" \
+    "$TEST_ARTIFACTS/cc0_dynamic.stderr"
+cmp "$TEST_ARTIFACTS/cc0_static.output.o" \
+    "$TEST_ARTIFACTS/cc0_dynamic.output.o"
+
+# Advance one complete compiler layer using objects produced by static cc0.
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take3/cc1.c -o "$TEST_ARTIFACTS/cc1.o"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take3/cc2_stubs.c \
+    -o "$TEST_ARTIFACTS/cc2_stubs.o"
+if test -f artifacts/cc1.o; then
+    cmp artifacts/cc1.o "$TEST_ARTIFACTS/cc1.o"
+fi
+if test -f artifacts/cc2_stubs.o; then
+    cmp artifacts/cc2_stubs.o "$TEST_ARTIFACTS/cc2_stubs.o"
+fi
+
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    "$TEST_ARTIFACTS/cc0_static_start.o" \
+    "$TEST_ARTIFACTS/linux_i386_syscalls.o" \
+    "$TEST_ARTIFACTS/cc0_static_syscalls.o" \
+    "$CC0_OBJECT" "$TEST_ARTIFACTS/cc1.o" \
+    "$TEST_ARTIFACTS/cc2_stubs.o" "$TEST_ARTIFACTS/cc0_libc.o" \
+    -o "$TEST_ARTIFACTS/cc1_static.exe"
+"$CC0" "$CC0_OBJECT" "$TEST_ARTIFACTS/cc1.o" \
+    "$TEST_ARTIFACTS/cc2_stubs.o" "$TEST_ARTIFACTS/cc0_libc.o" \
+    "$TEST_ARTIFACTS/cc0_dynamic_syscalls.o" \
+    -o "$TEST_ARTIFACTS/cc1_dynamic.exe"
+chmod +x "$TEST_ARTIFACTS/cc1_static.exe" \
+    "$TEST_ARTIFACTS/cc1_dynamic.exe"
+
+check_compile "$TEST_ARTIFACTS/cc1_static.exe" cc1_static
+check_compile "$TEST_ARTIFACTS/cc1_dynamic.exe" cc1_dynamic
+cmp "$TEST_ARTIFACTS/cc1_static.stdout" \
+    "$TEST_ARTIFACTS/cc1_dynamic.stdout"
+cmp "$TEST_ARTIFACTS/cc1_static.stderr" \
+    "$TEST_ARTIFACTS/cc1_dynamic.stderr"
+cmp "$TEST_ARTIFACTS/cc1_static.output.o" \
+    "$TEST_ARTIFACTS/cc1_dynamic.output.o"
+
+SELF_ARTIFACTS="$TEST_ARTIFACTS/cc0_static_self"
+mkdir -p "$SELF_ARTIFACTS"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take3/linux_i386_syscalls.c \
+    -o "$SELF_ARTIFACTS/linux_i386_syscalls.o"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take3/cc0_static_syscalls.c \
+    -o "$SELF_ARTIFACTS/cc0_static_syscalls.o"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take3/cc0_static_start.c \
+    -o "$SELF_ARTIFACTS/cc0_static_start.o"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take3/cc0_libc.c \
+    -o "$SELF_ARTIFACTS/cc0_libc.o"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take3/cc0.c \
+    -o "$SELF_ARTIFACTS/cc0.o"
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    -c tcc_27_layered_take3/cc1_stubs.c \
+    -o "$SELF_ARTIFACTS/cc1_stubs.o"
+
+cmp "$TEST_ARTIFACTS/linux_i386_syscalls.o" \
+    "$SELF_ARTIFACTS/linux_i386_syscalls.o"
+cmp "$TEST_ARTIFACTS/cc0_static_syscalls.o" \
+    "$SELF_ARTIFACTS/cc0_static_syscalls.o"
+cmp "$TEST_ARTIFACTS/cc0_static_start.o" \
+    "$SELF_ARTIFACTS/cc0_static_start.o"
+cmp "$TEST_ARTIFACTS/cc0_libc.o" "$SELF_ARTIFACTS/cc0_libc.o"
+cmp "$CC0_OBJECT" "$SELF_ARTIFACTS/cc0.o"
+cmp "$CC1_STUBS_OBJECT" "$SELF_ARTIFACTS/cc1_stubs.o"
+
+"$TEST_ARTIFACTS/cc0_static.exe" \
+    "$SELF_ARTIFACTS/cc0_static_start.o" \
+    "$SELF_ARTIFACTS/linux_i386_syscalls.o" \
+    "$SELF_ARTIFACTS/cc0_static_syscalls.o" \
+    "$SELF_ARTIFACTS/cc0.o" "$SELF_ARTIFACTS/cc1_stubs.o" \
+    "$SELF_ARTIFACTS/cc0_libc.o" \
+    -o "$SELF_ARTIFACTS/cc0_static.exe"
+chmod +x "$SELF_ARTIFACTS/cc0_static.exe"
+cmp "$TEST_ARTIFACTS/cc0_static.exe" \
+    "$SELF_ARTIFACTS/cc0_static.exe"
+
+"$SELF_ARTIFACTS/cc0_static.exe" -c tcc_27_layered_take3/cc0.c \
+    -o "$SELF_ARTIFACTS/cc0_second.o"
+cmp "$SELF_ARTIFACTS/cc0.o" "$SELF_ARTIFACTS/cc0_second.o"
+printf 'cc0_static: self rebuild is byte-identical\n'
+
+if readelf -l "$TEST_ARTIFACTS/cc0_static.exe" 2>/dev/null | \
+    grep -q INTERP; then
+    exit 1
+fi
+if readelf -l "$TEST_ARTIFACTS/cc1_static.exe" 2>/dev/null | \
+    grep -q INTERP; then
+    exit 1
+fi
+readelf -l "$TEST_ARTIFACTS/cc0_dynamic.exe" 2>/dev/null | grep -q INTERP
+readelf -d "$TEST_ARTIFACTS/cc0_dynamic.exe" 2>/dev/null | grep -q NEEDED
+readelf -l "$TEST_ARTIFACTS/cc1_dynamic.exe" 2>/dev/null | grep -q INTERP
+readelf -d "$TEST_ARTIFACTS/cc1_dynamic.exe" 2>/dev/null | grep -q NEEDED

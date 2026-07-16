@@ -1,0 +1,127 @@
+#!/bin/sh
+
+# Build every compiler layer as a static i386 executable. The only required
+# seed is artifacts/cc0_static.exe; no host compiler or host runtime is used.
+set -eux
+
+cd ..
+test -x artifacts/cc0_static.exe
+
+BUILD=artifacts/tcc_layered_static2
+rm -rf "$BUILD"
+mkdir -p "$BUILD"
+cd "$BUILD"
+
+CC0=../cc0_static.exe
+SOURCE=../../tcc_27_layered_take3
+
+# Static cc0 builds the scalar layer and the runtime needed by static cc1.
+"$CC0" -c "$SOURCE/cc0.c" -o cc0.o
+"$CC0" -c "$SOURCE/cc1.c" -o cc1.o
+"$CC0" -c "$SOURCE/cc2_stubs.c" -o cc2_stubs.o
+"$CC0" -c "$SOURCE/linux_i386_syscalls.c" -o linux_i386_syscalls.o
+"$CC0" -c "$SOURCE/cc0_static_syscalls.c" -o cc0_static_syscalls.o
+"$CC0" -c "$SOURCE/cc0_static_start.c" -o cc0_static_start.o
+"$CC0" -c "$SOURCE/cc0_libc.c" -o cc0_libc.o
+"$CC0" cc0_static_start.o linux_i386_syscalls.o \
+    cc0_static_syscalls.o cc0.o cc1.o cc2_stubs.o cc0_libc.o \
+    -o cc1_static.exe
+chmod +x cc1_static.exe
+cp cc1_static.exe ../cc1_static.exe
+
+# Static cc1 adds the layer-one libc and constructs the temporary static cc2.
+./cc1_static.exe -c "$SOURCE/cc1_static_start.c" -o cc1_static_start.o
+./cc1_static.exe -c "$SOURCE/cc1_libc.c" -o cc1_libc.o
+./cc1_static.exe -c "$SOURCE/cc2_libc_stubs.c" -o cc2_libc_stubs.o
+./cc1_static.exe -c "$SOURCE/cc2_float_libc_stubs.c" \
+    -o cc2_float_libc_stubs.o
+./cc1_static.exe -c "$SOURCE/cc2.c" -o cc2.o
+./cc1_static.exe -c "$SOURCE/cc2_boot_unified.c" -o cc2_boot_unified.o
+./cc1_static.exe -c "$SOURCE/cc2_backend_stubs.c" -o cc2_backend_stubs.o
+./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
+    cc0_static_syscalls.o cc0.o cc1.o cc2_boot_unified.o \
+    cc2_backend_stubs.o cc0_libc.o cc1_libc.o cc2_libc_stubs.o \
+    -o cc2_boot_static.exe
+chmod +x cc2_boot_static.exe
+
+# The temporary cc2 can compile the typed TCC bridge and typed arithmetic
+# runtime. Static cc1 then links the first complete static cc2 compiler.
+./cc2_boot_static.exe -nostdinc \
+    -I "$SOURCE/bootstrap_include" -I "$SOURCE/include" -I "$SOURCE" \
+    -c "$SOURCE/tcc_unified.c" -U__linux__ -o tcc_rest_boot.o
+./cc2_boot_static.exe -nostdinc -c "$SOURCE/cc2_runtime.c" \
+    -o cc2_runtime_boot.o
+./cc2_boot_static.exe -nostdinc -c "$SOURCE/cc2_libc_qsort.c" \
+    -o cc2_libc_qsort_boot.o
+./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
+    cc0_static_syscalls.o cc0.o cc1.o cc2.o tcc_rest_boot.o \
+    cc2_runtime_boot.o cc0_libc.o cc1_libc.o cc2_libc_qsort_boot.o \
+    cc2_float_libc_stubs.o -o cc2_static_boot.exe
+chmod +x cc2_static_boot.exe
+
+# Provisional full cc2 builds the floating libc, then relinks itself without
+# the scalar float stubs before compiling sources containing decimal literals.
+./cc2_static_boot.exe -nostdinc -c "$SOURCE/cc2_libc.c" \
+    -o cc2_libc_boot.o
+./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
+    cc0_static_syscalls.o cc0.o cc1.o cc2.o tcc_rest_boot.o \
+    cc2_runtime_boot.o cc0_libc.o cc1_libc.o cc2_libc_qsort_boot.o \
+    cc2_libc_boot.o -o cc2_static.exe
+chmod +x cc2_static.exe
+cp cc2_static.exe ../cc2_static.exe
+
+# Complete static cc2 rebuilds every compiler-owned object in the final TCC.
+./cc2_static.exe -nostdinc -c "$SOURCE/prims.c" -o prims_final.o
+./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc0.c" -o cc0_final.o
+./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc1.c" -o cc1_final.o
+./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc2.c" -o cc2_final.o
+./cc2_static.exe -nostdinc -c "$SOURCE/cc2_runtime.c" \
+    -o cc2_runtime_final.o
+./cc2_static.exe -nostdinc -c "$SOURCE/cc2_libc.c" \
+    -o cc2_libc_final.o
+./cc2_static.exe -nostdinc -c "$SOURCE/cc2_libc_qsort.c" \
+    -o cc2_libc_qsort_final.o
+./cc2_static.exe -nostdinc \
+    -I ../../../tcc_bootstrap_alt/woody/usr/include \
+    -I "$SOURCE/include" -I "$SOURCE" \
+    -c "$SOURCE/tcc_unified.c" -U__linux__ -o tcc_rest_final.o
+
+# Rebuild the static runtime with the full compiler as part of the divergent
+# chain, while retaining byte-identical compiler source objects.
+./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc1_libc.c" \
+    -o cc1_libc_final.o
+./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc0_libc.c" \
+    -o cc0_libc_final.o
+./cc2_static.exe -nostdinc -std=cc0 -c "$SOURCE/cc0_static_syscalls.c" \
+    -o cc0_static_syscalls_final.o
+
+./cc2_static.exe -nostdlib -static cc1_static_start.o \
+    linux_i386_syscalls.o cc0_static_syscalls_final.o prims_final.o \
+    cc0_final.o cc1_final.o cc2_final.o tcc_rest_final.o \
+    cc2_runtime_final.o cc0_libc_final.o cc1_libc_final.o \
+    cc2_libc_qsort_final.o cc2_libc_final.o \
+    -o ../tcc_layered_static2.exe
+chmod +x ../tcc_layered_static2.exe
+
+# Use canonical artifact-root names because TCC retains input names in objects.
+cd ..
+ln -sf ../tcc_27/libc_boot4.c libc_boot4.c
+ln -sf ../tcc_27/libc_static.c libc_static.c
+ln -sf ../tcc_27/tcc.c tcc.c
+mkdir -p lib
+ln -sf ../../tcc_27/lib/libtcc1.c lib/libtcc1.c
+
+# The fully static layered TCC builds the stock 0.9.27 compatibility outputs.
+TCC=./tcc_layered_static2.exe
+"$TCC" -nostdinc \
+    -I ../../tcc_bootstrap_alt/woody/usr/include \
+    -I ../tcc_27/include -I ../tcc_27 \
+    -c tcc.c -U__linux__ -DONE_SOURCE -o tcc.o
+"$TCC" -nostdinc -c ./lib/libtcc1.c -o libtcc1.o
+"$TCC" -nostdinc -c libc_boot4.c -o libc_boot4.o
+"$TCC" -nostdinc -c libc_static.c -o libc_static.o
+"$TCC" -nostdlib -static libc_static.o libc_boot4.o libtcc1.o tcc.o \
+    -o tcc_27_boot_static.exe
+
+cd ..
+sha256sum -c sums_tcc_27

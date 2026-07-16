@@ -1,0 +1,144 @@
+#!/bin/sh
+
+set -eu
+cd ..
+
+LAYERED_TCC=artifacts/tcc_layered.exe
+STATIC_BOOT_TCC=artifacts/tcc_27_boot_static.exe
+CC0=artifacts/cc0.exe
+
+if ! test -f "$LAYERED_TCC" || ! test -f "$STATIC_BOOT_TCC" || \
+    ! test -f "$CC0"; then
+    ./mk_tcc_27_layered_take3
+fi
+chmod +x "$LAYERED_TCC" "$STATIC_BOOT_TCC" "$CC0"
+
+TEST_ARTIFACTS=artifacts/libc_test
+GCC_ARTIFACTS="$TEST_ARTIFACTS/gcc"
+LAYERED_ARTIFACTS="$TEST_ARTIFACTS/tcc_layered"
+STATIC_BOOT_ARTIFACTS="$TEST_ARTIFACTS/tcc_27_boot_static"
+CC0_ARTIFACTS="$TEST_ARTIFACTS/cc0"
+CC0_SELF_ARTIFACTS="$TEST_ARTIFACTS/cc0_self"
+rm -rf "$TEST_ARTIFACTS"
+mkdir -p "$GCC_ARTIFACTS" "$LAYERED_ARTIFACTS" \
+    "$STATIC_BOOT_ARTIFACTS" "$CC0_ARTIFACTS" "$CC0_SELF_ARTIFACTS"
+
+check_pair()
+{
+    directory=$1
+    output=$("$directory/hello_static.exe")
+    test "$output" = "hello world"
+    output=$("$directory/hello_dynamic.exe")
+    test "$output" = "hello world"
+    if readelf -l "$directory/hello_static.exe" | grep -q INTERP; then
+        return 1
+    fi
+    readelf -l "$directory/hello_dynamic.exe" | grep -q INTERP
+    readelf -d "$directory/hello_dynamic.exe" | grep -q NEEDED
+}
+
+GCC_CC="gcc -m32 -O0 -std=gnu89 -nostdinc -fno-builtin -fno-pic -fno-pie -fno-stack-protector -Dfunction=int -Dvar=int"
+$GCC_CC -c tcc_27_layered_take3/prims.c -o "$GCC_ARTIFACTS/prims.o"
+$GCC_CC -c tcc_27_layered_take3/linux_i386_syscalls.c \
+    -o "$GCC_ARTIFACTS/linux_i386_syscalls.o"
+$GCC_CC -c tcc_27_layered_take3/cc0_static_syscalls.c \
+    -o "$GCC_ARTIFACTS/cc0_static_syscalls.o"
+$GCC_CC -c tcc_27_layered_take3/cc0_dynamic_syscalls.c \
+    -o "$GCC_ARTIFACTS/cc0_dynamic_syscalls.o"
+$GCC_CC -c tcc_27_layered_take3/cc0_static_start.c \
+    -o "$GCC_ARTIFACTS/cc0_static_start.o"
+$GCC_CC -c tcc_27_layered_take3/cc0_libc.c \
+    -o "$GCC_ARTIFACTS/cc0_libc.o"
+$GCC_CC -c tcc_27_layered_take3/tests/layered/hello_world_test.c \
+    -o "$GCC_ARTIFACTS/hello_world_test.o"
+gcc -m32 -nostdlib -static -Wl,-e,_start -Wl,--build-id=none \
+    "$GCC_ARTIFACTS/cc0_static_start.o" \
+    "$GCC_ARTIFACTS/linux_i386_syscalls.o" \
+    "$GCC_ARTIFACTS/cc0_static_syscalls.o" \
+    "$GCC_ARTIFACTS/cc0_libc.o" "$GCC_ARTIFACTS/hello_world_test.o" \
+    "$GCC_ARTIFACTS/prims.o" -o "$GCC_ARTIFACTS/hello_static.exe"
+gcc -m32 -no-pie -Wl,--build-id=none \
+    "$GCC_ARTIFACTS/cc0_dynamic_syscalls.o" \
+    "$GCC_ARTIFACTS/cc0_libc.o" "$GCC_ARTIFACTS/hello_world_test.o" \
+    "$GCC_ARTIFACTS/prims.o" -o "$GCC_ARTIFACTS/hello_dynamic.exe"
+check_pair "$GCC_ARTIFACTS"
+
+compile_tcc_matrix()
+{
+    compiler=$1
+    directory=$2
+    dialect=$3
+    "$compiler" -nostdinc -O0 -c tcc_27_layered_take3/prims.c \
+        -o "$directory/prims.o"
+    "$compiler" -nostdinc -O0 -Dfunction=int \
+        -c tcc_27_layered_take3/linux_i386_syscalls.c \
+        -o "$directory/linux_i386_syscalls.o"
+    "$compiler" -nostdinc -O0 $dialect \
+        -c tcc_27_layered_take3/cc0_static_syscalls.c \
+        -o "$directory/cc0_static_syscalls.o"
+    "$compiler" -nostdinc -O0 $dialect \
+        -c tcc_27_layered_take3/cc0_dynamic_syscalls.c \
+        -o "$directory/cc0_dynamic_syscalls.o"
+    "$compiler" -nostdinc -O0 $dialect \
+        -c tcc_27_layered_take3/cc0_static_start.c \
+        -o "$directory/cc0_static_start.o"
+    "$compiler" -nostdinc -O0 $dialect \
+        -c tcc_27_layered_take3/cc0_libc.c \
+        -o "$directory/cc0_libc.o"
+    "$compiler" -nostdinc -O0 $dialect \
+        -c tcc_27_layered_take3/tests/layered/hello_world_test.c \
+        -o "$directory/hello_world_test.o"
+    "$compiler" -nostdlib -static "$directory/cc0_static_start.o" \
+        "$directory/linux_i386_syscalls.o" \
+        "$directory/cc0_static_syscalls.o" "$directory/cc0_libc.o" \
+        "$directory/hello_world_test.o" "$directory/prims.o" \
+        -o "$directory/hello_static.exe"
+    chmod +x "$directory/hello_static.exe"
+    "$CC0" "$directory/hello_world_test.o" \
+        "$directory/cc0_libc.o" "$directory/cc0_dynamic_syscalls.o" \
+        "$directory/prims.o" \
+        -o "$directory/hello_dynamic.exe"
+    chmod +x "$directory/hello_dynamic.exe"
+    check_pair "$directory"
+}
+
+compile_tcc_matrix "$LAYERED_TCC" "$LAYERED_ARTIFACTS" -std=cc0
+compile_tcc_matrix "$STATIC_BOOT_TCC" "$STATIC_BOOT_ARTIFACTS" \
+    "-Dfunction=int -Dvar=int"
+
+compile_cc0_matrix()
+{
+    support_compiler=$1
+    directory=$2
+    if test "$support_compiler" = "$CC0"; then
+        "$CC0" -c tcc_27_layered_take3/linux_i386_syscalls.c \
+            -o "$directory/linux_i386_syscalls.o"
+    else
+        "$support_compiler" -nostdinc -O0 -Dfunction=int \
+            -c tcc_27_layered_take3/linux_i386_syscalls.c \
+            -o "$directory/linux_i386_syscalls.o"
+    fi
+    "$CC0" -c tcc_27_layered_take3/cc0_static_syscalls.c \
+        -o "$directory/cc0_static_syscalls.o"
+    "$CC0" -c tcc_27_layered_take3/cc0_dynamic_syscalls.c \
+        -o "$directory/cc0_dynamic_syscalls.o"
+    "$CC0" -c tcc_27_layered_take3/cc0_static_start.c \
+        -o "$directory/cc0_static_start.o"
+    "$CC0" -c tcc_27_layered_take3/cc0_libc.c \
+        -o "$directory/cc0_libc.o"
+    "$CC0" -c tcc_27_layered_take3/tests/layered/hello_world_test.c \
+        -o "$directory/hello_world_test.o"
+    "$CC0" "$directory/cc0_static_start.o" \
+        "$directory/linux_i386_syscalls.o" \
+        "$directory/cc0_static_syscalls.o" "$directory/cc0_libc.o" \
+        "$directory/hello_world_test.o" -o "$directory/hello_static.exe"
+    chmod +x "$directory/hello_static.exe"
+    "$CC0" "$directory/hello_world_test.o" \
+        "$directory/cc0_libc.o" "$directory/cc0_dynamic_syscalls.o" \
+        -o "$directory/hello_dynamic.exe"
+    chmod +x "$directory/hello_dynamic.exe"
+    check_pair "$directory"
+}
+
+compile_cc0_matrix "$LAYERED_TCC" "$CC0_ARTIFACTS"
+compile_cc0_matrix "$CC0" "$CC0_SELF_ARTIFACTS"

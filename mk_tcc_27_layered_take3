@@ -1,0 +1,314 @@
+#!/bin/sh
+
+./mk_clean
+
+cd artifacts
+
+set -xe
+
+CRT1=$(gcc -m32 -print-file-name=crt1.o)
+CRTI=$(gcc -m32 -print-file-name=crti.o)
+CRTBEGIN=$(gcc -m32 -print-file-name=crtbegin.o)
+CRTEND=$(gcc -m32 -print-file-name=crtend.o)
+CRTN=$(gcc -m32 -print-file-name=crtn.o)
+HOST_LIBC=$(gcc -m32 -print-file-name=libc.so)
+HOST_LIBGCC=$(gcc -m32 -print-file-name=libgcc.a)
+
+# The published layered executable uses the same runtime-only link as the
+# JavaScript bootstrap path, independent of the native validation CRT above.
+RUNTIME_LIBDIR=/lib/i386-linux-gnu
+if test ! -f "$RUNTIME_LIBDIR/libc.so.6"; then
+    RUNTIME_LIBDIR=/usr/lib/i386-linux-gnu
+fi
+RUNTIME_LIBC=$RUNTIME_LIBDIR/libc.so.6
+RUNTIME_LIBM=$RUNTIME_LIBDIR/libm.so.6
+test -f "$RUNTIME_LIBC" -a -f "$RUNTIME_LIBM"
+
+# Keep stable local runtime names for compiler paths that perform discovery.
+ln -s "$CRT1" crt1.o
+ln -s "$CRTI" crti.o
+ln -s "$CRTBEGIN" crtbegin.o
+ln -s "$CRTEND" crtend.o
+ln -s "$CRTN" crtn.o
+ln -s "$HOST_LIBC" libc.so
+ln -s "$HOST_LIBGCC" libgcc.a
+
+# Build the initial compiler from unconditional layer and remainder objects.
+gcc -nostdinc -O0 -m32 -c ../tcc_27_layered_take3/prims.c -o host_prims.o
+gcc -nostdinc -O0 -m32 -std=gnu89 -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take3/cc0.c -o host_cc0.o
+gcc -nostdinc -O0 -m32 -std=gnu89 -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take3/cc1.c -o host_cc1.o
+gcc -nostdinc -O0 -m32 -std=gnu89 -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take3/cc2.c -o host_cc2.o
+gcc -nostdinc -O0 -m32 \
+    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
+    -I ../tcc_27_layered_take3/ \
+    -I ../tcc_27_layered_take3/include/ \
+    -c ../tcc_27_layered_take3/tcc_unified.c -o host_tcc_rest.o
+gcc -m32 host_prims.o host_cc0.o host_cc1.o host_cc2.o host_tcc_rest.o \
+    -o tcc_27_layered_take3_gcc -ldl
+
+# rebuild tcc_27_layered_take3 with itself
+
+./tcc_27_layered_take3_gcc -nostdinc -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take3/include -I ../tcc_27_layered_take3/ -c ../tcc_27_layered_take3/tcc_unified.c -U__linux__ -o tcc_27_layered_take3.o
+./tcc_27_layered_take3_gcc -nostdinc -c ../tcc_27_layered_take3/prims.c -o prims_layered_take3.o
+./tcc_27_layered_take3_gcc -nostdinc -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take3/cc0.c -o cc0_layered_take3.o
+./tcc_27_layered_take3_gcc -nostdinc -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take3/cc1.c -o cc1_layered_take3.o
+./tcc_27_layered_take3_gcc -nostdinc -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take3/cc2.c -o cc2_layered_take3.o
+./tcc_27_layered_take3_gcc -nostdinc -c ../tcc_27_layered_take3/lib/libtcc1.c -o libtcc1_layered_take3.o
+
+./tcc_27_layered_take3_gcc -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    prims_layered_take3.o cc0_layered_take3.o cc1_layered_take3.o \
+    cc2_layered_take3.o tcc_27_layered_take3.o libtcc1_layered_take3.o \
+    "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    -o tcc_27_layered_take3
+chmod +x tcc_27_layered_take3
+
+# rebuild tcc_27_layered_take3 a 2nd time with itself
+
+./tcc_27_layered_take3 -nostdinc -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take3/include -I ../tcc_27_layered_take3/ -c ../tcc_27_layered_take3/tcc_unified.c -U__linux__ -o tcc_27_layered_take3_2.o
+./tcc_27_layered_take3 -nostdinc -c ../tcc_27_layered_take3/prims.c -o prims_layered_take3_2.o
+./tcc_27_layered_take3 -nostdinc -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take3/cc0.c -o cc0_layered_take3_2.o
+./tcc_27_layered_take3 -nostdinc -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take3/cc1.c -o cc1_layered_take3_2.o
+./tcc_27_layered_take3 -nostdinc -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take3/cc2.c -o cc2_layered_take3_2.o
+./tcc_27_layered_take3 -nostdinc -c ../tcc_27_layered_take3/lib/libtcc1.c -o libtcc1_layered_take3_2.o
+mv tcc_27_layered_take3 tcc_27_layered_take3_stage1
+./tcc_27_layered_take3_stage1 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    prims_layered_take3_2.o cc0_layered_take3_2.o cc1_layered_take3_2.o \
+    cc2_layered_take3_2.o tcc_27_layered_take3_2.o \
+    libtcc1_layered_take3_2.o \
+    "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    -o tcc_27_layered_take3
+chmod +x tcc_27_layered_take3
+
+# check each build matches
+diff -u -s tcc_27_layered_take3.o tcc_27_layered_take3_2.o
+diff -u -s prims_layered_take3.o prims_layered_take3_2.o
+diff -u -s cc0_layered_take3.o cc0_layered_take3_2.o
+diff -u -s cc1_layered_take3.o cc1_layered_take3_2.o
+diff -u -s cc2_layered_take3.o cc2_layered_take3_2.o
+diff -u -s libtcc1_layered_take3.o libtcc1_layered_take3_2.o
+
+# build the full compiler through the cc0 dialect entry
+./tcc_27_layered_take3 -nostdinc -std=cc0 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take3/include -I ../tcc_27_layered_take3/ -c ../tcc_27_layered_take3/tcc_unified_cc0.c -U__linux__ -o tcc_27_layered_take3_cc0.o
+./tcc_27_layered_take3 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    prims_layered_take3_2.o cc0_layered_take3_2.o \
+    cc1_layered_take3_2.o cc2_layered_take3_2.o \
+    tcc_27_layered_take3_cc0.o libtcc1_layered_take3_2.o \
+    "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    -o tcc_27_layered_take3_cc0
+chmod +x tcc_27_layered_take3_cc0
+./tcc_27_layered_take3_cc0 -dumpversion >/dev/null
+./tcc_27_layered_take3_cc0 -nostdinc -std=cc0 -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27_layered_take3/include -I ../tcc_27_layered_take3/ -c ../tcc_27_layered_take3/tcc_unified_cc0.c -U__linux__ -o tcc_27_layered_take3_cc0_2.o
+diff -u -s tcc_27_layered_take3_cc0.o tcc_27_layered_take3_cc0_2.o
+
+# make sure the layered compiler can create its own runtime archive
+./tcc_27_layered_take3 -ar rcs libtcc1.a libtcc1_layered_take3_2.o
+
+# keep a smoke test for -nostdinc independent of host headers
+./tcc_27_layered_take3 -nostdinc -c ../tcc_27_layered_take3/tests/layered/nostdinc_smoke.c -o nostdinc_smoke.o
+
+# cc0.c is kept in a deliberate C/JS intersection
+gcc -nostdinc -m32 -std=gnu89 -Dfunction=int -Dvar=int -c ../tcc_27_layered_take3/cc0.c -o cc0_gcc.o
+./tcc_27_layered_take3 -nostdinc -Dfunction=int -Dvar=int -c ../tcc_27_layered_take3/cc0.c -o cc0_tcc.o
+./tcc_27_layered_take3 -nostdinc -std=cc0 -c ../tcc_27_layered_take3/cc0.c -o cc0_tcc_dialect.o
+diff -u -s cc0_tcc.o cc0_tcc_dialect.o
+
+gcc -nostdinc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
+    -Dmain=cc0_smoke_main \
+    -c ../tcc_27_layered_take3/cc0.c -o cc0_smoke.o
+gcc -nostdinc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take3/cc1_stubs.c -o cc1_stubs_smoke.o
+./tcc_27_layered_take3 -nostdinc -c ../tcc_27_layered_take3/prims.c \
+    -o prims_smoke.o
+./tcc_27_layered_take3 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    prims_smoke.o cc0_smoke.o cc1_stubs_smoke.o \
+    ../tcc_27_layered_take3/tests/layered/cc0_c_smoke.c \
+    "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" -o cc0_c_smoke
+chmod +x cc0_c_smoke
+./cc0_c_smoke
+
+gcc -nostdinc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take3/cc1.c -o cc1_token_smoke.o
+gcc -nostdinc -m32 -std=gnu89 -Dfunction=int -Dvar=int \
+    -c ../tcc_27_layered_take3/cc2_stubs.c -o cc2_stubs_smoke.o
+./tcc_27_layered_take3 -nostdinc -c \
+    ../tcc_27_layered_take3/tests/layered/cc1_token_smoke.c \
+    -o cc1_token_smoke_main.o
+./tcc_27_layered_take3 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    prims_smoke.o cc0_smoke.o cc1_token_smoke.o cc2_stubs_smoke.o \
+    cc1_token_smoke_main.o "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    -o cc1_token_smoke
+chmod +x cc1_token_smoke
+./cc1_token_smoke
+
+js ../tcc_27_layered_take3/tests/layered/cc0_js_smoke.js
+
+# Build the explicit cc0 -> cc1 layered bootstrap.
+./tcc_27_layered_take3 -nostdinc -c ../tcc_27_layered_take3/prims.c -o prims.o
+./tcc_27_layered_take3 -nostdinc -std=cc0 -c ../tcc_27_layered_take3/cc0.c \
+    -o cc0_boot.o
+./tcc_27_layered_take3 -nostdinc -std=cc0 -c \
+    ../tcc_27_layered_take3/cc1_stubs.c -o cc1_stubs_boot.o
+./tcc_27_layered_take3 -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    prims.o cc0_boot.o cc1_stubs_boot.o "$HOST_LIBC" "$HOST_LIBGCC" \
+    "$CRTEND" "$CRTN" -o cc0_boot.exe
+chmod +x cc0_boot.exe
+
+./cc0_boot.exe -c ../tcc_27_layered_take3/cc0.c -o cc0.o
+./cc0_boot.exe -c ../tcc_27_layered_take3/cc1_stubs.c -o cc1_stubs.o
+./cc0_boot.exe cc0.o cc1_stubs.o -o cc0.exe
+./cc0.exe -c ../tcc_27_layered_take3/cc0.c -o cc0_self.o
+./cc0.exe -c ../tcc_27_layered_take3/cc1_stubs.c -o cc1_stubs_self.o
+diff -u -s cc0.o cc0_self.o
+diff -u -s cc1_stubs.o cc1_stubs_self.o
+
+./cc0.exe -c ../tcc_27_layered_take3/cc1.c -o cc1.o
+./cc0.exe -c ../tcc_27_layered_take3/cc2_stubs.c -o cc2_stubs.o
+./cc0.exe cc0.o cc1.o cc2_stubs.o -o cc1.exe
+./cc1.exe -c ../tcc_27_layered_take3/cc2_stubs.c -o cc2_by_cc1.o
+./cc1.exe -c ../tcc_27_layered_take3/tests/layered/cc1_compile_smoke.c \
+    -o cc1_compile_smoke.o
+./cc1.exe cc1_compile_smoke.o -o cc1_compile_smoke.exe
+./cc1_compile_smoke.exe
+
+# cc1 builds the real layer-two service, which then reproduces itself.
+./cc1.exe -c ../tcc_27_layered_take3/cc2.c -o cc2.o
+./cc1.exe -c ../tcc_27_layered_take3/cc2_backend_stubs.c \
+    -o cc2_backend_stubs.o
+./tcc_27_layered_take3 \
+    -nostdinc \
+    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
+    -I ../tcc_27_layered_take3/include -I ../tcc_27_layered_take3/ \
+    -c ../tcc_27_layered_take3/tcc_unified.c -U__linux__ \
+    -o tcc_rest_boot.o
+./tcc_27_layered_take3 -nostdinc \
+    -c ../tcc_27_layered_take3/cc2_runtime.c -o cc2_runtime_boot.o
+./cc1.exe cc0.o cc1.o cc2.o tcc_rest_boot.o cc2_runtime_boot.o \
+    -o cc2_boot.exe
+./cc2_boot.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take3/cc2.c \
+    -o cc2_self.o
+./cc2_boot.exe \
+    -nostdinc \
+    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
+    -I ../tcc_27_layered_take3/include -I ../tcc_27_layered_take3/ \
+    -c ../tcc_27_layered_take3/tcc_unified.c -U__linux__ -o tcc_rest.o
+./cc2_boot.exe -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    cc0.o cc1.o cc2.o tcc_rest.o "$HOST_LIBC" "$HOST_LIBGCC" \
+    "$CRTEND" "$CRTN" -o cc2.exe
+chmod +x cc2.exe
+./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take3/cc2.c -o cc2_self_2.o
+diff -u -s cc2_self.o cc2_self_2.o
+./cc2.exe -nostdinc -c ../tcc_27_layered_take3/tests/layered/cc1_compile_smoke.c \
+    -o cc2_compile_smoke.o
+./cc2.exe -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    cc2_compile_smoke.o "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    -o cc2_compile_smoke.exe
+chmod +x cc2_compile_smoke.exe
+./cc2_compile_smoke.exe
+./cc2.exe -nostdinc -c ../tcc_27_layered_take3/tests/layered/cc2_compile_smoke.c \
+    -o cc2_typed_smoke.o
+./cc2.exe -nostdlib "$CRT1" "$CRTI" "$CRTBEGIN" \
+    cc2_typed_smoke.o "$HOST_LIBC" "$HOST_LIBGCC" "$CRTEND" "$CRTN" \
+    -o cc2_typed_smoke.exe
+chmod +x cc2_typed_smoke.exe
+./cc2_typed_smoke.exe
+
+# Publish the same full-cc2 rebuild as mk_tcc_layered_via_cc0.  Earlier staged
+# objects remain useful validation inputs but are not part of the final image.
+./cc0.exe -c ../tcc_27_layered_take3/crt1.c -o crt1_layered.o
+./cc2.exe -nostdinc -c ../tcc_27_layered_take3/prims.c -o prims_final.o
+./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take3/cc0.c \
+    -o cc0_final.o
+./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take3/cc1.c \
+    -o cc1_final.o
+./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take3/cc2.c \
+    -o cc2_final.o
+./cc2.exe -nostdinc -c ../tcc_27_layered_take3/cc2_runtime.c \
+    -o cc2_runtime_final.o
+./cc2.exe \
+    -nostdinc \
+    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
+    -I ../tcc_27_layered_take3/include -I ../tcc_27_layered_take3/ \
+    -c ../tcc_27_layered_take3/tcc_unified.c -U__linux__ \
+    -o tcc_rest_final.o
+./cc2.exe -nostdlib crt1_layered.o \
+    prims_final.o cc0_final.o cc1_final.o cc2_final.o tcc_rest_final.o \
+    cc2_runtime_final.o \
+    "$RUNTIME_LIBC" "$RUNTIME_LIBM" \
+    -o tcc_layered.exe
+chmod +x tcc_layered.exe
+mv tcc_27_layered_take3 tcc_27_layered_take3_monolithic
+cp tcc_layered.exe tcc_27_layered_take3
+
+# Both front ends expose help and source locations without host-side parsing.
+./cc0.exe --help >cc0_help.txt
+./cc1.exe --help >cc1_help.txt
+./cc2.exe --help >cc2_help.txt || test "$?" -eq 1
+test -s cc0_help.txt
+test -s cc1_help.txt
+test -s cc2_help.txt
+if ./cc0.exe -c ../tcc_27_layered_take3/tests/layered/cc0_invalid.c \
+    -o cc0_invalid.o 2>cc0_invalid.txt; then
+    exit 1
+fi
+grep '^../tcc_27_layered_take3/tests/layered/cc0_invalid.c:[0-9][0-9]*:[0-9][0-9]*: error:' \
+    cc0_invalid.txt
+if ./cc1.exe -c ../tcc_27_layered_take3/tests/layered/cc0_invalid.c \
+    -o cc1_invalid.o 2>cc1_invalid.txt; then
+    exit 1
+fi
+grep '^../tcc_27_layered_take3/tests/layered/cc0_invalid.c:[0-9][0-9]*:[0-9][0-9]*: error:' \
+    cc1_invalid.txt
+if ./cc1.exe -c \
+    ../tcc_27_layered_take3/tests/layered/cc1_include_invalid.c \
+    -o cc1_include_invalid.o 2>cc1_include_invalid.txt; then
+    exit 1
+fi
+grep '^../tcc_27_layered_take3/tests/layered/cc1_include_invalid.h:[0-9][0-9]*:[0-9][0-9]*: error:' \
+    cc1_include_invalid.txt
+
+# SpiderMonkey must reproduce both cc0 objects and the linked executable.
+js ../tcc_27_layered_take3/tests/layered/cc0_js_bootstrap.js
+diff -u -s cc0.o cc0_js.o
+diff -u -s cc1_stubs.o cc1_stubs_js.o
+diff -u -s cc0.exe cc0_js.exe
+
+# build some test files
+
+# we have to symlink since tcc will include the file name in the object code
+# file which then causes hashes not to match
+ln -s ../tcc_27/libc_boot4.c libc_boot4.c
+ln -s ../tcc_27/libc_static.c libc_static.c
+ln -s ../tcc_27/tcc.c tcc.c
+mkdir lib
+cd lib
+ln -s ../../tcc_27/lib/libtcc1.c libtcc1.c
+cd ..
+
+# do the test file builds
+
+# for now hack in -U__linux__ to make hashes match
+./tcc_27_layered_take3 -nostdinc -I ../../tcc_bootstrap_alt/woody/usr/include/ -I ../tcc_27/include -I ../tcc_27/ -c tcc.c -U__linux__ -DONE_SOURCE -o tcc.o
+
+./tcc_27_layered_take3 -nostdinc -c ./lib/libtcc1.c -o libtcc1.o
+
+./tcc_27_layered_take3 -nostdinc -c libc_boot4.c -o libc_boot4.o
+./tcc_27_layered_take3 -nostdinc -c libc_static.c -o libc_static.o
+
+./tcc_27_layered_take3 -nostdlib -static libc_static.o libc_boot4.o libtcc1.o tcc.o -o tcc_27_boot_static.exe
+
+cd ..
+
+# show total lines
+wc tcc_27_layered_take3/*c tcc_27_layered_take3/*h | sort -h
+
+# check the hashes of the test files
+sha256sum -c sums_tcc_27
