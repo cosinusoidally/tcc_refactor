@@ -130,6 +130,22 @@ disposable `cc1_mawkcc.exe`, which then compiles the canonical cc1 objects and
 links `cc1.exe` and `cc1_static.exe`. The compatibility suffix is present only
 in the disposable seed.
 
+## GCC Seed
+
+Run from the repository root:
+
+```sh
+./mk_clean
+cd tcc_27_layered_take3
+./mk_cc1_gcc
+```
+
+GCC must support `-m32`. It compiles `prims.c`, `cc1.c`, and `cc2_stubs.c` as
+GNU89 C and links the disposable `artifacts/cc1_gcc.exe`. That seed, rather
+than GCC, produces the canonical `cc1.o`, `cc2_stubs.o`, `cc1.exe`, and
+`cc1_static.exe`. Those canonical artifacts are byte-identical to the
+JavaScript and mawkcc seed results.
+
 ## Full Builds
 
 After either seed, build the dynamic compiler with:
