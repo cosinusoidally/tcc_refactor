@@ -1,0 +1,6 @@
+#!/bin/sh
+
+set -eu
+
+test -f cc1.c -a -f cc2.c
+js tests/layered/cc1_cc2_js_smoke.js
