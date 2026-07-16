@@ -170,9 +170,8 @@ bootstrap graph.
 
 After a seed has produced the canonical dynamic and static cc0 executables,
 `mk_tcc_layered_via_cc0` performs this chain. The separate
-`mk_tcc_layered_via_cc0_static` chain builds and uses both `cc0_static.exe`
-and `cc1_static.exe`; it is kept independent so later static layers can
-diverge cleanly.
+`mk_tcc_layered_via_cc0_static` chain keeps every compiler executable static,
+from `cc0_static.exe` through the final `tcc_layered_static.exe`.
 
 ```text
 cc0.exe
@@ -233,9 +232,9 @@ cc1_static linker
 
 cc2_static.exe
   -> every final compiler and static-runtime object
-  -> tcc_layered_static2.exe
+  -> tcc_layered_static.exe
 
-tcc_layered_static2.exe
+tcc_layered_static.exe
   -> stock TCC 0.9.27 compatibility outputs
   -> sums_tcc_27 verification
 ```
@@ -348,7 +347,7 @@ cd tcc_27_layered_take3
 ./mk_tcc_layered_via_cc0
 ```
 
-To bootstrap through the statically linked cc0 instead, run:
+To bootstrap through a completely static compiler chain, run:
 
 ```sh
 ./mk_clean
@@ -356,20 +355,6 @@ cd tcc_27_layered_take3
 ./mk_cc0_js
 ./mk_tcc_layered_via_cc0_static
 ```
-
-To keep cc0, cc1, cc2, and the final layered TCC fully static, run:
-
-```sh
-./mk_clean
-cd tcc_27_layered_take3
-./mk_cc0_js
-./mk_tcc_layered_via_cc0_static2
-```
-
-To build static cc0, cc1, and cc2 but switch the final TCC back to the normal
-dynamic runtime, use `mk_tcc_layered_via_cc0_static3` instead. Static2 and
-static3 both reproduce every `sums_tcc_27` artifact; static3 also produces the
-same byte-identical dynamic `tcc_layered.exe` as the canonical build.
 
 or:
 
@@ -384,9 +369,9 @@ Do not run `mk_clean` between a seed script and either full-chain script. The
 dynamic chain consumes `artifacts/cc0.exe`; the static chain consumes
 `artifacts/cc0_static.exe`. Neither seed script cleans artifacts itself.
 
-None of the compiler-only full-chain scripts invokes GCC or a pre-existing
-TCC. The dynamic, original static-seed, and static3 chains need versioned i386
-runtime shared objects; static2 does not. Dynamic consumers search these
+Neither compiler-only full-chain script invokes GCC or a pre-existing TCC.
+Only the dynamic chain needs versioned i386 runtime shared objects; the static
+chain has no host runtime dependency. Dynamic consumers search these
 directories in order:
 
 ```text
