@@ -1,0 +1,111 @@
+#!/bin/sh
+
+set -eu
+cd ..
+
+LAYERED_TCC=artifacts/tcc_layered.exe
+STATIC_BOOT_TCC=artifacts/tcc_27_boot_static.exe
+CC0=artifacts/cc0.exe
+
+if ! test -f "$LAYERED_TCC" || ! test -f "$STATIC_BOOT_TCC" || \
+    ! test -f "$CC0"; then
+    ./mk_tcc_27_layered_take2
+fi
+chmod +x "$LAYERED_TCC" "$STATIC_BOOT_TCC" "$CC0"
+
+TEST_ARTIFACTS=artifacts/syscall_test
+GCC_ARTIFACTS="$TEST_ARTIFACTS/gcc"
+LAYERED_ARTIFACTS="$TEST_ARTIFACTS/tcc_layered"
+STATIC_BOOT_ARTIFACTS="$TEST_ARTIFACTS/tcc_27_boot_static"
+CC0_ARTIFACTS="$TEST_ARTIFACTS/cc0"
+CC0_SELF_ARTIFACTS="$TEST_ARTIFACTS/cc0_self"
+rm -rf "$TEST_ARTIFACTS"
+mkdir -p "$GCC_ARTIFACTS" "$LAYERED_ARTIFACTS" \
+    "$STATIC_BOOT_ARTIFACTS" "$CC0_ARTIFACTS" "$CC0_SELF_ARTIFACTS"
+
+gcc -m32 -O0 -std=gnu89 -nostdinc \
+    -c tcc_27_layered_take2/prims.c \
+    -o "$GCC_ARTIFACTS/prims.o"
+gcc -m32 -O0 -std=gnu89 -fno-omit-frame-pointer -fno-pic -fno-pie \
+    -fno-stack-protector -nostdinc -Dfunction=int \
+    -c tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o "$GCC_ARTIFACTS/linux_i386_syscalls.o"
+gcc -m32 -O0 -std=gnu89 -fno-omit-frame-pointer -fno-pic -fno-pie \
+    -fno-stack-protector -nostdinc -Dfunction=int -Dvar=int \
+    -c tcc_27_layered_take2/tests/layered/syscall_hello.c \
+    -o "$GCC_ARTIFACTS/syscall_hello.o"
+gcc -m32 -nostdlib -static -Wl,-e,_start -Wl,--build-id=none \
+    "$GCC_ARTIFACTS/syscall_hello.o" \
+    "$GCC_ARTIFACTS/linux_i386_syscalls.o" \
+    "$GCC_ARTIFACTS/prims.o" \
+    -o "$GCC_ARTIFACTS/syscall_hello.exe"
+
+output=$("$GCC_ARTIFACTS/syscall_hello.exe")
+test "$output" = "hello world"
+
+"$LAYERED_TCC" -nostdinc -O0 \
+    -c tcc_27_layered_take2/prims.c \
+    -o "$LAYERED_ARTIFACTS/prims.o"
+"$LAYERED_TCC" -nostdinc -O0 -Dfunction=int \
+    -c tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o "$LAYERED_ARTIFACTS/linux_i386_syscalls.o"
+"$LAYERED_TCC" -nostdinc -O0 -std=cc0 \
+    -c tcc_27_layered_take2/tests/layered/syscall_hello.c \
+    -o "$LAYERED_ARTIFACTS/syscall_hello.o"
+"$LAYERED_TCC" -nostdlib -static \
+    "$LAYERED_ARTIFACTS/syscall_hello.o" \
+    "$LAYERED_ARTIFACTS/linux_i386_syscalls.o" \
+    "$LAYERED_ARTIFACTS/prims.o" \
+    -o "$LAYERED_ARTIFACTS/syscall_hello.exe"
+chmod +x "$LAYERED_ARTIFACTS/syscall_hello.exe"
+
+output=$("$LAYERED_ARTIFACTS/syscall_hello.exe")
+test "$output" = "hello world"
+
+"$STATIC_BOOT_TCC" -nostdinc -O0 \
+    -c tcc_27_layered_take2/prims.c \
+    -o "$STATIC_BOOT_ARTIFACTS/prims.o"
+"$STATIC_BOOT_TCC" -nostdinc -O0 -Dfunction=int \
+    -c tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o "$STATIC_BOOT_ARTIFACTS/linux_i386_syscalls.o"
+"$STATIC_BOOT_TCC" -nostdinc -O0 -Dfunction=int -Dvar=int \
+    -c tcc_27_layered_take2/tests/layered/syscall_hello.c \
+    -o "$STATIC_BOOT_ARTIFACTS/syscall_hello.o"
+"$STATIC_BOOT_TCC" -nostdlib -static \
+    "$STATIC_BOOT_ARTIFACTS/syscall_hello.o" \
+    "$STATIC_BOOT_ARTIFACTS/linux_i386_syscalls.o" \
+    "$STATIC_BOOT_ARTIFACTS/prims.o" \
+    -o "$STATIC_BOOT_ARTIFACTS/syscall_hello.exe"
+chmod +x "$STATIC_BOOT_ARTIFACTS/syscall_hello.exe"
+
+output=$("$STATIC_BOOT_ARTIFACTS/syscall_hello.exe")
+test "$output" = "hello world"
+
+# Layered TCC provides asm; cc0 builds the dialect source and static executable.
+"$LAYERED_TCC" -nostdinc -O0 -Dfunction=int \
+    -c tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o "$CC0_ARTIFACTS/linux_i386_syscalls.o"
+"$CC0" -c tcc_27_layered_take2/tests/layered/syscall_hello.c \
+    -o "$CC0_ARTIFACTS/syscall_hello.o"
+"$CC0" \
+    "$CC0_ARTIFACTS/syscall_hello.o" \
+    "$CC0_ARTIFACTS/linux_i386_syscalls.o" \
+    -o "$CC0_ARTIFACTS/syscall_hello.exe"
+chmod +x "$CC0_ARTIFACTS/syscall_hello.exe"
+
+output=$("$CC0_ARTIFACTS/syscall_hello.exe")
+test "$output" = "hello world"
+
+# The self path compiles and links every input using only cc0.
+"$CC0" -c tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o "$CC0_SELF_ARTIFACTS/linux_i386_syscalls.o"
+"$CC0" -c tcc_27_layered_take2/tests/layered/syscall_hello.c \
+    -o "$CC0_SELF_ARTIFACTS/syscall_hello.o"
+"$CC0" \
+    "$CC0_SELF_ARTIFACTS/syscall_hello.o" \
+    "$CC0_SELF_ARTIFACTS/linux_i386_syscalls.o" \
+    -o "$CC0_SELF_ARTIFACTS/syscall_hello.exe"
+chmod +x "$CC0_SELF_ARTIFACTS/syscall_hello.exe"
+
+output=$("$CC0_SELF_ARTIFACTS/syscall_hello.exe")
+test "$output" = "hello world"

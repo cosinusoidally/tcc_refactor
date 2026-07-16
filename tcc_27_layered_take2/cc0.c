@@ -365,6 +365,8 @@ var CC0_LINK_BASE_ADDRESS;
 var CC0_LINK_PAGE_BYTES;
 var CC0_LINK_PROGRAM_HEADER_BYTES;
 var CC0_LINK_PROGRAM_HEADER_COUNT;
+var CC0_LINK_STATIC_PROGRAM_HEADER_COUNT;
+var CC0_LINK_STATIC;
 var CC0_LINK_INTERPRETER;
 var CC0_LINK_INTERPRETER_BYTES;
 var CC0_LINK_DYNAMIC_RECORD_BYTES;
@@ -770,6 +772,8 @@ function cc0_init()
     CC0_LINK_PAGE_BYTES = 4096;
     CC0_LINK_PROGRAM_HEADER_BYTES = 32;
     CC0_LINK_PROGRAM_HEADER_COUNT = 5;
+    CC0_LINK_STATIC_PROGRAM_HEADER_COUNT = 2;
+    CC0_LINK_STATIC = CC0_FALSE;
     CC0_LINK_INTERPRETER = mks("/lib/ld-linux.so.2");
     CC0_LINK_INTERPRETER_BYTES = 19;
     CC0_LINK_DYNAMIC_RECORD_BYTES = 8;
@@ -2954,26 +2958,47 @@ function cc0_compiler_record_relocation(name, length, position, addend)
     return CC0_FALSE;
 }
 
-function cc0_compiler_register_string_(text, length, start, index)
+function cc0_compiler_register_string_(text, length, start, index,
+    character, value)
 {
     start = CC0_DATA_LENGTH;
     index = 0;
     while (lt(index, length)) {
-        cc0_compiler_emit_data_byte(ri8(add(text, index)));
+        character = ri8(add(text, index));
+        if (eq(character, CC0_ASCII_BACKSLASH)) {
+            if (not(lt(add(index, 1), length))) {
+                return sub(0, 1);
+            }
+            value = cc0_compiler_character_value_(add(text, index), 2, 0);
+            if (lt(value, 0)) {
+                return sub(0, 1);
+            }
+            index = add(index, 1);
+        } else {
+            value = character;
+        }
+        if (cc0_compiler_emit_data_byte(value)) {
+            return sub(0, 1);
+        }
         index = add(index, 1);
     }
-    cc0_compiler_emit_data_byte(0);
+    if (cc0_compiler_emit_data_byte(0)) {
+        return sub(0, 1);
+    }
     return start;
 }
 
 function cc0_compiler_register_string(text, length)
 {
-    return cc0_compiler_register_string_(text, length, 0, 0);
+    return cc0_compiler_register_string_(text, length, 0, 0, 0, 0);
 }
 
 function cc0_compiler_emit_data_address_(text, length, addend, position)
 {
     addend = cc0_compiler_register_string(text, length);
+    if (lt(addend, 0)) {
+        return cc0_compiler_fail();
+    }
     cc0_compiler_emit_byte(CC0_X86_MOV_EAX_IMMEDIATE);
     position = CC0_CODE_LENGTH;
     cc0_compiler_emit_word(addend);
@@ -5152,6 +5177,128 @@ function cc0_compiler_parse_local()
     return cc0_compiler_parse_local_(0, 0, 0);
 }
 
+/* Inline assembly is intentionally limited to adjacent .byte 0xNN strings. */
+function cc0_compiler_asm_skip_layout_(text, length, index, character,
+    value)
+{
+    while (lt(index, length)) {
+        character = ri8(add(text, index));
+        if (or(cc0_is_space(character),
+            eq(character, CC0_ASCII_LINE_FEED))) {
+            index = add(index, 1);
+        } else if (eq(character, CC0_ASCII_BACKSLASH)) {
+            if (not(lt(add(index, 1), length))) {
+                break;
+            }
+            value = cc0_compiler_character_value_(add(text, index), 2, 0);
+            if (or(lt(value, 0), not(or(cc0_is_space(value),
+                eq(value, CC0_ASCII_LINE_FEED))))) {
+                break;
+            }
+            index = add(index, 2);
+        } else {
+            break;
+        }
+    }
+    return index;
+}
+
+function cc0_compiler_asm_skip_layout(text, length, index)
+{
+    return cc0_compiler_asm_skip_layout_(text, length, index, 0, 0);
+}
+
+function cc0_compiler_parse_asm_bytes_(text, length, index, character,
+    digit, digit_count, value)
+{
+    index = cc0_compiler_asm_skip_layout(text, length, 0);
+    if (not(le(add(index, 5), length))) {
+        return cc0_compiler_fail();
+    }
+    if (not(cc0_compiler_slice_equal(add(text, index), 5,
+        mks(".byte"), 5))) {
+        return cc0_compiler_fail();
+    }
+    index = cc0_compiler_asm_skip_layout(text, length, add(index, 5));
+    while (CC0_TRUE) {
+        if (not(lt(add(index, 2), length))) {
+            return cc0_compiler_fail();
+        }
+        if (not(eq(ri8(add(text, index)), CC0_ASCII_ZERO))) {
+            return cc0_compiler_fail();
+        }
+        character = ri8(add(text, add(index, 1)));
+        if (and(not(eq(character, CC0_ASCII_LOWER_X)),
+            not(eq(character, CC0_ASCII_UPPER_X)))) {
+            return cc0_compiler_fail();
+        }
+        index = add(index, 2);
+        value = 0;
+        digit_count = 0;
+        while (lt(index, length)) {
+            digit = cc0_hexadecimal_digit(ri8(add(text, index)));
+            if (lt(digit, 0)) {
+                break;
+            }
+            value = add(shl(value, 4), digit);
+            digit_count = add(digit_count, 1);
+            index = add(index, 1);
+        }
+        if (or(eq(digit_count, 0), not(lt(value,
+            CC0_BYTE_VALUE_COUNT)))) {
+            return cc0_compiler_fail();
+        }
+        if (eq(CC0_COMPILER_PHASE, CC0_COMPILER_PHASE_EMIT)) {
+            if (cc0_compiler_emit_byte(value)) {
+                return CC0_TRUE;
+            }
+        }
+        index = cc0_compiler_asm_skip_layout(text, length, index);
+        if (eq(index, length)) {
+            return CC0_FALSE;
+        }
+        if (not(eq(ri8(add(text, index)), CC0_PUNCTUATION_COMMA))) {
+            return cc0_compiler_fail();
+        }
+        index = cc0_compiler_asm_skip_layout(text, length, add(index, 1));
+        if (eq(index, length)) {
+            return cc0_compiler_fail();
+        }
+    }
+}
+
+function cc0_compiler_parse_asm_bytes(text, length)
+{
+    return cc0_compiler_parse_asm_bytes_(text, length, 0, 0, 0, 0, 0);
+}
+
+function cc0_compiler_parse_asm_()
+{
+    cc0_compiler_next_token();
+    if (cc0_compiler_expect(CC0_PUNCTUATION_LEFT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    if (not(eq(CC0_TOKEN, CC0_TOKEN_STRING_LITERAL))) {
+        return cc0_compiler_fail();
+    }
+    while (eq(CC0_TOKEN, CC0_TOKEN_STRING_LITERAL)) {
+        if (cc0_compiler_parse_asm_bytes(CC0_TOKEN_START,
+            CC0_TOKEN_LENGTH)) {
+            return CC0_TRUE;
+        }
+        cc0_compiler_next_token();
+    }
+    if (cc0_compiler_expect(CC0_PUNCTUATION_RIGHT_PARENTHESIS)) {
+        return CC0_TRUE;
+    }
+    return cc0_compiler_expect(CC0_PUNCTUATION_SEMICOLON);
+}
+
+function cc0_compiler_parse_asm()
+{
+    return cc0_compiler_parse_asm_();
+}
+
 function cc0_compiler_parse_statement()
 {
     if (CC0_COMPILER_ERROR) {
@@ -5193,6 +5340,12 @@ function cc0_compiler_parse_statement()
     }
     if (eq(CC0_TOKEN, CC0_TOKEN_VAR)) {
         return cc0_compiler_parse_local();
+    }
+    if (eq(CC0_TOKEN, CC0_TOKEN_IDENTIFIER)) {
+        if (cc0_text_equal(CC0_TOKEN_START, CC0_TOKEN_LENGTH,
+            mks("asm"))) {
+            return cc0_compiler_parse_asm();
+        }
     }
     if (cc0_compiler_parse_expression()) {
         return CC0_TRUE;
@@ -6346,6 +6499,9 @@ function cc0_link_collect_imports_(index, relocation, object, symbol, name,
         }
         index = add(index, 1);
     }
+    if (CC0_LINK_STATIC) {
+        return CC0_FALSE;
+    }
     return cc0_link_add_import(mks("exit"), 4);
 }
 
@@ -6409,6 +6565,30 @@ function cc0_link_layout_(offset, index, entry, name_bytes, symbol_count,
 function cc0_link_layout()
 {
     return cc0_link_layout_(0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc0_link_layout_static_(offset)
+{
+    offset = add(CC0_ELF_HEADER_BYTES,
+        mul(CC0_LINK_STATIC_PROGRAM_HEADER_COUNT,
+        CC0_LINK_PROGRAM_HEADER_BYTES));
+    CC0_LINK_TEXT_OFFSET = cc0_elf_align(offset, 16);
+    CC0_LINK_DATA_OFFSET = cc0_elf_align(add(CC0_LINK_TEXT_OFFSET,
+        CC0_LINK_TEXT_LENGTH), CC0_LINK_PAGE_BYTES);
+    CC0_LINK_BSS_OFFSET = cc0_elf_align(add(CC0_LINK_DATA_OFFSET,
+        CC0_LINK_DATA_LENGTH), 4);
+    CC0_LINK_OUTPUT_BYTES = CC0_LINK_BSS_OFFSET;
+    CC0_LINK_OUTPUT = alloc(CC0_LINK_OUTPUT_BYTES);
+    if (eq(CC0_LINK_OUTPUT, 0)) {
+        return CC0_TRUE;
+    }
+    cc0_link_zero(CC0_LINK_OUTPUT, CC0_LINK_OUTPUT_BYTES);
+    return CC0_FALSE;
+}
+
+function cc0_link_layout_static()
+{
+    return cc0_link_layout_static_(0);
 }
 
 function cc0_link_address(offset)
@@ -6495,6 +6675,53 @@ function cc0_link_write_elf_header_(header, interpreter_offset,
 function cc0_link_write_elf_header()
 {
     return cc0_link_write_elf_header_(0, 0, 0, 0, 0);
+}
+
+function cc0_link_write_static_elf_header_(header, entry_symbol,
+    writable_file_bytes, writable_memory_bytes)
+{
+    entry_symbol = cc0_link_find_global(mks("_start"), 6);
+    if (eq(entry_symbol, 0)) {
+        return CC0_TRUE;
+    }
+    header = CC0_LINK_OUTPUT;
+    wi8(header, CC0_ELF_MAGIC_DELETE);
+    wi8(add(header, 1), CC0_ELF_MAGIC_E);
+    wi8(add(header, 2), CC0_ELF_MAGIC_L);
+    wi8(add(header, 3), CC0_ELF_MAGIC_F);
+    wi8(add(header, 4), CC0_ELF_CLASS_32);
+    wi8(add(header, 5), CC0_ELF_DATA_LITTLE_ENDIAN);
+    wi8(add(header, 6), CC0_ELF_CURRENT_VERSION);
+    cc0_elf_write_half(add(header, 16), CC0_LINK_ELF_TYPE_EXECUTABLE);
+    cc0_elf_write_half(add(header, 18), CC0_ELF_MACHINE_I386);
+    wi32(add(header, 20), CC0_ELF_CURRENT_VERSION);
+    wi32(add(header, 24), cc0_link_global_address(entry_symbol));
+    wi32(add(header, 28), CC0_ELF_HEADER_BYTES);
+    wi32(add(header, 32), 0);
+    wi32(add(header, 36), 0);
+    cc0_elf_write_half(add(header, 40), CC0_ELF_HEADER_BYTES);
+    cc0_elf_write_half(add(header, 42), CC0_LINK_PROGRAM_HEADER_BYTES);
+    cc0_elf_write_half(add(header, 44),
+        CC0_LINK_STATIC_PROGRAM_HEADER_COUNT);
+    cc0_elf_write_half(add(header, 46), 0);
+    cc0_elf_write_half(add(header, 48), 0);
+    cc0_elf_write_half(add(header, 50), 0);
+    cc0_link_write_program_header(0, CC0_LINK_ELF_PROGRAM_LOAD, 0,
+        CC0_LINK_DATA_OFFSET, CC0_LINK_DATA_OFFSET,
+        or(CC0_LINK_ELF_PROGRAM_READ, CC0_LINK_ELF_PROGRAM_EXECUTE),
+        CC0_LINK_PAGE_BYTES);
+    writable_file_bytes = sub(CC0_LINK_OUTPUT_BYTES,
+        CC0_LINK_DATA_OFFSET);
+    writable_memory_bytes = add(writable_file_bytes, CC0_LINK_BSS_LENGTH);
+    return cc0_link_write_program_header(1, CC0_LINK_ELF_PROGRAM_LOAD,
+        CC0_LINK_DATA_OFFSET, writable_file_bytes, writable_memory_bytes,
+        or(CC0_LINK_ELF_PROGRAM_READ, CC0_LINK_ELF_PROGRAM_WRITE),
+        CC0_LINK_PAGE_BYTES);
+}
+
+function cc0_link_write_static_elf_header()
+{
+    return cc0_link_write_static_elf_header_(0, 0, 0, 0);
 }
 
 function cc0_link_put_dynamic_(index, tag, value, record)
@@ -6851,6 +7078,16 @@ function cc0_link_write_startup()
 
 function cc0_link_build_image()
 {
+    if (CC0_LINK_STATIC) {
+        if (cc0_link_write_static_elf_header()) {
+            return CC0_TRUE;
+        }
+        cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT,
+            CC0_LINK_TEXT_OFFSET), CC0_LINK_TEXT, CC0_LINK_TEXT_LENGTH);
+        cc0_compiler_copy_bytes(add(CC0_LINK_OUTPUT,
+            CC0_LINK_DATA_OFFSET), CC0_LINK_DATA, CC0_LINK_DATA_LENGTH);
+        return cc0_link_apply_relocations();
+    }
     cc0_link_write_elf_header();
     cc0_link_write_dynamic();
     cc0_link_write_plt();
@@ -6919,11 +7156,21 @@ function cc0_link_(argc, argv, index, argument, output)
     if (cc0_link_collect_relocations()) {
         return CC0_TRUE;
     }
+    CC0_LINK_STATIC = not(eq(cc0_link_find_global(mks("_start"), 6), 0));
     if (cc0_link_collect_imports()) {
         return CC0_TRUE;
     }
-    if (cc0_link_layout()) {
-        return CC0_TRUE;
+    if (CC0_LINK_STATIC) {
+        if (not(eq(CC0_LINK_IMPORT_COUNT, 0))) {
+            return CC0_TRUE;
+        }
+        if (cc0_link_layout_static()) {
+            return CC0_TRUE;
+        }
+    } else {
+        if (cc0_link_layout()) {
+            return CC0_TRUE;
+        }
     }
     if (cc0_link_build_image()) {
         return CC0_TRUE;

@@ -20,6 +20,30 @@ if (runCc0(["cc0", "-c", "../tcc_27_layered_take2/cc1_stubs.c",
             "-o", "cc1_stubs_js.o"]) !== 0) {
     throw new Error("JavaScript cc0 could not compile cc1_stubs.c");
 }
+if (runCc0(["cc0", "-c",
+            "../tcc_27_layered_take2/linux_i386_syscalls.c",
+            "-o", "linux_i386_syscalls_js.o"]) !== 0) {
+    throw new Error("JavaScript cc0 could not compile the syscall entry");
+}
+if (runCc0(["cc0", "-c",
+            "../tcc_27_layered_take2/cc0_static_syscalls.c",
+            "-o", "cc0_static_syscalls_js.o"]) !== 0) {
+    throw new Error("JavaScript cc0 could not compile static syscalls");
+}
+if (runCc0(["cc0", "-c", "../tcc_27_layered_take2/cc0_static_start.c",
+            "-o", "cc0_static_start_js.o"]) !== 0) {
+    throw new Error("JavaScript cc0 could not compile static startup");
+}
+if (runCc0(["cc0", "-c", "../tcc_27_layered_take2/cc0_libc.c",
+            "-o", "cc0_libc_js.o"]) !== 0) {
+    throw new Error("JavaScript cc0 could not compile static libc");
+}
+if (runCc0(["cc0", "cc0_static_start_js.o",
+            "linux_i386_syscalls_js.o", "cc0_static_syscalls_js.o",
+            "cc0_js.o", "cc1_stubs_js.o", "cc0_libc_js.o",
+            "-o", "cc0_static_js.exe"]) !== 0) {
+    throw new Error("JavaScript cc0 could not link static cc0");
+}
 if (runCc0(["cc0", "cc0_js.o", "cc1_stubs_js.o",
             "-o", "cc0_js.exe"]) !== 0) {
     throw new Error("JavaScript cc0 could not link cc0.exe");

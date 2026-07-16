@@ -73,11 +73,6 @@ static const unsigned char tok_two_chars[] = {
 
 extern int case_cmp(const void *first, const void *second);
 
-int cc2_dlsym_default(const char *name)
-{
-    return (int)dlsym(RTLD_DEFAULT, name);
-}
-
 /* The full bridge exposes TCC's normal command-line policy. */
 int cc2_driver_bridge(int argc, char **argv)
 {
@@ -463,11 +458,6 @@ int cc2_error_scope(TCCState *state, int is_assembler, int file_type)
     if (setjmp(state->error_jmp_buf) == 0)
         return cc2_compile_body((int)state, is_assembler, file_type);
     return 0;
-}
-
-int cc2_dlopen_global(const char *filename)
-{
-    return (int)dlopen(filename, RTLD_GLOBAL | RTLD_LAZY);
 }
 
 /* These primitives expose representations that scalar cc2 code cannot

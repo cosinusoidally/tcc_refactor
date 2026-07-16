@@ -1005,7 +1005,6 @@ var CC2_TCC_STATE_NEW_DTAGS_OFFSET;
 var CC2_TCC_STATE_LOADED_DLLS_OFFSET;
 var CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET;
 var CC2_DLL_REFERENCE_LEVEL_OFFSET;
-var CC2_DLL_REFERENCE_HANDLE_OFFSET;
 var CC2_DLL_REFERENCE_NAME_OFFSET;
 var CC2_TCC_OUTPUT_EXE;
 var CC2_ELF_DYNAMIC_NEEDED_TAG;
@@ -6240,16 +6239,6 @@ function tccelf_delete(state)
     }
     dynarray_reset(add(state, CC2_TCC_STATE_PRIVATE_SECTIONS_OFFSET), add(state,
         CC2_TCC_STATE_PRIVATE_SECTION_COUNT_OFFSET));
-    table = ri32(add(state, CC2_TCC_STATE_LOADED_DLLS_OFFSET));
-    count = ri32(add(state, CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET));
-    index = 0;
-    while (lt(index, count)) {
-        entry = ri32(add(table, shl(index, 2)));
-        if (not(eq(ri32(add(entry, CC2_DLL_REFERENCE_HANDLE_OFFSET)), 0))) {
-            dlclose(ri32(add(entry, CC2_DLL_REFERENCE_HANDLE_OFFSET)));
-        }
-        index = add(index, 1);
-    }
     dynarray_reset(add(state, CC2_TCC_STATE_LOADED_DLLS_OFFSET), add(state,
         CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET));
     free(ri32(add(state, CC2_TCC_STATE_SYMBOL_ATTRIBUTES_OFFSET)));
@@ -10339,13 +10328,12 @@ function sort_syms(state, symbol_table)
     return 0;
 }
 
-function relocate_syms(state, symbol_table, resolve_from_process)
+function relocate_syms(state, symbol_table)
 {
     var symbol_offset;
     var symbol;
     var section_index;
     var name;
-    var address;
     var resolved;
     var dynamic_symbols;
     var sections;
@@ -10367,13 +10355,7 @@ function relocate_syms(state, symbol_table, resolve_from_process)
                 CC2_SECTION_LINK_OFFSET)), CC2_SECTION_DATA_POINTER_OFFSET)),
                 ri32(add(symbol, CC2_ELF_SYMBOL_NAME_OFFSET)));
             resolved = 0;
-            if (resolve_from_process) {
-                address = cc2_dlsym_default(name);
-                if (address) {
-                    wi32(add(symbol, CC2_ELF_SYMBOL_VALUE_OFFSET), address);
-                    resolved = 1;
-                }
-            } else if (dynamic_symbols) {
+            if (dynamic_symbols) {
                 if (find_elf_sym(dynamic_symbols, name)) {
                     resolved = 1;
                 }
@@ -11230,8 +11212,7 @@ function final_sections_reloc(state)
     var sections;
     var section;
     var relocation_section;
-    relocate_syms(state, ri32(add(state, CC2_TCC_STATE_SYMBOL_TABLE_OFFSET)),
-        0);
+    relocate_syms(state, ri32(add(state, CC2_TCC_STATE_SYMBOL_TABLE_OFFSET)));
     if (not(eq(ri32(add(state, CC2_TCC_STATE_ERROR_COUNT_OFFSET)), 0))) {
         return sub(0, 1);
     }
@@ -24386,16 +24367,8 @@ function tcc_add_file_internal(state, filename, flags)
         if (eq(object_type, 1)) {
             result = tcc_load_object_file(state, descriptor, 0);
         } else if (eq(object_type, 2)) {
-            if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
-                CC2_TCC_OUTPUT_MEMORY)) {
-                result = 0;
-                if (eq(cc2_dlopen_global(filename), 0)) {
-                    result = sub(0, 1);
-                }
-            } else {
-                result = tcc_load_dll(state, descriptor, filename,
-                    not(eq(and(flags, 32), 0)));
-            }
+            result = tcc_load_dll(state, descriptor, filename,
+                not(eq(and(flags, 32), 0)));
         } else if (eq(object_type, 3)) {
             result = tcc_load_archive(state, descriptor);
         } else {
@@ -27569,7 +27542,7 @@ function cc2_init_constants()
     CC2_ELF_SECTION_HEADER_SIZE_OFFSET = 20;
     CC2_ELF_SECTION_HEADER_LINK_OFFSET = 24;
     CC2_ELF_SYMBOL_OTHER_OFFSET = 13;
-    CC2_DLL_REFERENCE_BYTES = 12;
+    CC2_DLL_REFERENCE_BYTES = 8;
     CC2_REFERENCED_DLL_FLAG = 32;
     CC2_LINKER_TOKEN_NAME = 256;
     CC2_LINKER_TOKEN_EOF = sub(0, 1);
@@ -27743,8 +27716,7 @@ function cc2_init_constants()
     CC2_TCC_STATE_LOADED_DLLS_OFFSET = 136;
     CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET = 140;
     CC2_DLL_REFERENCE_LEVEL_OFFSET = 0;
-    CC2_DLL_REFERENCE_HANDLE_OFFSET = 4;
-    CC2_DLL_REFERENCE_NAME_OFFSET = 8;
+    CC2_DLL_REFERENCE_NAME_OFFSET = 4;
     CC2_TCC_OUTPUT_EXE = 2;
     CC2_ELF_DYNAMIC_NEEDED_TAG = 1;
     CC2_ELF_DYNAMIC_SONAME_TAG = 14;

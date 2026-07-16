@@ -1,0 +1,264 @@
+#!/bin/sh
+
+set -eu
+
+# Establish and verify the lower libc/compiler layer before consuming it.
+./mk_libc_cc0_test
+
+cd ..
+
+LOWER=artifacts/libc_cc0_test
+TEST_ARTIFACTS=artifacts/libc_cc2_test
+CC1_STATIC=$LOWER/cc1_static.exe
+CC1_DYNAMIC=$LOWER/cc1_dynamic.exe
+EXPECTED_STUB_ERROR=$(printf 'atoi is unimplemented')
+
+rm -rf "$TEST_ARTIFACTS"
+mkdir -p "$TEST_ARTIFACTS"
+
+# Both environments consume a byte-identical layer-one libc object.
+"$CC1_STATIC" -c tcc_27_layered_take2/cc1_libc.c \
+    -o "$TEST_ARTIFACTS/cc1_libc.o"
+"$CC1_DYNAMIC" -c tcc_27_layered_take2/cc1_libc.c \
+    -o "$TEST_ARTIFACTS/cc1_libc_dynamic.o"
+cmp "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc1_libc_dynamic.o"
+"$CC1_STATIC" -c tcc_27_layered_take2/cc1_static_start.c \
+    -o "$TEST_ARTIFACTS/cc1_static_start.o"
+
+"$CC1_STATIC" -c tcc_27_layered_take2/tests/layered/cc1_libc_smoke.c \
+    -o "$TEST_ARTIFACTS/cc1_libc_smoke.o"
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc1_libc_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc1_libc_smoke_static.exe"
+"$CC1_DYNAMIC" "$LOWER/cc0_libc.o" "$LOWER/cc0_dynamic_syscalls.o" \
+    "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc1_libc_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc1_libc_smoke_dynamic.exe"
+chmod +x "$TEST_ARTIFACTS/cc1_libc_smoke_static.exe" \
+    "$TEST_ARTIFACTS/cc1_libc_smoke_dynamic.exe"
+
+check_stub_smoke()
+{
+    executable=$1
+    label=$2
+    stdout_file="$TEST_ARTIFACTS/$label.stdout"
+    stderr_file="$TEST_ARTIFACTS/$label.stderr"
+
+    status=0
+    "$executable" >"$stdout_file" 2>"$stderr_file" || status=$?
+    test "$status" -eq 1
+    test ! -s "$stdout_file"
+    test "$(cat "$stderr_file")" = "$EXPECTED_STUB_ERROR"
+    printf '%s: cc1 libc stub diagnostic ok\n' "$label"
+}
+
+check_stub_smoke "$TEST_ARTIFACTS/cc1_libc_smoke_static.exe" \
+    cc1_libc_smoke_static
+check_stub_smoke "$TEST_ARTIFACTS/cc1_libc_smoke_dynamic.exe" \
+    cc1_libc_smoke_dynamic
+cmp "$TEST_ARTIFACTS/cc1_libc_smoke_static.stdout" \
+    "$TEST_ARTIFACTS/cc1_libc_smoke_dynamic.stdout"
+cmp "$TEST_ARTIFACTS/cc1_libc_smoke_static.stderr" \
+    "$TEST_ARTIFACTS/cc1_libc_smoke_dynamic.stderr"
+
+build_and_check_function_smoke()
+{
+    function_name=$1
+    source="tcc_27_layered_take2/tests/layered/cc1_libc_${function_name}_smoke.c"
+    object="$TEST_ARTIFACTS/cc1_libc_${function_name}_smoke.o"
+    static_executable="$TEST_ARTIFACTS/cc1_libc_${function_name}_smoke_static.exe"
+    dynamic_executable="$TEST_ARTIFACTS/cc1_libc_${function_name}_smoke_dynamic.exe"
+
+    "$CC1_STATIC" -c "$source" -o "$object"
+    "$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
+        "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+        "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" "$object" \
+        -o "$static_executable"
+    "$CC1_DYNAMIC" "$LOWER/cc0_libc.o" \
+        "$LOWER/cc0_dynamic_syscalls.o" \
+        "$TEST_ARTIFACTS/cc1_libc.o" "$object" \
+        -o "$dynamic_executable"
+    chmod +x "$static_executable" "$dynamic_executable"
+
+    CC1_LIBC_SMOKE_VALUE=layered "$static_executable" \
+        >"$TEST_ARTIFACTS/${function_name}_static.stdout" \
+        2>"$TEST_ARTIFACTS/${function_name}_static.stderr"
+    CC1_LIBC_SMOKE_VALUE=layered "$dynamic_executable" \
+        >"$TEST_ARTIFACTS/${function_name}_dynamic.stdout" \
+        2>"$TEST_ARTIFACTS/${function_name}_dynamic.stderr"
+    test ! -s "$TEST_ARTIFACTS/${function_name}_static.stdout"
+    test ! -s "$TEST_ARTIFACTS/${function_name}_static.stderr"
+    cmp "$TEST_ARTIFACTS/${function_name}_static.stdout" \
+        "$TEST_ARTIFACTS/${function_name}_dynamic.stdout"
+    cmp "$TEST_ARTIFACTS/${function_name}_static.stderr" \
+        "$TEST_ARTIFACTS/${function_name}_dynamic.stderr"
+    printf 'cc1 libc %s: static/dynamic functionality ok\n' "$function_name"
+}
+
+build_and_check_function_smoke memset
+build_and_check_function_smoke calloc
+build_and_check_function_smoke free
+build_and_check_function_smoke strlen
+build_and_check_function_smoke strcpy
+build_and_check_function_smoke memmove
+build_and_check_function_smoke memcpy
+build_and_check_function_smoke memcmp
+build_and_check_function_smoke getenv
+build_and_check_function_smoke strcmp
+build_and_check_function_smoke strcat
+build_and_check_function_smoke unlink
+build_and_check_function_smoke fopen
+build_and_check_function_smoke fwrite
+build_and_check_function_smoke fputc
+build_and_check_function_smoke fclose
+build_and_check_function_smoke fflush
+build_and_check_function_smoke fread
+build_and_check_function_smoke fputs
+build_and_check_function_smoke fseek
+build_and_check_function_smoke ftell
+build_and_check_function_smoke vsnprintf
+build_and_check_function_smoke fprintf
+build_and_check_function_smoke snprintf
+build_and_check_function_smoke sprintf
+build_and_check_function_smoke strncmp
+build_and_check_function_smoke setjmp
+build_and_check_function_smoke strchr
+
+"$CC1_STATIC" -c tcc_27_layered_take2/tests/layered/cc1_libc_printf_smoke.c \
+    -o "$TEST_ARTIFACTS/cc1_libc_printf_smoke.o"
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc1_libc_printf_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc1_libc_printf_smoke_static.exe"
+"$CC1_DYNAMIC" "$LOWER/cc0_libc.o" "$LOWER/cc0_dynamic_syscalls.o" \
+    "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc1_libc_printf_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc1_libc_printf_smoke_dynamic.exe"
+chmod +x "$TEST_ARTIFACTS/cc1_libc_printf_smoke_static.exe" \
+    "$TEST_ARTIFACTS/cc1_libc_printf_smoke_dynamic.exe"
+"$TEST_ARTIFACTS/cc1_libc_printf_smoke_static.exe" \
+    >"$TEST_ARTIFACTS/printf_static.stdout" \
+    2>"$TEST_ARTIFACTS/printf_static.stderr"
+"$TEST_ARTIFACTS/cc1_libc_printf_smoke_dynamic.exe" \
+    >"$TEST_ARTIFACTS/printf_dynamic.stdout" \
+    2>"$TEST_ARTIFACTS/printf_dynamic.stderr"
+test "$(cat "$TEST_ARTIFACTS/printf_static.stdout")" = 'printf:0a:-3'
+test ! -s "$TEST_ARTIFACTS/printf_static.stderr"
+cmp "$TEST_ARTIFACTS/printf_static.stdout" \
+    "$TEST_ARTIFACTS/printf_dynamic.stdout"
+cmp "$TEST_ARTIFACTS/printf_static.stderr" \
+    "$TEST_ARTIFACTS/printf_dynamic.stderr"
+printf 'cc1 libc printf: static/dynamic functionality ok\n'
+
+# cc1 owns the cc2 bootstrap sources and lower static linker owns this link.
+"$CC1_STATIC" -c tcc_27_layered_take2/cc2_boot_unified.c \
+    -o "$TEST_ARTIFACTS/cc2_boot_unified.o"
+"$CC1_STATIC" -c tcc_27_layered_take2/cc2.c \
+    -o "$TEST_ARTIFACTS/cc2.o"
+"$CC1_STATIC" -c tcc_27_layered_take2/cc2_backend_stubs.c \
+    -o "$TEST_ARTIFACTS/cc2_backend_stubs.o"
+"$CC1_STATIC" -c tcc_27_layered_take2/cc2_libc_stubs.c \
+    -o "$TEST_ARTIFACTS/cc2_libc_stubs.o"
+"$CC1_STATIC" -c tcc_27_layered_take2/cc2_float_libc_stubs.c \
+    -o "$TEST_ARTIFACTS/cc2_float_libc_stubs.o"
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    artifacts/cc0.o "$LOWER/cc1.o" \
+    "$TEST_ARTIFACTS/cc2_boot_unified.o" \
+    "$TEST_ARTIFACTS/cc2_backend_stubs.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc2_libc_stubs.o" \
+    -o "$TEST_ARTIFACTS/cc2_boot_static.exe"
+chmod +x "$TEST_ARTIFACTS/cc2_boot_static.exe"
+
+# The transitional compiler builds the typed TCC bridge and runtime. Linking
+# these with the separate cc2 layer produces the complete static cc2 compiler.
+"$TEST_ARTIFACTS/cc2_boot_static.exe" \
+    -nostdinc \
+    -I tcc_27_layered_take2/bootstrap_include/ \
+    -I tcc_27_layered_take2/include -I tcc_27_layered_take2/ \
+    -c tcc_27_layered_take2/tcc_unified.c -U__linux__ \
+    -o "$TEST_ARTIFACTS/tcc_rest.o"
+"$TEST_ARTIFACTS/cc2_boot_static.exe" -nostdinc \
+    -c tcc_27_layered_take2/cc2_runtime.c \
+    -o "$TEST_ARTIFACTS/cc2_runtime.o"
+"$TEST_ARTIFACTS/cc2_boot_static.exe" -nostdinc \
+    -c tcc_27_layered_take2/cc2_libc_qsort.c \
+    -o "$TEST_ARTIFACTS/cc2_libc_qsort.o"
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    artifacts/cc0.o "$LOWER/cc1.o" "$TEST_ARTIFACTS/cc2.o" \
+    "$TEST_ARTIFACTS/tcc_rest.o" "$TEST_ARTIFACTS/cc2_runtime.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc2_libc_qsort.o" \
+    "$TEST_ARTIFACTS/cc2_float_libc_stubs.o" \
+    -o "$TEST_ARTIFACTS/cc2_static_boot.exe"
+chmod +x "$TEST_ARTIFACTS/cc2_static_boot.exe"
+
+# Full cc2 has the floating backend needed to build the real conversions.
+"$TEST_ARTIFACTS/cc2_static_boot.exe" -nostdinc \
+    -c tcc_27_layered_take2/cc2_libc.c \
+    -o "$TEST_ARTIFACTS/cc2_libc.o"
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    artifacts/cc0.o "$LOWER/cc1.o" "$TEST_ARTIFACTS/cc2.o" \
+    "$TEST_ARTIFACTS/tcc_rest.o" "$TEST_ARTIFACTS/cc2_runtime.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc2_libc_qsort.o" "$TEST_ARTIFACTS/cc2_libc.o" \
+    -o "$TEST_ARTIFACTS/cc2_static.exe"
+chmod +x "$TEST_ARTIFACTS/cc2_static.exe"
+
+"$TEST_ARTIFACTS/cc2_static.exe" -nostdinc \
+    -c tcc_27_layered_take2/tests/layered/cc2_libc_qsort_smoke.c \
+    -o "$TEST_ARTIFACTS/cc2_libc_qsort_smoke.o"
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc2_libc_qsort.o" \
+    "$TEST_ARTIFACTS/cc2_libc_qsort_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc2_libc_qsort_smoke.exe"
+chmod +x "$TEST_ARTIFACTS/cc2_libc_qsort_smoke.exe"
+"$TEST_ARTIFACTS/cc2_libc_qsort_smoke.exe"
+printf 'cc2 libc qsort: functionality ok\n'
+
+"$TEST_ARTIFACTS/cc2_static.exe" -nostdinc \
+    -c tcc_27_layered_take2/tests/layered/cc2_libc_strtod_smoke.c \
+    -o "$TEST_ARTIFACTS/cc2_libc_strtod_smoke.o"
+"$CC1_STATIC" "$TEST_ARTIFACTS/cc1_static_start.o" \
+    "$LOWER/linux_i386_syscalls.o" "$LOWER/cc0_static_syscalls.o" \
+    "$LOWER/cc0_libc.o" "$TEST_ARTIFACTS/cc1_libc.o" \
+    "$TEST_ARTIFACTS/cc2_libc.o" "$TEST_ARTIFACTS/cc2_runtime.o" \
+    "$TEST_ARTIFACTS/cc2_libc_strtod_smoke.o" \
+    -o "$TEST_ARTIFACTS/cc2_libc_strtod_smoke.exe"
+chmod +x "$TEST_ARTIFACTS/cc2_libc_strtod_smoke.exe"
+"$TEST_ARTIFACTS/cc2_libc_strtod_smoke.exe"
+printf 'cc2 libc strtod family: functionality ok\n'
+
+# Enter the complete compiler to expose the first remaining libc boundary.
+status=0
+"$TEST_ARTIFACTS/cc2_static.exe" \
+    -c tcc_27_layered_take2/tests/layered/cc2_compile_smoke.c \
+    -o "$TEST_ARTIFACTS/cc2_compile_smoke.o" \
+    >"$TEST_ARTIFACTS/cc2_static.stdout" \
+    2>"$TEST_ARTIFACTS/cc2_static.stderr" || status=$?
+test ! -s "$TEST_ARTIFACTS/cc2_static.stdout"
+if test "$status" -eq 0; then
+    test ! -s "$TEST_ARTIFACTS/cc2_static.stderr"
+    test -s "$TEST_ARTIFACTS/cc2_compile_smoke.o"
+    printf 'cc2_static: compiled cc2 smoke successfully\n'
+else
+    test "$status" -eq 1
+    grep -E '^[a-z][a-z0-9]* is unimplemented$' \
+        "$TEST_ARTIFACTS/cc2_static.stderr" >/dev/null
+    printf 'cc2_static: first missing service: %s\n' \
+        "$(cat "$TEST_ARTIFACTS/cc2_static.stderr")"
+fi
+
+if readelf -l "$TEST_ARTIFACTS/cc2_static.exe" 2>/dev/null | \
+    grep -q INTERP; then
+    exit 1
+fi

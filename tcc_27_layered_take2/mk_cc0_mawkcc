@@ -19,8 +19,16 @@ cd artifacts
 ./cc0_mawkcc.exe -c ../tcc_27_layered_take2/cc0.c -o cc0.o
 ./cc0_mawkcc.exe -c ../tcc_27_layered_take2/cc1_stubs.c \
     -o cc1_stubs.o
+./cc0_mawkcc.exe -c ../tcc_27_layered_take2/linux_i386_syscalls.c \
+    -o linux_i386_syscalls_mawkcc.o
+./cc0_mawkcc.exe -c ../tcc_27_layered_take2/cc0_static_syscalls.c \
+    -o cc0_static_syscalls_mawkcc.o
+./cc0_mawkcc.exe -c ../tcc_27_layered_take2/cc0_static_start.c \
+    -o cc0_static_start_mawkcc.o
+./cc0_mawkcc.exe -c ../tcc_27_layered_take2/cc0_libc.c \
+    -o cc0_libc_mawkcc.o
+./cc0_mawkcc.exe cc0_static_start_mawkcc.o \
+    linux_i386_syscalls_mawkcc.o cc0_static_syscalls_mawkcc.o \
+    cc0.o cc1_stubs.o cc0_libc_mawkcc.o -o cc0_static.exe
+chmod +x cc0_static.exe
 ./cc0_mawkcc.exe cc0.o cc1_stubs.o -o cc0.exe
-./cc0.exe -c ../tcc_27_layered_take2/cc0.c -o cc0_self.o
-./cc0.exe -c ../tcc_27_layered_take2/cc1_stubs.c -o cc1_stubs_self.o
-cmp cc0.o cc0_self.o
-cmp cc1_stubs.o cc1_stubs_self.o
