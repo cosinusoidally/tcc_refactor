@@ -1,0 +1,50 @@
+#!/bin/sh
+
+set -eu
+cd ..
+
+MAWKCC=../ai_experiments/mawkcc/artifacts/mawkcc.self.exe
+TEST_ARTIFACTS=artifacts/mawkcc_relocation_test
+MAX_RELOCATIONS=8192
+OVER_LIMIT_RELOCATIONS=$((MAX_RELOCATIONS + 1))
+
+test -x "$MAWKCC"
+rm -rf "$TEST_ARTIFACTS"
+mkdir -p "$TEST_ARTIFACTS"
+
+make_source()
+{
+    relocation_count=$1
+    output=$2
+
+    # Each unresolved external call produces one ELF relocation.
+    awk -v count="$relocation_count" '
+        BEGIN {
+            print "function main() {"
+            for (i = 0; i < count; i++) {
+                print "    external();"
+            }
+            print "    return 0;"
+            print "}"
+        }
+    ' > "$output"
+}
+
+make_source "$MAX_RELOCATIONS" "$TEST_ARTIFACTS/at_limit.c"
+make_source "$OVER_LIMIT_RELOCATIONS" "$TEST_ARTIFACTS/over_limit.c"
+
+"$MAWKCC" -c "$TEST_ARTIFACTS/at_limit.c" \
+    -o "$TEST_ARTIFACTS/at_limit.o"
+test -s "$TEST_ARTIFACTS/at_limit.o"
+
+set +e
+"$MAWKCC" -c "$TEST_ARTIFACTS/over_limit.c" \
+    -o "$TEST_ARTIFACTS/over_limit.o"
+over_limit_status=$?
+set -e
+
+test "$over_limit_status" -ne 0
+test ! -e "$TEST_ARTIFACTS/over_limit.o"
+
+printf 'mawkcc accepts %s relocations and rejects %s (status %s)\n' \
+    "$MAX_RELOCATIONS" "$OVER_LIMIT_RELOCATIONS" "$over_limit_status"
