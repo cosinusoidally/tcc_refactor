@@ -409,6 +409,8 @@ function cc2_boot_init_keywords()
     cc2_boot_add_keyword(mks("__fixdfdi"));
     cc2_boot_add_keyword(mks("__fixxfdi"));
     cc2_boot_add_keyword(mks("alloca"));
+    /* The bootstrap assembler needs only the auditable raw-byte directive. */
+    cc2_boot_add_keyword(mks(".byte"));
     wi8(add(CC2_BOOT_KEYWORDS, CC2_BOOT_KEYWORD_POSITION), 0);
     return CC2_BOOT_KEYWORDS;
 }

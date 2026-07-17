@@ -1,8 +1,9 @@
 # TCC 0.9.27 Layered Bootstrap, Take 3
 
-Take3 is a two-layer i386 Linux refactor of TCC 0.9.27. The compiler starts
-from a source file that is simultaneously valid C, SpiderMonkey 45 JavaScript,
-and mawkcc input, then advances directly to the full typed TCC layer.
+Take3 is a two-layer i386 Linux refactor of TCC 0.9.27. The retained cc1
+routes start from a small source file that is valid C, SpiderMonkey 45
+JavaScript, and mawkcc input. The direct cc2 routes instead execute or compile
+the full typed compiler as the seed and skip cc1 completely.
 
 The supported target is deliberately limited to 32-bit i386 Linux. The final
 compiler provides TCC's i386 code generator, assembler, archive handling, and
@@ -45,7 +46,9 @@ preprocessor, parser, i386 backend, assembler, archive support, and ELF linker.
 It is also directly valid SpiderMonkey JavaScript and directly compilable by
 cc1.
 
-cc1 is used only to produce a transitional cc2 tool. That tool builds every
+In the retained cc1 routes, cc1 is used only to produce a transitional cc2
+tool. In the direct routes, GCC or SpiderMonkey produces that disposable cc2
+seed without compiling or running cc1. In both cases the seed builds every
 object in canonical cc2 generation one; generation one rebuilds every object
 and executable as generation two, and the scripts require byte identity for
 each pair. No cc1-built object is linked into `cc2.exe`, `cc2_static.exe`, or
@@ -65,9 +68,26 @@ bridge is in `cc2_tcc_prims.c`.
 supplied by libgcc. The static chain extends the libc in explicit levels:
 `cc0_libc.c`, `cc1_libc.c`, `cc2_libc_qsort.c`, and `cc2_libc.c`.
 
-## Bootstrap Graph
+## Bootstrap Graphs
 
-The dynamic graph is:
+The shortest dynamic graph is:
+
+```text
+GCC or SpiderMonkey
+  -> disposable full cc2 seed (no cc1 source or object)
+  -> cc2 generation 1 (all objects built by cc2)
+  -> identical cc2 generation 2 (all objects rebuilt by generation 1)
+  -> tcc_layered.exe
+  -> stock TCC 0.9.27 outputs
+  -> sums_tcc_27 verification
+```
+
+The direct static graph uses the same seed to build two bit-identical static
+cc2 generations and publishes generation two as `tcc_layered_static.exe`.
+Compiler objects are identical between the dynamic and static generations;
+only startup and libc objects select the link mode.
+
+The retained cc1 dynamic graph is:
 
 ```text
 SpiderMonkey or mawkcc
@@ -82,7 +102,7 @@ SpiderMonkey or mawkcc
   -> sums_tcc_27 verification
 ```
 
-The fully static graph is independent after the seed:
+The retained cc1 fully static graph is independent after the seed:
 
 ```text
 SpiderMonkey or mawkcc
@@ -123,6 +143,21 @@ artifacts/cc1_static.exe
 The seed script does not clean artifacts. Clean before testing it so stale
 objects cannot conceal a failure.
 
+To skip cc1 and execute `cc2.c` directly in SpiderMonkey, use:
+
+```sh
+./mk_clean
+cd tcc_27_layered_take3
+./mk_cc2_js
+```
+
+The JavaScript seed loads `prims.js`, bootstrap storage, backend stubs, and
+`cc2.c`. It compiles a disposable native full cc2, then `mk_cc2_from_seed`
+performs complete dynamic and static two-generation self-host checks and
+publishes `artifacts/cc2.exe` and `artifacts/cc2_static.exe`. `prims.js`
+provides primitive byte-memory and descriptor operations, a no-op `free`, and
+a deliberately inert `unlink`; it is not a JavaScript host-libc replacement.
+
 ## mawkcc Seed
 
 Run from the repository root:
@@ -145,6 +180,13 @@ disposable `cc1_mawkcc.exe`, which then compiles the canonical cc1 objects and
 links `cc1.exe` and `cc1_static.exe`. The compatibility suffix is present only
 in the disposable seed.
 
+`mk_cc2_mawkcc` is the corresponding direct-cc2 experiment. It contains no
+cc1 input and is structured to feed a successful seed into the same
+`mk_cc2_from_seed` self-host check. A current mawkcc probe does not yet compile
+the full cc2 input: it reports unsupported expressions and exhausts its
+relocation capacity. This route is therefore retained for further dialect and
+mawkcc-capacity work, but is not currently a passing bootstrap path.
+
 ## GCC Seed
 
 Run from the repository root:
@@ -161,6 +203,18 @@ than GCC, produces the canonical `cc1.o`, `cc2_stubs.o`, `cc1.exe`, and
 `cc1_static.exe`. Those canonical artifacts are byte-identical to the
 JavaScript and mawkcc seed results.
 
+To build cc2 directly with GCC and omit cc1 entirely, use:
+
+```sh
+./mk_clean
+cd tcc_27_layered_take3
+./mk_cc2_gcc
+```
+
+GCC builds only the disposable seed. That seed then builds both canonical
+cc2 generations and their static counterparts; no GCC-built object survives
+in either published executable.
+
 ## Full Builds
 
 After either seed, build the dynamic compiler with:
@@ -174,6 +228,17 @@ Build the completely static compiler chain with:
 ```sh
 ./mk_tcc_layered_via_cc1_static
 ```
+
+After `mk_cc2_gcc` or `mk_cc2_js`, continue the direct chains with:
+
+```sh
+./mk_tcc_layered_via_cc2
+./mk_tcc_layered_via_cc2_static
+```
+
+These scripts read only canonical cc2 generation objects. They do not build,
+execute, or link cc1. Both build the stock TCC outputs and verify the immutable
+`sums_tcc_27` hashes.
 
 Do not run `mk_clean` between the seed and full-chain script. Neither full
 chain invokes GCC or a pre-existing TCC. The dynamic chain links against the

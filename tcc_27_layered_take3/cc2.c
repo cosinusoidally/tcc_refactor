@@ -6523,11 +6523,15 @@ function asm_new_label(state, label, is_local)
 function asm_section_sym(state, section)
 {
     var buffer;
+    var capacity;
     var token_symbol;
     var label;
     var symbol;
-    buffer = malloc(add(strlen(add(section, CC2_SECTION_NAME_OFFSET)), 3));
-    sprintf(buffer, mks("L.%s"), add(section, CC2_SECTION_NAME_OFFSET));
+    capacity = add(strlen(add(section, CC2_SECTION_NAME_OFFSET)), 3);
+    buffer = malloc(capacity);
+    pstrcpy(buffer, capacity, mks("L."));
+    pstrcat(buffer, capacity,
+        add(section, CC2_SECTION_NAME_OFFSET));
     token_symbol = tok_alloc(buffer, strlen(buffer));
     label = ri32(add(token_symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET));
     free(buffer);
@@ -24345,7 +24349,15 @@ function tcc_add_library_internal(state, format, filename, flags, paths,
         capacity = add(add(strlen(format), strlen(path)),
             add(strlen(filename), 1));
         candidate = malloc(capacity);
-        sprintf(candidate, format, path, filename);
+        pstrcpy(candidate, capacity, path);
+        if (eq(strcmp(format, mks("%s/lib%s.a")), 0)) {
+            pstrcat(candidate, capacity, mks("/lib"));
+            pstrcat(candidate, capacity, filename);
+            pstrcat(candidate, capacity, mks(".a"));
+        } else {
+            pstrcat(candidate, capacity, mks("/"));
+            pstrcat(candidate, capacity, filename);
+        }
         if (eq(tcc_add_file_internal(state, candidate, or(flags, 64)), 0)) {
             free(candidate);
             return 0;
@@ -24574,6 +24586,7 @@ function tcc_define_symbol(state, name, value)
     var value_length;
     var source_file;
     var buffer;
+    var saved_parse_flags;
     if (eq(value, 0)) {
         value = mks("1");
     }
@@ -24586,9 +24599,16 @@ function tcc_define_symbol(state, name, value)
     memcpy(buffer, name, name_length);
     wi8(add(buffer, name_length), mkC(" "));
     memcpy(add(buffer, add(name_length, 1)), value, value_length);
+    /* A synthetic definition is not an include in the enclosing source. */
+    saved_parse_flags = ri32(parse_flags_address);
+    wi32(parse_flags_address, 0);
     next_nomacro();
     parse_define();
-    tcc_close();
+    /* Preprocess EOF handling may already have restored an enclosing file. */
+    if (eq(ri32(file_address), source_file)) {
+        tcc_close();
+    }
+    wi32(parse_flags_address, saved_parse_flags);
     return 0;
 }
 
@@ -27025,7 +27045,7 @@ function cc2_init_constants()
     CC2_BUFFERED_FILE_BUFFER_OFFSET = 1072;
     CC2_INPUT_BUFFER_BYTES = 8192;
     CC2_CHARACTER_END_OF_BUFFER = mkC("\\");
-    CC2_CHARACTER_END_OF_FILE = 4294967295;
+    CC2_CHARACTER_END_OF_FILE = sub(0, 1);
     CC2_CHARACTER_LINE_FEED = mkC("\n");
     CC2_CHARACTER_CARRIAGE_RETURN = mkC("\r");
     CC2_PARSE_FLAG_ACCEPT_STRAYS = 32;

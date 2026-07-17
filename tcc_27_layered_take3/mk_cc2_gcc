@@ -1,0 +1,25 @@
+#!/bin/sh
+
+# GCC builds only a disposable standalone cc2 seed. cc2 itself produces every
+# object in both canonical dynamic and static self-host generations.
+set -eux
+cd ..
+mkdir -p artifacts
+
+SOURCE=tcc_27_layered_take3
+INCLUDE=../tcc_bootstrap_alt/woody/usr/include
+gcc -m32 -O0 -nostdinc -std=gnu89 -c "$SOURCE/prims.c" \
+    -o artifacts/cc2_gcc_prims.o
+gcc -m32 -O0 -nostdinc -std=gnu89 -Dfunction=int -Dvar=int \
+    -c "$SOURCE/cc2.c" -o artifacts/cc2_gcc.o
+gcc -m32 -O0 -nostdinc -std=gnu89 -I "$INCLUDE" -I "$SOURCE/include" \
+    -I "$SOURCE" -c "$SOURCE/tcc_unified.c" \
+    -o artifacts/cc2_gcc_tcc_rest.o
+gcc -m32 -O0 -nostdinc -std=gnu89 -c "$SOURCE/cc2_runtime.c" \
+    -o artifacts/cc2_gcc_runtime.o
+gcc -m32 artifacts/cc2_gcc_prims.o artifacts/cc2_gcc.o \
+    artifacts/cc2_gcc_tcc_rest.o artifacts/cc2_gcc_runtime.o \
+    -lm -o artifacts/cc2_gcc_seed.exe
+
+CC2_SEED=artifacts/cc2_gcc_seed.exe \
+    tcc_27_layered_take3/mk_cc2_from_seed

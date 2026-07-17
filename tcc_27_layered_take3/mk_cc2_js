@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# SpiderMonkey directly executes cc2 and builds a disposable native cc2 seed.
+# No cc1 source, object, or executable participates in this path.
+set -eu
+cd ..
+mkdir -p artifacts
+
+RUNTIME_LIBDIR=/lib/i386-linux-gnu
+if test ! -f "$RUNTIME_LIBDIR/libc.so.6"; then
+    RUNTIME_LIBDIR=/usr/lib/i386-linux-gnu
+fi
+test -f "$RUNTIME_LIBDIR/libc.so.6"
+test -f "$RUNTIME_LIBDIR/libm.so.6"
+ln -sf "$RUNTIME_LIBDIR/libc.so.6" artifacts/cc2_js_libc.so
+ln -sf "$RUNTIME_LIBDIR/libm.so.6" artifacts/cc2_js_libm.so
+
+cd artifacts
+js ../tcc_27_layered_take3/tests/layered/cc2_js_bootstrap.js
+chmod +x cc2_js_seed.exe
+cd ..
+
+CC2_SEED=artifacts/cc2_js_seed.exe \
+    tcc_27_layered_take3/mk_cc2_from_seed
