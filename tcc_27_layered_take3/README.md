@@ -28,8 +28,9 @@ and enum/typedef/array lowering pass was redundant. Take3 therefore seeds
 `cc1.c` directly and retains no `cc0.exe`, `cc0_static.exe`, or
 `cc1_stubs.c` stage.
 
-The dialect remains named `cc0` in the `-std=cc0` option. That name describes
-the source language, not a compiler layer.
+The source language is still referred to as the cc0 dialect, but full-compiler
+builds now expose its declaration spellings explicitly with `-Dfunction=int`
+and `-Dvar=int` rather than relying on the legacy `-std=cc0` shorthand.
 
 `cc1.c` uses `function`, `var`, assignments, calls, and lowercase primitives
 such as `add`, `sub`, `ri32`, and `wi8`. Operators are implemented by host
@@ -44,8 +45,11 @@ preprocessor, parser, i386 backend, assembler, archive support, and ELF linker.
 It is also directly valid SpiderMonkey JavaScript and directly compilable by
 cc1.
 
-cc1 is used as a bootstrap tool to produce the first cc2 objects, but no
-`cc1.o` code is linked into `cc2.exe`, `cc2_static.exe`, or either final TCC.
+cc1 is used only to produce a transitional cc2 tool. That tool builds every
+object in canonical cc2 generation one; generation one rebuilds every object
+and executable as generation two, and the scripts require byte identity for
+each pair. No cc1-built object is linked into `cc2.exe`, `cc2_static.exe`, or
+either final TCC.
 cc2 owns its `main` entry point and the small lexical/number helper surface it
 needs. Its object and typed bridge have no unresolved `cc0_*` or `cc1_*`
 dependencies. The two layers are independently runnable compilers, not
@@ -70,8 +74,10 @@ SpiderMonkey or mawkcc
   -> cc1.o + cc2_stubs.o
   -> cc1.exe
   -> independent cc2_boot.exe (no cc1.o)
-  -> cc2.exe
-  -> tcc_layered.exe
+  -> transitional full cc2
+  -> cc2 generation 1 (all objects built by cc2)
+  -> identical cc2 generation 2 (all objects rebuilt by generation 1)
+  -> tcc_layered.exe (the canonical generation-2 cc2)
   -> stock TCC 0.9.27 outputs
   -> sums_tcc_27 verification
 ```
@@ -83,8 +89,10 @@ SpiderMonkey or mawkcc
   -> cc1_static.exe
   -> independent cc2_boot_static.exe (no cc1.o)
   -> cc2_static_boot.exe
-  -> cc2_static.exe
-  -> tcc_layered_static.exe
+  -> transitional full static cc2
+  -> static cc2 generation 1 (all objects built by cc2)
+  -> identical static cc2 generation 2
+  -> tcc_layered_static.exe (the canonical generation-2 static cc2)
   -> stock TCC 0.9.27 outputs
   -> sums_tcc_27 verification
 ```
@@ -217,7 +225,9 @@ five-argument i386 `int 0x80` entry. Higher syscall wrappers call that function;
 cc1 never inlines syscalls.
 
 `cc0_static_syscalls.c` implements the low-level file and break operations.
-`cc0_static_start.c` and `cc1_static_start.c` provide process startup.
+`cc0_static_start.c` and `cc1_static_start.c` provide seed startup.
+`linux_i386_start.c`, `cc2_start.c`, and `cc2_static_start.c` provide ordinary
+full-compiler i386 startup without depending on cc1's entry adapter.
 `cc0_libc.c` provides the base allocation and descriptor operations, while
 `cc1_libc.c` adds the libc surface needed to enter cc2. The allocator uses
 `brk` in 4 KiB increments. Descriptor caching avoids per-byte compiler I/O.

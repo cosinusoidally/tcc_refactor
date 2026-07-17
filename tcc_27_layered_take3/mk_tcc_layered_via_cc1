@@ -41,27 +41,62 @@ cat ../tcc_27_layered_take3/cc2.c \
     -o cc2_runtime_boot.o
 # The transitional executable still uses the lower linker, which owns the
 # base-case ELF entry adapter.  The resulting full cc2 performs the final link.
-./cc1.exe cc2.o tcc_rest.o cc2_runtime_boot.o -o cc2.exe
-chmod +x cc2.exe
+./cc1.exe cc2.o tcc_rest.o cc2_runtime_boot.o -o cc2_transition.exe
+chmod +x cc2_transition.exe
 
-# cc2 is the full TCC layer.  It rebuilds every final compiler-owned object.
-./cc2.exe -nostdinc -c ../tcc_27_layered_take3/prims.c -o prims_final.o
-./cc2.exe -nostdinc -std=cc0 -c ../tcc_27_layered_take3/cc2.c \
-    -o cc2_final.o
-./cc2.exe -nostdinc -c ../tcc_27_layered_take3/cc2_runtime.c \
-    -o cc2_runtime_final.o
-./cc2.exe \
-    -nostdinc \
-    -I ../../tcc_bootstrap_alt/woody/usr/include/ \
-    -I ../tcc_27_layered_take3/include -I ../tcc_27_layered_take3/ \
-    -c ../tcc_27_layered_take3/tcc_unified.c -U__linux__ \
-    -o tcc_rest_final.o
-./cc2.exe -nostdlib crt1.o \
-    prims_final.o cc2_final.o tcc_rest_final.o \
-    cc2_runtime_final.o \
-    "$HOST_LIBC" "$HOST_LIBM" \
-    -o tcc_layered.exe
-chmod +x tcc_layered.exe
+# Use identical working-directory layouts so source and object names cannot
+# hide a non-reproducible self-host. cc1 contributes only the transition tool;
+# none of its object code enters either canonical generation.
+build_cc2_generation()
+{
+    directory=$1
+    compiler=$2
+    rm -rf "$directory"
+    mkdir -p "$directory"
+    (
+        cd "$directory"
+        "$compiler" -nostdinc \
+            -c ../../tcc_27_layered_take3/linux_i386_start.c \
+            -o linux_i386_start.o
+        "$compiler" -nostdinc -c ../../tcc_27_layered_take3/cc2_start.c \
+            -o cc2_start.o
+        "$compiler" -nostdinc -c ../../tcc_27_layered_take3/prims.c \
+            -o prims.o
+        "$compiler" -nostdinc -Dfunction=int -Dvar=int \
+            -c ../../tcc_27_layered_take3/cc2.c -o cc2.o
+        "$compiler" -nostdinc \
+            -c ../../tcc_27_layered_take3/cc2_runtime.c -o cc2_runtime.o
+        "$compiler" -nostdinc \
+            -I ../../../tcc_bootstrap_alt/woody/usr/include/ \
+            -I ../../tcc_27_layered_take3/include \
+            -I ../../tcc_27_layered_take3/ \
+            -c ../../tcc_27_layered_take3/tcc_unified.c -U__linux__ \
+            -o tcc_rest.o
+        "$compiler" -nostdlib linux_i386_start.o cc2_start.o prims.o \
+            cc2.o tcc_rest.o cc2_runtime.o "$HOST_LIBC" "$HOST_LIBM" \
+            -o cc2.exe
+        chmod +x cc2.exe
+    )
+}
+
+build_cc2_generation cc2_selfhost_1 ../cc2_transition.exe
+build_cc2_generation cc2_selfhost_2 ../cc2_selfhost_1/cc2.exe
+for object in linux_i386_start.o cc2_start.o prims.o cc2.o cc2_runtime.o \
+    tcc_rest.o cc2.exe
+do
+    cmp "cc2_selfhost_1/$object" "cc2_selfhost_2/$object"
+done
+
+# Publish only generation-two products. The layered compiler is precisely the
+# independently linked, fully self-hosted cc2 compiler.
+cp cc2_selfhost_2/cc2_start.o cc2_start.o
+cp cc2_selfhost_2/linux_i386_start.o linux_i386_start.o
+cp cc2_selfhost_2/prims.o prims_final.o
+cp cc2_selfhost_2/cc2.o cc2_final.o
+cp cc2_selfhost_2/cc2_runtime.o cc2_runtime_final.o
+cp cc2_selfhost_2/tcc_rest.o tcc_rest_final.o
+cp cc2_selfhost_2/cc2.exe cc2.exe
+cp cc2_selfhost_2/cc2.exe tcc_layered.exe
 
 # Build the stock TCC 0.9.27 compatibility artifacts and verify their fixed
 # reference hashes.  The source is stock tcc_27; the compiler is layered TCC.

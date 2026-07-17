@@ -47,7 +47,16 @@ cd ../tcc_27_layered_take3
 ./mk_tcc_layered_via_cc1
 
 cd ..
-if nm -u artifacts/cc2.o artifacts/tcc_rest.o artifacts/cc2_final.o | \
+for object in linux_i386_start.o cc2_start.o prims.o cc2.o \
+    cc2_runtime.o tcc_rest.o cc2.exe
+do
+    cmp "artifacts/cc2_selfhost_1/$object" \
+        "artifacts/cc2_selfhost_2/$object"
+done
+cmp artifacts/cc2_selfhost_2/cc2.exe artifacts/cc2.exe
+cmp artifacts/cc2.exe artifacts/tcc_layered.exe
+if nm -u artifacts/cc2_selfhost_2/cc2.o \
+    artifacts/cc2_selfhost_2/tcc_rest.o | \
     grep -E ' U cc(0|1)_'; then
     echo 'cc2 retains a cc0/cc1 object dependency' >&2
     exit 1

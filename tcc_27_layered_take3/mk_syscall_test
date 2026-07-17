@@ -49,7 +49,7 @@ test "$output" = "hello world"
 "$LAYERED_TCC" -nostdinc -O0 -Dfunction=int \
     -c tcc_27_layered_take3/linux_i386_syscalls.c \
     -o "$LAYERED_ARTIFACTS/linux_i386_syscalls.o"
-"$LAYERED_TCC" -nostdinc -O0 -std=cc0 \
+"$LAYERED_TCC" -nostdinc -O0 -Dfunction=int -Dvar=int \
     -c tcc_27_layered_take3/tests/layered/syscall_hello.c \
     -o "$LAYERED_ARTIFACTS/syscall_hello.o"
 "$LAYERED_TCC" -nostdlib -static \

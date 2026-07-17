@@ -67,7 +67,8 @@ compile_tcc_matrix()
 {
     compiler=$1
     directory=$2
-    dialect=$3
+    shift 2
+    dialect="$*"
     "$compiler" -nostdinc -O0 -c tcc_27_layered_take3/prims.c \
         -o "$directory/prims.o"
     "$compiler" -nostdinc -O0 -Dfunction=int \
@@ -102,9 +103,10 @@ compile_tcc_matrix()
     check_pair "$directory"
 }
 
-compile_tcc_matrix "$LAYERED_TCC" "$LAYERED_ARTIFACTS" -std=cc0
+compile_tcc_matrix "$LAYERED_TCC" "$LAYERED_ARTIFACTS" \
+    -Dfunction=int -Dvar=int
 compile_tcc_matrix "$STATIC_BOOT_TCC" "$STATIC_BOOT_ARTIFACTS" \
-    "-Dfunction=int -Dvar=int"
+    -Dfunction=int -Dvar=int
 
 compile_cc0_matrix()
 {
