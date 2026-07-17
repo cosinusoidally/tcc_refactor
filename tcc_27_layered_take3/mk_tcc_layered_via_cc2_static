@@ -8,7 +8,7 @@ cd ..
 test -x artifacts/cc2_static.exe
 for object in linux_i386_start.o cc2_static_start.o \
     linux_i386_syscalls.o cc0_static_syscalls.o prims.o cc2.o \
-    cc2_runtime.o tcc_rest.o cc0_libc.o cc1_libc.o cc2_libc_qsort.o \
+    cc2_runtime.o tcc_rest.o cc1_libc.o cc1_libc_asm.o cc2_libc_qsort.o \
     cc2_libc.o cc2_static.exe
 do
     cmp "artifacts/cc2_static_selfhost_1/$object" \

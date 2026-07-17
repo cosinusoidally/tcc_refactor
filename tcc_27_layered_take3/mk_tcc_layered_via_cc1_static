@@ -21,16 +21,16 @@ SOURCE=../../tcc_27_layered_take3
 "$CC1" -c "$SOURCE/linux_i386_syscalls.c" -o linux_i386_syscalls.o
 "$CC1" -c "$SOURCE/cc0_static_syscalls.c" -o cc0_static_syscalls.o
 "$CC1" -c "$SOURCE/cc0_static_start.c" -o cc0_static_start.o
-"$CC1" -c "$SOURCE/cc0_libc.c" -o cc0_libc.o
+"$CC1" -c "$SOURCE/cc1_libc.c" -o cc1_libc.o
+"$CC1" -c "$SOURCE/cc1_libc_asm.c" -o cc1_libc_asm.o
 "$CC1" cc0_static_start.o linux_i386_syscalls.o \
-    cc0_static_syscalls.o cc1.o cc2_stubs.o cc0_libc.o \
+    cc0_static_syscalls.o cc1.o cc2_stubs.o cc1_libc.o cc1_libc_asm.o \
     -o cc1_static.exe
 chmod +x cc1_static.exe
 cp cc1_static.exe ../cc1_static.exe
 
 # Static cc1 adds the layer-one libc and constructs the temporary static cc2.
 ./cc1_static.exe -c "$SOURCE/cc1_static_start.c" -o cc1_static_start.o
-./cc1_static.exe -c "$SOURCE/cc1_libc.c" -o cc1_libc.o
 ./cc1_static.exe -c "$SOURCE/cc2_libc_stubs.c" -o cc2_libc_stubs.o
 ./cc1_static.exe -c "$SOURCE/cc2_float_libc_stubs.c" \
     -o cc2_float_libc_stubs.o
@@ -40,7 +40,7 @@ cat "$SOURCE/cc2.c" "$SOURCE/cc2_boot_storage.c" > cc2_boot_combined.c
 ./cc1_static.exe -c "$SOURCE/cc2_backend_stubs.c" -o cc2_backend_stubs.o
 ./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
     cc0_static_syscalls.o cc2_boot_combined.o \
-    cc2_backend_stubs.o cc0_libc.o cc1_libc.o cc2_libc_stubs.o \
+    cc2_backend_stubs.o cc1_libc.o cc1_libc_asm.o cc2_libc_stubs.o \
     -o cc2_boot_static.exe
 chmod +x cc2_boot_static.exe
 
@@ -55,7 +55,7 @@ chmod +x cc2_boot_static.exe
     -o cc2_libc_qsort_boot.o
 ./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
     cc0_static_syscalls.o cc2.o tcc_rest_boot.o \
-    cc2_runtime_boot.o cc0_libc.o cc1_libc.o cc2_libc_qsort_boot.o \
+    cc2_runtime_boot.o cc1_libc.o cc1_libc_asm.o cc2_libc_qsort_boot.o \
     cc2_float_libc_stubs.o -o cc2_static_boot.exe
 chmod +x cc2_static_boot.exe
 
@@ -65,7 +65,7 @@ chmod +x cc2_static_boot.exe
     -o cc2_libc_boot.o
 ./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
     cc0_static_syscalls.o cc2.o tcc_rest_boot.o \
-    cc2_runtime_boot.o cc0_libc.o cc1_libc.o cc2_libc_qsort_boot.o \
+    cc2_runtime_boot.o cc1_libc.o cc1_libc_asm.o cc2_libc_qsort_boot.o \
     cc2_libc_boot.o -o cc2_static_transition.exe
 chmod +x cc2_static_transition.exe
 
@@ -100,9 +100,9 @@ build_static_cc2_generation()
             -I "$stage_source/include" -I "$stage_source" \
             -c "$stage_source/tcc_unified.c" -U__linux__ -o tcc_rest.o
         "$compiler" -nostdinc -Dfunction=int -Dvar=int \
-            -c "$stage_source/cc0_libc.c" -o cc0_libc.o
-        "$compiler" -nostdinc -Dfunction=int -Dvar=int \
             -c "$stage_source/cc1_libc.c" -o cc1_libc.o
+        "$compiler" -nostdinc -Dfunction=int -Dvar=int \
+            -c "$stage_source/cc1_libc_asm.c" -o cc1_libc_asm.o
         "$compiler" -nostdinc -c "$stage_source/cc2_libc_qsort.c" \
             -o cc2_libc_qsort.o
         "$compiler" -nostdinc -c "$stage_source/cc2_libc.c" \
@@ -110,7 +110,7 @@ build_static_cc2_generation()
         "$compiler" -nostdlib -static linux_i386_start.o \
             cc2_static_start.o linux_i386_syscalls.o \
             cc0_static_syscalls.o prims.o cc2.o tcc_rest.o cc2_runtime.o \
-            cc0_libc.o cc1_libc.o cc2_libc_qsort.o cc2_libc.o \
+            cc1_libc.o cc1_libc_asm.o cc2_libc_qsort.o cc2_libc.o \
             -o cc2_static.exe
         chmod +x cc2_static.exe
     )
@@ -122,7 +122,7 @@ build_static_cc2_generation ../cc2_static_selfhost_2 \
     ../cc2_static_selfhost_1/cc2_static.exe
 for object in linux_i386_start.o cc2_static_start.o \
     linux_i386_syscalls.o cc0_static_syscalls.o prims.o cc2.o \
-    cc2_runtime.o tcc_rest.o cc0_libc.o cc1_libc.o cc2_libc_qsort.o \
+    cc2_runtime.o tcc_rest.o cc1_libc.o cc1_libc_asm.o cc2_libc_qsort.o \
     cc2_libc.o cc2_static.exe
 do
     cmp "../cc2_static_selfhost_1/$object" \

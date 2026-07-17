@@ -66,7 +66,9 @@ bridge is in `cc2_tcc_prims.c`.
 
 `cc2_runtime.c` provides the i386 arithmetic and floating helpers otherwise
 supplied by libgcc. The static chain extends the libc in explicit levels:
-`cc0_libc.c`, `cc1_libc.c`, `cc2_libc_qsort.c`, and `cc2_libc.c`.
+the shared C/JavaScript `cc1_libc.c`, `cc2_libc_qsort.c`, and `cc2_libc.c`.
+Native i386 vararg stack-address primitives live separately in
+`cc1_libc_asm.c` so the libc source itself remains valid JavaScript.
 
 ## Bootstrap Graphs
 
@@ -293,9 +295,9 @@ cc1 never inlines syscalls.
 `cc0_static_start.c` and `cc1_static_start.c` provide seed startup.
 `linux_i386_start.c`, `cc2_start.c`, and `cc2_static_start.c` provide ordinary
 full-compiler i386 startup without depending on cc1's entry adapter.
-`cc0_libc.c` provides the base allocation and descriptor operations, while
-`cc1_libc.c` adds the libc surface needed to enter cc2. The allocator uses
-`brk` in 4 KiB increments. Descriptor caching avoids per-byte compiler I/O.
+`cc1_libc.c` provides both the base allocation and descriptor operations and
+the stream/formatting surface needed to enter cc2. The allocator uses `brk` in
+4 KiB increments. Descriptor caching avoids per-byte compiler I/O.
 
 The dynamic and static links consume identical compiler objects. Runtime and
 startup objects determine link mode; compiler source files do not contain

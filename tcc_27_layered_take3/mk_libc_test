@@ -47,19 +47,23 @@ $GCC_CC -c tcc_27_layered_take3/cc0_dynamic_syscalls.c \
     -o "$GCC_ARTIFACTS/cc0_dynamic_syscalls.o"
 $GCC_CC -c tcc_27_layered_take3/cc0_static_start.c \
     -o "$GCC_ARTIFACTS/cc0_static_start.o"
-$GCC_CC -c tcc_27_layered_take3/cc0_libc.c \
-    -o "$GCC_ARTIFACTS/cc0_libc.o"
+$GCC_CC -c tcc_27_layered_take3/cc1_libc.c \
+    -o "$GCC_ARTIFACTS/cc1_libc.o"
+$GCC_CC -c tcc_27_layered_take3/cc1_libc_asm.c \
+    -o "$GCC_ARTIFACTS/cc1_libc_asm.o"
 $GCC_CC -c tcc_27_layered_take3/tests/layered/hello_world_test.c \
     -o "$GCC_ARTIFACTS/hello_world_test.o"
 gcc -m32 -nostdlib -static -Wl,-e,_start -Wl,--build-id=none \
     "$GCC_ARTIFACTS/cc0_static_start.o" \
     "$GCC_ARTIFACTS/linux_i386_syscalls.o" \
     "$GCC_ARTIFACTS/cc0_static_syscalls.o" \
-    "$GCC_ARTIFACTS/cc0_libc.o" "$GCC_ARTIFACTS/hello_world_test.o" \
+    "$GCC_ARTIFACTS/cc1_libc.o" "$GCC_ARTIFACTS/cc1_libc_asm.o" \
+    "$GCC_ARTIFACTS/hello_world_test.o" \
     "$GCC_ARTIFACTS/prims.o" -o "$GCC_ARTIFACTS/hello_static.exe"
 gcc -m32 -no-pie -Wl,--build-id=none \
     "$GCC_ARTIFACTS/cc0_dynamic_syscalls.o" \
-    "$GCC_ARTIFACTS/cc0_libc.o" "$GCC_ARTIFACTS/hello_world_test.o" \
+    "$GCC_ARTIFACTS/cc1_libc.o" "$GCC_ARTIFACTS/cc1_libc_asm.o" \
+    "$GCC_ARTIFACTS/hello_world_test.o" \
     "$GCC_ARTIFACTS/prims.o" -o "$GCC_ARTIFACTS/hello_dynamic.exe"
 check_pair "$GCC_ARTIFACTS"
 
@@ -84,19 +88,24 @@ compile_tcc_matrix()
         -c tcc_27_layered_take3/cc0_static_start.c \
         -o "$directory/cc0_static_start.o"
     "$compiler" -nostdinc -O0 $dialect \
-        -c tcc_27_layered_take3/cc0_libc.c \
-        -o "$directory/cc0_libc.o"
+        -c tcc_27_layered_take3/cc1_libc.c \
+        -o "$directory/cc1_libc.o"
+    "$compiler" -nostdinc -O0 $dialect \
+        -c tcc_27_layered_take3/cc1_libc_asm.c \
+        -o "$directory/cc1_libc_asm.o"
     "$compiler" -nostdinc -O0 $dialect \
         -c tcc_27_layered_take3/tests/layered/hello_world_test.c \
         -o "$directory/hello_world_test.o"
     "$compiler" -nostdlib -static "$directory/cc0_static_start.o" \
         "$directory/linux_i386_syscalls.o" \
-        "$directory/cc0_static_syscalls.o" "$directory/cc0_libc.o" \
+        "$directory/cc0_static_syscalls.o" "$directory/cc1_libc.o" \
+        "$directory/cc1_libc_asm.o" \
         "$directory/hello_world_test.o" "$directory/prims.o" \
         -o "$directory/hello_static.exe"
     chmod +x "$directory/hello_static.exe"
     "$CC0" "$directory/hello_world_test.o" \
-        "$directory/cc0_libc.o" "$directory/cc0_dynamic_syscalls.o" \
+        "$directory/cc1_libc.o" "$directory/cc1_libc_asm.o" \
+        "$directory/cc0_dynamic_syscalls.o" \
         "$directory/prims.o" \
         -o "$directory/hello_dynamic.exe"
     chmod +x "$directory/hello_dynamic.exe"
@@ -126,17 +135,21 @@ compile_cc0_matrix()
         -o "$directory/cc0_dynamic_syscalls.o"
     "$CC0" -c tcc_27_layered_take3/cc0_static_start.c \
         -o "$directory/cc0_static_start.o"
-    "$CC0" -c tcc_27_layered_take3/cc0_libc.c \
-        -o "$directory/cc0_libc.o"
+    "$CC0" -c tcc_27_layered_take3/cc1_libc.c \
+        -o "$directory/cc1_libc.o"
+    "$CC0" -c tcc_27_layered_take3/cc1_libc_asm.c \
+        -o "$directory/cc1_libc_asm.o"
     "$CC0" -c tcc_27_layered_take3/tests/layered/hello_world_test.c \
         -o "$directory/hello_world_test.o"
     "$CC0" "$directory/cc0_static_start.o" \
         "$directory/linux_i386_syscalls.o" \
-        "$directory/cc0_static_syscalls.o" "$directory/cc0_libc.o" \
+        "$directory/cc0_static_syscalls.o" "$directory/cc1_libc.o" \
+        "$directory/cc1_libc_asm.o" \
         "$directory/hello_world_test.o" -o "$directory/hello_static.exe"
     chmod +x "$directory/hello_static.exe"
     "$CC0" "$directory/hello_world_test.o" \
-        "$directory/cc0_libc.o" "$directory/cc0_dynamic_syscalls.o" \
+        "$directory/cc1_libc.o" "$directory/cc1_libc_asm.o" \
+        "$directory/cc0_dynamic_syscalls.o" \
         -o "$directory/hello_dynamic.exe"
     chmod +x "$directory/hello_dynamic.exe"
     check_pair "$directory"

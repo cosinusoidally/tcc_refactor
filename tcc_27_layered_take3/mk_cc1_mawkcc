@@ -24,10 +24,13 @@ cd artifacts
     -o cc0_static_syscalls_mawkcc.o
 ./cc1_mawkcc.exe -c ../tcc_27_layered_take3/cc0_static_start.c \
     -o cc0_static_start_mawkcc.o
-./cc1_mawkcc.exe -c ../tcc_27_layered_take3/cc0_libc.c \
-    -o cc0_libc_mawkcc.o
+./cc1_mawkcc.exe -c ../tcc_27_layered_take3/cc1_libc.c \
+    -o cc1_libc_mawkcc.o
+./cc1_mawkcc.exe -c ../tcc_27_layered_take3/cc1_libc_asm.c \
+    -o cc1_libc_asm_mawkcc.o
 ./cc1_mawkcc.exe cc0_static_start_mawkcc.o \
     linux_i386_syscalls_mawkcc.o cc0_static_syscalls_mawkcc.o \
-    cc1.o cc2_stubs.o cc0_libc_mawkcc.o -o cc1_static.exe
+    cc1.o cc2_stubs.o cc1_libc_mawkcc.o cc1_libc_asm_mawkcc.o \
+    -o cc1_static.exe
 chmod +x cc1_static.exe
 ./cc1_mawkcc.exe cc1.o cc2_stubs.o -o cc1.exe

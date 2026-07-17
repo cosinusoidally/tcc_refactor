@@ -34,13 +34,16 @@ if (runCc1(["cc1", "-c", "../tcc_27_layered_take3/cc0_static_start.c",
             "-o", "cc0_static_start_js.o"]) !== 0) {
     throw new Error("JavaScript cc1 could not compile static startup");
 }
-if (runCc1(["cc1", "-c", "../tcc_27_layered_take3/cc0_libc.c",
-            "-o", "cc0_libc_js.o"]) !== 0) {
+if (runCc1(["cc1", "-c", "../tcc_27_layered_take3/cc1_libc.c",
+            "-o", "cc1_libc_js.o"]) !== 0 ||
+    runCc1(["cc1", "-c", "../tcc_27_layered_take3/cc1_libc_asm.c",
+            "-o", "cc1_libc_asm_js.o"]) !== 0) {
     throw new Error("JavaScript cc1 could not compile static libc");
 }
 if (runCc1(["cc1", "cc0_static_start_js.o",
             "linux_i386_syscalls_js.o", "cc0_static_syscalls_js.o",
-            "cc1_js.o", "cc2_stubs_js.o", "cc0_libc_js.o",
+            "cc1_js.o", "cc2_stubs_js.o", "cc1_libc_js.o",
+            "cc1_libc_asm_js.o",
             "-o", "cc1_static_js.exe"]) !== 0) {
     throw new Error("JavaScript cc1 could not link static cc1");
 }

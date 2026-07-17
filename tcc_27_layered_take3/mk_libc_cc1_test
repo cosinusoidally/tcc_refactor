@@ -18,7 +18,8 @@ SOURCE=tcc_27_layered_take3
 "$CC1" -c "$SOURCE/linux_i386_syscalls.c" -o "$BUILD/syscalls.o"
 "$CC1" -c "$SOURCE/cc0_static_syscalls.c" -o "$BUILD/runtime.o"
 "$CC1" -c "$SOURCE/cc0_static_start.c" -o "$BUILD/start.o"
-"$CC1" -c "$SOURCE/cc0_libc.c" -o "$BUILD/libc.o"
+"$CC1" -c "$SOURCE/cc1_libc.c" -o "$BUILD/libc.o"
+"$CC1" -c "$SOURCE/cc1_libc_asm.c" -o "$BUILD/libc_asm.o"
 "$CC1" -c "$SOURCE/cc1.c" -o "$BUILD/cc1.o"
 "$CC1" -c "$SOURCE/cc2_stubs.c" -o "$BUILD/cc2_stubs.o"
 cmp artifacts/cc1.o "$BUILD/cc1.o"
@@ -26,6 +27,7 @@ cmp artifacts/cc2_stubs.o "$BUILD/cc2_stubs.o"
 
 "$CC1" "$BUILD/start.o" "$BUILD/syscalls.o" "$BUILD/runtime.o" \
     "$BUILD/cc1.o" "$BUILD/cc2_stubs.o" "$BUILD/libc.o" \
+    "$BUILD/libc_asm.o" \
     -o "$BUILD/cc1_static.exe"
 chmod +x "$BUILD/cc1_static.exe"
 cmp artifacts/cc1_static.exe "$BUILD/cc1_static.exe"
@@ -36,7 +38,8 @@ cmp "$BUILD/cc1.o" "$BUILD/cc1_self.o"
 "$BUILD/cc1_static.exe" -c "$SOURCE/tests/layered/libc_smoke.c" \
     -o "$BUILD/libc_smoke.o"
 "$BUILD/cc1_static.exe" "$BUILD/start.o" "$BUILD/syscalls.o" \
-    "$BUILD/runtime.o" "$BUILD/libc.o" "$BUILD/libc_smoke.o" \
+    "$BUILD/runtime.o" "$BUILD/libc.o" "$BUILD/libc_asm.o" \
+    "$BUILD/libc_smoke.o" \
     -o "$BUILD/libc_smoke.exe"
 chmod +x "$BUILD/libc_smoke.exe"
 "$BUILD/libc_smoke.exe" first second > "$BUILD/libc_smoke.stdout"

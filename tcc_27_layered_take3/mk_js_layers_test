@@ -4,3 +4,5 @@ set -eu
 
 test -f cc1.c -a -f cc2.c
 js tests/layered/cc1_cc2_js_smoke.js
+(cd ../artifacts && js \
+    ../tcc_27_layered_take3/tests/layered/cc1_libc_js_smoke.js)
