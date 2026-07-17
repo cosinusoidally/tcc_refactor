@@ -25,8 +25,14 @@ requireCc2(["cc2", "-nostdinc", "-c",
     "../tcc_27_layered_take3/linux_i386_start.c", "-o",
     "cc2_js_linux_i386_start.o"], "compile process stack access");
 requireCc2(["cc2", "-nostdinc", "-c",
-    "../tcc_27_layered_take3/cc2_start.c", "-o", "cc2_js_start.o"],
-    "compile dynamic startup");
+    "../tcc_27_layered_take3/cc2_static_start.c", "-o",
+    "cc2_js_static_start.o"], "compile static startup");
+requireCc2(["cc2", "-nostdinc", "-Dfunction=int", "-Dvar=int", "-c",
+    "../tcc_27_layered_take3/linux_i386_syscalls.c", "-o",
+    "cc2_js_syscalls.o"], "compile the i386 syscall entry");
+requireCc2(["cc2", "-nostdinc", "-Dfunction=int", "-Dvar=int", "-c",
+    "../tcc_27_layered_take3/cc0_static_syscalls.c", "-o",
+    "cc2_js_static_syscalls.o"], "compile static syscall wrappers");
 requireCc2(["cc2", "-nostdinc", "-c",
     "../tcc_27_layered_take3/prims.c", "-o", "cc2_js_prims.o"],
     "compile native primitives");
@@ -42,8 +48,19 @@ requireCc2(["cc2", "-nostdinc", "-I",
     "../tcc_27_layered_take3", "-U__linux__", "-c",
     "../tcc_27_layered_take3/tcc_unified.c", "-o",
     "cc2_js_tcc_rest.o"], "compile the typed TCC bridge");
-requireCc2(["cc2", "-nostdlib", "cc2_js_linux_i386_start.o",
-    "cc2_js_start.o", "cc2_js_prims.o", "cc2_js.o",
-    "cc2_js_tcc_rest.o", "cc2_js_runtime.o", "cc2_js_libc.so",
-    "cc2_js_libm.so", "-o", "cc2_js_seed.exe"],
-    "link the standalone cc2 seed");
+requireCc2(["cc2", "-nostdinc", "-Dfunction=int", "-Dvar=int", "-c",
+    "../tcc_27_layered_take3/cc1_libc.c", "-o",
+    "cc2_js_libc.o"], "compile the shared libc");
+requireCc2(["cc2", "-nostdinc", "-Dfunction=int", "-Dvar=int", "-c",
+    "../tcc_27_layered_take3/cc1_libc_asm.c", "-o",
+    "cc2_js_libc_asm.o"], "compile libc stack primitives");
+requireCc2(["cc2", "-nostdinc", "-c",
+    "../tcc_27_layered_take3/cc2_libc.c", "-o",
+    "cc2_js_float_libc.o"], "compile typed float conversion");
+requireCc2(["cc2", "-nostdlib", "-static",
+    "cc2_js_linux_i386_start.o", "cc2_js_static_start.o",
+    "cc2_js_syscalls.o", "cc2_js_static_syscalls.o",
+    "cc2_js_prims.o", "cc2_js.o", "cc2_js_tcc_rest.o",
+    "cc2_js_runtime.o", "cc2_js_libc.o", "cc2_js_libc_asm.o",
+    "cc2_js_float_libc.o", "-o", "cc2_js_static_seed.exe"],
+    "link the standalone static cc2 seed");

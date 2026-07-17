@@ -6,6 +6,8 @@ set -eu
 
 test -n "${CC2_SEED:-}"
 test -x "$CC2_SEED"
+CC2_SEED_MODE=${CC2_SEED_MODE:-dynamic}
+test "$CC2_SEED_MODE" = dynamic -o "$CC2_SEED_MODE" = static
 
 RUNTIME_LIBDIR=/lib/i386-linux-gnu
 if test ! -f "$RUNTIME_LIBDIR/libc.so.6"; then
@@ -13,7 +15,13 @@ if test ! -f "$RUNTIME_LIBDIR/libc.so.6"; then
 fi
 HOST_LIBC=$RUNTIME_LIBDIR/libc.so.6
 HOST_LIBM=$RUNTIME_LIBDIR/libm.so.6
-test -f "$HOST_LIBC" -a -f "$HOST_LIBM"
+HAVE_DYNAMIC_RUNTIME=0
+if test -f "$HOST_LIBC" -a -f "$HOST_LIBM"; then
+    HAVE_DYNAMIC_RUNTIME=1
+fi
+if test "$CC2_SEED_MODE" = dynamic; then
+    test "$HAVE_DYNAMIC_RUNTIME" = 1
+fi
 
 build_dynamic_generation()
 {
@@ -90,15 +98,20 @@ build_static_generation()
 dynamic_objects="linux_i386_start.o cc2_start.o prims.o cc2.o cc2_runtime.o tcc_rest.o cc2.exe"
 static_objects="linux_i386_start.o cc2_static_start.o linux_i386_syscalls.o cc0_static_syscalls.o prims.o cc2.o cc2_runtime.o tcc_rest.o cc1_libc.o cc1_libc_asm.o cc2_libc.o cc2_static.exe"
 
-build_dynamic_generation artifacts/cc2_selfhost_1 "../../$CC2_SEED"
-build_dynamic_generation artifacts/cc2_selfhost_2 ../cc2_selfhost_1/cc2.exe
-for object in $dynamic_objects; do
-    cmp "artifacts/cc2_selfhost_1/$object" \
-        "artifacts/cc2_selfhost_2/$object"
-done
-
-build_static_generation artifacts/cc2_static_selfhost_1 \
-    ../cc2_selfhost_2/cc2.exe
+if test "$CC2_SEED_MODE" = static; then
+    build_static_generation artifacts/cc2_static_selfhost_1 \
+        "../../$CC2_SEED"
+else
+    build_dynamic_generation artifacts/cc2_selfhost_1 "../../$CC2_SEED"
+    build_dynamic_generation artifacts/cc2_selfhost_2 \
+        ../cc2_selfhost_1/cc2.exe
+    for object in $dynamic_objects; do
+        cmp "artifacts/cc2_selfhost_1/$object" \
+            "artifacts/cc2_selfhost_2/$object"
+    done
+    build_static_generation artifacts/cc2_static_selfhost_1 \
+        ../cc2_selfhost_2/cc2.exe
+fi
 build_static_generation artifacts/cc2_static_selfhost_2 \
     ../cc2_static_selfhost_1/cc2_static.exe
 for object in $static_objects; do
@@ -106,10 +119,27 @@ for object in $static_objects; do
         "artifacts/cc2_static_selfhost_2/$object"
 done
 
-for object in prims.o cc2.o cc2_runtime.o tcc_rest.o; do
-    cmp "artifacts/cc2_selfhost_2/$object" \
-        "artifacts/cc2_static_selfhost_2/$object"
-done
-
-cp artifacts/cc2_selfhost_2/cc2.exe artifacts/cc2.exe
 cp artifacts/cc2_static_selfhost_2/cc2_static.exe artifacts/cc2_static.exe
+
+if test "$CC2_SEED_MODE" = static -a "$HAVE_DYNAMIC_RUNTIME" = 1; then
+    build_dynamic_generation artifacts/cc2_selfhost_1 \
+        ../cc2_static_selfhost_2/cc2_static.exe
+    build_dynamic_generation artifacts/cc2_selfhost_2 \
+        ../cc2_selfhost_1/cc2.exe
+    for object in $dynamic_objects; do
+        cmp "artifacts/cc2_selfhost_1/$object" \
+            "artifacts/cc2_selfhost_2/$object"
+    done
+fi
+
+if test "$HAVE_DYNAMIC_RUNTIME" = 1; then
+    for object in prims.o cc2.o cc2_runtime.o tcc_rest.o; do
+        cmp "artifacts/cc2_selfhost_2/$object" \
+            "artifacts/cc2_static_selfhost_2/$object"
+    done
+    cp artifacts/cc2_selfhost_2/cc2.exe artifacts/cc2.exe
+else
+    rm -rf artifacts/cc2_selfhost_1 artifacts/cc2_selfhost_2
+    cp artifacts/cc2_static_selfhost_2/cc2_static.exe artifacts/cc2.exe
+    echo "mk_cc2_from_seed: no i386 glibc; cc2.exe is static" >&2
+fi

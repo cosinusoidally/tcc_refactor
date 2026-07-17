@@ -155,13 +155,19 @@ cd tcc_27_layered_take3
 ```
 
 The JavaScript seed loads `prims.js`, `cc1_libc.c`, bootstrap storage, backend
-stubs, and `cc2.c`. It compiles a disposable native full cc2, then
-`mk_cc2_from_seed`
-performs complete dynamic and static two-generation self-host checks and
-publishes `artifacts/cc2.exe` and `artifacts/cc2_static.exe`. `prims.js`
+stubs, and `cc2.c`. It compiles and links a disposable fully static cc2, then
+`mk_cc2_from_seed` performs a complete two-generation static self-host check.
+This path requires no i386 dynamic loader, glibc, libm, or libgcc. `prims.js`
 provides only operator, byte-memory, and low-level host runtime meanings. The
 shared libc implements allocation, strings, descriptor caching, and FILE
 operations. Its unlink runtime primitive is deliberately inert in JavaScript.
+
+When i386 `libc.so.6` and `libm.so.6` are installed, the verified static cc2
+also builds two identical dynamic generations and publishes the usual dynamic
+`artifacts/cc2.exe`. Without those DSOs, as on an amd64-only system,
+`artifacts/cc2.exe` is a copy of the verified static `cc2_static.exe`; stale
+dynamic-generation directories are removed. The static continuation remains
+fully available in that environment.
 
 ## mawkcc Seed
 
@@ -234,10 +240,17 @@ Build the completely static compiler chain with:
 ./mk_tcc_layered_via_cc1_static
 ```
 
-After `mk_cc2_gcc` or `mk_cc2_js`, continue the direct chains with:
+After `mk_cc2_gcc`, or after `mk_cc2_js` on a system with i386 glibc, continue
+the direct dynamic chain with:
 
 ```sh
 ./mk_tcc_layered_via_cc2
+```
+
+The direct static chain is available after either seed on every supported
+host:
+
+```sh
 ./mk_tcc_layered_via_cc2_static
 ```
 
