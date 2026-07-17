@@ -2149,89 +2149,85 @@ function next_nomacro1()
     source_file = ri32(file_address);
     pointer = ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET));
     while (1) {
-        character = ri8(pointer);
-        if (or(eq(character, mkC(" ")), or(eq(character, mkC("\t")),
-            or(eq(character, mkC("\f")), or(eq(character, mkC("\v")),
-            or(eq(character, mkC("\r")), eq(character, mkC("\n")))))))) {
-            pointer = cc2_lex_layout(pointer, character);
-            if (cc2_lex_should_restart()) {
-                continue;
+        while (1) {
+            character = ri8(pointer);
+            if (or(eq(character, mkC(" ")), or(eq(character, mkC("\t")),
+                or(eq(character, mkC("\f")), or(eq(character, mkC("\v")),
+                or(eq(character, mkC("\r")), eq(character, mkC("\n")))))))) {
+                pointer = cc2_lex_layout(pointer, character);
+                break;
             }
-            return cc2_lex_publish(pointer);
-        }
-        if (eq(character, mkC("\\"))) {
-            pointer = cc2_lex_end_of_buffer(pointer);
-            if (cc2_lex_should_restart()) {
-                continue;
+            if (eq(character, mkC("\\"))) {
+                pointer = cc2_lex_end_of_buffer(pointer);
+                break;
             }
-            return cc2_lex_publish(pointer);
-        }
-        if (eq(character, mkC("#"))) {
-            pointer = cc2_lex_hash(pointer);
-            if (cc2_lex_should_restart()) {
-                continue;
+            if (eq(character, mkC("#"))) {
+                pointer = cc2_lex_hash(pointer);
+                break;
             }
-            return cc2_lex_publish(pointer);
-        }
-        character_class = ri8(add(isidnum_table_address,
-            sub(character, CC2_CHARACTER_END_OF_FILE)));
-        if (eq(character, mkC("$"))) {
-            if (or(eq(and(character_class,
-                CC2_CHARACTER_IDENTIFIER_CLASS), 0),
-                not(eq(and(ri32(parse_flags_address),
-                CC2_PARSE_FLAG_ASM_FILE), 0)))) {
+            character_class = ri8(add(isidnum_table_address,
+                sub(character, CC2_CHARACTER_END_OF_FILE)));
+            if (eq(character, mkC("$"))) {
+                if (or(eq(and(character_class,
+                    CC2_CHARACTER_IDENTIFIER_CLASS), 0),
+                    not(eq(and(ri32(parse_flags_address),
+                    CC2_PARSE_FLAG_ASM_FILE), 0)))) {
+                    pointer = cc2_lex_operator(pointer, character);
+                    return cc2_lex_publish(pointer);
+                }
+            }
+            if (eq(character, mkC("L"))) {
+                look = ri8(add(pointer, 1));
+                if (or(eq(look, mkC("\\")), or(eq(look, mkC("'")),
+                    eq(look, mkC("\""))))) {
+                    look_pointer = cc2_lex_peek(pointer);
+                    look = ri8(look_pointer);
+                    if (or(eq(look, mkC("'")), eq(look, mkC("\"")))) {
+                        pointer = cc2_lex_string(look_pointer, look, 1);
+                    } else {
+                        pointer = cc2_lex_identifier_long(look_pointer);
+                    }
+                    return cc2_lex_publish(pointer);
+                }
+            }
+            if (not(eq(and(character_class,
+                CC2_CHARACTER_IDENTIFIER_CLASS), 0))) {
+                pointer = cc2_lex_identifier(pointer);
+                return cc2_lex_publish(pointer);
+            }
+            if (and(not(lt(character, mkC("0"))),
+                not(lt(mkC("9"), character)))) {
+                look_pointer = cc2_lex_peek(pointer);
+                pointer = cc2_lex_number_tail(look_pointer, character);
+                return cc2_lex_publish(pointer);
+            }
+            if (eq(character, mkC("."))) {
+                pointer = cc2_lex_dot(pointer);
+                return cc2_lex_publish(pointer);
+            }
+            if (or(eq(character, mkC("'")), eq(character, mkC("\"")))) {
+                pointer = cc2_lex_string(pointer, character, 0);
+                return cc2_lex_publish(pointer);
+            }
+            if (cc2_lex_is_punctuation(character)) {
                 pointer = cc2_lex_operator(pointer, character);
                 return cc2_lex_publish(pointer);
             }
-        }
-        if (eq(character, mkC("L"))) {
-            look = ri8(add(pointer, 1));
-            if (or(eq(look, mkC("\\")), or(eq(look, mkC("'")),
-                eq(look, mkC("\""))))) {
-                look_pointer = cc2_lex_peek(pointer);
-                look = ri8(look_pointer);
-                if (or(eq(look, mkC("'")), eq(look, mkC("\"")))) {
-                    pointer = cc2_lex_string(look_pointer, look, 1);
-                } else {
-                    pointer = cc2_lex_identifier_long(look_pointer);
-                }
+            if (and(not(lt(character, 128)), not(lt(255, character)))) {
+                pointer = cc2_lex_identifier(pointer);
                 return cc2_lex_publish(pointer);
             }
+            if (not(eq(and(ri32(parse_flags_address),
+                CC2_PARSE_FLAG_ASM_FILE), 0))) {
+                pointer = cc2_lex_operator(pointer, character);
+                return cc2_lex_publish(pointer);
+            }
+            cc2_lex_unrecognized(character);
+            return 0;
         }
-        if (not(eq(and(character_class,
-            CC2_CHARACTER_IDENTIFIER_CLASS), 0))) {
-            pointer = cc2_lex_identifier(pointer);
+        if (not(cc2_lex_should_restart())) {
             return cc2_lex_publish(pointer);
         }
-        if (and(not(lt(character, mkC("0"))),
-            not(lt(mkC("9"), character)))) {
-            look_pointer = cc2_lex_peek(pointer);
-            pointer = cc2_lex_number_tail(look_pointer, character);
-            return cc2_lex_publish(pointer);
-        }
-        if (eq(character, mkC("."))) {
-            pointer = cc2_lex_dot(pointer);
-            return cc2_lex_publish(pointer);
-        }
-        if (or(eq(character, mkC("'")), eq(character, mkC("\"")))) {
-            pointer = cc2_lex_string(pointer, character, 0);
-            return cc2_lex_publish(pointer);
-        }
-        if (cc2_lex_is_punctuation(character)) {
-            pointer = cc2_lex_operator(pointer, character);
-            return cc2_lex_publish(pointer);
-        }
-        if (and(not(lt(character, 128)), not(lt(255, character)))) {
-            pointer = cc2_lex_identifier(pointer);
-            return cc2_lex_publish(pointer);
-        }
-        if (not(eq(and(ri32(parse_flags_address),
-            CC2_PARSE_FLAG_ASM_FILE), 0))) {
-            pointer = cc2_lex_operator(pointer, character);
-            return cc2_lex_publish(pointer);
-        }
-        cc2_lex_unrecognized(character);
-        return 0;
     }
 }
 
@@ -2563,7 +2559,7 @@ function cc2_preprocess_debug_builtins(state)
 
 function cc2_tcc_preprocess_(state, token_seen, spaces, level,
     include_pointer, old_include_pointer, source_file, text, whitespace,
-    flags, output)
+    flags, output, emit_token)
 {
     flags = or(or(or(CC2_PARSE_FLAG_PREPROCESS,
         and(ri32(parse_flags_address), CC2_PARSE_FLAG_ASM_FILE)),
@@ -2589,6 +2585,7 @@ function cc2_tcc_preprocess_(state, token_seen, spaces, level,
     source_file = ri32(file_address);
     cc2_preprocess_line(state, source_file, 0);
     while (1) {
+        emit_token = 1;
         old_include_pointer = ri32(add(state,
             CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET));
         next();
@@ -2611,38 +2608,44 @@ function cc2_tcc_preprocess_(state, token_seen, spaces, level,
             cc2_preprocess_debug_defines(state);
             if (and(ri8(add(state, CC2_TCC_STATE_DEFINE_FLAGS_OFFSET)),
                 CC2_DEFINE_FLAG_ONLY)) {
-                continue;
+                emit_token = 0;
             }
         }
-        if (cc2_token_is_space(ri32(tok_address))) {
-            if (lt(spaces, sub(CC2_PREPROCESS_WHITESPACE_BYTES, 1))) {
-                wi8(add(whitespace, spaces), ri32(tok_address));
-                spaces = add(spaces, 1);
+        if (emit_token) {
+            if (cc2_token_is_space(ri32(tok_address))) {
+                if (lt(spaces, sub(CC2_PREPROCESS_WHITESPACE_BYTES, 1))) {
+                    wi8(add(whitespace, spaces), ri32(tok_address));
+                    spaces = add(spaces, 1);
+                }
+                emit_token = 0;
+            } else if (eq(ri32(tok_address), CC2_TOKEN_LINE_FEED)) {
+                spaces = 0;
+                if (eq(token_seen, CC2_TOKEN_LINE_FEED)) {
+                    emit_token = 0;
+                } else {
+                    source_file = ri32(file_address);
+                    wi32(add(source_file,
+                        CC2_BUFFERED_FILE_LINE_REFERENCE_OFFSET), add(ri32(add(
+                        source_file, CC2_BUFFERED_FILE_LINE_REFERENCE_OFFSET)),
+                        1));
+                }
+            } else if (eq(token_seen, CC2_TOKEN_LINE_FEED)) {
+                cc2_preprocess_line(state, ri32(file_address), 0);
+            } else if (and(eq(spaces, 0),
+                pp_need_space(token_seen, ri32(tok_address)))) {
+                wi8(whitespace, mkC(" "));
+                spaces = 1;
             }
-            continue;
-        } else if (eq(ri32(tok_address), CC2_TOKEN_LINE_FEED)) {
+        }
+        if (emit_token) {
+            wi8(add(whitespace, spaces), 0);
+            output = ri32(add(state, CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET));
+            fputs(whitespace, output);
             spaces = 0;
-            if (eq(token_seen, CC2_TOKEN_LINE_FEED)) {
-                continue;
-            }
-            source_file = ri32(file_address);
-            wi32(add(source_file, CC2_BUFFERED_FILE_LINE_REFERENCE_OFFSET),
-                add(ri32(add(source_file,
-                CC2_BUFFERED_FILE_LINE_REFERENCE_OFFSET)), 1));
-        } else if (eq(token_seen, CC2_TOKEN_LINE_FEED)) {
-            cc2_preprocess_line(state, ri32(file_address), 0);
-        } else if (and(eq(spaces, 0),
-            pp_need_space(token_seen, ri32(tok_address)))) {
-            wi8(whitespace, mkC(" "));
-            spaces = 1;
+            text = get_tok_str(ri32(tok_address), tokc_address);
+            fputs(text, output);
+            token_seen = pp_check_he0xE(ri32(tok_address), text);
         }
-        wi8(add(whitespace, spaces), 0);
-        output = ri32(add(state, CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET));
-        fputs(whitespace, output);
-        spaces = 0;
-        text = get_tok_str(ri32(tok_address), tokc_address);
-        fputs(text, output);
-        token_seen = pp_check_he0xE(ri32(tok_address), text);
     }
     free(whitespace);
     return 0;
@@ -2650,7 +2653,7 @@ function cc2_tcc_preprocess_(state, token_seen, spaces, level,
 
 function cc2_tcc_preprocess(state)
 {
-    return cc2_tcc_preprocess_(state, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    return cc2_tcc_preprocess_(state, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 /* Peek or consume the next function-macro argument token.  Whitespace may
@@ -2683,7 +2686,12 @@ function next_argstream_(nested_list, whitespace, token, pointer, symbol,
                 if (symbol) {
                     wi32(add(symbol, CC2_SYM_VALUE_OFFSET), 0);
                 }
-                continue;
+            } else {
+                if (whitespace) {
+                    return token;
+                }
+                next_nomacro_spc();
+                return ri32(tok_address);
             }
         } else {
             ch = handle_eob();
@@ -2723,12 +2731,12 @@ function next_argstream_(nested_list, whitespace, token, pointer, symbol,
                 }
             }
             token = ch;
+            if (whitespace) {
+                return token;
+            }
+            next_nomacro_spc();
+            return ri32(tok_address);
         }
-        if (whitespace) {
-            return token;
-        }
-        next_nomacro_spc();
-        return ri32(tok_address);
     }
 }
 
@@ -2770,14 +2778,13 @@ function paste_tokens(first_token, first_value, second_token, second_value)
             CC2_BUFFERED_FILE_POINTER_OFFSET))), 0)) {
             break;
         }
-        if (cc2_token_is_space(ri32(tok_address))) {
-            continue;
+        if (not(cc2_token_is_space(ri32(tok_address)))) {
+            tcc_warning(mks("pasting %.*s and %s does not give a valid preprocessing token"),
+                first_length, ri32(add(string, CC2_CSTRING_DATA_OFFSET)),
+                add(ri32(add(string, CC2_CSTRING_DATA_OFFSET)), first_length));
+            result = 0;
+            break;
         }
-        tcc_warning(mks("pasting %.*s and %s does not give a valid preprocessing token"),
-            first_length, ri32(add(string, CC2_CSTRING_DATA_OFFSET)),
-            add(ri32(add(string, CC2_CSTRING_DATA_OFFSET)), first_length));
-        result = 0;
-        break;
     }
     tcc_close();
     cstr_free(string);
@@ -2822,48 +2829,47 @@ function macro_twosharps_(original, pointer, stream_pointer, token_pointer,
         if (eq(token, 0)) {
             break;
         }
-        if (eq(token, CC2_TOKEN_PREPROCESSOR_JOIN)) {
-            continue;
-        }
-        while (eq(ri32(pointer), CC2_TOKEN_PREPROCESSOR_JOIN)) {
-            if (not(lt(no_substitution_start, 0))) {
-                wi32(add(output, CC2_TOKEN_STRING_LENGTH_OFFSET),
-                    no_substitution_start);
-            }
-            pointer = add(pointer, CC2_I386_WORD_BYTES);
-            next_token = ri32(pointer);
-            while (eq(next_token, CC2_TOKEN_NO_SUBSTITUTION)) {
+        if (not(eq(token, CC2_TOKEN_PREPROCESSOR_JOIN))) {
+            while (eq(ri32(pointer), CC2_TOKEN_PREPROCESSOR_JOIN)) {
+                if (not(lt(no_substitution_start, 0))) {
+                    wi32(add(output, CC2_TOKEN_STRING_LENGTH_OFFSET),
+                        no_substitution_start);
+                }
                 pointer = add(pointer, CC2_I386_WORD_BYTES);
                 next_token = ri32(pointer);
-            }
-            if (and(not(eq(next_token, 0)), not(eq(next_token,
-                CC2_TOKEN_PREPROCESSOR_JOIN)))) {
-                wi32(stream_pointer, pointer);
-                tok_get(token_pointer, stream_pointer, next_value);
-                pointer = ri32(stream_pointer);
-                next_token = ri32(token_pointer);
-                if (not(and(eq(token, CC2_TOKEN_PLACEHOLDER),
-                    eq(next_token, CC2_TOKEN_PLACEHOLDER)))) {
-                    if (paste_tokens(token, value, next_token, next_value)) {
-                        token = ri32(tok_address);
-                        memcpy(value, tokc_address, CC2_CVALUE_BYTES);
-                    } else {
-                        tok_str_add2(output, token, value);
-                        token = next_token;
-                        memcpy(value, next_value, CC2_CVALUE_BYTES);
+                while (eq(next_token, CC2_TOKEN_NO_SUBSTITUTION)) {
+                    pointer = add(pointer, CC2_I386_WORD_BYTES);
+                    next_token = ri32(pointer);
+                }
+                if (and(not(eq(next_token, 0)), not(eq(next_token,
+                    CC2_TOKEN_PREPROCESSOR_JOIN)))) {
+                    wi32(stream_pointer, pointer);
+                    tok_get(token_pointer, stream_pointer, next_value);
+                    pointer = ri32(stream_pointer);
+                    next_token = ri32(token_pointer);
+                    if (not(and(eq(token, CC2_TOKEN_PLACEHOLDER),
+                        eq(next_token, CC2_TOKEN_PLACEHOLDER)))) {
+                        if (paste_tokens(token, value, next_token, next_value)) {
+                            token = ri32(tok_address);
+                            memcpy(value, tokc_address, CC2_CVALUE_BYTES);
+                        } else {
+                            tok_str_add2(output, token, value);
+                            token = next_token;
+                            memcpy(value, next_value, CC2_CVALUE_BYTES);
+                        }
                     }
                 }
             }
-        }
-        if (eq(token, CC2_TOKEN_NO_SUBSTITUTION)) {
-            if (lt(no_substitution_start, 0)) {
-                no_substitution_start = ri32(add(output,
-                    CC2_TOKEN_STRING_LENGTH_OFFSET));
+            if (eq(token, CC2_TOKEN_NO_SUBSTITUTION)) {
+                if (lt(no_substitution_start, 0)) {
+                    no_substitution_start = ri32(add(output,
+                        CC2_TOKEN_STRING_LENGTH_OFFSET));
+                }
+            } else {
+                no_substitution_start = sub(0, 1);
             }
-        } else {
-            no_substitution_start = sub(0, 1);
+            tok_str_add2(output, token, value);
         }
-        tok_str_add2(output, token, value);
     }
     tok_str_add(output, 0);
     result = ri32(add(output, CC2_TOKEN_STRING_DATA_OFFSET));
@@ -2960,7 +2966,7 @@ function cc2_expand_special_macro(stream, token)
 
 function macro_subst_(output, nested_list, macro_stream, stream_pointer,
     token_pointer, value, spacing_pointer, symbol, temporary_stream, token,
-    spacing, no_substitution)
+    spacing, no_substitution, skip_tail)
 {
     stream_pointer = malloc(CC2_I386_WORD_BYTES);
     token_pointer = malloc(CC2_I386_WORD_BYTES);
@@ -2977,6 +2983,7 @@ function macro_subst_(output, nested_list, macro_stream, stream_pointer,
         if (not(lt(0, token))) {
             break;
         }
+        skip_tail = 0;
         symbol = 0;
         if (and(not(lt(token, CC2_TOKEN_IDENTIFIER_BASE)),
             eq(no_substitution, 0))) {
@@ -3005,37 +3012,45 @@ function macro_subst_(output, nested_list, macro_stream, stream_pointer,
                             CC2_I386_WORD_BYTES)));
                         spacing = cc2_token_is_space(token);
                     }
-                    continue;
+                    skip_tail = 1;
                 }
             }
         }
-        if (and(eq(token, mkC("\\")), eq(and(ri32(parse_flags_address),
-            CC2_PARSE_FLAG_ACCEPT_STRAYS), 0))) {
-            tcc_error(mks("stray backslash in program"), 0);
-        }
-        wi32(spacing_pointer, spacing);
-        if (not(cc0_check_space(isidnum_table_address, token,
-            spacing_pointer))) {
-            tok_str_add2(output, token, value);
-        }
-        spacing = ri32(spacing_pointer);
-        if (no_substitution) {
-            if (lt(1, no_substitution)) {
-                if (spacing) {
-                    continue;
+        if (not(skip_tail)) {
+            if (and(eq(token, mkC("\\")), eq(and(ri32(parse_flags_address),
+                CC2_PARSE_FLAG_ACCEPT_STRAYS), 0))) {
+                tcc_error(mks("stray backslash in program"), 0);
+            }
+            wi32(spacing_pointer, spacing);
+            if (not(cc0_check_space(isidnum_table_address, token,
+                spacing_pointer))) {
+                tok_str_add2(output, token, value);
+            }
+            spacing = ri32(spacing_pointer);
+            if (no_substitution) {
+                if (lt(1, no_substitution)) {
+                    if (spacing) {
+                        skip_tail = 1;
+                    } else {
+                        no_substitution = add(no_substitution, 1);
+                        if (and(eq(no_substitution, 3),
+                            eq(token, mkC("(")))) {
+                            skip_tail = 1;
+                        }
+                    }
                 }
-                no_substitution = add(no_substitution, 1);
-                if (and(eq(no_substitution, 3), eq(token, mkC("(")))) {
-                    continue;
+                if (not(skip_tail)) {
+                    no_substitution = 0;
                 }
             }
-            no_substitution = 0;
-        }
-        if (eq(token, CC2_TOKEN_NO_SUBSTITUTION)) {
-            no_substitution = 1;
-        }
-        if (and(eq(token, CC2_TOKEN_DEFINED), pp_expr)) {
-            no_substitution = 2;
+            if (not(skip_tail)) {
+                if (eq(token, CC2_TOKEN_NO_SUBSTITUTION)) {
+                    no_substitution = 1;
+                }
+                if (and(eq(token, CC2_TOKEN_DEFINED), pp_expr)) {
+                    no_substitution = 2;
+                }
+            }
         }
     }
     free(temporary_stream);
@@ -3049,7 +3064,7 @@ function macro_subst_(output, nested_list, macro_stream, stream_pointer,
 function macro_subst(output, nested_list, macro_stream)
 {
     return macro_subst_(output, nested_list, macro_stream, 0, 0, 0, 0, 0,
-        0, 0, 0, 0);
+        0, 0, 0, 0, 0);
 }
 
 function macro_arg_subst_(nested_list, macro_stream, arguments,
@@ -3672,9 +3687,10 @@ function parse_number(text)
         0, 0, 0, 0, 0);
 }
 
-function next_(nested_list, symbol)
+function next_(nested_list, symbol, retry)
 {
     while (1) {
+        retry = 0;
         if (and(ri32(parse_flags_address), CC2_PARSE_FLAG_SPACES)) {
             next_nomacro_spc();
         } else {
@@ -3683,15 +3699,15 @@ function next_(nested_list, symbol)
         if (macro_ptr) {
             if (or(eq(ri32(tok_address), CC2_TOKEN_NO_SUBSTITUTION),
                 eq(ri32(tok_address), CC2_TOKEN_PLACEHOLDER))) {
-                continue;
+                retry = 1;
             }
-            if (eq(ri32(tok_address), 0)) {
+            if (and(not(retry), eq(ri32(tok_address), 0))) {
                 end_macro();
-                continue;
+                retry = 1;
             }
-        } else if (and(not(lt(ri32(tok_address),
+        } else if (and(not(retry), and(not(lt(ri32(tok_address),
             CC2_TOKEN_IDENTIFIER_BASE)), and(ri32(parse_flags_address),
-            CC2_PARSE_FLAG_PREPROCESS))) {
+            CC2_PARSE_FLAG_PREPROCESS)))) {
             symbol = define_find(ri32(tok_address));
             if (symbol) {
                 nested_list = malloc(CC2_I386_WORD_BYTES);
@@ -3702,10 +3718,12 @@ function next_(nested_list, symbol)
                 tok_str_add(tokstr_buf_address, 0);
                 begin_macro(tokstr_buf_address, 2);
                 free(nested_list);
-                continue;
+                retry = 1;
             }
         }
-        break;
+        if (not(retry)) {
+            break;
+        }
     }
     if (eq(ri32(tok_address), CC2_TOKEN_PREPROCESSOR_NUMBER)) {
         if (and(ri32(parse_flags_address), CC2_PARSE_FLAG_TOKEN_NUMBERS)) {
@@ -3722,7 +3740,7 @@ function next_(nested_list, symbol)
 
 function next()
 {
-    return next_(0, 0);
+    return next_(0, 0, 0);
 }
 
 /* Keep preprocessor output tokens textually separate where concatenation
@@ -4061,7 +4079,7 @@ function expr_preprocess()
 
 function parse_define_(value, macro_type, parameter, variadic, spacing,
     saved_flags, first_pointer, slot, spacing_pointer, symbol, dot_identifier,
-    stream)
+    stream, append_token)
 {
     value = ri32(tok_address);
     if (or(lt(value, CC2_TOKEN_IDENTIFIER_BASE),
@@ -4126,6 +4144,7 @@ function parse_define_(value, macro_type, parameter, variadic, spacing,
         CC2_PARSE_FLAG_LINE_FEED))));
     while (and(not(eq(ri32(tok_address), CC2_CHARACTER_LINE_FEED)),
         not(eq(ri32(tok_address), CC2_CHARACTER_END_OF_FILE)))) {
+        append_token = 1;
         if (eq(ri32(tok_address), CC2_TOKEN_TWO_SHARPS)) {
             if (eq(spacing, 2)) {
                 tcc_error(mks("'##' cannot appear at either end of macro"),
@@ -4146,12 +4165,14 @@ function parse_define_(value, macro_type, parameter, variadic, spacing,
                 spacing_pointer)) {
                 spacing = ri32(spacing_pointer);
                 next_nomacro_spc();
-                continue;
+                append_token = 0;
             }
             spacing = ri32(spacing_pointer);
         }
-        tok_str_add2(stream, ri32(tok_address), tokc_address);
-        next_nomacro_spc();
+        if (append_token) {
+            tok_str_add2(stream, ri32(tok_address), tokc_address);
+            next_nomacro_spc();
+        }
     }
     wi32(parse_flags_address, saved_flags);
     if (eq(spacing, 1)) {
@@ -4170,7 +4191,7 @@ function parse_define_(value, macro_type, parameter, variadic, spacing,
 
 function parse_define()
 {
-    return parse_define_(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    return parse_define_(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function tok_str_new(stream)
@@ -4937,19 +4958,22 @@ function preprocess_include(state, directive)
         CC2_TCC_STATE_INCLUDE_PATH_COUNT_OFFSET)), ri32(add(state,
         CC2_TCC_STATE_SYSTEM_INCLUDE_PATH_COUNT_OFFSET))));
     while (lt(index, search_count)) {
+        entry = 1;
         if (eq(index, 0)) {
             if (not(eq(ri8(name), 47))) {
                 index = add(index, 1);
-                continue;
+                entry = 0;
+            } else {
+                wi8(candidate, 0);
             }
-            wi8(candidate, 0);
         } else if (eq(index, 1)) {
             if (not(eq(separator, 34))) {
                 index = add(index, 1);
-                continue;
+                entry = 0;
+            } else {
+                cc2_copy_directory(candidate, ri32(add(source_file,
+                    CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET)));
             }
-            cc2_copy_directory(candidate, ri32(add(source_file,
-                CC2_BUFFERED_FILE_TRUE_FILENAME_OFFSET)));
         } else {
             path_index = sub(index, 2);
             system_index = sub(path_index, ri32(add(state,
@@ -4966,42 +4990,46 @@ function preprocess_include(state, directive)
             strcpy(candidate, path);
             strcat(candidate, mks("/"));
         }
-        strcat(candidate, name);
-        entry = search_cached_include(state, candidate, 0);
         if (entry) {
-            if (or(not(eq(define_find(ri32(add(entry,
-                CC2_CACHED_INCLUDE_IFNDEF_OFFSET))), 0)), eq(ri32(add(entry,
-                CC2_CACHED_INCLUDE_ONCE_OFFSET)), ri32(pp_once_address)))) {
+            strcat(candidate, name);
+            entry = search_cached_include(state, candidate, 0);
+            if (entry) {
+                if (or(not(eq(define_find(ri32(add(entry,
+                    CC2_CACHED_INCLUDE_IFNDEF_OFFSET))), 0)), eq(ri32(add(entry,
+                    CC2_CACHED_INCLUDE_ONCE_OFFSET)), ri32(pp_once_address)))) {
+                    free(candidate);
+                    free(name);
+                    return 0;
+                }
+            }
+            if (not(lt(tcc_open(state, candidate), 0))) {
+                source_file = ri32(file_address);
+                wi32(add(source_file,
+                    CC2_BUFFERED_FILE_INCLUDE_NEXT_INDEX_OFFSET),
+                    add(index, 1));
+                path = malloc(add(strlen(candidate), 1));
+                strcpy(path, candidate);
+                dynarray_add(add(state,
+                    CC2_TCC_STATE_TARGET_DEPENDENCIES_OFFSET), add(state,
+                    CC2_TCC_STATE_TARGET_DEPENDENCY_COUNT_OFFSET), path);
+                wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
+                    add(include_pointer, CC2_I386_WORD_BYTES));
+                if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
+                    put_stabs(add(source_file,
+                        CC2_BUFFERED_FILE_FILENAME_OFFSET),
+                        CC2_STABS_INCLUDE_TYPE, 0, 0, 0);
+                }
+                wi32(tok_flags_address, or(ri32(tok_flags_address), or(
+                    CC2_TOKEN_FLAG_BEGINNING_OF_FILE,
+                    CC2_TOKEN_FLAG_BEGINNING_OF_LINE)));
+                ch = ri8(ri32(add(source_file,
+                    CC2_BUFFERED_FILE_POINTER_OFFSET)));
                 free(candidate);
                 free(name);
-                return 0;
+                return 1;
             }
+            index = add(index, 1);
         }
-        if (not(lt(tcc_open(state, candidate), 0))) {
-            source_file = ri32(file_address);
-            wi32(add(source_file, CC2_BUFFERED_FILE_INCLUDE_NEXT_INDEX_OFFSET),
-                add(index, 1));
-            path = malloc(add(strlen(candidate), 1));
-            strcpy(path, candidate);
-            dynarray_add(add(state, CC2_TCC_STATE_TARGET_DEPENDENCIES_OFFSET),
-                add(state, CC2_TCC_STATE_TARGET_DEPENDENCY_COUNT_OFFSET), path);
-            wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
-                add(include_pointer, CC2_I386_WORD_BYTES));
-            if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
-                put_stabs(add(source_file,
-                    CC2_BUFFERED_FILE_FILENAME_OFFSET),
-                    CC2_STABS_INCLUDE_TYPE, 0, 0, 0);
-            }
-            wi32(tok_flags_address, or(ri32(tok_flags_address), or(
-                CC2_TOKEN_FLAG_BEGINNING_OF_FILE,
-                CC2_TOKEN_FLAG_BEGINNING_OF_LINE)));
-            ch = ri8(ri32(add(source_file,
-                CC2_BUFFERED_FILE_POINTER_OFFSET)));
-            free(candidate);
-            free(name);
-            return 1;
-        }
-        index = add(index, 1);
     }
     tcc_error(mks("include file '%s' not found"), name);
     return 0;
@@ -7926,12 +7954,14 @@ function subst_asm_operands_(operands, operand_count, output, input,
                 }
                 subst_asm_operand(output, value, modifier);
                 free(value);
-                continue;
+                character = sub(0, 1);
             }
         }
-        cstr_ccat(output, character);
-        if (eq(character, 0)) {
-            return 0;
+        if (not(eq(character, sub(0, 1)))) {
+            cstr_ccat(output, character);
+            if (eq(character, 0)) {
+                return 0;
+            }
         }
     }
 }
@@ -14523,10 +14553,11 @@ function move_reg(destination, source, type)
     return move_reg_(destination, source, type, 0);
 }
 
-function struct_add_offset_(symbol, offset, value, type_value)
+function struct_add_offset_(symbol, offset, value, type_value, nested)
 {
     symbol = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
     while (not(eq(symbol, 0))) {
+        nested = 0;
         value = ri32(add(symbol, CC2_SYM_VALUE_OFFSET));
         type_value = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
         if (not(eq(and(value, CC2_SYMBOL_FIELD_FLAG), 0))) {
@@ -14536,13 +14567,14 @@ function struct_add_offset_(symbol, offset, value, type_value)
                     and(value, bnot(CC2_SYMBOL_FIELD_FLAG)))) {
                     struct_add_offset(ri32(add(symbol,
                         CC2_SYM_TYPE_REFERENCE_OFFSET)), offset);
-                    symbol = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
-                    continue;
+                    nested = 1;
                 }
             }
         }
-        wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET),
-            add(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), offset));
+        if (not(nested)) {
+            wi32(add(symbol, CC2_SYM_CONSTANT_OFFSET),
+                add(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), offset));
+        }
         symbol = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
     }
     return 0;
@@ -14550,7 +14582,7 @@ function struct_add_offset_(symbol, offset, value, type_value)
 
 function struct_add_offset(symbol, offset)
 {
-    return struct_add_offset_(symbol, offset, 0, 0);
+    return struct_add_offset_(symbol, offset, 0, 0, 0);
 }
 
 function find_field_(type, value, symbol, symbol_value, symbol_type, found)
@@ -17291,14 +17323,16 @@ function struct_decl_enum_(type, symbol, words, member_type, member,
             if (and(basic_type, CC2_TCC_UNSIGNED_TYPE)) {
                 wi32(add(member, CC2_SYM_TYPE_OFFSET), or(ri32(add(member,
                     CC2_SYM_TYPE_OFFSET)), CC2_TCC_UNSIGNED_TYPE));
-                if (eq(high, 0)) {
-                    member = ri32(add(member, CC2_SYM_NEXT_OFFSET));
-                    continue;
+                if (not(eq(high, 0))) {
+                    wi32(add(member, CC2_SYM_TYPE_OFFSET), or(and(ri32(add(member,
+                        CC2_SYM_TYPE_OFFSET)), bnot(CC2_TCC_BASIC_TYPE_MASK)),
+                        CC2_TCC_LONG_LONG_TYPE));
                 }
+            } else {
+                wi32(add(member, CC2_SYM_TYPE_OFFSET), or(and(ri32(add(member,
+                    CC2_SYM_TYPE_OFFSET)), bnot(CC2_TCC_BASIC_TYPE_MASK)),
+                    CC2_TCC_LONG_LONG_TYPE));
             }
-            wi32(add(member, CC2_SYM_TYPE_OFFSET), or(and(ri32(add(member,
-                CC2_SYM_TYPE_OFFSET)), bnot(CC2_TCC_BASIC_TYPE_MASK)),
-                CC2_TCC_LONG_LONG_TYPE));
         }
         member = ri32(add(member, CC2_SYM_NEXT_OFFSET));
     }
@@ -17565,7 +17599,7 @@ function struct_decl(type, structure_kind)
 
 function parse_btype_(type, attributes, temporary_type, current_type,
     basic_type, size_modifier, type_found, type_specifier_found, token,
-    parsed_type, storage, symbol, preserved)
+    parsed_type, storage, symbol, preserved, done)
 {
     cc2_zero_bytes(attributes, CC2_ATTRIBUTE_BYTES);
     current_type = CC2_TCC_INT_TYPE;
@@ -17575,11 +17609,13 @@ function parse_btype_(type, attributes, temporary_type, current_type,
     type_specifier_found = 0;
     wi32(add(type, 4), 0);
     while (1) {
+        done = 0;
+        while (1) {
         token = ri32(tok_address);
         parsed_type = sub(0, 1);
         if (eq(token, CC2_TOKEN_EXTENSION)) {
             next();
-            continue;
+            break;
         } else if (eq(token, CC2_TOKEN_CHAR)) {
             parsed_type = CC2_TCC_BYTE_TYPE;
         } else if (eq(token, CC2_TOKEN_VOID)) {
@@ -17600,7 +17636,7 @@ function parse_btype_(type, attributes, temporary_type, current_type,
                     CC2_TCC_LONG_DOUBLE_TYPE);
                 next();
                 type_found = 1;
-                continue;
+                break;
             }
             if (eq(and(current_type, or(CC2_TCC_BASIC_TYPE_MASK,
                 CC2_TCC_LONG_MODIFIER)), CC2_TCC_LONG_MODIFIER)) {
@@ -17609,7 +17645,7 @@ function parse_btype_(type, attributes, temporary_type, current_type,
                     CC2_TCC_LONG_LONG_TYPE);
                 next();
                 type_found = 1;
-                continue;
+                break;
             }
             parsed_type = CC2_TCC_LONG_MODIFIER;
         } else if (eq(token, CC2_TOKEN_DOUBLE)) {
@@ -17624,7 +17660,7 @@ function parse_btype_(type, attributes, temporary_type, current_type,
             if (eq(parsed_type, sub(0, 1))) {
                 next();
                 type_found = 1;
-                continue;
+                break;
             }
         } else if (eq(token, CC2_TOKEN_ENUM)) {
             struct_decl(temporary_type, CC2_TCC_ENUM_TYPE);
@@ -17669,7 +17705,7 @@ function parse_btype_(type, attributes, temporary_type, current_type,
                 next();
             }
             type_found = 1;
-            continue;
+            break;
         }
         if (cc2_token_is_three(token, CC2_TOKEN_CONST_FIRST,
             CC2_TOKEN_CONST_SECOND, CC2_TOKEN_CONST_THIRD)) {
@@ -17761,13 +17797,16 @@ function parse_btype_(type, attributes, temporary_type, current_type,
             type_specifier_found = 1;
         } else {
             if (type_specifier_found) {
+                done = 1;
                 break;
             }
             symbol = sym_find(token);
             if (not(symbol)) {
+                done = 1;
                 break;
             }
             if (eq(and(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)), 16384), 0)) {
+                done = 1;
                 break;
             }
             current_type = and(current_type, bnot(or(
@@ -17790,6 +17829,11 @@ function parse_btype_(type, attributes, temporary_type, current_type,
             basic_type = sub(0, 2);
         }
         type_found = 1;
+        break;
+        }
+        if (done) {
+            break;
+        }
     }
     if (ri32(add(tcc_state_address, CC2_TCC_STATE_CHAR_UNSIGNED_OFFSET))) {
         if (eq(and(current_type, or(CC2_TCC_DEFAULT_SIGN,
@@ -17812,7 +17856,7 @@ function parse_btype(type, attributes)
     var result;
     temporary_type = malloc(8);
     result = parse_btype_(type, attributes, temporary_type,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     free(temporary_type);
     return result;
 }
@@ -24904,31 +24948,32 @@ function set_flag(state, flags, name)
     result = sub(0, 1);
     current = flags;
     while (ri32(add(current, 4))) {
+        offset = 1;
         attributes = or(ri8(add(current, 2)),
             shl(ri8(add(current, 3)), 8));
         if (result) {
             if (strcmp(text, ri32(add(current, 4)))) {
-                current = add(current, 8);
-                continue;
+                offset = 0;
             }
         } else {
             if (eq(and(attributes, 1), 0)) {
-                current = add(current, 8);
-                continue;
+                offset = 0;
             }
         }
-        offset = or(ri8(current), shl(ri8(add(current, 1)), 8));
         if (offset) {
-            if (and(attributes, 2)) {
-                wi32(add(state, offset), not(value));
+            offset = or(ri8(current), shl(ri8(add(current, 1)), 8));
+            if (offset) {
+                if (and(attributes, 2)) {
+                    wi32(add(state, offset), not(value));
+                } else {
+                    wi32(add(state, offset), value);
+                }
+                if (result) {
+                    return 0;
+                }
             } else {
-                wi32(add(state, offset), value);
+                result = 0;
             }
-            if (result) {
-                return 0;
-            }
-        } else {
-            result = 0;
         }
         current = add(current, 8);
     }
@@ -25181,12 +25226,13 @@ function args_parser_make_argv(text, count_pointer, array_pointer)
                 text = add(text, 1);
             } else if (eq(character, mkC("\""))) {
                 quoted = not(quoted);
-                character = ri8(text);
-                continue;
+                character = sub(0, 1);
             } else if (and(eq(quoted, 0), le(character, mkC(" ")))) {
                 break;
             }
-            cstr_ccat(string, character);
+            if (not(eq(character, sub(0, 1)))) {
+                cstr_ccat(string, character);
+            }
             character = ri8(text);
         }
         cstr_ccat(string, 0);
@@ -25435,6 +25481,7 @@ function tcc_parse_args(state, argument_count_pointer, arguments_pointer,
     no_action = option_index;
     stop = 0;
     while (and(lt(ri32(index_slot), argument_count), not(stop))) {
+        while (1) {
         option_index = ri32(index_slot);
         option = ri32(add(arguments, shl(option_index, 2)));
         if (and(eq(ri8(option), mkC("@")), ri8(add(option, 1)))) {
@@ -25444,7 +25491,7 @@ function tcc_parse_args(state, argument_count_pointer, arguments_pointer,
                 count_slot, array_slot);
             argument_count = ri32(count_slot);
             arguments = ri32(array_slot);
-            continue;
+            break;
         }
         wi32(index_slot, add(option_index, 1));
         if (tool) {
@@ -25452,7 +25499,7 @@ function tcc_parse_args(state, argument_count_pointer, arguments_pointer,
                 wi32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET), add(ri32(add(
                     state, CC2_TCC_STATE_VERBOSE_OFFSET)), 1));
             }
-            continue;
+            break;
         }
         reparse = 1;
         while (and(reparse, not(stop))) {
@@ -25468,7 +25515,7 @@ function tcc_parse_args(state, argument_count_pointer, arguments_pointer,
                     argument_start = sub(ri32(index_slot), 1);
                     stop = 1;
                 }
-                continue;
+                break;
             }
             body = add(option, 1);
             wi32(argument_slot, 0);
@@ -25706,6 +25753,8 @@ function tcc_parse_args(state, argument_count_pointer, arguments_pointer,
             } else {
                 tcc_error(mks("invalid option -- '%s'"), option);
             }
+        }
+        break;
         }
     }
     if (lt(0, last_optimization)) {
