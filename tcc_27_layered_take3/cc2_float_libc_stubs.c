@@ -1,4 +1,4 @@
-/* Temporary float conversions used only by provisional full cc2. */
+/* Fail-fast float conversions shared by the transitional cc2 executables. */
 
 function strtod(text, end)
 {

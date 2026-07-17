@@ -31,7 +31,6 @@ cp cc1_static.exe ../cc1_static.exe
 
 # Static cc1 adds the layer-one libc and constructs the temporary static cc2.
 ./cc1_static.exe -c "$SOURCE/cc1_static_start.c" -o cc1_static_start.o
-./cc1_static.exe -c "$SOURCE/cc2_libc_stubs.c" -o cc2_libc_stubs.o
 ./cc1_static.exe -c "$SOURCE/cc2_float_libc_stubs.c" \
     -o cc2_float_libc_stubs.o
 ./cc1_static.exe -c "$SOURCE/cc2.c" -o cc2.o
@@ -40,7 +39,8 @@ cat "$SOURCE/cc2.c" "$SOURCE/cc2_boot_storage.c" > cc2_boot_combined.c
 ./cc1_static.exe -c "$SOURCE/cc2_backend_stubs.c" -o cc2_backend_stubs.o
 ./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
     cc0_static_syscalls.o cc2_boot_combined.o \
-    cc2_backend_stubs.o cc1_libc.o cc1_libc_asm.o cc2_libc_stubs.o \
+    cc2_backend_stubs.o cc1_libc.o cc1_libc_asm.o \
+    cc2_float_libc_stubs.o \
     -o cc2_boot_static.exe
 chmod +x cc2_boot_static.exe
 
