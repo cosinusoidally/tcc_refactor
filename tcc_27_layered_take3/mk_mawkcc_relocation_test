@@ -17,12 +17,14 @@ make_source()
     relocation_count=$1
     output=$2
 
-    # Each unresolved external call produces one ELF relocation.
+    # Each global load produces one ELF relocation without consuming an entry
+    # in mawkcc's separate function-call table.
     awk -v count="$relocation_count" '
         BEGIN {
+            print "var shared_value;"
             print "function main() {"
             for (i = 0; i < count; i++) {
-                print "    external();"
+                print "    shared_value;"
             }
             print "    return 0;"
             print "}"
