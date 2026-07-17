@@ -162,12 +162,14 @@ provides only operator, byte-memory, and low-level host runtime meanings. The
 shared libc implements allocation, strings, descriptor caching, and FILE
 operations. Its unlink runtime primitive is deliberately inert in JavaScript.
 
-When i386 `libc.so.6` and `libm.so.6` are installed, the verified static cc2
-also builds two identical dynamic generations and publishes the usual dynamic
-`artifacts/cc2.exe`. Without those DSOs, as on an amd64-only system,
-`artifacts/cc2.exe` is a copy of the verified static `cc2_static.exe`; stale
-dynamic-generation directories are removed. The static continuation remains
-fully available in that environment.
+SpiderMonkey also builds metadata-only shared objects from
+`cc2_dynamic_libc_imports.c` and `cc2_dynamic_libm_imports.c`. They provide the
+symbol names and `libc.so.6`/`libm.so.6` SONAMEs required by the ELF linker,
+but none of their bodies enter `cc2.exe`. The two verified static cc2
+generations use that metadata to build two identical dynamic generations.
+Consequently `mk_cc2_js` always publishes the same dynamic `cc2.exe` and
+static `cc2_static.exe`, even on an amd64 host with no i386 glibc files. The
+dynamic executable naturally requires i386 glibc only when it is run.
 
 ## mawkcc Seed
 
@@ -240,15 +242,13 @@ Build the completely static compiler chain with:
 ./mk_tcc_layered_via_cc1_static
 ```
 
-After `mk_cc2_gcc`, or after `mk_cc2_js` on a system with i386 glibc, continue
-the direct dynamic chain with:
+After `mk_cc2_gcc` or `mk_cc2_js`, continue the direct dynamic chain with:
 
 ```sh
 ./mk_tcc_layered_via_cc2
 ```
 
-The direct static chain is available after either seed on every supported
-host:
+The direct static chain is also available after either seed:
 
 ```sh
 ./mk_tcc_layered_via_cc2_static
