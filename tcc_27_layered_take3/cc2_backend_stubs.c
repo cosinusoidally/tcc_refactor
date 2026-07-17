@@ -79,7 +79,7 @@ function vpush_bitfield_mask(type, size, position, invert)
     return 0;
 }
 
-function tcc_error(format, value)
+function tcc_error(format, value, extra)
 {
     puts(format);
     if (eq(strcmp(format, mks("redeclaration of '%s'")), 0)) {
@@ -89,7 +89,7 @@ function tcc_error(format, value)
     return 1;
 }
 
-function tcc_warning(format, value)
+function tcc_warning(format, value, extra1, extra2)
 {
     puts(format);
     if (eq(strcmp(format, mks("implicit declaration of function '%s'")),
@@ -99,7 +99,7 @@ function tcc_warning(format, value)
     return 0;
 }
 
-function tcc_error_noabort(format, value)
+function tcc_error_noabort(format, value, extra1, extra2)
 {
     puts(format);
     return 0;

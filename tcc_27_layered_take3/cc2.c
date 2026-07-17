@@ -1180,13 +1180,13 @@ function skip(token)
 
 function expect(message)
 {
-    tcc_error(mks("%s expected"), message);
+    tcc_error(mks("%s expected"), message, 0);
     return 0;
 }
 
 function sym_redeclaration_error(value)
 {
-    tcc_error(mks("redeclaration of '%s'"), get_tok_str(value, 0));
+    tcc_error(mks("redeclaration of '%s'"), get_tok_str(value, 0), 0);
     return 0;
 }
 
@@ -1366,7 +1366,7 @@ function handle_stray_noerror()
 function handle_stray()
 {
     if (handle_stray_noerror()) {
-        tcc_error(mks("stray '\\' in program"), 0);
+        tcc_error(mks("stray '\\' in program"), 0, 0);
     }
     return 0;
 }
@@ -1387,7 +1387,7 @@ function handle_stray1_(pointer, source_file, character)
     if (handle_stray_noerror()) {
         if (eq(and(ri32(parse_flags_address),
             CC2_PARSE_FLAG_ACCEPT_STRAYS), 0)) {
-            tcc_error(mks("stray '\\' in program"), 0);
+            tcc_error(mks("stray '\\' in program"), 0, 0);
         }
         pointer = sub(ri32(add(source_file,
             CC2_BUFFERED_FILE_POINTER_OFFSET)), 1);
@@ -1513,7 +1513,7 @@ function parse_comment_(pointer, source_file, character)
                 return add(pointer, 1);
             }
             if (eq(character, CC2_CHARACTER_END_OF_FILE)) {
-                tcc_error(mks("unexpected end of file in comment"), 0);
+                tcc_error(mks("unexpected end of file in comment"), 0, 0);
                 return pointer;
             }
         } else if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
@@ -1522,7 +1522,7 @@ function parse_comment_(pointer, source_file, character)
             pointer = ri32(add(source_file,
                 CC2_BUFFERED_FILE_POINTER_OFFSET));
             if (eq(character, CC2_CHARACTER_END_OF_FILE)) {
-                tcc_error(mks("unexpected end of file in comment"), 0);
+                tcc_error(mks("unexpected end of file in comment"), 0, 0);
                 return pointer;
             }
             if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
@@ -2032,7 +2032,7 @@ function cc2_lex_dot(pointer)
 
 function cc2_lex_unrecognized(character)
 {
-    tcc_error(mks("unrecognized character \\x%02x"), character);
+    tcc_error(mks("unrecognized character \\x%02x"), character, 0);
     return 0;
 }
 
@@ -2068,7 +2068,7 @@ function cc2_lex_end_of_buffer_(pointer, character, state, source_file,
     if (not(eq(ri32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET)),
         ri32(add(source_file,
         CC2_BUFFERED_FILE_IFDEF_STACK_POINTER_OFFSET))))) {
-        tcc_error(mks("missing #endif"), 0);
+        tcc_error(mks("missing #endif"), 0, 0);
         return pointer;
     }
     include_pointer = ri32(add(state,
@@ -2416,7 +2416,7 @@ function cc2_preprocess_token_print_locals_(state, message, stream, output,
     stream_pointer, token_pointer, value, skip_space)
 {
     output = ri32(add(state, CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET));
-    fprintf(output, mks("%s"), message);
+    fprintf(output, mks("%s"), message, 0, 0, 0, 0);
     stream_pointer = malloc(CC2_I386_WORD_BYTES);
     token_pointer = malloc(CC2_I386_WORD_BYTES);
     value = malloc(CC2_CVALUE_BYTES);
@@ -2429,7 +2429,7 @@ function cc2_preprocess_token_print_locals_(state, message, stream, output,
             break;
         }
         fprintf(output, add(mks(" %s"), skip_space),
-            get_tok_str(ri32(token_pointer), value));
+            get_tok_str(ri32(token_pointer), value), 0, 0, 0, 0);
         skip_space = 1;
     }
     fputc(mkC("\n"), output);
@@ -2475,7 +2475,7 @@ function cc2_preprocess_line_locals_(state, source_file, level, output, line,
         }
     } else if (eq(format, CC2_LINE_FORMAT_STANDARD)) {
         fprintf(output, mks("#line %d %c%s%c"), line, mkC("\""),
-            add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET), mkC("\""));
+            add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET), mkC("\""), 0);
         fputc(mkC("\n"), output);
     } else {
         suffix = mks("");
@@ -2509,7 +2509,7 @@ function cc2_preprocess_define_print_locals_(state, value, symbol, argument,
         return 0;
     }
     output = ri32(add(state, CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET));
-    fprintf(output, mks("#define %s"), get_tok_str(value, 0));
+    fprintf(output, mks("#define %s"), get_tok_str(value, 0), 0, 0, 0, 0);
     if (eq(ri32(add(symbol, CC2_SYM_TYPE_OFFSET)), CC2_MACRO_FUNCTION)) {
         fputc(mkC("("), output);
         argument = ri32(add(symbol, CC2_SYM_NEXT_OFFSET));
@@ -2552,15 +2552,15 @@ function cc2_preprocess_debug_defines_locals_(state, debug_token, value,
     if (eq(debug_token, CC2_TOKEN_DEFINE_DIRECTIVE)) {
         cc2_preprocess_define_print(state, value);
     } else if (eq(debug_token, CC2_TOKEN_UNDEF_DIRECTIVE)) {
-        fprintf(output, mks("#undef %s"), get_tok_str(value, 0));
+        fprintf(output, mks("#undef %s"), get_tok_str(value, 0), 0, 0, 0, 0);
         fputc(mkC("\n"), output);
     } else if (eq(debug_token, CC2_TOKEN_PRAGMA_PUSH_MACRO)) {
         fprintf(output, mks("#pragma push_macro(%c%s%c)"), mkC("\""),
-            get_tok_str(value, 0), mkC("\""));
+            get_tok_str(value, 0), mkC("\""), 0, 0);
         fputc(mkC("\n"), output);
     } else if (eq(debug_token, CC2_TOKEN_PRAGMA_POP_MACRO)) {
         fprintf(output, mks("#pragma pop_macro(%c%s%c)"), mkC("\""),
-            get_tok_str(value, 0), mkC("\""));
+            get_tok_str(value, 0), mkC("\""), 0, 0);
         fputc(mkC("\n"), output);
     }
     wi32(pp_debug_tok_address, 0);
@@ -2950,10 +2950,10 @@ function cc2_expand_special_macro_locals_(stream, token, buffer, string,
     source_file = ri32(file_address);
     if (eq(token, CC2_TOKEN_BUILTIN_LINE)) {
         snprintf(buffer, 32, mks("%d"),
-            ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)));
+            ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET)), 0, 0);
         result_token = CC2_TOKEN_PREPROCESSOR_NUMBER;
     } else if (eq(token, CC2_TOKEN_BUILTIN_COUNTER)) {
-        snprintf(buffer, 32, mks("%d"), pp_counter);
+        snprintf(buffer, 32, mks("%d"), pp_counter, 0, 0);
         pp_counter = add(pp_counter, 1);
         result_token = CC2_TOKEN_PREPROCESSOR_NUMBER;
     } else if (eq(token, CC2_TOKEN_BUILTIN_FILE)) {
@@ -3047,7 +3047,7 @@ function macro_subst_(output, nested_list, macro_stream, stream_pointer,
         if (not(skip_tail)) {
             if (and(eq(token, mkC("\\")), eq(and(ri32(parse_flags_address),
                 CC2_PARSE_FLAG_ACCEPT_STRAYS), 0))) {
-                tcc_error(mks("stray backslash in program"), 0);
+                tcc_error(mks("stray backslash in program"), 0, 0);
             }
             wi32(spacing_pointer, spacing);
             if (not(cc0_check_space(isidnum_table_address, token,
@@ -3317,7 +3317,7 @@ function macro_subst_tok_(output, nested_list, symbol, saved_flags,
             }
             if (eq(argument, 0)) {
                 tcc_error(mks("macro '%s' used with too many args"),
-                    get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0));
+                    get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0), 0);
             }
             tok_str_new(argument_stream);
             parenthesis_level = 0;
@@ -3375,7 +3375,7 @@ function macro_subst_tok_(output, nested_list, symbol, saved_flags,
         }
         if (argument) {
             tcc_error(mks("macro '%s' used with too few args"),
-                get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0));
+                get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0), 0);
         }
         wi32(parse_flags_address, saved_flags);
         macro_stream = macro_arg_subst(nested_list, macro_stream,
@@ -3444,7 +3444,7 @@ function cc2_number_digit(character)
 function cc2_number_append(buffer, output, character)
 {
     if (not(lt(sub(output, buffer), sub(CC2_NUMBER_TEXT_BYTES, 1)))) {
-        tcc_error(mks("number too long"), 0);
+        tcc_error(mks("number too long"), 0, 0);
     }
     wi8(output, character);
     return add(output, 1);
@@ -3517,7 +3517,7 @@ function parse_number_(text, pointer, buffer, output, words, character,
                 while (not(lt(cc2_number_digit(character), 0))) {
                     digit = cc2_number_digit(character);
                     if (not(lt(digit, base))) {
-                        tcc_error(mks("invalid digit"), 0);
+                        tcc_error(mks("invalid digit"), 0, 0);
                     }
                     cc0_number_lshift(words, shift, digit);
                     fraction_bits = add(fraction_bits, shift);
@@ -3628,7 +3628,7 @@ function parse_number_(text, pointer, buffer, output, words, character,
         while (ri8(output)) {
             digit = cc2_number_digit(ri8(output));
             if (not(lt(digit, base))) {
-                tcc_error(mks("invalid digit"), 0);
+                tcc_error(mks("invalid digit"), 0, 0);
             }
             if (u64_mul_add(words, base, digit)) {
                 overflow = 1;
@@ -3642,19 +3642,19 @@ function parse_number_(text, pointer, buffer, output, words, character,
             suffix = cc0_to_upper(character);
             if (eq(suffix, mkC("L"))) {
                 if (not(lt(long_count, 2))) {
-                    tcc_error(mks("three 'l's in integer constant"), 0);
+                    tcc_error(mks("three 'l's in integer constant"), 0, 0);
                 }
                 if (and(long_count,
                     not(eq(ri8(sub(pointer, 1)), character)))) {
                     tcc_error(mks("incorrect integer suffix: %s"),
-                        suffix_start);
+                        suffix_start, 0);
                 }
                 long_count = add(long_count, 1);
                 character = ri8(pointer);
                 pointer = add(pointer, 1);
             } else if (eq(suffix, mkC("U"))) {
                 if (unsigned_count) {
-                    tcc_error(mks("two 'u's in integer constant"), 0);
+                    tcc_error(mks("two 'u's in integer constant"), 0, 0);
                 }
                 unsigned_count = 1;
                 character = ri8(pointer);
@@ -3685,7 +3685,7 @@ function parse_number_(text, pointer, buffer, output, words, character,
             }
         }
         if (overflow) {
-            tcc_warning(mks("integer constant overflow"), 0);
+            tcc_warning(mks("integer constant overflow"), 0, 0, 0);
         }
         wi32(tok_address, CC2_TOKEN_INTEGER_CONSTANT);
         if (long_count) {
@@ -3702,7 +3702,7 @@ function parse_number_(text, pointer, buffer, output, words, character,
             ri32(add(words, CC2_I386_WORD_BYTES)));
     }
     if (character) {
-        tcc_error(mks("invalid number"), 0);
+        tcc_error(mks("invalid number"), 0, 0);
     }
     free(words);
     free(buffer);
@@ -3840,7 +3840,7 @@ function parse_pp_string_(pointer, separator, string, source_file, character)
             pointer = ri32(add(source_file,
                 CC2_BUFFERED_FILE_POINTER_OFFSET));
             if (eq(character, CC2_CHARACTER_END_OF_FILE)) {
-                tcc_error(mks("missing terminating %c character"), separator);
+                tcc_error(mks("missing terminating %c character"), separator, 0);
                 return pointer;
             } else if (eq(character, CC2_CHARACTER_END_OF_BUFFER)) {
                 pointer = add(pointer, 1);
@@ -3877,7 +3877,7 @@ function parse_pp_string_(pointer, separator, string, source_file, character)
                     pointer = add(pointer, 1);
                 } else if (eq(character, CC2_CHARACTER_END_OF_FILE)) {
                     tcc_error(mks("missing terminating %c character"),
-                        separator);
+                        separator, 0);
                     return pointer;
                 } else {
                     if (not(eq(string, 0))) {
@@ -4115,7 +4115,7 @@ function parse_define_(value, macro_type, parameter, variadic, spacing,
     if (or(lt(value, CC2_TOKEN_IDENTIFIER_BASE),
         eq(value, CC2_TOKEN_DEFINED))) {
         tcc_error(mks("invalid macro name '%s'"),
-            get_tok_str(value, tokc_address));
+            get_tok_str(value, tokc_address), 0);
         return 0;
     }
     first_pointer = malloc(CC2_I386_WORD_BYTES);
@@ -4144,7 +4144,7 @@ function parse_define_(value, macro_type, parameter, variadic, spacing,
                     next_nomacro();
                 }
                 if (lt(parameter, CC2_TOKEN_IDENTIFIER_BASE)) {
-                    tcc_error(mks("bad macro parameter list"), 0);
+                    tcc_error(mks("bad macro parameter list"), 0, 0);
                     break;
                 }
                 symbol = sym_push2(define_stack_address,
@@ -4155,7 +4155,7 @@ function parse_define_(value, macro_type, parameter, variadic, spacing,
                     break;
                 }
                 if (or(not(eq(ri32(tok_address), 44)), variadic)) {
-                    tcc_error(mks("bad macro parameter list"), 0);
+                    tcc_error(mks("bad macro parameter list"), 0, 0);
                     break;
                 }
                 next_nomacro();
@@ -4178,7 +4178,7 @@ function parse_define_(value, macro_type, parameter, variadic, spacing,
         if (eq(ri32(tok_address), CC2_TOKEN_TWO_SHARPS)) {
             if (eq(spacing, 2)) {
                 tcc_error(mks("'##' cannot appear at either end of macro"),
-                    0);
+                    0, 0);
                 break;
             }
             if (eq(spacing, 1)) {
@@ -4211,7 +4211,7 @@ function parse_define_(value, macro_type, parameter, variadic, spacing,
     }
     tok_str_add(stream, 0);
     if (eq(spacing, 3)) {
-        tcc_error(mks("'##' cannot appear at either end of macro"), 0);
+        tcc_error(mks("'##' cannot appear at either end of macro"), 0, 0);
     }
     define_push(value, macro_type, tok_str_dup(stream), ri32(first_pointer));
     free(spacing_pointer);
@@ -4511,7 +4511,7 @@ function pragma_parse_pack_locals_(state, token, pointer, stack_base, value)
     if (eq(token, CC2_TOKEN_ASSEMBLER_POP)) {
         next();
         if (le(pointer, stack_base)) {
-            tcc_error(mks("out of pack stack"), 0);
+            tcc_error(mks("out of pack stack"), 0, 0);
         }
         pointer = sub(pointer, CC2_I386_WORD_BYTES);
         wi32(add(state, CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET), pointer);
@@ -4522,7 +4522,7 @@ function pragma_parse_pack_locals_(state, token, pointer, stack_base, value)
                 next();
                 if (not(lt(pointer, add(stack_base, mul(sub(
                     CC2_PACK_STACK_ENTRIES, 1), CC2_I386_WORD_BYTES))))) {
-                    tcc_error(mks("out of pack stack"), 0);
+                    tcc_error(mks("out of pack stack"), 0, 0);
                 }
                 pointer = add(pointer, CC2_I386_WORD_BYTES);
                 wi32(add(state, CC2_TCC_STATE_PACK_STACK_POINTER_OFFSET),
@@ -4560,18 +4560,18 @@ function pragma_parse_locals_(state, token, value, symbol, token_symbol, text,
         eq(token, CC2_TOKEN_PRAGMA_POP_MACRO))) {
         next();
         if (not(eq(ri32(tok_address), 40))) {
-            tcc_error(mks("malformed #pragma directive"), 0);
+            tcc_error(mks("malformed #pragma directive"), 0, 0);
         }
         next();
         if (not(eq(ri32(tok_address), CC2_TOKEN_STRING))) {
-            tcc_error(mks("malformed #pragma directive"), 0);
+            tcc_error(mks("malformed #pragma directive"), 0, 0);
         }
         value = ri32(add(tok_alloc(ri32(add(tokc_address,
             CC2_CSTRING_DATA_OFFSET)), sub(ri32(add(tokc_address,
             CC2_CSTRING_SIZE_OFFSET)), 1)), CC2_TOKEN_SYMBOL_TOKEN_OFFSET));
         next();
         if (not(eq(ri32(tok_address), 41))) {
-            tcc_error(mks("malformed #pragma directive"), 0);
+            tcc_error(mks("malformed #pragma directive"), 0, 0);
         }
         if (eq(token, CC2_TOKEN_PRAGMA_PUSH_MACRO)) {
             symbol = define_find(value);
@@ -4600,7 +4600,7 @@ function pragma_parse_locals_(state, token, value, symbol, token_symbol, text,
                 wi32(add(token_symbol, CC2_TOKEN_SYMBOL_DEFINE_OFFSET), 0);
             }
         } else {
-            tcc_warning(mks("unbalanced #pragma pop_macro"), 0);
+            tcc_warning(mks("unbalanced #pragma pop_macro"), 0, 0, 0);
         }
         wi32(pp_debug_tok_address, token);
         wi32(pp_debug_symv_address, value);
@@ -4618,7 +4618,7 @@ function pragma_parse_locals_(state, token, value, symbol, token_symbol, text,
         unget_tok(CC2_TOKEN_LINE_FEED);
     } else if (eq(token, CC2_TOKEN_PRAGMA_PACK)) {
         if (not(pragma_parse_pack(state))) {
-            tcc_error(mks("malformed #pragma directive"), 0);
+            tcc_error(mks("malformed #pragma directive"), 0, 0);
         }
     } else if (eq(token, CC2_TOKEN_PRAGMA_COMMENT)) {
         next();
@@ -4627,13 +4627,13 @@ function pragma_parse_locals_(state, token, value, symbol, token_symbol, text,
         next();
         skip(44);
         if (not(eq(ri32(tok_address), CC2_TOKEN_STRING))) {
-            tcc_error(mks("malformed #pragma directive"), 0);
+            tcc_error(mks("malformed #pragma directive"), 0, 0);
         }
         text = malloc(ri32(add(tokc_address, CC2_CSTRING_SIZE_OFFSET)));
         strcpy(text, ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET)));
         next();
         if (not(eq(ri32(tok_address), 41))) {
-            tcc_error(mks("malformed #pragma directive"), 0);
+            tcc_error(mks("malformed #pragma directive"), 0, 0);
         }
         if (eq(token, CC2_TOKEN_PRAGMA_LIBRARY)) {
             dynarray_add(add(state, CC2_TCC_STATE_PRAGMA_LIBRARIES_OFFSET),
@@ -4646,7 +4646,7 @@ function pragma_parse_locals_(state, token, value, symbol, token_symbol, text,
         }
     } else if (ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
         tcc_warning(mks("#pragma %s is ignored"),
-            get_tok_str(ri32(tok_address), tokc_address));
+            get_tok_str(ri32(tok_address), tokc_address), 0, 0);
     }
     return 0;
 }
@@ -4668,9 +4668,9 @@ function preprocess_conditional_if_locals_(state, is_beginning, negated,
         token = ri32(tok_address);
         if (lt(token, CC2_TOKEN_IDENTIFIER_BASE)) {
             if (negated) {
-                tcc_error(mks("invalid argument for '#ifndef'"), 0);
+                tcc_error(mks("invalid argument for '#ifndef'"), 0, 0);
             } else {
-                tcc_error(mks("invalid argument for '#ifdef'"), 0);
+                tcc_error(mks("invalid argument for '#ifdef'"), 0, 0);
             }
         }
         source_file = ri32(file_address);
@@ -4687,7 +4687,7 @@ function preprocess_conditional_if_locals_(state, is_beginning, negated,
     stack_end = add(state, add(CC2_TCC_STATE_IFDEF_STACK_OFFSET,
         mul(CC2_IFDEF_STACK_ENTRIES, CC2_I386_WORD_BYTES)));
     if (not(lt(stack_pointer, stack_end))) {
-        tcc_error(mks("memory full (ifdef)"), 0);
+        tcc_error(mks("memory full (ifdef)"), 0, 0);
     }
     wi32(stack_pointer, condition);
     wi32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET),
@@ -4712,16 +4712,16 @@ function preprocess_conditional_else_locals_(state, is_elif, stack_base,
     stack_pointer = ri32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET));
     if (eq(stack_pointer, stack_base)) {
         if (is_elif) {
-            tcc_error(mks("#elif without matching #if"), 0);
+            tcc_error(mks("#elif without matching #if"), 0, 0);
         } else {
-            tcc_error(mks("#else without matching #if"), 0);
+            tcc_error(mks("#else without matching #if"), 0, 0);
         }
     }
     top = sub(stack_pointer, CC2_I386_WORD_BYTES);
     condition = ri32(top);
     if (is_elif) {
         if (lt(1, condition)) {
-            tcc_error(mks("#elif after #else"), 0);
+            tcc_error(mks("#elif after #else"), 0, 0);
         }
         if (eq(condition, 1)) {
             condition = 0;
@@ -4731,7 +4731,7 @@ function preprocess_conditional_else_locals_(state, is_elif, stack_base,
         }
     } else {
         if (and(condition, 2)) {
-            tcc_error(mks("#else after #else"), 0);
+            tcc_error(mks("#else after #else"), 0, 0);
         }
         condition = xor(condition, 3);
         wi32(top, condition);
@@ -4762,7 +4762,7 @@ function preprocess_conditional_endif_locals_(state, stack_pointer,
     file_stack_pointer = ri32(add(source_file,
         CC2_BUFFERED_FILE_IFDEF_STACK_POINTER_OFFSET));
     if (le(stack_pointer, file_stack_pointer)) {
-        tcc_error(mks("#endif without matching #if"), 0);
+        tcc_error(mks("#endif without matching #if"), 0, 0);
     }
     stack_pointer = sub(stack_pointer, CC2_I386_WORD_BYTES);
     wi32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET), stack_pointer);
@@ -4796,7 +4796,7 @@ function preprocess_line_directive_locals_(state, directive, line, token,
     } else {
         next();
         if (not(eq(ri32(tok_address), CC2_TOKEN_INTEGER_CONSTANT))) {
-            tcc_error(mks("wrong #line format"), 0);
+            tcc_error(mks("wrong #line format"), 0, 0);
         }
         line = ri32(tokc_address);
     }
@@ -4819,7 +4819,7 @@ function preprocess_line_directive_locals_(state, directive, line, token,
         } else if (and(ri32(parse_flags_address), CC2_PARSE_FLAG_ASM_FILE)) {
             return 0;
         } else {
-            tcc_error(mks("wrong #line format"), 0);
+            tcc_error(mks("wrong #line format"), 0, 0);
         }
         line = sub(line, 1);
     }
@@ -4882,9 +4882,9 @@ function preprocess_diagnostic_directive_locals_(directive, buffer, length,
     }
     wi8(add(buffer, length), 0);
     if (eq(directive, CC2_TOKEN_ERROR_DIRECTIVE)) {
-        tcc_error(mks("#error %s"), buffer);
+        tcc_error(mks("#error %s"), buffer, 0);
     } else {
-        tcc_warning(mks("#warning %s"), buffer);
+        tcc_warning(mks("#warning %s"), buffer, 0, 0);
     }
     free(buffer);
     return 0;
@@ -4966,13 +4966,13 @@ function preprocess_include_locals_(state, directive, name, candidate, length,
         length = strlen(name);
         if (lt(length, 2)) {
             tcc_error(mks("'#include' expects \"FILENAME\" or <FILENAME>"),
-                0);
+                0, 0);
         }
         if (and(or(not(eq(ri8(name), 34)), not(eq(ri8(add(name,
             sub(length, 1))), 34))), or(not(eq(ri8(name), 60)),
             not(eq(ri8(add(name, sub(length, 1))), 62))))) {
             tcc_error(mks("'#include' expects \"FILENAME\" or <FILENAME>"),
-                0);
+                0, 0);
         }
         separator = ri8(add(name, sub(length, 1)));
         index = 0;
@@ -4987,7 +4987,7 @@ function preprocess_include_locals_(state, directive, name, candidate, length,
     if (not(lt(include_pointer, add(state, add(
         CC2_TCC_STATE_INCLUDE_STACK_OFFSET, mul(CC2_INCLUDE_STACK_ENTRIES,
         CC2_I386_WORD_BYTES)))))) {
-        tcc_error(mks("#include recursion too deep"), 0);
+        tcc_error(mks("#include recursion too deep"), 0, 0);
     }
     wi32(include_pointer, source_file);
     if (eq(directive, CC2_TOKEN_INCLUDE_NEXT_DIRECTIVE)) {
@@ -5073,7 +5073,7 @@ function preprocess_include_locals_(state, directive, name, candidate, length,
             index = add(index, 1);
         }
     }
-    tcc_error(mks("include file '%s' not found"), name);
+    tcc_error(mks("include file '%s' not found"), name, 0);
     return 0;
 }
 
@@ -5150,7 +5150,7 @@ function preprocess_locals_(is_beginning, state, saved_flags, token, restart,
             if (not(and(saved_flags, CC2_PARSE_FLAG_ASM_FILE))) {
                 if (not(and(eq(token, 33), is_beginning))) {
                     tcc_warning(mks("Ignoring unknown preprocessing directive #%s"),
-                        get_tok_str(token, tokc_address));
+                        get_tok_str(token, tokc_address), 0, 0);
                 }
             }
             source_file = ri32(file_address);
@@ -5250,7 +5250,7 @@ function parse_escape_string_locals_(output, buffer, is_long, pointer,
                         character = 27;
                     } else {
                         tcc_warning(mks("unknown escape sequence: '\\%c'"),
-                            character);
+                            character, 0, 0);
                     }
                 } else if (and(not(eq(character, 39)), and(not(eq(character,
                     34)), and(not(eq(character, 92)), not(eq(character,
@@ -5258,10 +5258,10 @@ function parse_escape_string_locals_(output, buffer, is_long, pointer,
                     if (and(not(lt(character, 33)), not(lt(126,
                         character)))) {
                         tcc_warning(mks("unknown escape sequence: '\\%c'"),
-                            character);
+                            character, 0, 0);
                     } else {
                         tcc_warning(mks("unknown escape sequence: '\\x%x'"),
-                            character);
+                            character, 0, 0);
                     }
                 }
                 pointer = add(pointer, 1);
@@ -5312,7 +5312,7 @@ function parse_escape_string_locals_(output, buffer, is_long, pointer,
             }
             if (lt(continuation, 0)) {
                 tcc_warning(mks("ill-formed UTF-8 subsequence starting with: '\\x%x'"),
-                    leading);
+                    leading, 0, 0);
                 character = CC2_UNICODE_REPLACEMENT_CHARACTER;
                 pointer = add(pointer, skip);
             } else {
@@ -5369,10 +5369,10 @@ function parse_string_locals_(source, length, buffer, is_long, separator,
         count = sub(sdiv(ri32(add(tokcstr_address,
             CC2_CSTRING_SIZE_OFFSET)), character_size), 1);
         if (lt(count, 1)) {
-            tcc_error(mks("empty character constant"), 0);
+            tcc_error(mks("empty character constant"), 0, 0);
         }
         if (lt(1, count)) {
-            tcc_warning(mks("multi-character character constant"), 0);
+            tcc_warning(mks("multi-character character constant"), 0, 0, 0);
         }
         data = ri32(add(tokcstr_address, CC2_CSTRING_DATA_OFFSET));
         index = 0;
@@ -5433,7 +5433,7 @@ function tok_alloc(text, length) {
 function tok_alloc_new_locals_(slot, text, length, index, table, symbol, token)
 {
     if (not(lt(tok_ident, CC2_FIRST_ANONYMOUS_SYMBOL))) {
-        tcc_error(mks("memory full (symbols)"), 0);
+        tcc_error(mks("memory full (symbols)"), 0, 0);
     }
     index = sub(tok_ident, CC2_TOKEN_IDENTIFIER_BASE);
     if (eq(mod(index, CC2_TOKEN_ALLOC_INCREMENT), 0)) {
@@ -6130,7 +6130,7 @@ function get_elf_sym_addr_locals_(state, name, report_error, symbol_table,
         }
     }
     if (report_error) {
-        tcc_error(mks("%s not defined"), name);
+        tcc_error(mks("%s not defined"), name, 0);
     }
     return 0;
 }
@@ -6203,7 +6203,7 @@ function put_elf_reloca_locals_(symbol_table, section, offset, type, symbol,
     wi32(add(relocation, CC2_ELF_RELOCATION_INFO_OFFSET), or(
         shl(symbol, CC2_ELF_RELOCATION_SYMBOL_SHIFT), type));
     if (not(eq(addend, 0))) {
-        tcc_error(mks("non-zero addend on REL architecture"), 0);
+        tcc_error(mks("non-zero addend on REL architecture"), 0, 0);
     }
     return 0;
 }
@@ -6294,7 +6294,7 @@ function set_elf_sym_locals_(section, value, size, information, other,
                 } else if (and(other, CC2_ELF_ASSEMBLER_SET_FLAG)) {
                     patch_symbol = 1;
                 } else {
-                    tcc_error_noabort(mks("'%s' defined twice"), name);
+                    tcc_error_noabort(mks("'%s' defined twice"), name, 0, 0);
                 }
             }
         }
@@ -6438,7 +6438,7 @@ function tcc_get_symbol_err(state, name)
 
 function tcc_tool_cross(state, arguments, target)
 {
-    tcc_error(mks("-m%d not implemented."), target);
+    tcc_error(mks("-m%d not implemented."), target, 0);
     return 0;
 }
 
@@ -6455,13 +6455,13 @@ function gen_makedeps_locals_(state, target, filename, allocated_filename,
         filename = allocated_filename;
     }
     if (ri32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET))) {
-        printf(mks("<- %s\n"), filename);
+        printf(mks("<- %s\n"), filename, 0, 0);
     }
     output = fopen(filename, mks("w"));
     if (eq(output, 0)) {
-        tcc_error(mks("could not open '%s'"), filename);
+        tcc_error(mks("could not open '%s'"), filename, 0);
     }
-    fprintf(output, mks("%s: "), target);
+    fprintf(output, mks("%s: "), target, 0, 0, 0, 0);
     fputc(CC2_ASCII_BACKSLASH, output);
     fputc(CC2_CHARACTER_LINE_FEED, output);
     dependencies = ri32(add(state,
@@ -6471,7 +6471,7 @@ function gen_makedeps_locals_(state, target, filename, allocated_filename,
     index = 0;
     while (lt(index, dependency_count)) {
         fprintf(output, mks(" %s "),
-            ri32(add(dependencies, shl(index, 2))));
+            ri32(add(dependencies, shl(index, 2))), 0, 0, 0, 0);
         fputc(CC2_ASCII_BACKSLASH, output);
         fputc(CC2_CHARACTER_LINE_FEED, output);
         index = add(index, 1);
@@ -6513,7 +6513,7 @@ function cc2_ar_new_header() {
 
 function cc2_ar_set_size(header, size, text)
 {
-    snprintf(text, 20, mks("%-10d"), size);
+    snprintf(text, 20, mks("%-10d"), size, 0, 0);
     memcpy(add(header, CC2_ARCHIVE_SIZE_OFFSET), text,
         CC2_ARCHIVE_SIZE_BYTES);
     return 0;
@@ -6530,7 +6530,7 @@ function asm_get_local_label_name_locals_(state, number, buffer, token_symbol,
     token)
 {
     buffer = malloc(32);
-    snprintf(buffer, 32, mks("L..%u"), number);
+    snprintf(buffer, 32, mks("L..%u"), number, 0, 0);
     token_symbol = tok_alloc(buffer, strlen(buffer));
     token = ri32(add(token_symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET));
     free(buffer);
@@ -6602,7 +6602,7 @@ function asm_new_label1_locals_(state, label, is_local, section_number, value,
             } else {
                 if (eq(and(type, CC2_TCC_EXTERN_STORAGE), 0)) {
                     tcc_error(mks("assembler label '%s' already defined"),
-                        get_tok_str(label, 0));
+                        get_tok_str(label, 0), 0);
                 }
             }
         }
@@ -6880,7 +6880,7 @@ function cc2_asm_expression_unary_(state, expression, token, text,
                 }
                 if (eq(symbol, 0)) {
                     tcc_error(mks("local label '%d' not found backward"),
-                        number);
+                        number, 0);
                 }
             } else {
                 if (eq(symbol, 0)) {
@@ -6901,7 +6901,7 @@ function cc2_asm_expression_unary_(state, expression, token, text,
         } else if (eq(ri8(end), 0)) {
             number = ri32(expression);
         } else {
-            tcc_error(mks("invalid number syntax"), 0);
+            tcc_error(mks("invalid number syntax"), 0, 0);
         }
         next();
         return 0;
@@ -6916,7 +6916,7 @@ function cc2_asm_expression_unary_(state, expression, token, text,
         cc2_asm_expression_unary(state, expression);
         if (not(eq(ri32(add(expression,
             CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0))) {
-            tcc_error(mks("invalid operation with label"), 0);
+            tcc_error(mks("invalid operation with label"), 0, 0);
         }
         if (eq(operation, CC2_ASCII_MINUS)) {
             cc2_asm_negate(expression, 0, 0);
@@ -6966,7 +6966,7 @@ function cc2_asm_expression_unary_(state, expression, token, text,
         return 0;
     }
     tcc_error(mks("bad expression syntax [%s]"),
-        get_tok_str(token, tokc_address));
+        get_tok_str(token, tokc_address), 0);
     return 0;
 }
 
@@ -6992,19 +6992,19 @@ function cc2_asm_expression_product_(state, expression, right, operation,
         if (or(not(eq(ri32(add(expression,
             CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)), not(eq(ri32(add(right,
             CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)))) {
-            tcc_error(mks("invalid operation with label"), 0);
+            tcc_error(mks("invalid operation with label"), 0, 0);
         }
         right_value = ri32(right);
         if (eq(operation, CC2_ASCII_ASTERISK)) {
             wi32(expression, mul(ri32(expression), right_value));
         } else if (eq(operation, CC2_ASCII_SLASH)) {
             if (eq(right_value, 0)) {
-                tcc_error(mks("division by zero"), 0);
+                tcc_error(mks("division by zero"), 0, 0);
             }
             wi32(expression, sdiv(ri32(expression), right_value));
         } else if (eq(operation, CC2_ASCII_PERCENT)) {
             if (eq(right_value, 0)) {
-                tcc_error(mks("division by zero"), 0);
+                tcc_error(mks("division by zero"), 0, 0);
             }
             wi32(expression, mod(ri32(expression), right_value));
         } else if (eq(operation, CC2_TOKEN_SHIFT_LEFT)) {
@@ -7035,7 +7035,7 @@ function cc2_asm_expression_logic_(state, expression, right, operation)
         if (or(not(eq(ri32(add(expression,
             CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)), not(eq(ri32(add(right,
             CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)))) {
-            tcc_error(mks("invalid operation with label"), 0);
+            tcc_error(mks("invalid operation with label"), 0, 0);
         }
         if (eq(operation, CC2_ASCII_AMPERSAND)) {
             wi32(expression, and(ri32(expression), ri32(right)));
@@ -7078,7 +7078,7 @@ function cc2_asm_expression_sum_(state, expression, right, operation,
         right_symbol = ri32(add(right, CC2_ASM_EXPRESSION_SYMBOL_OFFSET));
         if (eq(operation, CC2_ASCII_PLUS)) {
             if (and(not(eq(left_symbol, 0)), not(eq(right_symbol, 0)))) {
-                tcc_error(mks("invalid operation with label"), 0);
+                tcc_error(mks("invalid operation with label"), 0, 0);
             }
             cc2_asm_add(expression, right, 0, 0, 0);
             if (and(eq(left_symbol, 0), not(eq(right_symbol, 0)))) {
@@ -7095,9 +7095,9 @@ function cc2_asm_expression_sum_(state, expression, right, operation,
                 left_elf = elfsym(left_symbol);
                 right_elf = elfsym(right_symbol);
                 if (eq(left_elf, 0)) {
-                    tcc_error(mks("invalid operation with label"), 0);
+                    tcc_error(mks("invalid operation with label"), 0, 0);
                 } else if (eq(right_elf, 0)) {
-                    tcc_error(mks("invalid operation with label"), 0);
+                    tcc_error(mks("invalid operation with label"), 0, 0);
                 } else if (and(eq(cc2_read_little_u16(add(left_elf,
                     CC2_ELF_SYMBOL_SECTION_INDEX_OFFSET)),
                     cc2_read_little_u16(add(right_elf,
@@ -7119,7 +7119,7 @@ function cc2_asm_expression_sum_(state, expression, right, operation,
                     wi32(add(expression,
                         CC2_ASM_EXPRESSION_PCREL_OFFSET), 1);
                 } else {
-                    tcc_error(mks("invalid operation with label"), 0);
+                    tcc_error(mks("invalid operation with label"), 0, 0);
                 }
             }
         }
@@ -7149,7 +7149,7 @@ function cc2_asm_expression_compare_(state, expression, right, operation,
         if (or(not(eq(ri32(add(expression,
             CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)), not(eq(ri32(add(right,
             CC2_ASM_EXPRESSION_SYMBOL_OFFSET)), 0)))) {
-            tcc_error(mks("invalid operation with label"), 0);
+            tcc_error(mks("invalid operation with label"), 0, 0);
         }
         if (eq(operation, CC2_TOKEN_EQUAL)) {
             result = eq(ri32(expression), ri32(right));
@@ -7265,7 +7265,7 @@ function asm_parse_align_space_(state, directive, section, amount, offset,
     amount = asm_int_expr(state);
     if (eq(directive, CC2_ASM_DIRECTIVE_P2ALIGN)) {
         if (or(lt(amount, 0), lt(30, amount))) {
-            tcc_error(mks("invalid p2align, must be between 0 and 30"), 0);
+            tcc_error(mks("invalid p2align, must be between 0 and 30"), 0, 0);
         }
         amount = shl(1, amount);
         directive = CC2_ASM_DIRECTIVE_ALIGN;
@@ -7273,7 +7273,7 @@ function asm_parse_align_space_(state, directive, section, amount, offset,
     if (or(eq(directive, CC2_ASM_DIRECTIVE_ALIGN),
         eq(directive, CC2_ASM_DIRECTIVE_BALIGN))) {
         if (or(lt(amount, 0), not(eq(and(amount, sub(amount, 1)), 0)))) {
-            tcc_error(mks("alignment must be a positive power of two"), 0);
+            tcc_error(mks("alignment must be a positive power of two"), 0, 0);
         }
         offset = and(sub(add(ind, amount), 1), sub(0, amount));
         size = sub(offset, ind);
@@ -7321,7 +7321,7 @@ function asm_parse_org_(state, expression, value, symbol, elf_symbol,
     }
     free(expression);
     if (lt(value, ind)) {
-        tcc_error(mks("attempt to .org backwards"), 0);
+        tcc_error(mks("attempt to .org backwards"), 0, 0);
     }
     size = sub(value, ind);
     return cc2_asm_zero_pad(section, size, 0, 0);
@@ -7338,7 +7338,7 @@ function asm_parse_fill_(state, repeat, size, value, repeat_index,
     next();
     repeat = asm_int_expr(state);
     if (lt(repeat, 0)) {
-        tcc_error(mks("repeat < 0; .fill ignored"), 0);
+        tcc_error(mks("repeat < 0; .fill ignored"), 0, 0);
         return 0;
     }
     size = 1;
@@ -7347,7 +7347,7 @@ function asm_parse_fill_(state, repeat, size, value, repeat_index,
         next();
         size = asm_int_expr(state);
         if (lt(size, 0)) {
-            tcc_error(mks("size < 0; .fill ignored"), 0);
+            tcc_error(mks("size < 0; .fill ignored"), 0, 0);
             return 0;
         }
         if (lt(8, size)) {
@@ -7425,13 +7425,13 @@ function asm_parse_quad_(state, section, text, end_pointer, end, words)
     words = malloc(16);
     while (1) {
         if (not(eq(ri32(tok_address), CC2_TOKEN_PREPROCESSOR_NUMBER))) {
-            tcc_error(mks("64 bit constant"), 0);
+            tcc_error(mks("64 bit constant"), 0, 0);
         }
         text = ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET));
         cc2_asm_parse_number(text, words, end_pointer);
         end = ri32(end_pointer);
         if (not(eq(ri8(end), 0))) {
-            tcc_error(mks("64 bit constant"), 0);
+            tcc_error(mks("64 bit constant"), 0, 0);
         }
         next();
         if (not(eq(ri32(add(section, CC2_SECTION_TYPE_OFFSET)),
@@ -7502,7 +7502,7 @@ function asm_parse_standard_section_(state, directive, suffix, base,
     name = malloc(add(length, CC2_INTEGER_TEXT_BYTES));
     if (not(eq(suffix, 0))) {
         snprintf(name, add(length, CC2_INTEGER_TEXT_BYTES), mks("%s%d"),
-            base, suffix);
+            base, suffix, 0);
     } else {
         pstrcpy(name, add(length, 1), base);
     }
@@ -7529,7 +7529,7 @@ function asm_parse_file_locals_(state, text)
     next();
     text = cc2_asm_current_token_text();
     if (ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
-        tcc_warning(mks("ignoring .file %s"), text);
+        tcc_warning(mks("ignoring .file %s"), text, 0, 0);
     }
     next();
     return 0;
@@ -7544,7 +7544,7 @@ function asm_parse_ident_locals_(state, text)
     next();
     text = cc2_asm_current_token_text();
     if (ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
-        tcc_warning(mks("ignoring .ident %s"), text);
+        tcc_warning(mks("ignoring .ident %s"), text, 0, 0);
     }
     next();
     return 0;
@@ -7560,10 +7560,10 @@ function asm_parse_size_(state, symbol, name)
     name = ri32(tok_address);
     symbol = asm_label_find(name);
     if (eq(symbol, 0)) {
-        tcc_error(mks("label not found: %s"), get_tok_str(name, 0));
+        tcc_error(mks("label not found: %s"), get_tok_str(name, 0), 0);
     }
     if (ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
-        tcc_warning(mks("ignoring .size %s,*"), get_tok_str(name, 0));
+        tcc_warning(mks("ignoring .size %s,*"), get_tok_str(name, 0), 0, 0);
     }
     next();
     skip(mkC(","));
@@ -7725,7 +7725,7 @@ function asm_parse_previous_(state, previous, current)
     next();
     previous = ri32(last_text_section_address);
     if (eq(previous, 0)) {
-        tcc_error(mks("no previous section referenced"), 0);
+        tcc_error(mks("no previous section referenced"), 0, 0);
     }
     current = ri32(cur_text_section_address);
     use_section1(state, previous);
@@ -7753,7 +7753,7 @@ function asm_parse_repeat_(state, global, repeat, stream)
     next();
     while (not(eq(ri32(tok_address), CC2_ASM_DIRECTIVE_END_REPEAT))) {
         if (eq(ri32(tok_address), CC2_CHARACTER_END_OF_FILE)) {
-            tcc_error(mks("we at end of file, .endr not found"), 0);
+            tcc_error(mks("we at end of file, .endr not found"), 0, 0);
         }
         tok_str_add_tok(stream);
         next();
@@ -7861,7 +7861,7 @@ function asm_parse_directive_(state, global, directive)
         return asm_parse_code_mode(state, 32);
     }
     tcc_error(mks("unknown assembler directive '.%s'"),
-        get_tok_str(directive, 0));
+        get_tok_str(directive, 0), 0);
     return 0;
 }
 
@@ -8032,7 +8032,7 @@ function subst_asm_operands_(operands, operand_count, output, input,
                 index = find_constraint(operands, operand_count, text, value);
                 text = ri32(value);
                 if (lt(index, 0)) {
-                    tcc_error(mks("invalid operand reference after %%"), 0);
+                    tcc_error(mks("invalid operand reference after %%"), 0, 0);
                 }
                 operand = add(operands, mul(index, CC2_ASM_OPERAND_BYTES));
                 cc2_copy_svalue(value, ri32(add(operand,
@@ -8078,7 +8078,7 @@ function parse_asm_operands_(operands, operand_count, is_output, operand,
     }
     while (1) {
         if (not(lt(operand_count, CC2_ASM_OPERAND_LIMIT))) {
-            tcc_error(mks("too many asm operands"), 0);
+            tcc_error(mks("too many asm operands"), 0, 0);
         }
         operand = add(operands, mul(operand_count, CC2_ASM_OPERAND_BYTES));
         operand_count = add(operand_count, 1);
@@ -8291,7 +8291,7 @@ function constraint_priority_(text, priority, character, current)
         } else if (eq(character, mkC("g"))) {
             current = 4;
         } else {
-            tcc_error(mks("unknown constraint '%c'"), character);
+            tcc_error(mks("unknown constraint '%c'"), character, 0);
             current = 0;
         }
         if (lt(priority, current)) {
@@ -8337,7 +8337,7 @@ function asm_clobber_(clobbers, text, token_symbol, reg)
         le(reg, CC2_ASM_REGISTER_AX_LAST))) {
         reg = sub(reg, CC2_ASM_REGISTER_AX_FIRST);
     } else {
-        tcc_error(mks("invalid clobber register '%s'"), text);
+        tcc_error(mks("invalid clobber register '%s'"), text, 0);
     }
     wi8(add(clobbers, reg), 1);
     return 0;
@@ -8409,7 +8409,7 @@ function cc2_i386_parse_address_register() {
 function cc2_i386_unknown_register()
 {
     tcc_error(mks("unknown register %%%s"),
-        get_tok_str(ri32(tok_address), tokc_address));
+        get_tok_str(ri32(tok_address), tokc_address), 0);
     return 0;
 }
 
@@ -8770,7 +8770,7 @@ function cc2_i386_find_instruction_(opcode_pointer, operands, operand_count,
         }
         if (le(opcode, CC2_I386_TOKEN_OPCODE_LAST)) {
             tcc_error(mks("bad operand with opcode '%s'"),
-                get_tok_str(opcode, 0));
+                get_tok_str(opcode, 0), 0);
             return 0;
         }
         text = get_tok_str(opcode, 0);
@@ -8783,7 +8783,7 @@ function cc2_i386_find_instruction_(opcode_pointer, operands, operand_count,
             token_symbol = tok_alloc(text, sub(length, 1));
             opcode = ri32(add(token_symbol, CC2_TOKEN_SYMBOL_TOKEN_OFFSET));
         } else {
-            tcc_error(mks("unknown opcode '%s'"), text);
+            tcc_error(mks("unknown opcode '%s'"), text, 0);
             return 0;
         }
     }
@@ -8839,7 +8839,7 @@ function cc2_i386_infer_size_(opcode, instruction, operands, operand_count,
                 CC2_I386_TYPE_EFFECTIVE_ADDRESS), 0)))) {
                 size = sub(CC2_I386_OPCODE_SIZE_COUNT, 2);
             } else {
-                tcc_error(mks("cannot infer opcode suffix"), 0);
+                tcc_error(mks("cannot infer opcode suffix"), 0, 0);
             }
         }
     }
@@ -8890,7 +8890,7 @@ function asm_opcode_locals_(state, opcode, operands, operand_types,
     while (and(not(eq(ri32(tok_address), mkC(";"))),
         not(eq(ri32(tok_address), mkC("\n"))))) {
         if (not(lt(operand_count, 3))) {
-            tcc_error(mks("incorrect number of operands"), 0);
+            tcc_error(mks("incorrect number of operands"), 0, 0);
         }
         operand = add(operands, mul(operand_count,
             CC2_I386_OPERAND_BYTES));
@@ -8898,7 +8898,7 @@ function asm_opcode_locals_(state, opcode, operands, operand_types,
         if (eq(ri32(tok_address), mkC(":"))) {
             if (or(not(eq(ri32(operand),
                 CC2_I386_TYPE_SEGMENT_REGISTER)), segment_prefix)) {
-                tcc_error(mks("incorrect prefix"), 0);
+                tcc_error(mks("incorrect prefix"), 0, 0);
             }
             table = cc2_i386_segment_prefix_table();
             segment_prefix = ri8(add(table, cc2_read_signed_byte(add(operand,
@@ -8907,7 +8907,7 @@ function asm_opcode_locals_(state, opcode, operands, operand_types,
             parse_operand(state, operand);
             if (eq(and(ri32(operand),
                 CC2_I386_TYPE_EFFECTIVE_ADDRESS), 0)) {
-                tcc_error(mks("segment prefix must be followed by memory reference"), 0);
+                tcc_error(mks("segment prefix must be followed by memory reference"), 0, 0);
             }
         }
         operand_count = add(operand_count, 1);
@@ -9081,7 +9081,7 @@ function asm_opcode_locals_(state, opcode, operands, operand_types,
             } else if (eq(value, 112)) {
                 value = add(value, 3856);
             } else {
-                tcc_error(mks("invalid displacement"), 0);
+                tcc_error(mks("invalid displacement"), 0, 0);
             }
         }
     }
@@ -9139,7 +9139,7 @@ function asm_opcode_locals_(state, opcode, operands, operand_types,
             CC2_I386_OPERAND_EXPRESSION_OFFSET)), 0, 0);
         expression = add(operands, CC2_I386_OPERAND_EXPRESSION_OFFSET);
         if (ri32(add(expression, CC2_ASM_EXPRESSION_SYMBOL_OFFSET))) {
-            tcc_error(mks("cannot relocate"), 0);
+            tcc_error(mks("cannot relocate"), 0, 0);
         }
         gen_le16(ri32(expression));
         operand_count = 0;
@@ -9172,7 +9172,7 @@ function asm_opcode_locals_(state, opcode, operands, operand_types,
                 or(CC2_I386_TYPE_IMMEDIATE_SIGNED_8,
                 CC2_I386_TYPE_IMMEDIATE_16))), 0)), ri32(add(expression,
                 CC2_ASM_EXPRESSION_SYMBOL_OFFSET)))) {
-                tcc_error(mks("cannot relocate"), 0);
+                tcc_error(mks("cannot relocate"), 0, 0);
             }
             if (not(eq(and(accepted_type, or(
                 CC2_I386_TYPE_IMMEDIATE_8,
@@ -9246,25 +9246,25 @@ function subst_asm_operand_locals_(output, value, modifier, registers, reg,
             constant = sub(0, constant);
         }
         snprintf(buffer, 64, mks("%d"),
-            ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)));
+            ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)), 0, 0);
         cstr_cat(output, buffer, sub(0, 1));
     } else if (eq(and(registers, CC2_VALUE_LOCATION_MASK),
         CC2_VALUE_LOCAL)) {
         snprintf(buffer, 64, mks("%d(%%ebp)"),
-            ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)));
+            ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET)), 0, 0);
         cstr_cat(output, buffer, sub(0, 1));
     } else if (and(registers, CC2_TCC_LVALUE)) {
         reg = and(registers, CC2_VALUE_LOCATION_MASK);
         if (le(CC2_VALUE_CONSTANT, reg)) {
-            tcc_error(mks("internal compiler error"), 0);
+            tcc_error(mks("internal compiler error"), 0, 0);
         }
         snprintf(buffer, 64, mks("(%%%s)"), get_tok_str(add(
-            CC2_ASM_REGISTER_EAX_FIRST, reg), 0));
+            CC2_ASM_REGISTER_EAX_FIRST, reg), 0), 0, 0);
         cstr_cat(output, buffer, sub(0, 1));
     } else {
         reg = and(registers, CC2_VALUE_LOCATION_MASK);
         if (le(CC2_VALUE_CONSTANT, reg)) {
-            tcc_error(mks("internal compiler error"), 0);
+            tcc_error(mks("internal compiler error"), 0, 0);
         }
         basic_type = and(ri32(value), CC2_TCC_BASIC_TYPE_MASK);
         if (or(eq(basic_type, CC2_TCC_BYTE_TYPE),
@@ -9280,12 +9280,12 @@ function subst_asm_operand_locals_(output, value, modifier, registers, reg,
         }
         if (eq(modifier, mkC("b"))) {
             if (le(4, reg)) {
-                tcc_error(mks("cannot use byte register"), 0);
+                tcc_error(mks("cannot use byte register"), 0, 0);
             }
             size = 1;
         } else if (eq(modifier, mkC("h"))) {
             if (le(4, reg)) {
-                tcc_error(mks("cannot use byte register"), 0);
+                tcc_error(mks("cannot use byte register"), 0, 0);
             }
             size = sub(0, 1);
         } else if (eq(modifier, mkC("w"))) {
@@ -9302,7 +9302,7 @@ function subst_asm_operand_locals_(output, value, modifier, registers, reg,
         } else {
             reg = add(CC2_ASM_REGISTER_EAX_FIRST, reg);
         }
-        snprintf(buffer, 64, mks("%%%s"), get_tok_str(reg, 0));
+        snprintf(buffer, 64, mks("%%%s"), get_tok_str(reg, 0), 0, 0);
         cstr_cat(output, buffer, sub(0, 1));
     }
     free(buffer);
@@ -9497,7 +9497,7 @@ function asm_compute_constraints_locals_(operands, operand_count,
             other = add(operands, mul(other_index,
                 CC2_ASM_OPERAND_BYTES));
             if (le(0, ri32(add(other, CC2_ASM_OPERAND_INPUT_OFFSET)))) {
-                tcc_error(mks("cannot reference twice the same operand"), 0);
+                tcc_error(mks("cannot reference twice the same operand"), 0, 0);
             }
             wi32(add(other, CC2_ASM_OPERAND_INPUT_OFFSET), index);
             wi32(add(operand, CC2_ASM_OPERAND_PRIORITY_OFFSET), 5);
@@ -9571,7 +9571,7 @@ function asm_compute_constraints_locals_(operands, operand_count,
             if (le(0, reg)) {
                 if (not(cc2_asm_register_available(allocated, reg,
                     register_mask))) {
-                    tcc_error(mks("asm regvar requests register that's taken already"), 0);
+                    tcc_error(mks("asm regvar requests register that's taken already"), 0, 0);
                 }
                 wi8(add(allocated, reg), or(ri8(add(allocated, reg)),
                     register_mask));
@@ -9592,7 +9592,7 @@ function asm_compute_constraints_locals_(operands, operand_count,
                                 CC2_ASM_OPERAND_READ_WRITE_OFFSET), 1);
                         }
                         if (not(lt(operand_index, output_count))) {
-                            tcc_error(mks("'%c' modifier can only be applied to outputs"), character);
+                            tcc_error(mks("'%c' modifier can only be applied to outputs"), character, 0);
                         }
                         register_mask = 3;
                     } else if (eq(character, mkC("A"))) {
@@ -9742,7 +9742,7 @@ function asm_compute_constraints_locals_(operands, operand_count,
             reg = cc2_asm_allocate_general_register(allocated, 0,
                 CC2_ASM_REGISTER_COUNT, 1);
             if (lt(reg, 0)) {
-                tcc_error(mks("could not find free output register for reloading"), 0);
+                tcc_error(mks("could not find free output register for reloading"), 0, 0);
             }
             wi32(output_register, reg);
             index = operand_count;
@@ -9896,7 +9896,7 @@ function pop_section_locals_(state, current, previous)
     current = ri32(cur_text_section_address);
     previous = ri32(add(current, CC2_SECTION_PREVIOUS_OFFSET));
     if (eq(previous, 0)) {
-        tcc_error(mks(".popsection without .pushsection"), 0);
+        tcc_error(mks(".popsection without .pushsection"), 0, 0);
     }
     wi32(add(current, CC2_SECTION_PREVIOUS_OFFSET), 0);
     return use_section1(state, previous);
@@ -9957,7 +9957,7 @@ function tcc_tool_ar_locals_(state, argument_count, arguments, library_index,
     argument = ri32(add(arguments, shl(library_index, 2)));
     archive = fopen(argument, mks("wb"));
     if (eq(archive, 0)) {
-        printf(mks("tcc: ar: can't open file %s "), argument);
+        printf(mks("tcc: ar: can't open file %s "), argument, 0, 0);
         puts(mks(""));
         return result;
     }
@@ -9967,7 +9967,7 @@ function tcc_tool_ar_locals_(state, argument_count, arguments, library_index,
     temporary = fopen(temporary_name, mks("wb+"));
     if (eq(temporary, 0)) {
         printf(mks("tcc: ar: can't create temporary file %s"),
-            temporary_name);
+            temporary_name, 0, 0);
         puts(mks(""));
         fclose(archive);
         free(temporary_name);
@@ -9989,12 +9989,12 @@ function tcc_tool_ar_locals_(state, argument_count, arguments, library_index,
         if (not(eq(ri8(argument), mkC("-")))) {
             input = fopen(argument, mks("rb"));
             if (eq(input, 0)) {
-                printf(mks("tcc: ar: can't open file %s "), argument);
+                printf(mks("tcc: ar: can't open file %s "), argument, 0, 0);
                 puts(mks(""));
                 failed = 1;
             } else {
                 if (verbose) {
-                    printf(mks("a - %s"), argument);
+                    printf(mks("a - %s"), argument, 0, 0);
                     puts(mks(""));
                 }
                 fseek(input, 0, 2);
@@ -10006,7 +10006,7 @@ function tcc_tool_ar_locals_(state, argument_count, arguments, library_index,
                 header = buffer;
                 if (not(eq(ri8(add(header, 4)), CC2_ELF_CLASS_32))) {
                     printf(mks("tcc: ar: Unsupported Elf Class: %s"),
-                        argument);
+                        argument, 0, 0);
                     puts(mks(""));
                     failed = 1;
                 } else {
@@ -10544,7 +10544,7 @@ function relocate_syms_locals_(state, symbol_table, symbol_offset, symbol,
                     CC2_ELF_SYMBOL_BIND_SHIFT), CC2_ELF_WEAK_BINDING)) {
                     wi32(add(symbol, CC2_ELF_SYMBOL_VALUE_OFFSET), 0);
                 } else {
-                    tcc_error_noabort(mks("undefined symbol '%s'"), name);
+                    tcc_error_noabort(mks("undefined symbol '%s'"), name, 0, 0);
                 }
             }
         } else if (lt(section_index, CC2_ELF_LOW_RESERVED_SECTION)) {
@@ -10999,7 +10999,7 @@ function fill_local_got_entries_locals_(state, got, relocation_section,
                 CC2_ELF_RELOCATION_OFFSET_OFFSET)), ri32(add(got,
                 CC2_SECTION_ADDRESS_OFFSET)));
             if (not(eq(got_offset, expected_offset))) {
-                tcc_error_noabort(mks("huh"), 0);
+                tcc_error_noabort(mks("huh"), 0, 0, 0);
             }
             wi32(add(relocation, CC2_ELF_RELOCATION_INFO_OFFSET),
                 CC2_I386_RELATIVE_RELOCATION);
@@ -11121,7 +11121,7 @@ function bind_exe_dynsyms_locals_(state, symbol_table, dynamic_symbols,
                 }
             } else if (and(not(eq(binding, CC2_ELF_WEAK_BINDING)),
                 not(eq(strcmp(name, mks("_fp_hw")), 0)))) {
-                tcc_error_noabort(mks("undefined symbol '%s'"), name);
+                tcc_error_noabort(mks("undefined symbol '%s'"), name, 0, 0);
             }
         } else if (and(ri32(add(state,
             CC2_TCC_STATE_EXPORT_DYNAMIC_OFFSET)), not(eq(binding,
@@ -11184,7 +11184,7 @@ function bind_libs_dynsyms_locals_(state, symbol_table, dynamic_symbols,
                 CC2_ELF_UNDEFINED_SECTION), not(eq(ushr(ri8(add(
                 loaded_symbol, CC2_ELF_SYMBOL_INFO_OFFSET)),
                 CC2_ELF_SYMBOL_BIND_SHIFT), CC2_ELF_WEAK_BINDING)))) {
-                tcc_warning(mks("undefined dynamic symbol '%s'"), name);
+                tcc_warning(mks("undefined dynamic symbol '%s'"), name, 0, 0);
             }
         }
         loaded_offset = add(loaded_offset, CC2_ELF_SYMBOL_BYTES);
@@ -11762,7 +11762,7 @@ function tcc_load_object_file_locals_(state, file_descriptor, file_offset,
         result = sub(0, 1);
     }
     if (not(eq(result, 0))) {
-        tcc_error_noabort(mks("invalid object file"));
+        tcc_error_noabort(mks("invalid object file"), 0, 0, 0);
     } else {
         section_count = cc2_read_little_u16(add(header,
             CC2_ELF_HEADER_SECTION_COUNT_OFFSET));
@@ -11788,7 +11788,7 @@ function tcc_load_object_file_locals_(state, file_descriptor, file_offset,
             if (eq(type, CC2_ELF_SECTION_SYMBOL_TABLE)) {
                 if (not(eq(input_symbols, 0))) {
                     tcc_error_noabort(mks(
-                        "object must contain only one symtab"));
+                        "object must contain only one symtab"), 0, 0, 0);
                     result = sub(0, 1);
                 } else {
                     size = ri32(add(section_header,
@@ -11889,7 +11889,7 @@ function tcc_load_object_file_locals_(state, file_descriptor, file_offset,
                 if (information) {
                     if (not(eq(type, ri32(add(section,
                         CC2_SECTION_TYPE_OFFSET))))) {
-                        tcc_error_noabort(mks("invalid section type"));
+                        tcc_error_noabort(mks("invalid section type"), 0, 0, 0);
                         result = sub(0, 1);
                     } else {
                         offset = ri32(add(section, CC2_SECTION_DATA_OFFSET));
@@ -12195,7 +12195,7 @@ function tcc_load_archive_locals_(state, file_descriptor, header, name,
     length = read(file_descriptor, header, CC2_ARCHIVE_HEADER_BYTES);
     while (not(eq(length, 0))) {
         if (not(eq(length, CC2_ARCHIVE_HEADER_BYTES))) {
-            tcc_error_noabort(mks("invalid archive"));
+            tcc_error_noabort(mks("invalid archive"), 0, 0, 0);
             result = sub(0, 1);
             length = 0;
         } else {
@@ -12285,7 +12285,7 @@ function tcc_load_dll_locals_(state, file_descriptor, filename, level, header,
     if (or(not(eq(ri8(add(header, CC2_ELF_HEADER_DATA_ENCODING_OFFSET)),
         CC2_ELF_LITTLE_ENDIAN)), not(eq(cc2_read_little_u16(add(header,
         CC2_ELF_HEADER_MACHINE_OFFSET)), CC2_ELF_I386_MACHINE)))) {
-        tcc_error_noabort(mks("bad architecture"));
+        tcc_error_noabort(mks("bad architecture"), 0, 0, 0);
         free(header);
         return sub(0, 1);
     }
@@ -12381,7 +12381,7 @@ function tcc_load_dll_locals_(state, file_descriptor, filename, level, header,
                 if (and(eq(cc2_dll_is_loaded(state, name), 0), lt(tcc_add_dll(
                     state, name, CC2_REFERENCED_DLL_FLAG), 0))) {
                     tcc_error_noabort(mks("referenced dll '%s' not found"),
-                        name);
+                        name, 0, 0);
                     result = sub(0, 1);
                 }
             }
@@ -12534,28 +12534,28 @@ function cc2_ld_add_file_list_locals_(state, command, as_needed, filename,
     while (and(not(eq(token, mkC(")"))), eq(result, 0))) {
         wi8(library_name, 0);
         if (eq(token, CC2_LINKER_TOKEN_EOF)) {
-            tcc_error_noabort(mks("unexpected end of file"));
+            tcc_error_noabort(mks("unexpected end of file"), 0, 0, 0);
             result = sub(0, 1);
         } else {
             if (eq(token, mkC("-"))) {
                 token = cc2_ld_next(filename, CC2_LINKER_FILENAME_BYTES);
                 if (or(not(eq(token, CC2_LINKER_TOKEN_NAME)),
                     not(eq(ri8(filename), mkC("l"))))) {
-                    tcc_error_noabort(mks("library name expected"));
+                    tcc_error_noabort(mks("library name expected"), 0, 0, 0);
                     result = sub(0, 1);
                 } else {
                     strcpy(library_name, add(filename, 1));
                     if (ri32(add(state, CC2_TCC_STATE_STATIC_LINK_OFFSET))) {
                         snprintf(filename, CC2_LINKER_FILENAME_BYTES,
-                            mks("lib%s.a"), library_name);
+                            mks("lib%s.a"), library_name, 0, 0);
                     } else {
                         snprintf(filename, CC2_LINKER_FILENAME_BYTES,
-                            mks("lib%s.so"), library_name);
+                            mks("lib%s.so"), library_name, 0, 0);
                     }
                 }
             } else {
                 if (not(eq(token, CC2_LINKER_TOKEN_NAME))) {
-                    tcc_error_noabort(mks("filename expected"));
+                    tcc_error_noabort(mks("filename expected"), 0, 0, 0);
                     result = sub(0, 1);
                 }
             }
@@ -12637,7 +12637,7 @@ function tcc_load_ldscript_locals_(state, command, filename, token, result)
                         CC2_LINKER_FILENAME_BYTES);
                     while (and(not(eq(token, mkC(")"))), eq(result, 0))) {
                         if (eq(token, CC2_LINKER_TOKEN_EOF)) {
-                            tcc_error_noabort(mks("unexpected end of file"));
+                            tcc_error_noabort(mks("unexpected end of file"), 0, 0, 0);
                             result = sub(0, 1);
                         } else {
                             token = cc2_ld_next(filename,
@@ -12847,7 +12847,7 @@ function tcc_write_elf_file_locals_(state, filename, header_count,
     unlink(filename);
     output = fopen(filename, mks("wb"));
     if (ri32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET))) {
-        printf(mks("<- %s\n"), filename);
+        printf(mks("<- %s\n"), filename, 0, 0);
     }
     if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_FORMAT_OFFSET)),
         CC2_TCC_OUTPUT_FORMAT_ELF)) {
@@ -13066,7 +13066,7 @@ function cc2_add_crt_locals_(state, filename, paths, path_count, path_index,
         path_index = add(path_index, 1);
     }
     if (not(eq(result, 0))) {
-        tcc_error_noabort(mks("file '%s' not found"), filename);
+        tcc_error_noabort(mks("file '%s' not found"), filename, 0, 0);
     }
     return 0;
 }
@@ -13610,7 +13610,7 @@ function define_push_(value, macro_type, stream, first_argument,
     if (not(eq(old_definition, 0))) {
         if (not(macro_is_equal(ri32(add(old_definition,
             CC2_SYM_CONSTANT_OFFSET)), stream))) {
-            tcc_warning(mks("%s redefined"), get_tok_str(value, 0));
+            tcc_warning(mks("%s redefined"), get_tok_str(value, 0), 0, 0);
         }
     }
     return 0;
@@ -13716,10 +13716,10 @@ function label_pop_(stack_pointer, boundary, keep, symbol, next_symbol,
             CC2_UNSIGNED_SHORT_MASK);
         if (eq(flags, CC2_LABEL_DECLARED)) {
             tcc_warning(mks("label '%s' declared but not used"),
-                get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0));
+                get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0), 0, 0);
         } else if (eq(flags, CC2_LABEL_FORWARD)) {
             tcc_error(mks("label '%s' used but not defined"),
-                get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0));
+                get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0), 0);
         } else if (not(eq(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), 0))) {
             put_extern_sym(symbol, ri32(cur_text_section_address),
                 ri32(add(symbol, CC2_SYM_JUMP_NEXT_OFFSET)), 1);
@@ -14902,7 +14902,7 @@ function gfunc_param_typed_(function_symbol, argument_symbol, function_type,
             gen_cast(temporary);
         }
     } else if (eq(argument_symbol, 0)) {
-        tcc_error(mks("too many arguments to function"), 0);
+        tcc_error(mks("too many arguments to function"), 0, 0);
     } else {
         temporary = cc2_svalue_temporary();
         wi32(temporary, and(ri32(add(argument_symbol, CC2_SYM_TYPE_OFFSET)),
@@ -15513,7 +15513,7 @@ function check_comparison_pointer_types_(first_value, second_value, operation,
         not(eq(operation, CC2_ASCII_MINUS)))) {
         if (and(not(eq(operation, CC2_TOKEN_LOGICAL_OR)),
             not(eq(operation, CC2_TOKEN_LOGICAL_AND)))) {
-            tcc_warning(mks("comparison between pointer and integer"), 0);
+            tcc_warning(mks("comparison between pointer and integer"), 0, 0, 0);
         }
         return 0;
     }
@@ -15521,13 +15521,13 @@ function check_comparison_pointer_types_(first_value, second_value, operation,
         first_type = pointed_type(first_type);
     } else if (not(eq(first_basic_type, CC2_TCC_FUNCTION_TYPE))) {
         tcc_error(mks("invalid operands to binary %s"),
-            get_tok_str(operation, 0));
+            get_tok_str(operation, 0), 0);
     }
     if (eq(second_basic_type, CC2_TCC_POINTER_TYPE)) {
         second_type = pointed_type(second_type);
     } else if (not(eq(second_basic_type, CC2_TCC_FUNCTION_TYPE))) {
         tcc_error(mks("invalid operands to binary %s"),
-            get_tok_str(operation, 0));
+            get_tok_str(operation, 0), 0);
     }
     if (or(eq(and(ri32(first_type), CC2_TCC_BASIC_TYPE_MASK),
         CC2_TCC_VOID_TYPE),
@@ -15547,10 +15547,10 @@ function check_comparison_pointer_types_(first_value, second_value, operation,
     if (eq(is_compatible_types(temporary, add(temporary, 8)), 0)) {
         if (eq(operation, CC2_ASCII_MINUS)) {
             tcc_error(mks("invalid operands to binary %s"),
-                get_tok_str(operation, 0));
+                get_tok_str(operation, 0), 0);
         } else {
             tcc_warning(mks("comparison of distinct pointer types lacks a cast"),
-                0);
+                0, 0, 0);
         }
     }
     return 0;
@@ -15585,12 +15585,12 @@ function gen_assign_cast_(destination_type, source_type, destination_basic,
         eq(destination_basic, CC2_TCC_VOID_TYPE))) {
         if (not(and(eq(source_basic, CC2_TCC_VOID_TYPE),
             eq(destination_basic, CC2_TCC_VOID_TYPE)))) {
-            tcc_error(mks("cannot cast from/to void"), 0);
+            tcc_error(mks("cannot cast from/to void"), 0, 0);
         }
     }
     if (not(eq(and(ri32(destination_type),
         CC2_TCC_CONST_QUALIFIER), 0))) {
-        tcc_warning(mks("assignment of read-only location"), 0);
+        tcc_warning(mks("assignment of read-only location"), 0, 0, 0);
     }
     if (eq(destination_basic, CC2_TCC_POINTER_TYPE)) {
         if (is_null_pointer(vtop)) {
@@ -15599,7 +15599,7 @@ function gen_assign_cast_(destination_type, source_type, destination_basic,
         }
         if (is_integer_btype(source_basic)) {
             tcc_warning(mks("assignment makes pointer from integer without a cast"),
-                0);
+                0, 0, 0);
             gen_cast(destination_type);
             return 0;
         }
@@ -15609,7 +15609,7 @@ function gen_assign_cast_(destination_type, source_type, destination_basic,
                 CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_VOID_TYPE)),
                 eq(is_compatible_types(first_target, source_type), 0))) {
                 tcc_warning(mks("assignment from incompatible pointer type"),
-                    0);
+                    0, 0, 0);
             }
             gen_cast(destination_type);
             return 0;
@@ -15632,7 +15632,7 @@ function gen_assign_cast_(destination_type, source_type, destination_basic,
                     or(cc2_is_enum_type(first_value),
                     cc2_is_enum_type(second_value)))) {
                     tcc_warning(mks("assignment from incompatible pointer type"),
-                        0);
+                        0, 0, 0);
                 }
             }
         }
@@ -15643,7 +15643,7 @@ function gen_assign_cast_(destination_type, source_type, destination_basic,
             and(eq(and(first_value, CC2_TCC_VOLATILE_QUALIFIER), 0),
             not(eq(and(second_value, CC2_TCC_VOLATILE_QUALIFIER), 0))))) {
             tcc_warning(mks("assignment discards qualifiers from pointer target type"),
-                0);
+                0, 0, 0);
         }
     } else if (or(or(eq(destination_basic, CC2_TCC_BYTE_TYPE),
         eq(destination_basic, CC2_TCC_SHORT_TYPE)),
@@ -15652,7 +15652,7 @@ function gen_assign_cast_(destination_type, source_type, destination_basic,
         if (or(eq(source_basic, CC2_TCC_POINTER_TYPE),
             eq(source_basic, CC2_TCC_FUNCTION_TYPE))) {
             tcc_warning(mks("assignment makes integer from pointer without a cast"),
-                0);
+                0, 0, 0);
         } else if (eq(source_basic, CC2_TCC_STRUCT_TYPE)) {
             cc2_assignment_cast_error(source_type, destination_type, 0);
             return 0;
@@ -15746,7 +15746,7 @@ function gen_op_(operation, first, second, first_type, second_type,
     }
     if (or(eq(first_basic, CC2_TCC_STRUCT_TYPE),
         eq(second_basic, CC2_TCC_STRUCT_TYPE))) {
-        tcc_error(mks("operation on a struct"), 0);
+        tcc_error(mks("operation on a struct"), 0, 0);
     } else if (or(eq(first_basic, CC2_TCC_POINTER_TYPE),
         eq(second_basic, CC2_TCC_POINTER_TYPE))) {
         if (cc2_is_relational_operation(operation)) {
@@ -15755,7 +15755,7 @@ function gen_op_(operation, first, second, first_type, second_type,
         } else if (and(eq(first_basic, CC2_TCC_POINTER_TYPE),
             eq(second_basic, CC2_TCC_POINTER_TYPE))) {
             if (not(eq(operation, CC2_ASCII_MINUS))) {
-                tcc_error(mks("cannot use pointers here"), 0);
+                tcc_error(mks("cannot use pointers here"), 0, 0);
             }
             check_comparison_pointer_types(first, second, operation);
             if (not(eq(and(first_type, CC2_TCC_VLA_TYPE), 0))) {
@@ -15773,7 +15773,7 @@ function gen_op_(operation, first, second, first_type, second_type,
         } else {
             if (and(not(eq(operation, CC2_ASCII_MINUS)),
                 not(eq(operation, CC2_ASCII_PLUS)))) {
-                tcc_error(mks("cannot use pointers here"), 0);
+                tcc_error(mks("cannot use pointers here"), 0, 0);
             }
             if (eq(second_basic, CC2_TCC_POINTER_TYPE)) {
                 vswap();
@@ -15794,7 +15794,7 @@ function gen_op_(operation, first, second, first_type, second_type,
             } else {
                 element_size = pointed_size(first);
                 if (lt(element_size, 0)) {
-                    tcc_error(mks("unknown array element size"), 0);
+                    tcc_error(mks("unknown array element size"), 0, 0);
                 }
                 vpushi(element_size);
             }
@@ -15820,7 +15820,7 @@ function gen_op_(operation, first, second, first_type, second_type,
             not(eq(operation, CC2_ASCII_SLASH)))),
             not(and(le(CC2_TOKEN_UNSIGNED_LESS, operation),
             le(operation, CC2_TOKEN_SIGNED_GREATER))))) {
-            tcc_error(mks("invalid operands for binary operation"), 0);
+            tcc_error(mks("invalid operands for binary operation"), 0, 0);
         }
     } else if (cc2_is_shift_operation(operation)) {
         if (eq(first_basic, CC2_TCC_LONG_LONG_TYPE)) {
@@ -16136,7 +16136,7 @@ function gen_cast_(type, source_type, destination_type, source_float,
             CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_SHORT_TYPE))) {
             if (eq(source_type, CC2_TCC_POINTER_TYPE)) {
                 wi32(vtop, CC2_TCC_INT_TYPE);
-                tcc_warning(mks("nonportable conversion from pointer to char/short"), 0);
+                tcc_warning(mks("nonportable conversion from pointer to char/short"), 0, 0, 0);
             }
             force_charshort_cast(destination_type);
         } else if (eq(and(destination_type, CC2_TCC_BASIC_TYPE_MASK),
@@ -16879,7 +16879,7 @@ function parse_builtin_params_(no_code, arguments, character, separator,
             vpush(type);
             free(type);
         } else {
-            tcc_error(mks("internal error"), 0);
+            tcc_error(mks("internal error"), 0, 0);
         }
     }
     skip(41);
@@ -16907,7 +16907,7 @@ function expr_const_(words, low_word, high_word, signed_high_word)
     }
     if (and(not(eq(high_word, signed_high_word)),
         not(eq(high_word, 0)))) {
-        tcc_error(mks("constant exceeds 32 bit"), 0);
+        tcc_error(mks("constant exceeds 32 bit"), 0, 0);
     }
     free(words);
     return low_word;
@@ -17007,7 +17007,7 @@ function parse_attribute_(attributes, token, value, string, data,
                     value = expr_const();
                     if (or(le(value, 0), not(eq(and(value,
                         sub(value, 1)), 0)))) {
-                        tcc_error(mks("alignment must be a positive power of two"), 0);
+                        tcc_error(mks("alignment must be a positive power of two"), 0, 0);
                     }
                     skip(41);
                 } else {
@@ -17017,7 +17017,7 @@ function parse_attribute_(attributes, token, value, string, data,
                 wi32(attributes, or(and(ri32(attributes),
                     bnot(CC2_ATTRIBUTE_ALIGNED_MASK)), aligned));
                 if (not(eq(value, shl(1, sub(aligned, 1))))) {
-                    tcc_error(mks("alignment of %d is larger than implemented"), value);
+                    tcc_error(mks("alignment of %d is larger than implemented"), value, 0);
                 }
             } else if (cc2_token_is_two(token, CC2_TOKEN_PACKED_FIRST,
                 CC2_TOKEN_PACKED_SECOND)) {
@@ -17071,7 +17071,7 @@ function parse_attribute_(attributes, token, value, string, data,
                         add(CC2_TCC_INT_TYPE, 1));
                 } else {
                     tcc_warning(mks("__mode__(%s) not supported\n"),
-                        get_tok_str(token, 0));
+                        get_tok_str(token, 0), 0, 0);
                 }
                 next();
                 skip(41);
@@ -17085,7 +17085,7 @@ function parse_attribute_(attributes, token, value, string, data,
                 if (ri32(add(tcc_state_address,
                     CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
                     tcc_warning(mks("'%s' attribute ignored"),
-                        get_tok_str(token, 0));
+                        get_tok_str(token, 0), 0, 0);
                 }
                 if (eq(ri32(tok_address), 40)) {
                     parenthesis = 0;
@@ -17272,7 +17272,7 @@ function struct_decl_enum_(type, symbol, words, member_type, member,
         member = sym_find(name);
         if (and(not(not(member)), not(ri32(local_stack_address)))) {
             tcc_error(mks("redefinition of enumerator '%s'"),
-                get_tok_str(name, 0));
+                get_tok_str(name, 0), 0);
         }
         next();
         if (eq(ri32(tok_address), CC2_ASCII_ASSIGN)) {
@@ -17392,7 +17392,7 @@ function struct_decl_fields__locals_(type, structure_kind, symbol, attributes,
             while (1) {
                 if (flexible) {
                     tcc_error(mks("flexible array member '%s' not at the end of struct"),
-                        get_tok_str(name, 0));
+                        get_tok_str(name, 0), 0);
                 }
                 bit_size = sub(0, 1);
                 name = 0;
@@ -17431,14 +17431,14 @@ function struct_decl_fields__locals_(type, structure_kind, symbol, attributes,
                             }
                         } else {
                             tcc_error(mks("field '%s' has incomplete type"),
-                                get_tok_str(name, 0));
+                                get_tok_str(name, 0), 0);
                         }
                     }
                     if (or(eq(and(ri32(declared_type),
                         CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_FUNCTION_TYPE),
                         and(ri32(declared_type), CC2_TCC_STORAGE_MASK))) {
                         tcc_error(mks("invalid type for '%s'"),
-                            get_tok_str(name, 0));
+                            get_tok_str(name, 0), 0);
                     }
                 }
                 if (eq(ri32(tok_address), 58)) {
@@ -17446,11 +17446,11 @@ function struct_decl_fields__locals_(type, structure_kind, symbol, attributes,
                     bit_size = expr_const();
                     if (lt(bit_size, 0)) {
                         tcc_error(mks("negative width in bit-field '%s'"),
-                            get_tok_str(name, 0));
+                            get_tok_str(name, 0), 0);
                     }
                     if (and(not(not(name)), eq(bit_size, 0))) {
                         tcc_error(mks("zero width for bit-field '%s'"),
-                            get_tok_str(name, 0));
+                            get_tok_str(name, 0), 0);
                     }
                     parse_attribute(field_attributes);
                 }
@@ -17463,18 +17463,18 @@ function struct_decl_fields__locals_(type, structure_kind, symbol, attributes,
                         basic_type, CC2_TCC_SHORT_TYPE), eq(basic_type,
                         CC2_TCC_BOOLEAN_TYPE)), eq(basic_type,
                         CC2_TCC_LONG_LONG_TYPE))))) {
-                        tcc_error(mks("bitfields must have scalar type"), 0);
+                        tcc_error(mks("bitfields must have scalar type"), 0, 0);
                     }
                     size = mul(size, CC2_BITS_PER_BYTE);
                     if (lt(size, bit_size)) {
                         tcc_error(mks("width of '%s' exceeds its type"),
-                            get_tok_str(name, 0));
+                            get_tok_str(name, 0), 0);
                     } else if (and(eq(bit_size, size), and(eq(and(ri32(
                         attributes), CC2_ATTRIBUTE_PACKED), 0), eq(and(ri32(
                         field_attributes), CC2_ATTRIBUTE_PACKED), 0)))) {
                         size = size;
                     } else if (eq(bit_size, 64)) {
-                        tcc_error(mks("field width 64 not implemented"), 0);
+                        tcc_error(mks("field width 64 not implemented"), 0, 0);
                     } else {
                         wi32(declared_type, or(or(and(ri32(declared_type),
                             bnot(CC2_TCC_STRUCT_MASK)), CC2_TCC_BITFIELD),
@@ -17568,7 +17568,7 @@ function struct_decl_(type, structure_kind, attributes, declared_type,
                     symbol = found;
                 } else {
                     tcc_error(mks("redefinition of '%s'"),
-                        get_tok_str(name, 0));
+                        get_tok_str(name, 0), 0);
                 }
             }
         }
@@ -17593,7 +17593,7 @@ function struct_decl_(type, structure_kind, attributes, declared_type,
     if (eq(ri32(tok_address), 123)) {
         next();
         if (not(eq(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), sub(0, 1)))) {
-            tcc_error(mks("struct/union/enum already defined"), 0);
+            tcc_error(mks("struct/union/enum already defined"), 0, 0);
         }
         if (eq(structure_kind, CC2_TCC_ENUM_TYPE)) {
             struct_decl_enum(type, symbol);
@@ -17701,14 +17701,14 @@ function parse_btype_(type, attributes, temporary_type, current_type,
                 if (or(not(eq(size_modifier, sub(0, 1))), and(not(eq(
                     basic_type, sub(0, 1))), not(eq(basic_type,
                     CC2_TCC_INT_TYPE))))) {
-                    tcc_error(mks("too many basic types"), 0);
+                    tcc_error(mks("too many basic types"), 0, 0);
                 }
                 size_modifier = parsed_type;
             } else {
                 if (or(not(eq(basic_type, sub(0, 1))), and(not(eq(
                     size_modifier, sub(0, 1))), not(eq(parsed_type,
                     CC2_TCC_INT_TYPE))))) {
-                    tcc_error(mks("too many basic types"), 0);
+                    tcc_error(mks("too many basic types"), 0, 0);
                 }
                 basic_type = parsed_type;
             }
@@ -17744,7 +17744,7 @@ function parse_btype_(type, attributes, temporary_type, current_type,
             if (eq(and(current_type, or(CC2_TCC_DEFAULT_SIGN,
                 CC2_TCC_UNSIGNED_TYPE)), or(CC2_TCC_DEFAULT_SIGN,
                 CC2_TCC_UNSIGNED_TYPE))) {
-                tcc_error(mks("signed and unsigned modifier"), 0);
+                tcc_error(mks("signed and unsigned modifier"), 0, 0);
             }
             current_type = or(current_type, CC2_TCC_DEFAULT_SIGN);
             next();
@@ -17757,7 +17757,7 @@ function parse_btype_(type, attributes, temporary_type, current_type,
         } else if (eq(token, CC2_TOKEN_UNSIGNED)) {
             if (eq(and(current_type, or(CC2_TCC_DEFAULT_SIGN,
                 CC2_TCC_UNSIGNED_TYPE)), CC2_TCC_DEFAULT_SIGN)) {
-                tcc_error(mks("signed and unsigned modifier"), 0);
+                tcc_error(mks("signed and unsigned modifier"), 0, 0);
             }
             current_type = or(current_type, or(CC2_TCC_DEFAULT_SIGN,
                 CC2_TCC_UNSIGNED_TYPE));
@@ -17773,7 +17773,7 @@ function parse_btype_(type, attributes, temporary_type, current_type,
             }
             if (and(current_type, and(or(or(CC2_TCC_EXTERN_STORAGE,
                 CC2_TCC_STATIC_STORAGE), 16384), bnot(storage)))) {
-                tcc_error(mks("multiple storage classes"), 0);
+                tcc_error(mks("multiple storage classes"), 0, 0);
             }
             current_type = or(current_type, storage);
             next();
@@ -18214,7 +18214,7 @@ function skip_or_save_block_locals_(output, braces, level, token, stream)
         not(eq(ri32(tok_address), 41))))))) {
         if (eq(ri32(tok_address), sub(0, 1))) {
             if (or(output, lt(0, level))) {
-                tcc_error(mks("unexpected end of file"), 0);
+                tcc_error(mks("unexpected end of file"), 0, 0);
             } else {
                 return 0;
             }
@@ -18268,7 +18268,7 @@ function parse_init_elem_locals_(expression_type, saved_global_expression,
             }
         }
         if (invalid) {
-            tcc_error(mks("initializer element is not constant"), 0);
+            tcc_error(mks("initializer element is not constant"), 0, 0);
         }
     } else if (eq(expression_type, 2)) {
         expr_eq();
@@ -18322,16 +18322,16 @@ function decl_designator_locals_(type, section, offset, current_field,
             skip(93);
             symbol = ri32(add(type, 4));
             if (lt(index, 0)) {
-                tcc_error(mks("invalid index"), 0);
+                tcc_error(mks("invalid index"), 0, 0);
             }
             if (not(lt(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), 0))) {
                 if (not(lt(last_index,
                     ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET))))) {
-                    tcc_error(mks("invalid index"), 0);
+                    tcc_error(mks("invalid index"), 0, 0);
                 }
             }
             if (lt(last_index, index)) {
-                tcc_error(mks("invalid index"), 0);
+                tcc_error(mks("invalid index"), 0, 0);
             }
             if (current_field) {
                 wi32(add(ri32(current_field), CC2_SYM_CONSTANT_OFFSET),
@@ -18380,7 +18380,7 @@ function decl_designator_locals_(type, section, offset, current_field,
         if (not(lt(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), 0))) {
             if (not(lt(index,
                 ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET))))) {
-                tcc_error(mks("index too large"), 0);
+                tcc_error(mks("index too large"), 0, 0);
             }
         }
         type = pointed_type(type);
@@ -18400,7 +18400,7 @@ function decl_designator_locals_(type, section, offset, current_field,
             wi32(current_field, field);
         }
         if (not(field)) {
-            tcc_error(mks("too many field init"), 0);
+            tcc_error(mks("too many field init"), 0, 0);
         }
         type = add(field, CC2_SYM_TYPE_OFFSET);
         offset = add(offset, ri32(add(field, CC2_SYM_CONSTANT_OFFSET)));
@@ -18489,7 +18489,7 @@ function decl_initializer_locals_(type, section, offset, first, size_only,
                 CC2_TOKEN_WIDE_STRING)), not(eq(token, CC2_TOKEN_STRING)))),
                 eq(token, 123))) {
                 if (not(eq(token, 123))) {
-                    tcc_error(mks("character array initializer must be a literal, optionally enclosed in braces"), 0);
+                    tcc_error(mks("character array initializer must be a literal, optionally enclosed in braces"), 0, 0);
                 }
                 skip(123);
                 no_outer_block = 0;
@@ -18534,7 +18534,7 @@ function decl_initializer_locals_(type, section, offset, first, size_only,
                 }
                 if (not(size_only)) {
                     if (lt(copy_count, string_length)) {
-                        tcc_warning(mks("initializer-string for array is too long"), 0);
+                        tcc_warning(mks("initializer-string for array is too long"), 0, 0, 0);
                     }
                     if (and(section, and(eq(token, CC2_TOKEN_STRING),
                         eq(element_size, 1)))) {
@@ -18699,7 +18699,7 @@ function decl_initializer_alloc_locals_(type, attributes, storage,
     if (or(lt(size, 0), and(not(eq(flexible_array, 0)),
         not(eq(has_initializer, 0))))) {
         if (not(has_initializer)) {
-            tcc_error(mks("unknown type size"), 0);
+            tcc_error(mks("unknown type size"), 0, 0);
         }
         if (eq(has_initializer, 2)) {
             initializer_stream = tok_str_alloc();
@@ -18723,7 +18723,7 @@ function decl_initializer_alloc_locals_(type, attributes, storage,
         next();
         size = type_size(type, alignment);
         if (lt(size, 0)) {
-            tcc_error(mks("unknown type size"), 0);
+            tcc_error(mks("unknown type size"), 0, 0);
         }
     }
     if (flexible_array) {
@@ -18927,7 +18927,7 @@ function decl0_locals_(scope, is_for_loop_initializer, function_symbol,
                     if (and(eq(and(token, CC2_SYMBOL_FIELD_FLAG), 0),
                         not(lt(and(token, bnot(CC2_SYMBOL_STRUCT_FLAG)),
                         CC2_SYMBOL_FIRST_ANONYMOUS)))) {
-                        tcc_warning(mks("unnamed struct/union that defines no instances"), 0);
+                        tcc_warning(mks("unnamed struct/union that defines no instances"), 0, 0, 0);
                     }
                     next();
                     type_value = sub(0, 1);
@@ -18962,7 +18962,7 @@ function decl0_locals_(scope, is_for_loop_initializer, function_symbol,
                         if (and(not(eq(and(type_value,
                             CC2_TCC_STATIC_STORAGE), 0)),
                             eq(scope, CC2_VALUE_LOCAL))) {
-                            tcc_error(mks("function without file scope cannot be static"), 0);
+                            tcc_error(mks("function without file scope cannot be static"), 0, 0);
                         }
                         symbol = ri32(add(type, 4));
                         if (and(eq(and(ushr(ri32(add(symbol,
@@ -18989,7 +18989,7 @@ function decl0_locals_(scope, is_for_loop_initializer, function_symbol,
                     }
                     if (eq(ri32(tok_address), CC2_ASCII_OPEN_BRACE)) {
                         if (not(eq(scope, CC2_VALUE_CONSTANT))) {
-                            tcc_error(mks("cannot use local functions"), 0);
+                            tcc_error(mks("cannot use local functions"), 0, 0);
                         }
                         if (not(eq(and(ri32(type),
                             CC2_TCC_BASIC_TYPE_MASK),
@@ -19063,17 +19063,17 @@ function decl0_locals_(scope, is_for_loop_initializer, function_symbol,
                         symbol = field;
                         if (eq(symbol, 0)) {
                             tcc_error(mks("declaration for parameter '%s' but no such parameter"),
-                                get_tok_str(ri32(identifier), 0));
+                                get_tok_str(ri32(identifier), 0), 0);
                         }
                         if (not(eq(and(ri32(type),
                             CC2_TCC_STORAGE_MASK), 0))) {
                             tcc_error(mks("storage class specified for '%s'"),
-                                get_tok_str(ri32(identifier), 0));
+                                get_tok_str(ri32(identifier), 0), 0);
                         }
                         if (not(eq(ri32(add(symbol,
                             CC2_SYM_TYPE_OFFSET)), CC2_TCC_VOID_TYPE))) {
                             tcc_error(mks("redefinition of parameter '%s'"),
-                                get_tok_str(ri32(identifier), 0));
+                                get_tok_str(ri32(identifier), 0), 0);
                         }
                         convert_parameter_type(type);
                         cc2_copy_type(add(symbol, CC2_SYM_TYPE_OFFSET),
@@ -19095,7 +19095,7 @@ function decl0_locals_(scope, is_for_loop_initializer, function_symbol,
                                 CC2_SYM_TYPE_OFFSET)),
                                 CC2_TCC_TYPEDEF_STORAGE), 0))) {
                                 tcc_error(mks("incompatible redefinition of '%s'"),
-                                    get_tok_str(ri32(identifier), 0));
+                                    get_tok_str(ri32(identifier), 0), 0);
                             }
                             cc2_copy_type(add(symbol,
                                 CC2_SYM_TYPE_OFFSET), type);
@@ -19126,7 +19126,7 @@ function decl0_locals_(scope, is_for_loop_initializer, function_symbol,
                             CC2_ASCII_ASSIGN);
                         if (and(has_initializer, not(eq(and(type_value,
                             CC2_TCC_VLA_TYPE), 0)))) {
-                            tcc_error(mks("variable length array cannot be initialized"), 0);
+                            tcc_error(mks("variable length array cannot be initialized"), 0, 0);
                         }
                         field = 0;
                         if (not(eq(and(type_value,
@@ -19166,7 +19166,7 @@ function decl0_locals_(scope, is_for_loop_initializer, function_symbol,
                                 alias_symbol = sym_find(field);
                                 elf_symbol = elfsym(alias_symbol);
                                 if (eq(elf_symbol, 0)) {
-                                    tcc_error(mks("unsupported forward __alias__ attribute"), 0);
+                                    tcc_error(mks("unsupported forward __alias__ attribute"), 0, 0);
                                 }
                                 wi32(add(symbol, CC2_SYM_SCOPE_OFFSET), 0);
                                 put_extern_sym2(symbol, or(ri8(add(elf_symbol,
@@ -19566,7 +19566,7 @@ function code_reloc(relocation_type)
         eq(relocation_type, CC2_I386_JUMP_SLOT_RELOCATION)))) {
         return 1;
     }
-    tcc_error(mks("Unknown relocation type: %d"), relocation_type);
+    tcc_error(mks("Unknown relocation type: %d"), relocation_type, 0);
     return sub(0, 1);
 }
 
@@ -19593,7 +19593,7 @@ function gotplt_entry_type(relocation_type)
         eq(relocation_type, CC2_I386_PLT_RELOCATION))) {
         return CC2_ALWAYS_GOT_PLT_ENTRY;
     }
-    tcc_error(mks("Unknown relocation type: %d"), relocation_type);
+    tcc_error(mks("Unknown relocation type: %d"), relocation_type, 0);
     return sub(0, 1);
 }
 
@@ -19764,7 +19764,7 @@ function relocate_locals_(state, relocation, type, pointer, address, value,
     if (eq(type, CC2_I386_DATA_16_RELOCATION)) {
         if (not(eq(ri32(add(state, add(CC2_TCC_STATE_OUTPUT_TYPE_OFFSET,
             4))), CC2_TCC_OUTPUT_FORMAT_BINARY))) {
-            tcc_error(mks("can only produce 16-bit binary files"), 0);
+            tcc_error(mks("can only produce 16-bit binary files"), 0, 0);
         }
         cc2_write_u16(pointer, add(cc2_read_u16(pointer), value));
         return 0;
@@ -19772,7 +19772,7 @@ function relocate_locals_(state, relocation, type, pointer, address, value,
     if (eq(type, CC2_I386_PC_16_RELOCATION)) {
         if (not(eq(ri32(add(state, add(CC2_TCC_STATE_OUTPUT_TYPE_OFFSET,
             4))), CC2_TCC_OUTPUT_FORMAT_BINARY))) {
-            tcc_error(mks("can only produce 16-bit binary files"), 0);
+            tcc_error(mks("can only produce 16-bit binary files"), 0, 0);
         }
         cc2_write_u16(pointer,
             add(cc2_read_u16(pointer), sub(value, address)));
@@ -19782,7 +19782,7 @@ function relocate_locals_(state, relocation, type, pointer, address, value,
         eq(type, CC2_I386_COPY_RELOCATION))) {
         return 0;
     }
-    tcc_warning(mks("unhandled i386 relocation type %d"), type);
+    tcc_warning(mks("unhandled i386 relocation type %d"), type, 0, 0);
     return 0;
 }
 
@@ -20888,7 +20888,7 @@ function init_putv_locals_(type, section, offset, destination_type, alignment,
                         }
                     }
                     if (eq(value, 0)) {
-                        tcc_error(mks("initializer element is not computable at load time"), 0);
+                        tcc_error(mks("initializer element is not computable at load time"), 0, 0);
                     }
                 }
             }
@@ -21321,7 +21321,7 @@ function block_return()
 function block_break(break_symbol)
 {
     if (not(break_symbol)) {
-        tcc_error(mks("cannot break"), 0);
+        tcc_error(mks("cannot break"), 0, 0);
     }
     wi32(break_symbol, gjmp(ri32(break_symbol)));
     next();
@@ -21333,7 +21333,7 @@ function block_break(break_symbol)
 function block_continue(continue_symbol)
 {
     if (not(continue_symbol)) {
-        tcc_error(mks("cannot continue"), 0);
+        tcc_error(mks("cannot continue"), 0, 0);
     }
     vla_sp_restore_root();
     wi32(continue_symbol, gjmp(ri32(continue_symbol)));
@@ -21517,7 +21517,7 @@ function block_case_locals_(case_record, words)
         if (cc2_signed_wide_less(ri32(add(case_record, 8)),
             ri32(add(case_record, 12)), ri32(case_record),
             ri32(add(case_record, 4)))) {
-            tcc_warning(mks("empty case range"), 0);
+            tcc_warning(mks("empty case range"), 0, 0, 0);
         }
     }
     wi32(add(case_record, CC2_CASE_SYMBOL_OFFSET), ind);
@@ -21539,7 +21539,7 @@ function block_default()
         expect(mks("switch"));
     }
     if (ri32(add(cur_switch, CC2_SWITCH_DEFAULT_SYMBOL_OFFSET))) {
-        tcc_error(mks("too many 'default'"), 0);
+        tcc_error(mks("too many 'default'"), 0, 0);
     }
     wi32(add(cur_switch, CC2_SWITCH_DEFAULT_SYMBOL_OFFSET), ind);
     return 0;
@@ -21636,7 +21636,7 @@ function block_switch_locals_(continue_symbol, switch_record, switch_value,
             ri32(add(previous_case,
                 add(CC2_CASE_SECOND_VALUE_OFFSET, 4))),
             ri32(next_case), ri32(add(next_case, 4))))) {
-            tcc_error(mks("duplicate case value"), 0);
+            tcc_error(mks("duplicate case value"), 0, 0);
         }
         index = add(index, 1);
     }
@@ -21670,7 +21670,7 @@ function block_after_label(break_symbol, continue_symbol, is_expression)
     nocode_wanted = and(nocode_wanted, bnot(536870912));
     if (eq(ri32(tok_address), 125)) {
         tcc_warning(mks("deprecated use of label at end of compound statement"),
-            0);
+            0, 0, 0);
     } else {
         if (is_expression) {
             vpop();
@@ -21689,7 +21689,7 @@ function block_label_locals_(label, break_symbol, continue_symbol,
         registers = ri32(add(symbol, 4));
         if (eq(and(registers, 65535), 0)) {
             tcc_error(mks("duplicate label '%s'"),
-                get_tok_str(ri32(symbol), 0));
+                get_tok_str(ri32(symbol), 0), 0);
         }
         gsym(ri32(add(symbol, CC2_SYM_JUMP_NEXT_OFFSET)));
         wi32(add(symbol, 4), and(registers, bnot(65535)));
@@ -21841,11 +21841,11 @@ function unary_identifier_locals_(token, symbol, type, registers, name,
     if (or(not(symbol), assembler_symbol)) {
         name = get_tok_str(token, 0);
         if (not(eq(ri32(tok_address), 40))) {
-            tcc_error(mks("'%s' undeclared"), name);
+            tcc_error(mks("'%s' undeclared"), name, 0);
         }
         if (ri32(add(tcc_state_address,
             CC2_TCC_STATE_WARN_IMPLICIT_FUNCTION_OFFSET))) {
-            tcc_warning(mks("implicit declaration of function '%s'"), name);
+            tcc_warning(mks("implicit declaration of function '%s'"), name, 0, 0);
         }
         symbol = external_global_sym(token, func_old_type_address, 0);
     }
@@ -21901,7 +21901,7 @@ function unary_postfix_field_locals_(operator, qualifiers, field, registers)
     if (not(field)) {
         tcc_error(mks("field not found: %s"),
             get_tok_str(and(ri32(tok_address),
-            bnot(CC2_SYMBOL_FIELD_FLAG)), 0));
+            bnot(CC2_SYMBOL_FIELD_FLAG)), 0), 0);
     }
     cc2_copy_bytes(vtop, char_pointer_type_address, 8);
     vpushi(ri32(add(field, CC2_SYM_CONSTANT_OFFSET)));
@@ -22179,7 +22179,7 @@ function gen_opic_fold_constant_locals_(operation, first, second, first_type,
         if (and(eq(second_low, 0), eq(second_high, 0))) {
             free(result);
             if (const_wanted) {
-                tcc_error(mks("division by zero in constant"), 0);
+                tcc_error(mks("division by zero in constant"), 0, 0);
             }
             return 0;
         }
@@ -22540,7 +22540,7 @@ function gen_opif_fold_constant_locals_(operation, first, basic_type,
     } else if (eq(operation, CC2_ASCII_SLASH)) {
         if (cc2_float_zero(second_value, basic_type)) {
             if (const_wanted) {
-                tcc_error(mks("division by zero in constant"), 0);
+                tcc_error(mks("division by zero in constant"), 0, 0);
             }
             return 0;
         }
@@ -22665,7 +22665,7 @@ function unary_postfix_call_locals_(function_symbol, argument_symbol,
         }
     }
     if (argument_symbol) {
-        tcc_error(mks("too few arguments to function"), 0);
+        tcc_error(mks("too few arguments to function"), 0, 0);
     }
     skip(41);
     gfunc_call(argument_count);
@@ -22750,7 +22750,7 @@ function unary_prefix_locals_(operator, type, registers, value)
     } else if (eq(operator, CC2_ASCII_PLUS)) {
         type = ri32(vtop);
         if (eq(and(type, CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_POINTER_TYPE)) {
-            tcc_error(mks("pointer not accepted for unary plus"), 0);
+            tcc_error(mks("pointer not accepted for unary plus"), 0, 0);
         }
         if (not(is_float(type))) {
             vpushi(0);
@@ -22873,10 +22873,10 @@ function unary_builtin_frame_locals_(token, level, type)
     if (not(eq(ri32(tok_address), 181))) {
         if (eq(token, 377)) {
             tcc_error(mks("__builtin_return_address only takes positive integers"),
-                0);
+                0, 0);
         } else {
             tcc_error(mks("__builtin_frame_address only takes positive integers"),
-                0);
+                0, 0);
         }
     }
     level = ri32(tokc_address);
@@ -22962,7 +22962,7 @@ function unary_sizeof_locals_(token, type, alignment, size, symbol, aligned)
     if (eq(token, 302)) {
         if (eq(and(ri32(type), CC2_TCC_VLA_TYPE), 0)) {
             if (lt(size, 0)) {
-                tcc_error(mks("sizeof applied to an incomplete type"), 0);
+                tcc_error(mks("sizeof applied to an incomplete type"), 0, 0);
             }
             vpushs(size);
         } else {
@@ -23050,7 +23050,7 @@ function unary_parenthesized_locals_(sizeof_caller, type, attributes,
         }
     } else if (eq(ri32(tok_address), 123)) {
         if (const_wanted) {
-            tcc_error(mks("expected constant"), 0);
+            tcc_error(mks("expected constant"), 0, 0);
         }
         save_regs(0);
         saved_no_code = nocode_wanted;
@@ -23155,7 +23155,7 @@ function unary_generic_locals_(controlling_type, current_type, attributes,
         skip(44);
         if (eq(ri32(tok_address), CC2_TOKEN_DEFAULT)) {
             if (has_default) {
-                tcc_error(mks("too many 'default'"), 0);
+                tcc_error(mks("too many 'default'"), 0, 0);
             }
             has_default = 1;
             if (not(has_match)) {
@@ -23169,7 +23169,7 @@ function unary_generic_locals_(controlling_type, current_type, attributes,
                 CC2_TYPE_ABSTRACT);
             if (compare_types(controlling_type, current_type, 0)) {
                 if (has_match) {
-                    tcc_error(mks("type match twice"), 0);
+                    tcc_error(mks("type match twice"), 0, 0);
                 }
                 has_match = 1;
                 learn = 1;
@@ -23193,7 +23193,7 @@ function unary_generic_locals_(controlling_type, current_type, attributes,
     if (not(selected)) {
         buffer = malloc(60);
         cc2_type_to_str(buffer, 60, controlling_type, 0);
-        tcc_error(mks("type '%s' does not match any association"), buffer);
+        tcc_error(mks("type '%s' does not match any association"), buffer, 0);
         free(buffer);
     }
     begin_macro(selected, 1);
@@ -23427,7 +23427,7 @@ function post_type__locals_(type, attributes, storage, mode, parameter_type,
                         identifier, or(CC2_TYPE_DIRECT, CC2_TYPE_ABSTRACT));
                     if (eq(and(ri32(parameter_type),
                         CC2_TCC_BASIC_TYPE_MASK), CC2_TCC_VOID_TYPE)) {
-                        tcc_error(mks("parameter declared as void"), 0);
+                        tcc_error(mks("parameter declared as void"), 0, 0);
                     }
                     size = type_size(parameter_type, alignment);
                     argument_size = add(argument_size,
@@ -23464,7 +23464,7 @@ function post_type__locals_(type, attributes, storage, mode, parameter_type,
                 if (eq(kind, CC2_TCC_NEW_FUNCTION)) {
                     if (not(parse_btype(parameter_type,
                         parameter_attributes))) {
-                        tcc_error(mks("invalid type"), 0);
+                        tcc_error(mks("invalid type"), 0, 0);
                     }
                 }
             }
@@ -23512,12 +23512,12 @@ function post_type__locals_(type, attributes, storage, mode, parameter_type,
                 CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT)) {
                 size = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
                 if (lt(size, 0)) {
-                    tcc_error(mks("invalid array size"), 0);
+                    tcc_error(mks("invalid array size"), 0, 0);
                 }
             } else {
                 if (not(is_integer_btype(and(ri32(vtop),
                     CC2_TCC_BASIC_TYPE_MASK)))) {
-                    tcc_error(mks("size of variable length array should be an integer"), 0);
+                    tcc_error(mks("size of variable length array should be an integer"), 0, 0);
                 }
                 array_kind = CC2_TCC_VLA_TYPE;
             }
@@ -23525,7 +23525,7 @@ function post_type__locals_(type, attributes, storage, mode, parameter_type,
         skip(93);
         post_type(type, attributes, storage, 0);
         if (eq(ri32(type), CC2_TCC_FUNCTION_TYPE)) {
-            tcc_error(mks("declaration of an array of functions"), 0);
+            tcc_error(mks("declaration of an array of functions"), 0, 0);
         }
         array_kind = or(array_kind,
             and(ri32(type), CC2_TCC_VLA_TYPE));
@@ -23597,7 +23597,7 @@ function vstore_(destination_type, source_basic, destination_basic,
         delayed_cast = CC2_TCC_MUST_CAST;
         wi32(vtop, and(destination_type, CC2_TCC_TYPE_MASK));
         if (not(eq(and(destination_type, CC2_TCC_CONST_QUALIFIER), 0))) {
-            tcc_warning(mks("assignment of read-only location"), 0);
+            tcc_warning(mks("assignment of read-only location"), 0, 0, 0);
         }
     } else {
         delayed_cast = 0;
@@ -23946,7 +23946,7 @@ function patch_type_(symbol, type, symbol_type, new_type, static_storage,
     new_type = ri32(type);
     if (eq(and(new_type, CC2_TCC_EXTERN_STORAGE), 0)) {
         if (eq(and(symbol_type, CC2_TCC_EXTERN_STORAGE), 0)) {
-            tcc_error(mks("redefinition of '%s'"), cc2_symbol_name(symbol));
+            tcc_error(mks("redefinition of '%s'"), cc2_symbol_name(symbol), 0);
         }
         symbol_type = and(symbol_type, bnot(CC2_TCC_EXTERN_STORAGE));
         wi32(add(symbol, CC2_SYM_TYPE_OFFSET), symbol_type);
@@ -23960,7 +23960,7 @@ function patch_type_(symbol, type, symbol_type, new_type, static_storage,
     symbol_type = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
     if (eq(is_compatible_types(add(symbol, CC2_SYM_TYPE_OFFSET), type), 0)) {
         tcc_error(mks("incompatible types for redefinition of '%s'"),
-            cc2_symbol_name(symbol));
+            cc2_symbol_name(symbol), 0);
     } else if (eq(and(symbol_type, CC2_TCC_BASIC_TYPE_MASK),
         CC2_TCC_FUNCTION_TYPE)) {
         static_storage = and(symbol_type, CC2_TCC_STATIC_STORAGE);
@@ -23968,7 +23968,7 @@ function patch_type_(symbol, type, symbol_type, new_type, static_storage,
             and(eq(static_storage, 0),
             eq(and(new_type, CC2_TCC_INLINE_STORAGE), 0)))) {
             tcc_warning(mks("static storage ignored for redefinition of '%s'"),
-                cc2_symbol_name(symbol));
+                cc2_symbol_name(symbol), 0, 0);
         }
         if (eq(and(new_type, CC2_TCC_EXTERN_STORAGE), 0)) {
             symbol_type = or(and(new_type,
@@ -23994,14 +23994,14 @@ function patch_type_(symbol, type, symbol_type, new_type, static_storage,
                         new_count);
                 } else if (not(eq(old_count, new_count))) {
                     tcc_error(mks("conflicting type for '%s'"),
-                        cc2_symbol_name(symbol));
+                        cc2_symbol_name(symbol), 0);
                 }
             }
         }
         if (not(eq(and(xor(new_type, symbol_type),
             CC2_TCC_STATIC_STORAGE), 0))) {
             tcc_warning(mks("storage mismatch for redefinition of '%s'"),
-                cc2_symbol_name(symbol));
+                cc2_symbol_name(symbol), 0, 0);
         }
     }
     return 0;
@@ -24263,7 +24263,7 @@ function tcc_malloc_(size, pointer)
 {
     pointer = malloc(size);
     if (and(eq(pointer, 0), not(eq(size, 0)))) {
-        tcc_error(mks("memory full (malloc)"), 0);
+        tcc_error(mks("memory full (malloc)"), 0, 0);
     }
     return pointer;
 }
@@ -24291,7 +24291,7 @@ function tcc_realloc_(pointer, size, replacement)
 {
     replacement = realloc(pointer, size);
     if (and(eq(replacement, 0), not(eq(size, 0)))) {
-        tcc_error(mks("memory full (realloc)"), 0);
+        tcc_error(mks("memory full (realloc)"), 0, 0);
     }
     return replacement;
 }
@@ -24459,7 +24459,7 @@ function tcc_add_crt_locals_(state, filename, result)
         ri32(add(state, CC2_TCC_STATE_CRT_PATHS_OFFSET)),
         ri32(add(state, CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET)));
     if (eq(result, sub(0, 1))) {
-        tcc_error_noabort(mks("file '%s' not found"), filename);
+        tcc_error_noabort(mks("file '%s' not found"), filename, 0, 0);
     }
     return 0;
 }
@@ -24490,7 +24490,7 @@ function tcc_add_library_err_locals_(state, library, result)
 {
     result = tcc_add_library(state, library);
     if (lt(result, 0)) {
-        tcc_error_noabort(mks("library '%s' not found"), library);
+        tcc_error_noabort(mks("library '%s' not found"), library, 0, 0);
     }
     return result;
 }
@@ -24521,7 +24521,7 @@ function tcc_add_file_internal_locals_(state, filename, flags, result,
     result = tcc_open(state, filename);
     if (lt(result, 0)) {
         if (and(flags, 16)) {
-            tcc_error_noabort(mks("file '%s' not found"), filename);
+            tcc_error_noabort(mks("file '%s' not found"), filename, 0, 0);
         }
         return result;
     }
@@ -24546,7 +24546,7 @@ function tcc_add_file_internal_locals_(state, filename, flags, result,
         } else {
             result = tcc_load_ldscript(state);
             if (lt(result, 0)) {
-                tcc_error_noabort(mks("unrecognized file type"), 0);
+                tcc_error_noabort(mks("unrecognized file type"), 0, 0, 0);
             }
         }
     } else {
@@ -25192,7 +25192,7 @@ function tcc_set_linker_locals_(state, option, argument_slot, argument,
                 wi32(add(state, CC2_TCC_STATE_OUTPUT_FORMAT_OFFSET),
                     CC2_TCC_OUTPUT_FORMAT_BINARY);
             } else {
-                tcc_error(mks("unsupported linker option '%s'"), option);
+                tcc_error(mks("unsupported linker option '%s'"), option, 0);
             }
         } else if (cc2_link_option(option, mks("as-needed"), argument_slot)) {
             ignoring = 1;
@@ -25223,12 +25223,12 @@ function tcc_set_linker_locals_(state, option, argument_slot, argument,
                 free(argument_slot);
                 return 0;
             } else {
-                tcc_error(mks("unsupported linker option '%s'"), option);
+                tcc_error(mks("unsupported linker option '%s'"), option, 0);
             }
         }
         if (and(ignoring, ri32(add(state,
             CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET)))) {
-            tcc_warning(mks("unsupported linker option '%s'"), option);
+            tcc_warning(mks("unsupported linker option '%s'"), option, 0, 0);
         }
         option = cc2_skip_linker_arg(argument_slot);
     }
@@ -25329,7 +25329,7 @@ function args_parser_listfile_locals_(state, filename, option_index,
 {
     descriptor = open(filename, 0, 0);
     if (lt(descriptor, 0)) {
-        tcc_error(mks("listfile '%s' not found"), filename);
+        tcc_error(mks("listfile '%s' not found"), filename, 0);
     }
     length = lseek(descriptor, 0, 2);
     contents = tcc_malloc(add(length, 1));
@@ -25387,7 +25387,7 @@ function cc2_match_option_locals_(body, name, has_argument,
         if (and(eq(ri8(current), 0), not(no_separate_argument))) {
             index = ri32(index_slot);
             if (not(lt(index, argument_count))) {
-                tcc_error(mks("argument to '%s' is missing"), original);
+                tcc_error(mks("argument to '%s' is missing"), original, 0);
             }
             current = ri32(add(arguments, shl(index, 2)));
             wi32(index_slot, add(index, 1));
@@ -25521,7 +25521,7 @@ function cc2_parser_output(state, output_type, option_name)
 {
     if (ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET))) {
         tcc_warning(mks("-%s: overriding compiler action already specified"),
-            option_name);
+            option_name, 0, 0);
     }
     wi32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET), output_type);
     return 0;
@@ -25647,7 +25647,7 @@ function tcc_parse_args_locals_(state, argument_count_pointer,
                 cc2_parser_output(state, CC2_TCC_OUTPUT_OBJECT, mks("c"));
             } else if (cc2_match_option(body, mks("dumpversion"), 0, 0,
                 index_slot, argument_count, arguments, argument_slot, option)) {
-                printf(mks("0.9.27\n"), 0);
+                printf(mks("0.9.27\n"), 0, 0, 0);
                 exit(0);
             } else if (cc2_match_option(body, mks("d"), 1, 1, index_slot,
                 argument_count, arguments, argument_slot, option)) {
@@ -25663,7 +25663,7 @@ function tcc_parse_args_locals_(state, argument_count_pointer,
                     g_debug = atoi(argument);
                 } else if (ri32(add(state,
                     CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
-                    tcc_warning(mks("unsupported option '%s'"), option);
+                    tcc_warning(mks("unsupported option '%s'"), option, 0, 0);
                 }
             } else if (cc2_match_option(body, mks("static"), 0, 0,
                 index_slot, argument_count, arguments, argument_slot, option)) {
@@ -25684,7 +25684,7 @@ function tcc_parse_args_locals_(state, argument_count_pointer,
             } else if (cc2_match_option(body, mks("o"), 1, 0, index_slot,
                 argument_count, arguments, argument_slot, option)) {
                 if (ri32(add(state, CC2_TCC_STATE_OUTFILE_OFFSET))) {
-                    tcc_warning(mks("multiple -o option"), 0);
+                    tcc_warning(mks("multiple -o option"), 0, 0, 0);
                     tcc_free(ri32(add(state, CC2_TCC_STATE_OUTFILE_OFFSET)));
                 }
                 wi32(add(state, CC2_TCC_STATE_OUTFILE_OFFSET),
@@ -25731,7 +25731,7 @@ function tcc_parse_args_locals_(state, argument_count_pointer,
                 argument_count, arguments, argument_slot, option)) {
                 if (and(lt(cc2_set_warning_flag(state, ri32(argument_slot)), 0),
                     ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET)))) {
-                    tcc_warning(mks("unsupported option '%s'"), option);
+                    tcc_warning(mks("unsupported option '%s'"), option, 0, 0);
                 }
             } else if (cc2_match_option(body, mks("O"), 1, 1, index_slot,
                 argument_count, arguments, argument_slot, option)) {
@@ -25744,7 +25744,7 @@ function tcc_parse_args_locals_(state, argument_count_pointer,
                     if (and(not(eq(value, 32)), not(eq(value, 64)))) {
                         if (ri32(add(state,
                             CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
-                            tcc_warning(mks("unsupported option '%s'"), option);
+                            tcc_warning(mks("unsupported option '%s'"), option, 0, 0);
                         }
                     } else if (not(eq(value, 32))) {
                         tool = value;
@@ -25757,7 +25757,7 @@ function tcc_parse_args_locals_(state, argument_count_pointer,
                 argument_count, arguments, argument_slot, option)) {
                 if (and(lt(cc2_set_f_flag(state, ri32(argument_slot)), 0),
                     ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET)))) {
-                    tcc_warning(mks("unsupported option '%s'"), option);
+                    tcc_warning(mks("unsupported option '%s'"), option, 0, 0);
                 }
             } else if (cc2_match_option(body, mks("isystem"), 1, 0,
                 index_slot, argument_count, arguments, argument_slot, option)) {
@@ -25777,7 +25777,7 @@ function tcc_parse_args_locals_(state, argument_count_pointer,
                 index_slot, argument_count, arguments, argument_slot, option)) {
                 argument_start = sub(ri32(index_slot), 1);
                 if (not(eq(argument_start, no_action))) {
-                    tcc_error(mks("cannot parse %s here"), option);
+                    tcc_error(mks("cannot parse %s here"), option, 0);
                 }
                 tool = 4;
             } else if (cc2_match_option(body, mks("w"), 0, 0, index_slot,
@@ -25806,7 +25806,7 @@ function tcc_parse_args_locals_(state, argument_count_pointer,
                     value = 0;
                 } else {
                     value = sub(0, 1);
-                    tcc_warning(mks("unsupported language '%s'"), argument);
+                    tcc_warning(mks("unsupported language '%s'"), argument, 0, 0);
                 }
                 if (not(lt(value, 0))) {
                     wi32(add(state, CC2_TCC_STATE_FILE_TYPE_OFFSET), value);
@@ -25815,11 +25815,11 @@ function tcc_parse_args_locals_(state, argument_count_pointer,
                 argument_count, arguments, argument_slot, option)) {
                 argument_start = sub(ri32(index_slot), 1);
                 if (not(eq(argument_start, no_action))) {
-                    tcc_error(mks("cannot parse %s here"), option);
+                    tcc_error(mks("cannot parse %s here"), option, 0);
                 }
                 tool = 5;
             } else {
-                tcc_error(mks("invalid option -- '%s'"), option);
+                tcc_error(mks("invalid option -- '%s'"), option, 0);
             }
         }
         break;
@@ -25830,7 +25830,7 @@ function tcc_parse_args_locals_(state, argument_count_pointer,
     }
     if (ri32(linker_argument)) {
         tcc_error(mks("argument to '%s' is missing"), ri32(add(linker_argument,
-            CC2_CSTRING_DATA_OFFSET)));
+            CC2_CSTRING_DATA_OFFSET)), 0);
     }
     option_index = ri32(index_slot);
     wi32(argument_count_pointer, sub(argument_count, argument_start));
@@ -25902,7 +25902,7 @@ function tcc_print_stats_locals_(state, elapsed_milliseconds, lines,
     throughput_remainder = sub(throughput_tenths,
         mul(throughput_whole, 10));
     fprintf(cc2_stderr(), mks("* %d idents, %d lines, %d bytes\n"),
-        sub(tok_ident, CC2_TOKEN_IDENTIFIER_BASE), lines, total_bytes);
+        sub(tok_ident, CC2_TOKEN_IDENTIFIER_BASE), lines, total_bytes, 0, 0);
     fprintf(cc2_stderr(), mks("* %d.%03d s, %u lines/s, %d.%d MB/s\n"),
         elapsed_seconds, elapsed_remainder, lines_per_second,
         throughput_whole, throughput_remainder);
@@ -25962,14 +25962,14 @@ function cc2_print_help(more)
 
 function cc2_print_directories_locals_(label, paths, path_count, index)
 {
-    printf(mks("%s:"), label);
+    printf(mks("%s:"), label, 0, 0);
     fputc(mkC("\n"), cc2_stdout());
     if (eq(path_count, 0)) {
         puts(mks("  -"));
     }
     index = 0;
     while (lt(index, path_count)) {
-        printf(mks("  %s"), ri32(add(paths, shl(index, 2))));
+        printf(mks("  %s"), ri32(add(paths, shl(index, 2))), 0, 0);
         fputc(mkC("\n"), cc2_stdout());
         index = add(index, 1);
     }
@@ -25983,7 +25983,7 @@ function cc2_print_directories(label, paths, path_count) {
 function cc2_print_search_directories_locals_(state, library_root)
 {
     library_root = ri32(add(state, CC2_TCC_STATE_LIBRARY_ROOT_OFFSET));
-    printf(mks("install: %s"), library_root);
+    printf(mks("install: %s"), library_root, 0, 0);
     fputc(mkC("\n"), cc2_stdout());
     cc2_print_directories(mks("include"), ri32(add(state,
         CC2_TCC_STATE_SYSTEM_INCLUDE_PATHS_OFFSET)), ri32(add(state,
@@ -25992,7 +25992,7 @@ function cc2_print_search_directories_locals_(state, library_root)
         CC2_TCC_STATE_LIBRARY_PATHS_OFFSET)), ri32(add(state,
         CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET)));
     puts(mks("libtcc1:"));
-    printf(mks("  %s/libtcc1.a"), library_root);
+    printf(mks("  %s/libtcc1.a"), library_root, 0, 0);
     fputc(mkC("\n"), cc2_stdout());
     cc2_print_directories(mks("crt"), ri32(add(state,
         CC2_TCC_STATE_CRT_PATHS_OFFSET)), ri32(add(state,
@@ -26112,7 +26112,7 @@ function tcc_driver_main_locals_(original_count, original_arguments, state,
             }
             files_remaining = ri32(add(state, CC2_TCC_STATE_FILE_COUNT_OFFSET));
             if (eq(files_remaining, 0)) {
-                tcc_error(mks("no input files"), 0);
+                tcc_error(mks("no input files"), 0, 0);
             }
             if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
                 CC2_OUTPUT_PREPROCESS)) {
@@ -26121,7 +26121,7 @@ function tcc_driver_main_locals_(original_count, original_arguments, state,
                         CC2_TCC_STATE_OUTFILE_OFFSET)), mks("w"));
                     if (eq(preprocess_output, 0)) {
                         tcc_error(mks("could not write '%s'"), ri32(add(state,
-                            CC2_TCC_STATE_OUTFILE_OFFSET)));
+                            CC2_TCC_STATE_OUTFILE_OFFSET)), 0);
                     }
                 }
             } else if (and(eq(ri32(add(state,
@@ -26130,12 +26130,12 @@ function tcc_driver_main_locals_(original_count, original_arguments, state,
                 CC2_TCC_STATE_RELOCATABLE_OUTPUT_OFFSET)), 0))) {
                 if (ri32(add(state,
                     CC2_TCC_STATE_LIBRARY_ARGUMENT_COUNT_OFFSET))) {
-                    tcc_error(mks("cannot specify libraries with -c"), 0);
+                    tcc_error(mks("cannot specify libraries with -c"), 0, 0);
                 }
                 if (and(lt(1, files_remaining), ri32(add(state,
                     CC2_TCC_STATE_OUTFILE_OFFSET)))) {
                     tcc_error(mks("cannot specify output file with -c many files"),
-                        0);
+                        0, 0);
                 }
             } else if (ri32(add(state, CC2_TCC_STATE_PTHREAD_OFFSET))) {
                 tcc_set_options(state, mks("-lpthread"));
@@ -26170,7 +26170,7 @@ function tcc_driver_main_locals_(original_count, original_arguments, state,
                 }
             } else {
                 if (eq(ri32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET)), 1)) {
-                    printf(mks("-> %s"), file_name);
+                    printf(mks("-> %s"), file_name, 0, 0);
                     fputc(mkC("\n"), cc2_stdout());
                 }
                 if (eq(first_file, 0)) {
@@ -26272,7 +26272,7 @@ function cc2_append_diagnostic_location_locals_(output, state, source_file,
             CC2_BUFFERED_FILE_FILENAME_OFFSET), line);
     } else {
         sprintf(temporary, mks("%s: "), add(source_file,
-            CC2_BUFFERED_FILE_FILENAME_OFFSET));
+            CC2_BUFFERED_FILE_FILENAME_OFFSET), 0);
     }
     cstr_cat(output, temporary, sub(0, 1));
     free(temporary);
@@ -26313,7 +26313,7 @@ function cc2_report_diagnostic_locals_(state, is_warning, message, output,
             fflush(cc2_stdout());
         }
         fflush(cc2_stdout());
-        fprintf(cc2_stderr(), mks("%s"), text);
+        fprintf(cc2_stderr(), mks("%s"), text, 0, 0, 0, 0);
         fputc(mkC("\n"), cc2_stderr());
         fflush(cc2_stderr());
     }
