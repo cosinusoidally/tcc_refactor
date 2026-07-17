@@ -147,6 +147,7 @@ var CC0_X86_STORE_REGISTER_OPCODE;
 var CC0_X86_STORE_EAX_TO_FRAME;
 var CC0_X86_LOAD_EAX_FROM_FRAME_WORD;
 var CC0_X86_STORE_EAX_TO_FRAME_WORD;
+var CC0_X86_COMPACT_FRAME_LIMIT;
 var CC0_X86_LOAD_ADDRESS_OPCODE;
 var CC0_X86_LOAD_ADDRESS_FRAME_WORD;
 var CC0_X86_TEST_OPCODE;
@@ -554,6 +555,7 @@ function cc0_init()
     CC0_X86_STORE_EAX_TO_FRAME = 69;
     CC0_X86_LOAD_EAX_FROM_FRAME_WORD = 133;
     CC0_X86_STORE_EAX_TO_FRAME_WORD = 133;
+    CC0_X86_COMPACT_FRAME_LIMIT = 128;
     CC0_X86_LOAD_ADDRESS_OPCODE = 141;
     CC0_X86_LOAD_ADDRESS_FRAME_WORD = 133;
     CC0_X86_TEST_OPCODE = 133;
@@ -3084,15 +3086,23 @@ function cc0_compiler_emit_pop_left_operand()
 function cc0_compiler_emit_load_parameter(offset)
 {
     cc0_compiler_emit_byte(CC0_X86_LOAD_REGISTER_OPCODE);
-    cc0_compiler_emit_byte(CC0_X86_LOAD_EAX_FROM_FRAME);
-    return cc0_compiler_emit_byte(offset);
+    if (lt(offset, CC0_X86_COMPACT_FRAME_LIMIT)) {
+        cc0_compiler_emit_byte(CC0_X86_LOAD_EAX_FROM_FRAME);
+        return cc0_compiler_emit_byte(offset);
+    }
+    cc0_compiler_emit_byte(CC0_X86_LOAD_EAX_FROM_FRAME_WORD);
+    return cc0_compiler_emit_word(offset);
 }
 
 function cc0_compiler_emit_store_parameter(offset)
 {
     cc0_compiler_emit_byte(CC0_X86_STORE_REGISTER_OPCODE);
-    cc0_compiler_emit_byte(CC0_X86_STORE_EAX_TO_FRAME);
-    return cc0_compiler_emit_byte(offset);
+    if (lt(offset, CC0_X86_COMPACT_FRAME_LIMIT)) {
+        cc0_compiler_emit_byte(CC0_X86_STORE_EAX_TO_FRAME);
+        return cc0_compiler_emit_byte(offset);
+    }
+    cc0_compiler_emit_byte(CC0_X86_STORE_EAX_TO_FRAME_WORD);
+    return cc0_compiler_emit_word(offset);
 }
 
 /* Locals use a full displacement so frame size is not constrained to 127

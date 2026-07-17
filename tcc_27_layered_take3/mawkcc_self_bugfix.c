@@ -47,6 +47,7 @@ var globals_p;
 var current_param_count;
 var current_params_p;
 var current_param_offsets_p;
+var compact_frame_limit;
 var external_count;
 var externals_p;
 var external_types_p;
@@ -108,6 +109,7 @@ function init_globals() {
     function_arities_p = xmalloc(32768);
     current_params_p = xmalloc(4096);
     current_param_offsets_p = xmalloc(4096);
+    compact_frame_limit = 128;
     externals_p = xmalloc(32768);
     external_types_p = xmalloc(16384);
     call_target_p = xmalloc(32768);
@@ -659,8 +661,31 @@ function emit_push_eax() { emit1(80); }
 function emit_push_ebx() { emit1(83); }
 function emit_pop_ebx() { emit1(91); }
 function emit_pop_ecx() { emit1(89); }
-function emit_load_param(offset) { emit1(139); emit1(69); emit1(offset); }
-function emit_store_param(offset) { emit1(137); emit1(69); emit1(offset); }
+/* i386's compact frame displacement is signed. Use the full form for later
+   parameters rather than imposing an artificial parameter-count limit. */
+function emit_load_param(offset) {
+    emit1(139);
+    if (LT(offset, compact_frame_limit)) {
+        emit1(69);
+        emit1(offset);
+    } else {
+        emit1(133);
+        emit4(offset);
+    }
+    return 0;
+}
+
+function emit_store_param(offset) {
+    emit1(137);
+    if (LT(offset, compact_frame_limit)) {
+        emit1(69);
+        emit1(offset);
+    } else {
+        emit1(133);
+        emit4(offset);
+    }
+    return 0;
+}
 function emit_prologue() { emit1(85); emit1(137); emit1(229); emit_push_ebx(); }
 function emit_epilogue() { emit1(139); emit1(93); emit1(252); emit1(137); emit1(236); emit1(93); emit1(195); }
 function emit_test_eax_eax() { emit1(133); emit1(192); }

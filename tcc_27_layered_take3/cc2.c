@@ -44,19 +44,20 @@ function cc0_to_upper(value)
 }
 
 /* TCC's byte-class table starts with the EOF entry, then byte values. */
-function cc0_set_idnum(table, character, flags)
+function cc0_set_idnum_locals_(table, character, flags, address, previous)
 {
-    var address;
-    var previous;
     address = add(table, add(character, 1));
     previous = ri8(address);
     wi8(address, flags);
     return previous;
 }
 
-function cc0_check_space(table, token, space_pointer)
+function cc0_set_idnum(table, character, flags) {
+    return cc0_set_idnum_locals_(table, character, flags, 0, 0);
+}
+
+function cc0_check_space_locals_(table, token, space_pointer, flags)
 {
-    var flags;
     if (lt(token, 256)) {
         flags = ri8(add(table, add(token, 1)));
         if (and(flags, 1)) {
@@ -69,6 +70,10 @@ function cc0_check_space(table, token, space_pointer)
     }
     wi32(space_pointer, 0);
     return 0;
+}
+
+function cc0_check_space(table, token, space_pointer) {
+    return cc0_check_space_locals_(table, token, space_pointer, 0);
 }
 
 /* TCC uses a 14-bit bucket index from its rotating identifier hash. */
@@ -101,16 +106,18 @@ function cc0_number_zero(number)
     return 0;
 }
 
-function cc0_number_lshift(number, shift, low_bits)
+function cc0_number_lshift_locals_(number, shift, low_bits, low, high)
 {
-    var low;
-    var high;
     low = ri32(number);
     high = ri32(add(number, 4));
     wi32(number, add(shl(low, shift), low_bits));
     wi32(add(number, 4), add(shl(high, shift),
         ushr(low, sub(32, shift))));
     return 0;
+}
+
+function cc0_number_lshift(number, shift, low_bits) {
+    return cc0_number_lshift_locals_(number, shift, low_bits, 0, 0);
 }
 
 var CC2_CONSTANTS_INITIALIZED;
@@ -163,6 +170,7 @@ var CC2_SVALUE_BYTES;
 var CC2_SVALUE_REGISTER_OFFSET;
 var CC2_SVALUE_CONSTANT_OFFSET;
 var CC2_SVALUE_SYMBOL_OFFSET;
+var CC2_HIGH_HALF_MASK;
 var CC2_VALUE_LOCATION_MASK;
 var CC2_VALUE_CONSTANT;
 var CC2_VALUE_COMPARISON;
@@ -1193,10 +1201,8 @@ function cstr_reset(string)
     return 0;
 }
 
-function cstr_realloc(string, needed)
+function cstr_realloc_locals_(string, needed, capacity, data)
 {
-    var capacity;
-    var data;
     capacity = ri32(add(string, CC2_CSTRING_CAPACITY_OFFSET));
     if (lt(capacity, 8)) {
         capacity = 8;
@@ -1210,9 +1216,12 @@ function cstr_realloc(string, needed)
     return 0;
 }
 
-function cstr_ccat(string, character)
+function cstr_realloc(string, needed) {
+    return cstr_realloc_locals_(string, needed, 0, 0);
+}
+
+function cstr_ccat_locals_(string, character, size)
 {
-    var size;
     size = add(ri32(add(string, CC2_CSTRING_SIZE_OFFSET)), 1);
     if (lt(ri32(add(string, CC2_CSTRING_CAPACITY_OFFSET)), size)) {
         cstr_realloc(string, size);
@@ -1223,10 +1232,12 @@ function cstr_ccat(string, character)
     return 0;
 }
 
-function cstr_cat(string, source, length)
+function cstr_ccat(string, character) {
+    return cstr_ccat_locals_(string, character, 0);
+}
+
+function cstr_cat_locals_(string, source, length, old_size, size)
 {
-    var old_size;
-    var size;
     if (le(length, 0)) {
         length = add(add(strlen(source), 1), length);
     }
@@ -1241,9 +1252,12 @@ function cstr_cat(string, source, length)
     return 0;
 }
 
-function cstr_wccat(string, character)
+function cstr_cat(string, source, length) {
+    return cstr_cat_locals_(string, source, length, 0, 0);
+}
+
+function cstr_wccat_locals_(string, character, size)
 {
-    var size;
     size = add(ri32(add(string, CC2_CSTRING_SIZE_OFFSET)), 4);
     if (lt(ri32(add(string, CC2_CSTRING_CAPACITY_OFFSET)), size)) {
         cstr_realloc(string, size);
@@ -1252,6 +1266,10 @@ function cstr_wccat(string, character)
         character);
     wi32(add(string, CC2_CSTRING_SIZE_OFFSET), size);
     return 0;
+}
+
+function cstr_wccat(string, character) {
+    return cstr_wccat_locals_(string, character, 0);
 }
 
 function cstr_free(string)
@@ -2129,23 +2147,21 @@ function cc2_lex_is_punctuation(character)
     return or(eq(character, mkC("~")), eq(character, mkC("@")));
 }
 
-function cc2_lex_publish(pointer)
+function cc2_lex_publish_locals_(pointer, source_file)
 {
-    var source_file;
     source_file = ri32(file_address);
     wi32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET), pointer);
     return 0;
 }
 
+function cc2_lex_publish(pointer) {
+    return cc2_lex_publish_locals_(pointer, 0);
+}
+
 /* Return the next preprocessing token without macro substitution. */
-function next_nomacro1()
+function next_nomacro1_locals_(pointer, look_pointer, character, look,
+    character_class, source_file)
 {
-    var pointer;
-    var look_pointer;
-    var character;
-    var look;
-    var character_class;
-    var source_file;
     source_file = ri32(file_address);
     pointer = ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET));
     while (1) {
@@ -2231,6 +2247,10 @@ function next_nomacro1()
     }
 }
 
+function next_nomacro1() {
+    return next_nomacro1_locals_(0, 0, 0, 0, 0, 0);
+}
+
 function preprocess_end(state)
 {
     while (macro_stack) {
@@ -2240,10 +2260,8 @@ function preprocess_end(state)
     return 0;
 }
 
-function tccpp_delete(state)
+function tccpp_delete_locals_(state, index, count)
 {
-    var index;
-    var count;
     free_defines(0);
     count = sub(tok_ident, CC2_TOKEN_IDENTIFIER_BASE);
     index = 0;
@@ -2260,12 +2278,12 @@ function tccpp_delete(state)
     return 0;
 }
 
-function cc2_tccpp_new(state, keywords)
+function tccpp_delete(state) {
+    return tccpp_delete_locals_(state, 0, 0);
+}
+
+function cc2_tccpp_new_locals_(state, keywords, character, flags, pointer, end)
 {
-    var character;
-    var flags;
-    var pointer;
-    var end;
     wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
         add(state, CC2_TCC_STATE_INCLUDE_STACK_OFFSET));
     cc0_init();
@@ -2307,14 +2325,13 @@ function cc2_tccpp_new(state, keywords)
     return 0;
 }
 
-function cc2_preprocess_start(state, is_asm)
+function cc2_tccpp_new(state, keywords) {
+    return cc2_tccpp_new_locals_(state, keywords, 0, 0, 0, 0);
+}
+
+function cc2_preprocess_start_locals_(state, is_asm, source_file, string,
+    index, count, files, include_pointer)
 {
-    var source_file;
-    var string;
-    var index;
-    var count;
-    var files;
-    var include_pointer;
     wi32(add(state, CC2_TCC_STATE_INCLUDE_STACK_POINTER_OFFSET),
         add(state, CC2_TCC_STATE_INCLUDE_STACK_OFFSET));
     wi32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET),
@@ -2391,13 +2408,13 @@ function cc2_preprocess_start(state, is_asm)
     return 0;
 }
 
-function cc2_preprocess_token_print(state, message, stream)
+function cc2_preprocess_start(state, is_asm) {
+    return cc2_preprocess_start_locals_(state, is_asm, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_preprocess_token_print_locals_(state, message, stream, output,
+    stream_pointer, token_pointer, value, skip_space)
 {
-    var output;
-    var stream_pointer;
-    var token_pointer;
-    var value;
-    var skip_space;
     output = ri32(add(state, CC2_TCC_STATE_PREPROCESS_OUTPUT_OFFSET));
     fprintf(output, mks("%s"), message);
     stream_pointer = malloc(CC2_I386_WORD_BYTES);
@@ -2422,6 +2439,11 @@ function cc2_preprocess_token_print(state, message, stream)
     return 0;
 }
 
+function cc2_preprocess_token_print(state, message, stream) {
+    return cc2_preprocess_token_print_locals_(state, message, stream, 0, 0, 0,
+        0, 0);
+}
+
 function cc2_token_is_space(token)
 {
     if (not(lt(token, CC2_TOKEN_IDENTIFIER_BASE))) {
@@ -2431,14 +2453,9 @@ function cc2_token_is_space(token)
         sub(token, CC2_CHARACTER_EOF))), CC2_CHARACTER_CLASS_SPACE);
 }
 
-function cc2_preprocess_line(state, source_file, level)
+function cc2_preprocess_line_locals_(state, source_file, level, output, line,
+    reference, difference, format, suffix)
 {
-    var output;
-    var line;
-    var reference;
-    var difference;
-    var format;
-    var suffix;
     line = ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET));
     reference = ri32(add(source_file,
         CC2_BUFFERED_FILE_LINE_REFERENCE_OFFSET));
@@ -2476,11 +2493,14 @@ function cc2_preprocess_line(state, source_file, level)
     return 0;
 }
 
-function cc2_preprocess_define_print(state, value)
+function cc2_preprocess_line(state, source_file, level) {
+    return cc2_preprocess_line_locals_(state, source_file, level, 0, 0, 0, 0,
+        0, 0);
+}
+
+function cc2_preprocess_define_print_locals_(state, value, symbol, argument,
+    output)
 {
-    var symbol;
-    var argument;
-    var output;
     symbol = define_find(value);
     if (eq(symbol, 0)) {
         return 0;
@@ -2508,12 +2528,13 @@ function cc2_preprocess_define_print(state, value)
     return 0;
 }
 
-function cc2_preprocess_debug_defines(state)
+function cc2_preprocess_define_print(state, value) {
+    return cc2_preprocess_define_print_locals_(state, value, 0, 0, 0);
+}
+
+function cc2_preprocess_debug_defines_locals_(state, debug_token, value,
+    source_file, output)
 {
-    var debug_token;
-    var value;
-    var source_file;
-    var output;
     debug_token = ri32(pp_debug_tok_address);
     if (eq(debug_token, 0)) {
         return 0;
@@ -2546,15 +2567,22 @@ function cc2_preprocess_debug_defines(state)
     return 0;
 }
 
-function cc2_preprocess_debug_builtins(state)
+function cc2_preprocess_debug_defines(state) {
+    return cc2_preprocess_debug_defines_locals_(state, 0, 0, 0, 0);
+}
+
+function cc2_preprocess_debug_builtins_locals_(state, value)
 {
-    var value;
     value = CC2_TOKEN_IDENTIFIER_BASE;
     while (lt(value, tok_ident)) {
         cc2_preprocess_define_print(state, value);
         value = add(value, 1);
     }
     return 0;
+}
+
+function cc2_preprocess_debug_builtins(state) {
+    return cc2_preprocess_debug_builtins_locals_(state, 0);
 }
 
 function cc2_tcc_preprocess_(state, token_seen, spaces, level,
@@ -2747,12 +2775,9 @@ function next_argstream(nested_list, whitespace)
 
 /* Re-lex the spelling formed by ##.  Macro stream reduction stays separate
    from this lexer operation so invalid pastes retain TCC's fallback tokens. */
-function paste_tokens(first_token, first_value, second_token, second_value)
+function paste_tokens_locals_(first_token, first_value, second_token,
+    second_value, string, first_length, result, source_file)
 {
-    var string;
-    var first_length;
-    var result;
-    var source_file;
     string = malloc(CC2_CSTRING_BYTES);
     cstr_new(string);
     if (not(eq(first_token, CC2_TOKEN_PLACEHOLDER))) {
@@ -2790,6 +2815,11 @@ function paste_tokens(first_token, first_value, second_token, second_value)
     cstr_free(string);
     free(string);
     return result;
+}
+
+function paste_tokens(first_token, first_value, second_token, second_value) {
+    return paste_tokens_locals_(first_token, first_value, second_token,
+        second_value, 0, 0, 0, 0);
 }
 
 function macro_twosharps_(original, pointer, stream_pointer, token_pointer,
@@ -2904,15 +2934,9 @@ function cc2_month_name(month)
 
 /* Expand predefined macros without exposing calendar or token policy to the
    primitive support layer.  Return zero for ordinary macros. */
-function cc2_expand_special_macro(stream, token)
+function cc2_expand_special_macro_locals_(stream, token, buffer, string,
+    value, source_file, fields, result_token, text)
 {
-    var buffer;
-    var string;
-    var value;
-    var source_file;
-    var fields;
-    var result_token;
-    var text;
     if (and(not(eq(token, CC2_TOKEN_BUILTIN_LINE)), and(
         not(eq(token, CC2_TOKEN_BUILTIN_COUNTER)), and(
         not(eq(token, CC2_TOKEN_BUILTIN_FILE)), and(
@@ -2962,6 +2986,10 @@ function cc2_expand_special_macro(stream, token)
     free(string);
     free(buffer);
     return 1;
+}
+
+function cc2_expand_special_macro(stream, token) {
+    return cc2_expand_special_macro_locals_(stream, token, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function macro_subst_(output, nested_list, macro_stream, stream_pointer,
@@ -3767,10 +3795,8 @@ function pp_need_space(first, second)
     return 0;
 }
 
-function pp_check_he0xE(token, text)
+function pp_check_he0xE_locals_(token, text, pointer, character)
 {
-    var pointer;
-    var character;
     if (not(eq(token, CC2_TOKEN_PREPROCESSOR_NUMBER))) {
         return token;
     }
@@ -3786,6 +3812,10 @@ function pp_check_he0xE(token, text)
         return mkC("E");
     }
     return token;
+}
+
+function pp_check_he0xE(token, text) {
+    return pp_check_he0xE_locals_(token, text, 0, 0);
 }
 
 function skip_spaces()
@@ -4201,18 +4231,19 @@ function tok_str_new(stream)
     return 0;
 }
 
-function tok_str_alloc()
+function tok_str_alloc_locals_(stream)
 {
-    var stream;
     stream = malloc(CC2_TOKEN_STRING_BYTES);
     tok_str_new(stream);
     return stream;
 }
 
-function tok_str_dup(stream)
+function tok_str_alloc() {
+    return tok_str_alloc_locals_(0);
+}
+
+function tok_str_dup_locals_(stream, bytes, duplicate)
 {
-    var bytes;
-    var duplicate;
     bytes = mul(ri32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET)),
         CC2_I386_WORD_BYTES);
     duplicate = malloc(bytes);
@@ -4221,6 +4252,10 @@ function tok_str_dup(stream)
             bytes);
     }
     return duplicate;
+}
+
+function tok_str_dup(stream) {
+    return tok_str_dup_locals_(stream, 0, 0);
 }
 
 function tok_str_free_str(data)
@@ -4236,10 +4271,8 @@ function tok_str_free(stream)
     return 0;
 }
 
-function tok_str_realloc(stream, needed)
+function tok_str_realloc_locals_(stream, needed, capacity, data)
 {
-    var capacity;
-    var data;
     capacity = ri32(add(stream, CC2_TOKEN_STRING_CAPACITY_OFFSET));
     if (lt(capacity, CC2_TOKEN_STRING_INITIAL_CAPACITY)) {
         capacity = CC2_TOKEN_STRING_INITIAL_CAPACITY;
@@ -4256,10 +4289,12 @@ function tok_str_realloc(stream, needed)
     return ri32(add(stream, CC2_TOKEN_STRING_DATA_OFFSET));
 }
 
-function tok_str_add(stream, token)
+function tok_str_realloc(stream, needed) {
+    return tok_str_realloc_locals_(stream, needed, 0, 0);
+}
+
+function tok_str_add_locals_(stream, token, length, data)
 {
-    var length;
-    var data;
     length = ri32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET));
     data = ri32(add(stream, CC2_TOKEN_STRING_DATA_OFFSET));
     if (not(lt(length,
@@ -4269,6 +4304,10 @@ function tok_str_add(stream, token)
     wi32(add(data, mul(length, CC2_I386_WORD_BYTES)), token);
     wi32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET), add(length, 1));
     return 0;
+}
+
+function tok_str_add(stream, token) {
+    return tok_str_add_locals_(stream, token, 0, 0);
 }
 
 function cc2_token_has_one_word(token)
@@ -4315,12 +4354,9 @@ function cc2_token_has_string(token)
 
 /* Decode the target-independent token stream layout used by TCC.  The
    compiler target is i386, so scalar values and pointers occupy one word. */
-function tok_get(token_pointer, stream_pointer, value)
+function tok_get_locals_(token_pointer, stream_pointer, value, stream, token,
+    words, string_size)
 {
-    var stream;
-    var token;
-    var words;
-    var string_size;
     stream = ri32(stream_pointer);
     token = ri32(stream);
     wi32(token_pointer, token);
@@ -4361,13 +4397,14 @@ function tok_get(token_pointer, stream_pointer, value)
     return 0;
 }
 
+function tok_get(token_pointer, stream_pointer, value) {
+    return tok_get_locals_(token_pointer, stream_pointer, value, 0, 0, 0, 0);
+}
+
 /* Select tokens from a saved macro stream before falling back to the source
    lexer.  Keeping this policy here makes macro replay part of cc2 itself. */
-function next_nomacro_spc()
+function next_nomacro_spc_locals_(stream_pointer, token, source_file)
 {
-    var stream_pointer;
-    var token;
-    var source_file;
     if (macro_ptr) {
         stream_pointer = calloc(1, CC2_I386_WORD_BYTES);
         wi32(stream_pointer, macro_ptr);
@@ -4393,10 +4430,12 @@ function next_nomacro_spc()
     return 0;
 }
 
-function next_nomacro()
+function next_nomacro_spc() {
+    return next_nomacro_spc_locals_(0, 0, 0);
+}
+
+function next_nomacro_locals_(token, character_class)
 {
-    var token;
-    var character_class;
     next_nomacro_spc();
     token = ri32(tok_address);
     while (lt(token, 256)) {
@@ -4411,15 +4450,15 @@ function next_nomacro()
     return 0;
 }
 
+function next_nomacro() {
+    return next_nomacro_locals_(0, 0);
+}
+
 /* Find or create an include-cache record.  The chained hash table and dynamic
    pointer array retain TCC's original unbounded growth behavior. */
-function search_cached_include(state, filename, create)
+function search_cached_include_locals_(state, filename, create, hash,
+    character, index, entry, bucket)
 {
-    var hash;
-    var character;
-    var index;
-    var entry;
-    var bucket;
     hash = CC2_INCLUDE_HASH_INITIAL;
     index = 0;
     character = ri8(filename);
@@ -4455,14 +4494,15 @@ function search_cached_include(state, filename, create)
     return entry;
 }
 
+function search_cached_include(state, filename, create) {
+    return search_cached_include_locals_(state, filename, create, 0, 0, 0, 0,
+        0);
+}
+
 /* Apply #pragma pack using TCC's state-resident stack.  A false result means
    malformed syntax; stack underflow and overflow remain fatal diagnostics. */
-function pragma_parse_pack(state)
+function pragma_parse_pack_locals_(state, token, pointer, stack_base, value)
 {
-    var token;
-    var pointer;
-    var stack_base;
-    var value;
     next();
     skip(40);
     token = ri32(tok_address);
@@ -4507,14 +4547,13 @@ function pragma_parse_pack(state)
     return 1;
 }
 
-function pragma_parse(state)
+function pragma_parse_pack(state) {
+    return pragma_parse_pack_locals_(state, 0, 0, 0, 0);
+}
+
+function pragma_parse_locals_(state, token, value, symbol, token_symbol, text,
+    source_file)
 {
-    var token;
-    var value;
-    var symbol;
-    var token_symbol;
-    var text;
-    var source_file;
     next_nomacro();
     token = ri32(tok_address);
     if (or(eq(token, CC2_TOKEN_PRAGMA_PUSH_MACRO),
@@ -4612,16 +4651,16 @@ function pragma_parse(state)
     return 0;
 }
 
+function pragma_parse(state) {
+    return pragma_parse_locals_(state, 0, 0, 0, 0, 0, 0);
+}
+
 /* Conditional directives share one stack discipline.  Return one when the
    caller must restart after preprocess_skip(), otherwise return zero. */
-function preprocess_conditional_if(state, is_beginning, negated,
-    evaluate_expression)
+function preprocess_conditional_if_locals_(state, is_beginning, negated,
+    evaluate_expression, condition, token, stack_pointer, stack_end,
+    source_file)
 {
-    var condition;
-    var token;
-    var stack_pointer;
-    var stack_end;
-    var source_file;
     if (evaluate_expression) {
         condition = expr_preprocess();
     } else {
@@ -4660,13 +4699,15 @@ function preprocess_conditional_if(state, is_beginning, negated,
     return 0;
 }
 
-function preprocess_conditional_else(state, is_elif)
+function preprocess_conditional_if(state, is_beginning, negated,
+    evaluate_expression) {
+    return preprocess_conditional_if_locals_(state, is_beginning, negated,
+        evaluate_expression, 0, 0, 0, 0, 0);
+}
+
+function preprocess_conditional_else_locals_(state, is_elif, stack_base,
+    stack_pointer, top, condition, source_file)
 {
-    var stack_base;
-    var stack_pointer;
-    var top;
-    var condition;
-    var source_file;
     stack_base = add(state, CC2_TCC_STATE_IFDEF_STACK_OFFSET);
     stack_pointer = ri32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET));
     if (eq(stack_pointer, stack_base)) {
@@ -4708,13 +4749,14 @@ function preprocess_conditional_else(state, is_elif)
     return 0;
 }
 
+function preprocess_conditional_else(state, is_elif) {
+    return preprocess_conditional_else_locals_(state, is_elif, 0, 0, 0, 0, 0);
+}
+
 /* Return one when an include-guard #endif reaches the physical line end. */
-function preprocess_conditional_endif(state)
+function preprocess_conditional_endif_locals_(state, stack_pointer,
+    file_stack_pointer, source_file, guard)
 {
-    var stack_pointer;
-    var file_stack_pointer;
-    var source_file;
-    var guard;
     source_file = ri32(file_address);
     stack_pointer = ri32(add(state, CC2_TCC_STATE_IFDEF_STACK_POINTER_OFFSET));
     file_stack_pointer = ri32(add(source_file,
@@ -4741,14 +4783,13 @@ function preprocess_conditional_endif(state)
     return 0;
 }
 
-function preprocess_line_directive(state, directive)
+function preprocess_conditional_endif(state) {
+    return preprocess_conditional_endif_locals_(state, 0, 0, 0, 0);
+}
+
+function preprocess_line_directive_locals_(state, directive, line, token,
+    source_file, filename, true_filename, copy)
 {
-    var line;
-    var token;
-    var source_file;
-    var filename;
-    var true_filename;
-    var copy;
     if (eq(directive, CC2_TOKEN_PREPROCESSOR_NUMBER)) {
         line = strtoul(ri32(add(tokc_address, CC2_CSTRING_DATA_OFFSET)), 0,
             10);
@@ -4794,9 +4835,13 @@ function preprocess_line_directive(state, directive)
     return 0;
 }
 
-function preprocess_macro_directive(directive)
+function preprocess_line_directive(state, directive) {
+    return preprocess_line_directive_locals_(state, directive, 0, 0, 0, 0, 0,
+        0);
+}
+
+function preprocess_macro_directive_locals_(directive, symbol)
 {
-    var symbol;
     wi32(pp_debug_tok_address, directive);
     next_nomacro();
     wi32(pp_debug_symv_address, ri32(tok_address));
@@ -4811,11 +4856,13 @@ function preprocess_macro_directive(directive)
     return 0;
 }
 
-function preprocess_diagnostic_directive(directive)
+function preprocess_macro_directive(directive) {
+    return preprocess_macro_directive_locals_(directive, 0);
+}
+
+function preprocess_diagnostic_directive_locals_(directive, buffer, length,
+    source_file)
 {
-    var buffer;
-    var length;
-    var source_file;
     source_file = ri32(file_address);
     ch = ri8(ri32(add(source_file, CC2_BUFFERED_FILE_POINTER_OFFSET)));
     skip_spaces();
@@ -4843,11 +4890,13 @@ function preprocess_diagnostic_directive(directive)
     return 0;
 }
 
-function cc2_copy_directory(destination, source)
+function preprocess_diagnostic_directive(directive) {
+    return preprocess_diagnostic_directive_locals_(directive, 0, 0, 0);
+}
+
+function cc2_copy_directory_locals_(destination, source, index, count,
+    character)
 {
-    var index;
-    var count;
-    var character;
     index = 0;
     count = 0;
     character = ri8(source);
@@ -4867,23 +4916,16 @@ function cc2_copy_directory(destination, source)
     return destination;
 }
 
+function cc2_copy_directory(destination, source) {
+    return cc2_copy_directory_locals_(destination, source, 0, 0, 0);
+}
+
 /* Parse and open one include using TCC's original search order.  Return one
    after opening a new file, or zero when a cached include was skipped. */
-function preprocess_include(state, directive)
+function preprocess_include_locals_(state, directive, name, candidate, length,
+    separator, index, search_count, path_index, system_index, path, entry,
+    source_file, include_pointer, character)
 {
-    var name;
-    var candidate;
-    var length;
-    var separator;
-    var index;
-    var search_count;
-    var path_index;
-    var system_index;
-    var path;
-    var entry;
-    var source_file;
-    var include_pointer;
-    var character;
     name = malloc(CC2_BUFFERED_FILE_FILENAME_CAPACITY);
     candidate = malloc(CC2_BUFFERED_FILE_FILENAME_CAPACITY);
     source_file = ri32(file_address);
@@ -5035,14 +5077,14 @@ function preprocess_include(state, directive)
     return 0;
 }
 
-function preprocess(is_beginning)
+function preprocess_include(state, directive) {
+    return preprocess_include_locals_(state, directive, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0);
+}
+
+function preprocess_locals_(is_beginning, state, saved_flags, token, restart,
+    source_file, pointer)
 {
-    var state;
-    var saved_flags;
-    var token;
-    var restart;
-    var source_file;
-    var pointer;
     state = tcc_state_address;
     saved_flags = ri32(parse_flags_address);
     wi32(parse_flags_address, or(CC2_PARSE_FLAG_PREPROCESS,
@@ -5126,6 +5168,10 @@ function preprocess(is_beginning)
     return 0;
 }
 
+function preprocess(is_beginning) {
+    return preprocess_locals_(is_beginning, 0, 0, 0, 0, 0, 0);
+}
+
 function cc2_octal_digit(character)
 {
     if (and(not(lt(character, 48)), not(lt(55, character)))) {
@@ -5149,18 +5195,9 @@ function cc2_hex_digit(character)
 }
 
 /* Decode C escapes and UTF-8 into TCC's narrow or i386-wide CString. */
-function parse_escape_string(output, buffer, is_long)
+function parse_escape_string_locals_(output, buffer, is_long, pointer,
+    character, value, digit, continuation, skip, index, low, high, leading)
 {
-    var pointer;
-    var character;
-    var value;
-    var digit;
-    var continuation;
-    var skip;
-    var index;
-    var low;
-    var high;
-    var leading;
     pointer = buffer;
     while (ri8(pointer)) {
         character = ri8(pointer);
@@ -5299,16 +5336,14 @@ function parse_escape_string(output, buffer, is_long)
     return 0;
 }
 
-function parse_string(source, length)
+function parse_escape_string(output, buffer, is_long) {
+    return parse_escape_string_locals_(output, buffer, is_long, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0);
+}
+
+function parse_string_locals_(source, length, buffer, is_long, separator,
+    character_size, count, index, character, data)
 {
-    var buffer;
-    var is_long;
-    var separator;
-    var character_size;
-    var count;
-    var index;
-    var character;
-    var data;
     is_long = eq(ri8(source), 76);
     if (is_long) {
         source = add(source, 1);
@@ -5368,12 +5403,13 @@ function parse_string(source, length)
     return 0;
 }
 
+function parse_string(source, length) {
+    return parse_string_locals_(source, length, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 /* Intern an identifier in TCC's existing chained hash table. */
-function tok_alloc(text, length)
+function tok_alloc_locals_(text, length, hash, slot, symbol)
 {
-    var hash;
-    var slot;
-    var symbol;
     hash = cc0_token_hash(text, length);
     slot = add(hash_ident_address, mul(hash, CC2_I386_WORD_BYTES));
     symbol = ri32(slot);
@@ -5390,12 +5426,12 @@ function tok_alloc(text, length)
     return tok_alloc_new(slot, text, length);
 }
 
-function tok_alloc_new(slot, text, length)
+function tok_alloc(text, length) {
+    return tok_alloc_locals_(text, length, 0, 0, 0);
+}
+
+function tok_alloc_new_locals_(slot, text, length, index, table, symbol, token)
 {
-    var index;
-    var table;
-    var symbol;
-    var token;
     if (not(lt(tok_ident, CC2_FIRST_ANONYMOUS_SYMBOL))) {
         tcc_error(mks("memory full (symbols)"), 0);
     }
@@ -5420,6 +5456,10 @@ function tok_alloc_new(slot, text, length)
     wi8(add(symbol, add(CC2_TOKEN_SYMBOL_TEXT_OFFSET, length)), 0);
     wi32(slot, symbol);
     return symbol;
+}
+
+function tok_alloc_new(slot, text, length) {
+    return tok_alloc_new_locals_(slot, text, length, 0, 0, 0, 0);
 }
 
 function add_char(string, character)
@@ -5447,11 +5487,9 @@ function add_char(string, character)
     return 0;
 }
 
-function cc2_render_unsigned_decimal(output, value)
+function cc2_render_unsigned_decimal_locals_(output, value, scratch, count,
+    index)
 {
-    var scratch;
-    var count;
-    var index;
     scratch = malloc(16);
     count = 0;
     if (eq(value, 0)) {
@@ -5475,9 +5513,12 @@ function cc2_render_unsigned_decimal(output, value)
     return output;
 }
 
-function cc2_render_small_hex(output, value)
+function cc2_render_unsigned_decimal(output, value) {
+    return cc2_render_unsigned_decimal_locals_(output, value, 0, 0, 0);
+}
+
+function cc2_render_small_hex_locals_(output, value, digit)
 {
-    var digit;
     wi8(output, 60);
     digit = and(ushr(value, 4), 15);
     if (lt(digit, 10)) {
@@ -5496,14 +5537,13 @@ function cc2_render_small_hex(output, value)
     return output;
 }
 
-function get_tok_str(token, value)
+function cc2_render_small_hex(output, value) {
+    return cc2_render_small_hex_locals_(output, value, 0);
+}
+
+function get_tok_str_locals_(token, value, output, index, length, data, table,
+    symbol)
 {
-    var output;
-    var index;
-    var length;
-    var data;
-    var table;
-    var symbol;
     cstr_reset(cstr_buf_address);
     output = ri32(add(cstr_buf_address, CC2_CSTRING_DATA_OFFSET));
     if (or(or(eq(token, CC2_TOKEN_INTEGER_CONSTANT),
@@ -5607,13 +5647,13 @@ function get_tok_str(token, value)
     return ri32(add(cstr_buf_address, CC2_CSTRING_DATA_OFFSET));
 }
 
-function tok_str_add2(stream, token, value)
+function get_tok_str(token, value) {
+    return get_tok_str_locals_(token, value, 0, 0, 0, 0, 0, 0);
+}
+
+function tok_str_add2_locals_(stream, token, value, length, payload_words,
+    string_size, needed, data)
 {
-    var length;
-    var payload_words;
-    var string_size;
-    var needed;
-    var data;
     length = ri32(add(stream, CC2_TOKEN_STRING_LENGTH_OFFSET));
     wi32(add(stream, CC2_TOKEN_STRING_LAST_LENGTH_OFFSET), length);
     payload_words = 0;
@@ -5660,11 +5700,12 @@ function tok_str_add2(stream, token, value)
     return 0;
 }
 
-function tok_str_add_tok(stream)
+function tok_str_add2(stream, token, value) {
+    return tok_str_add2_locals_(stream, token, value, 0, 0, 0, 0, 0);
+}
+
+function tok_str_add_tok_locals_(stream, source_file, line, value)
 {
-    var source_file;
-    var line;
-    var value;
     source_file = ri32(file_address);
     line = ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET));
     if (not(eq(line,
@@ -5680,9 +5721,12 @@ function tok_str_add_tok(stream)
     return 0;
 }
 
-function begin_macro(stream, allocate)
+function tok_str_add_tok(stream) {
+    return tok_str_add_tok_locals_(stream, 0, 0, 0);
+}
+
+function begin_macro_locals_(stream, allocate, source_file)
 {
-    var source_file;
     wi8(add(stream, CC2_TOKEN_STRING_ALLOC_OFFSET), allocate);
     wi32(add(stream, CC2_TOKEN_STRING_PREVIOUS_OFFSET), macro_stack);
     wi32(add(stream, CC2_TOKEN_STRING_PREVIOUS_POINTER_OFFSET), macro_ptr);
@@ -5694,10 +5738,12 @@ function begin_macro(stream, allocate)
     return 0;
 }
 
-function end_macro()
+function begin_macro(stream, allocate) {
+    return begin_macro_locals_(stream, allocate, 0);
+}
+
+function end_macro_locals_(stream, source_file)
 {
-    var stream;
-    var source_file;
     stream = macro_stack;
     macro_stack = ri32(add(stream, CC2_TOKEN_STRING_PREVIOUS_OFFSET));
     macro_ptr = ri32(add(stream,
@@ -5713,10 +5759,13 @@ function end_macro()
     return 0;
 }
 
+function end_macro() {
+    return end_macro_locals_(0, 0);
+}
+
 /* Push one fully encoded token in front of the current input stream. */
-function unget_tok(last_token)
+function unget_tok_locals_(last_token, stream)
 {
-    var stream;
     stream = tok_str_alloc();
     tok_str_add2(stream, ri32(tok_address), tokc_address);
     tok_str_add(stream, 0);
@@ -5725,11 +5774,13 @@ function unget_tok(last_token)
     return 0;
 }
 
-function dynarray_add(table_pointer, count_pointer, data)
+function unget_tok(last_token) {
+    return unget_tok_locals_(last_token, 0);
+}
+
+function dynarray_add_locals_(table_pointer, count_pointer, data, count,
+    capacity, table)
 {
-    var count;
-    var capacity;
-    var table;
     count = ri32(count_pointer);
     table = ri32(table_pointer);
     if (eq(and(count, sub(count, 1)), 0)) {
@@ -5746,11 +5797,13 @@ function dynarray_add(table_pointer, count_pointer, data)
     return 0;
 }
 
-function dynarray_reset(table_pointer, count_pointer)
+function dynarray_add(table_pointer, count_pointer, data) {
+    return dynarray_add_locals_(table_pointer, count_pointer, data, 0, 0, 0);
+}
+
+function dynarray_reset_locals_(table_pointer, count_pointer, table, count,
+    entry)
 {
-    var table;
-    var count;
-    var entry;
     table = ri32(table_pointer);
     count = ri32(count_pointer);
     entry = table;
@@ -5767,10 +5820,12 @@ function dynarray_reset(table_pointer, count_pointer)
     return 0;
 }
 
-function section_realloc(section, new_size)
+function dynarray_reset(table_pointer, count_pointer) {
+    return dynarray_reset_locals_(table_pointer, count_pointer, 0, 0, 0);
+}
+
+function section_realloc_locals_(section, new_size, size, data)
 {
-    var size;
-    var data;
     size = ri32(add(section, CC2_SECTION_DATA_ALLOCATED_OFFSET));
     if (eq(size, 0)) {
         size = 1;
@@ -5788,10 +5843,12 @@ function section_realloc(section, new_size)
     return 0;
 }
 
-function section_add(section, size, alignment)
+function section_realloc(section, new_size) {
+    return section_realloc_locals_(section, new_size, 0, 0);
+}
+
+function section_add_locals_(section, size, alignment, offset, end)
 {
-    var offset;
-    var end;
     offset = and(add(add(ri32(add(section, CC2_SECTION_DATA_OFFSET)),
         alignment), sub(0, 1)), sub(0, alignment));
     end = add(offset, size);
@@ -5807,13 +5864,20 @@ function section_add(section, size, alignment)
     return offset;
 }
 
-function section_ptr_add(section, size)
+function section_add(section, size, alignment) {
+    return section_add_locals_(section, size, alignment, 0, 0);
+}
+
+function section_ptr_add_locals_(section, size, offset)
 {
-    var offset;
 
     /* Grow the section before reading its possibly relocated data pointer. */
     offset = section_add(section, size, 1);
     return add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)), offset);
+}
+
+function section_ptr_add(section, size) {
+    return section_ptr_add_locals_(section, size, 0);
 }
 
 function section_reserve(section, size)
@@ -5827,9 +5891,8 @@ function section_reserve(section, size)
     return 0;
 }
 
-function new_section(state, name, section_type, flags)
+function new_section_locals_(state, name, section_type, flags, section)
 {
-    var section;
     section = tcc_mallocz(add(CC2_SECTION_BYTES, strlen(name)));
     strcpy(add(section, CC2_SECTION_NAME_OFFSET), name);
     wi32(add(section, CC2_SECTION_TYPE_OFFSET), section_type);
@@ -5858,11 +5921,12 @@ function new_section(state, name, section_type, flags)
     return section;
 }
 
-function find_section(state, name)
+function new_section(state, name, section_type, flags) {
+    return new_section_locals_(state, name, section_type, flags, 0);
+}
+
+function find_section_locals_(state, name, index, section, sections)
 {
-    var index;
-    var section;
-    var sections;
     sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
     index = 1;
     while (lt(index, ri32(add(state,
@@ -5877,11 +5941,12 @@ function find_section(state, name)
         CC2_ELF_ALLOCATE_SECTION_FLAG);
 }
 
-function put_elf_str(section, text)
+function find_section(state, name) {
+    return find_section_locals_(state, name, 0, 0, 0);
+}
+
+function put_elf_str_locals_(section, text, offset, length, pointer)
 {
-    var offset;
-    var length;
-    var pointer;
     length = add(strlen(text), 1);
     offset = ri32(add(section, CC2_SECTION_DATA_OFFSET));
     pointer = section_ptr_add(section, length);
@@ -5889,10 +5954,12 @@ function put_elf_str(section, text)
     return offset;
 }
 
-function elf_hash(name)
+function put_elf_str(section, text) {
+    return put_elf_str_locals_(section, text, 0, 0, 0);
+}
+
+function elf_hash_locals_(name, hash, high)
 {
-    var hash;
-    var high;
     hash = 0;
     while (ri8(name)) {
         hash = add(shl(hash, 4), ri8(name));
@@ -5906,16 +5973,13 @@ function elf_hash(name)
     return hash;
 }
 
-function rebuild_hash(section, bucket_count)
+function elf_hash(name) {
+    return elf_hash_locals_(name, 0, 0);
+}
+
+function rebuild_hash_locals_(section, bucket_count, symbol, pointer, buckets,
+    symbol_count, symbol_index, hash_value, strings, hash_section)
 {
-    var symbol;
-    var pointer;
-    var buckets;
-    var symbol_count;
-    var symbol_index;
-    var hash_value;
-    var strings;
-    var hash_section;
     strings = ri32(add(ri32(add(section, CC2_SECTION_LINK_OFFSET)),
         CC2_SECTION_DATA_POINTER_OFFSET));
     symbol_count = sdiv(ri32(add(section, CC2_SECTION_DATA_OFFSET)),
@@ -5955,17 +6019,14 @@ function rebuild_hash(section, bucket_count)
     return 0;
 }
 
-function put_elf_sym(section, value, size, information, other,
-    section_index, name)
+function rebuild_hash(section, bucket_count) {
+    return rebuild_hash_locals_(section, bucket_count, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function put_elf_sym_locals_(section, value, size, information, other,
+    section_index, name, name_offset, symbol_index, bucket_count, hash_value,
+    symbol, hash_section, pointer, base)
 {
-    var name_offset;
-    var symbol_index;
-    var bucket_count;
-    var hash_value;
-    var symbol;
-    var hash_section;
-    var pointer;
-    var base;
     symbol = section_ptr_add(section, CC2_ELF_SYMBOL_BYTES);
     name_offset = 0;
     if (name) {
@@ -6016,15 +6077,15 @@ function put_elf_sym(section, value, size, information, other,
     return symbol_index;
 }
 
-function find_elf_sym(section, name)
+function put_elf_sym(section, value, size, information, other, section_index,
+    name) {
+    return put_elf_sym_locals_(section, value, size, information, other,
+        section_index, name, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function find_elf_sym_locals_(section, name, symbol, hash_section,
+    bucket_count, symbol_index, hash_value, base, strings)
 {
-    var symbol;
-    var hash_section;
-    var bucket_count;
-    var symbol_index;
-    var hash_value;
-    var base;
-    var strings;
     hash_section = ri32(add(section, CC2_SECTION_HASH_OFFSET));
     if (eq(hash_section, 0)) {
         return 0;
@@ -6049,12 +6110,13 @@ function find_elf_sym(section, name)
     return 0;
 }
 
-function get_elf_sym_addr(state, name, report_error)
+function find_elf_sym(section, name) {
+    return find_elf_sym_locals_(section, name, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function get_elf_sym_addr_locals_(state, name, report_error, symbol_table,
+    symbol_index, symbol, section_index)
 {
-    var symbol_table;
-    var symbol_index;
-    var symbol;
-    var section_index;
     symbol_table = ri32(add(state, CC2_TCC_STATE_SYMBOL_TABLE_OFFSET));
     symbol_index = find_elf_sym(symbol_table, name);
     if (not(eq(symbol_index, 0))) {
@@ -6073,13 +6135,14 @@ function get_elf_sym_addr(state, name, report_error)
     return 0;
 }
 
-function new_symtab(state, symbol_table_name, section_type, section_flags,
-    string_table_name, hash_name, hash_flags)
+function get_elf_sym_addr(state, name, report_error) {
+    return get_elf_sym_addr_locals_(state, name, report_error, 0, 0, 0, 0);
+}
+
+function new_symtab_locals_(state, symbol_table_name, section_type,
+    section_flags, string_table_name, hash_name, hash_flags, symbol_table,
+    string_table, hash_section, hash_words)
 {
-    var symbol_table;
-    var string_table;
-    var hash_section;
-    var hash_words;
     symbol_table = new_section(state, symbol_table_name, section_type,
         section_flags);
     wi32(add(symbol_table, CC2_SECTION_ENTRY_SIZE_OFFSET),
@@ -6107,12 +6170,15 @@ function new_symtab(state, symbol_table_name, section_type, section_flags,
     return symbol_table;
 }
 
-function put_elf_reloca(symbol_table, section, offset, type, symbol, addend)
+function new_symtab(state, symbol_table_name, section_type, section_flags,
+    string_table_name, hash_name, hash_flags) {
+    return new_symtab_locals_(state, symbol_table_name, section_type,
+        section_flags, string_table_name, hash_name, hash_flags, 0, 0, 0, 0);
+}
+
+function put_elf_reloca_locals_(symbol_table, section, offset, type, symbol,
+    addend, relocation_section, relocation, name, name_bytes)
 {
-    var relocation_section;
-    var relocation;
-    var name;
-    var name_bytes;
     relocation_section = ri32(add(section, CC2_SECTION_RELOCATION_OFFSET));
     if (eq(relocation_section, 0)) {
         name_bytes = add(add(strlen(CC2_ELF_RELOCATION_SECTION_PREFIX),
@@ -6142,26 +6208,21 @@ function put_elf_reloca(symbol_table, section, offset, type, symbol, addend)
     return 0;
 }
 
+function put_elf_reloca(symbol_table, section, offset, type, symbol, addend) {
+    return put_elf_reloca_locals_(symbol_table, section, offset, type, symbol,
+        addend, 0, 0, 0, 0);
+}
+
 function put_elf_reloc(symbol_table, section, offset, type, symbol)
 {
     return put_elf_reloca(symbol_table, section, offset, type, symbol, 0);
 }
 
-function set_elf_sym(section, value, size, information, other, section_index,
-    name)
+function set_elf_sym_locals_(section, value, size, information, other,
+    section_index, name, binding, symbol_type, visibility, symbol_index,
+    symbol, existing_binding, existing_visibility, new_visibility,
+    existing_section_index, bss_section_number, define_symbol, patch_symbol)
 {
-    var binding;
-    var symbol_type;
-    var visibility;
-    var symbol_index;
-    var symbol;
-    var existing_binding;
-    var existing_visibility;
-    var new_visibility;
-    var existing_section_index;
-    var bss_section_number;
-    var define_symbol;
-    var patch_symbol;
     binding = ushr(information, CC2_ELF_SYMBOL_BIND_SHIFT);
     symbol_type = and(information, CC2_ELF_SYMBOL_TYPE_MASK);
     visibility = and(other, CC2_ELF_SYMBOL_VISIBILITY_MASK);
@@ -6257,18 +6318,26 @@ function set_elf_sym(section, value, size, information, other, section_index,
     return symbol_index;
 }
 
-function new_undef_syms()
+function set_elf_sym(section, value, size, information, other, section_index,
+    name) {
+    return set_elf_sym_locals_(section, value, size, information, other,
+        section_index, name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function new_undef_syms_locals_(result)
 {
-    var result;
     result = CC2_NEW_UNDEFINED_SYMBOL;
     CC2_NEW_UNDEFINED_SYMBOL = 0;
     return result;
 }
 
+function new_undef_syms() {
+    return new_undef_syms_locals_(0);
+}
+
 /* Establish the standard ELF section graph used by every compilation. */
-function tccelf_new(state)
+function tccelf_new_locals_(state, section)
 {
-    var section;
     cc2_bind_tcc_globals(state);
     dynarray_add(add(state, CC2_TCC_STATE_SECTIONS_OFFSET), add(state,
         CC2_TCC_STATE_SECTION_COUNT_OFFSET), 0);
@@ -6301,10 +6370,12 @@ function tccelf_new(state)
     return 0;
 }
 
-function tccelf_stab_new(state)
+function tccelf_new(state) {
+    return tccelf_new_locals_(state, 0);
+}
+
+function tccelf_stab_new_locals_(state, section, string_section)
 {
-    var section;
-    var string_section;
     section = new_section(state, mks(".stab"), CC2_ELF_SECTION_PROGBITS, 0);
     wi32(stab_section_address, section);
     wi32(add(section, CC2_SECTION_ENTRY_SIZE_OFFSET),
@@ -6318,12 +6389,12 @@ function tccelf_stab_new(state)
     return 0;
 }
 
-function tccelf_delete(state)
+function tccelf_stab_new(state) {
+    return tccelf_stab_new_locals_(state, 0, 0);
+}
+
+function tccelf_delete_locals_(state, table, count, index, entry)
 {
-    var table;
-    var count;
-    var index;
-    var entry;
     table = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
     count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
     index = 1;
@@ -6351,6 +6422,10 @@ function tccelf_delete(state)
     return 0;
 }
 
+function tccelf_delete(state) {
+    return tccelf_delete_locals_(state, 0, 0, 0, 0);
+}
+
 function tcc_get_symbol(state, name)
 {
     return get_elf_sym_addr(state, name, 0);
@@ -6367,15 +6442,9 @@ function tcc_tool_cross(state, arguments, target)
     return 0;
 }
 
-function gen_makedeps(state, target, filename)
+function gen_makedeps_locals_(state, target, filename, allocated_filename,
+    extension, prefix_length, output, dependencies, dependency_count, index)
 {
-    var allocated_filename;
-    var extension;
-    var prefix_length;
-    var output;
-    var dependencies;
-    var dependency_count;
-    var index;
     allocated_filename = 0;
     if (eq(filename, 0)) {
         extension = tcc_fileextension(target);
@@ -6413,6 +6482,10 @@ function gen_makedeps(state, target, filename)
     return 0;
 }
 
+function gen_makedeps(state, target, filename) {
+    return gen_makedeps_locals_(state, target, filename, 0, 0, 0, 0, 0, 0, 0);
+}
+
 function cc2_ar_big_endian_word(value)
 {
     return or(or(shl(and(value, 255), 24),
@@ -6421,9 +6494,8 @@ function cc2_ar_big_endian_word(value)
         and(ushr(value, 24), 255)));
 }
 
-function cc2_ar_new_header()
+function cc2_ar_new_header_locals_(header)
 {
-    var header;
     header = malloc(CC2_ARCHIVE_HEADER_BYTES);
     memset(header, mkC(" "), CC2_ARCHIVE_HEADER_BYTES);
     wi8(add(header, CC2_ARCHIVE_UID_OFFSET), mkC("0"));
@@ -6433,6 +6505,10 @@ function cc2_ar_new_header()
     wi8(add(header, add(CC2_ARCHIVE_MAGIC_OFFSET, 1)),
         CC2_CHARACTER_LINE_FEED);
     return header;
+}
+
+function cc2_ar_new_header() {
+    return cc2_ar_new_header_locals_(0);
 }
 
 function cc2_ar_set_size(header, size, text)
@@ -6450,11 +6526,9 @@ function cc2_ar_usage(result)
     return result;
 }
 
-function asm_get_local_label_name(state, number)
+function asm_get_local_label_name_locals_(state, number, buffer, token_symbol,
+    token)
 {
-    var buffer;
-    var token_symbol;
-    var token;
     buffer = malloc(32);
     snprintf(buffer, 32, mks("L..%u"), number);
     token_symbol = tok_alloc(buffer, strlen(buffer));
@@ -6463,9 +6537,12 @@ function asm_get_local_label_name(state, number)
     return token;
 }
 
-function asm_label_find(value)
+function asm_get_local_label_name(state, number) {
+    return asm_get_local_label_name_locals_(state, number, 0, 0, 0);
+}
+
+function asm_label_find_locals_(value, symbol)
 {
-    var symbol;
     symbol = sym_find(value);
     while (and(not(eq(symbol, 0)), not(eq(ri32(add(symbol,
         CC2_SYM_SCOPE_OFFSET)), 0)))) {
@@ -6474,18 +6551,24 @@ function asm_label_find(value)
     return symbol;
 }
 
-function asm_label_push(value)
+function asm_label_find(value) {
+    return asm_label_find_locals_(value, 0);
+}
+
+function asm_label_push_locals_(value, symbol)
 {
-    var symbol;
     symbol = global_identifier_push(value, CC2_ASM_SYMBOL_TYPE, 0);
     cc2_write_little_u16(add(symbol, CC2_SYM_REGISTER_OFFSET),
         CC2_ASM_SYMBOL_REGISTER);
     return symbol;
 }
 
-function get_asm_sym(name, c_symbol)
+function asm_label_push(value) {
+    return asm_label_push_locals_(value, 0);
+}
+
+function get_asm_sym_locals_(name, c_symbol, symbol)
 {
-    var symbol;
     symbol = asm_label_find(name);
     if (eq(symbol, 0)) {
         symbol = asm_label_push(name);
@@ -6497,12 +6580,13 @@ function get_asm_sym(name, c_symbol)
     return symbol;
 }
 
-function asm_new_label1(state, label, is_local, section_number, value)
+function get_asm_sym(name, c_symbol) {
+    return get_asm_sym_locals_(name, c_symbol, 0);
+}
+
+function asm_new_label1_locals_(state, label, is_local, section_number, value,
+    symbol, elf_symbol, create_symbol, type)
 {
-    var symbol;
-    var elf_symbol;
-    var create_symbol;
-    var type;
     symbol = asm_label_find(label);
     create_symbol = eq(symbol, 0);
     if (not(create_symbol)) {
@@ -6540,21 +6624,25 @@ function asm_new_label1(state, label, is_local, section_number, value)
     return symbol;
 }
 
-function asm_new_label(state, label, is_local)
+function asm_new_label1(state, label, is_local, section_number, value) {
+    return asm_new_label1_locals_(state, label, is_local, section_number,
+        value, 0, 0, 0, 0);
+}
+
+function asm_new_label_locals_(state, label, is_local, section)
 {
-    var section;
     section = ri32(cur_text_section_address);
     return asm_new_label1(state, label, is_local, ri32(add(section,
         CC2_SECTION_NUMBER_OFFSET)), ind);
 }
 
-function asm_section_sym(state, section)
+function asm_new_label(state, label, is_local) {
+    return asm_new_label_locals_(state, label, is_local, 0);
+}
+
+function asm_section_sym_locals_(state, section, buffer, capacity,
+    token_symbol, label, symbol)
 {
-    var buffer;
-    var capacity;
-    var token_symbol;
-    var label;
-    var symbol;
     capacity = add(strlen(add(section, CC2_SECTION_NAME_OFFSET)), 3);
     buffer = malloc(capacity);
     pstrcpy(buffer, capacity, mks("L."));
@@ -6569,6 +6657,10 @@ function asm_section_sym(state, section)
             CC2_SECTION_NUMBER_OFFSET)), 0);
     }
     return symbol;
+}
+
+function asm_section_sym(state, section) {
+    return asm_section_sym_locals_(state, section, 0, 0, 0, 0, 0);
 }
 
 /* Resolve GCC inline-asm operand references by number or bracketed name. */
@@ -7432,9 +7524,8 @@ function cc2_asm_current_token_text()
     return get_tok_str(ri32(tok_address), 0);
 }
 
-function asm_parse_file(state)
+function asm_parse_file_locals_(state, text)
 {
-    var text;
     next();
     text = cc2_asm_current_token_text();
     if (ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
@@ -7444,9 +7535,12 @@ function asm_parse_file(state)
     return 0;
 }
 
-function asm_parse_ident(state)
+function asm_parse_file(state) {
+    return asm_parse_file_locals_(state, 0);
+}
+
+function asm_parse_ident_locals_(state, text)
 {
-    var text;
     next();
     text = cc2_asm_current_token_text();
     if (ri32(add(state, CC2_TCC_STATE_WARN_UNSUPPORTED_OFFSET))) {
@@ -7454,6 +7548,10 @@ function asm_parse_ident(state)
     }
     next();
     return 0;
+}
+
+function asm_parse_ident(state) {
+    return asm_parse_ident_locals_(state, 0);
 }
 
 function asm_parse_size_(state, symbol, name)
@@ -8208,9 +8306,8 @@ function constraint_priority(text)
     return constraint_priority_(text, 0, 0, 0);
 }
 
-function skip_constraint_modifiers(text)
+function skip_constraint_modifiers_locals_(text, character)
 {
-    var character;
     character = ri8(text);
     while (or(or(eq(character, mkC("=")), eq(character, mkC("&"))),
         or(eq(character, mkC("+")), eq(character, CC2_ASCII_PERCENT)))) {
@@ -8218,6 +8315,10 @@ function skip_constraint_modifiers(text)
         character = ri8(text);
     }
     return text;
+}
+
+function skip_constraint_modifiers(text) {
+    return skip_constraint_modifiers_locals_(text, 0);
 }
 
 function asm_clobber_(clobbers, text, token_symbol, reg)
@@ -8247,9 +8348,8 @@ function asm_clobber(clobbers, text)
     return asm_clobber_(clobbers, text, 0, 0);
 }
 
-function cc2_read_signed_byte(address)
+function cc2_read_signed_byte_locals_(address, value)
 {
-    var value;
     value = ri8(address);
     if (le(128, value)) {
         value = sub(value, 256);
@@ -8257,9 +8357,12 @@ function cc2_read_signed_byte(address)
     return value;
 }
 
-function cc2_i386_register_shift(state)
+function cc2_read_signed_byte(address) {
+    return cc2_read_signed_byte_locals_(address, 0);
+}
+
+function cc2_i386_register_shift_locals_(state, scale)
 {
-    var scale;
     scale = asm_int_expr(state);
     if (eq(scale, 1)) {
         return 0;
@@ -8277,10 +8380,12 @@ function cc2_i386_register_shift(state)
     return 0;
 }
 
-function cc2_i386_parse_address_register()
+function cc2_i386_register_shift(state) {
+    return cc2_i386_register_shift_locals_(state, 0);
+}
+
+function cc2_i386_parse_address_register_locals_(token, reg)
 {
-    var token;
-    var reg;
     if (not(eq(ri32(tok_address), mkC("%")))) {
         expect(mks("register"));
     }
@@ -8295,6 +8400,10 @@ function cc2_i386_parse_address_register()
     }
     next();
     return reg;
+}
+
+function cc2_i386_parse_address_register() {
+    return cc2_i386_parse_address_register_locals_(0, 0);
 }
 
 function cc2_i386_unknown_register()
@@ -8464,12 +8573,8 @@ function parse_operand(state, operand)
     return parse_operand_(state, operand, 0, 0, 0, 0, 0, 0);
 }
 
-function asm_parse_regvar(token)
+function asm_parse_regvar_locals_(token, text, symbol, operand, reg)
 {
-    var text;
-    var symbol;
-    var operand;
-    var reg;
     if (lt(token, CC2_TOKEN_IDENTIFIER_FIRST)) {
         return sub(0, 1);
     }
@@ -8491,10 +8596,13 @@ function asm_parse_regvar(token)
     return reg;
 }
 
-function cc2_i386_decode_operand_descriptor(descriptor)
+function asm_parse_regvar(token) {
+    return asm_parse_regvar_locals_(token, 0, 0, 0, 0);
+}
+
+function cc2_i386_decode_operand_descriptor_locals_(descriptor, kind,
+    type_value)
 {
-    var kind;
-    var type_value;
     kind = and(descriptor, 31);
     if (eq(kind, CC2_I386_OPERAND_DESCRIPTOR_IMMEDIATE)) {
         type_value = or(CC2_I386_TYPE_IMMEDIATE_8,
@@ -8528,10 +8636,12 @@ function cc2_i386_decode_operand_descriptor(descriptor)
     return type_value;
 }
 
-function cc2_i386_emit_zero_operand(opcode)
+function cc2_i386_decode_operand_descriptor(descriptor) {
+    return cc2_i386_decode_operand_descriptor_locals_(descriptor, 0, 0);
+}
+
+function cc2_i386_emit_zero_operand_locals_(opcode, table, value)
 {
-    var table;
-    var value;
     table = cc2_i386_zero_operand_codes();
     value = cc2_read_little_u16(add(table, mul(sub(opcode,
         CC2_I386_TOKEN_ZERO_OPERAND_FIRST), 2)));
@@ -8540,6 +8650,10 @@ function cc2_i386_emit_zero_operand(opcode)
     }
     g(value);
     return 0;
+}
+
+function cc2_i386_emit_zero_operand(opcode) {
+    return cc2_i386_emit_zero_operand_locals_(opcode, 0, 0);
 }
 
 /* Select the first TCC opcode template matching the parsed operands. */
@@ -8757,31 +8871,12 @@ function cc2_i386_infer_size(opcode, instruction, operands, operand_count,
         operand_count, operand_types, size, 0, 0, 0, 0, 0, 0, 0);
 }
 
-function asm_opcode(state, opcode)
+function asm_opcode_locals_(state, opcode, operands, operand_types,
+    opcode_pointer, size_pointer, operand_count, segment_prefix, operand,
+    instruction, size, instruction_type, value, index, modrm_index,
+    modreg_index, reg, pc, expression, elf_symbol, section, displacement,
+    accepted_type, descriptor, table)
 {
-    var operands;
-    var operand_types;
-    var opcode_pointer;
-    var size_pointer;
-    var operand_count;
-    var segment_prefix;
-    var operand;
-    var instruction;
-    var size;
-    var instruction_type;
-    var value;
-    var index;
-    var modrm_index;
-    var modreg_index;
-    var reg;
-    var pc;
-    var expression;
-    var elf_symbol;
-    var section;
-    var displacement;
-    var accepted_type;
-    var descriptor;
-    var table;
     operands = malloc(mul(3, CC2_I386_OPERAND_BYTES));
     operand_types = malloc(mul(3, CC2_I386_WORD_BYTES));
     opcode_pointer = malloc(CC2_I386_WORD_BYTES);
@@ -9114,16 +9209,14 @@ function asm_opcode(state, opcode)
     return 0;
 }
 
-function subst_asm_operand(output, value, modifier)
+function asm_opcode(state, opcode) {
+    return asm_opcode_locals_(state, opcode, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function subst_asm_operand_locals_(output, value, modifier, registers, reg,
+    size, constant, buffer, symbol, name, basic_type)
 {
-    var registers;
-    var reg;
-    var size;
-    var constant;
-    var buffer;
-    var symbol;
-    var name;
-    var basic_type;
     registers = ri32(add(value, CC2_SVALUE_REGISTER_OFFSET));
     buffer = malloc(64);
     if (eq(and(registers, CC2_VALUE_LOCATION_MASK),
@@ -9216,23 +9309,26 @@ function subst_asm_operand(output, value, modifier)
     return 0;
 }
 
-function cc2_clone_svalue(source)
+function subst_asm_operand(output, value, modifier) {
+    return subst_asm_operand_locals_(output, value, modifier, 0, 0, 0, 0, 0,
+        0, 0, 0);
+}
+
+function cc2_clone_svalue_locals_(source, destination)
 {
-    var destination;
     destination = malloc(CC2_SVALUE_BYTES);
     cc2_copy_svalue(destination, source);
     return destination;
 }
 
-function asm_gen_code(operands, operand_count, output_count, is_output,
-    clobbers, output_register)
+function cc2_clone_svalue(source) {
+    return cc2_clone_svalue_locals_(source, 0);
+}
+
+function asm_gen_code_locals_(operands, operand_count, output_count,
+    is_output, clobbers, output_register, allocated, index, operand, reg,
+    value, registers)
 {
-    var allocated;
-    var index;
-    var operand;
-    var reg;
-    var value;
-    var registers;
     allocated = malloc(CC2_ASM_REGISTER_COUNT);
     memcpy(allocated, clobbers, CC2_ASM_REGISTER_COUNT);
     index = 0;
@@ -9339,14 +9435,20 @@ function asm_gen_code(operands, operand_count, output_count, is_output,
     return 0;
 }
 
+function asm_gen_code(operands, operand_count, output_count, is_output,
+    clobbers, output_register) {
+    return asm_gen_code_locals_(operands, operand_count, output_count,
+        is_output, clobbers, output_register, 0, 0, 0, 0, 0, 0);
+}
+
 function cc2_asm_register_available(allocated, reg, mask)
 {
     return eq(and(ri8(add(allocated, reg)), mask), 0);
 }
 
-function cc2_asm_allocate_general_register(allocated, first, last, mask)
+function cc2_asm_allocate_general_register_locals_(allocated, first, last,
+    mask, reg)
 {
-    var reg;
     reg = first;
     while (lt(reg, last)) {
         if (cc2_asm_register_available(allocated, reg, mask)) {
@@ -9357,28 +9459,17 @@ function cc2_asm_allocate_general_register(allocated, first, last, mask)
     return sub(0, 1);
 }
 
-function asm_compute_constraints(operands, operand_count, output_count,
-    clobbers, output_register)
+function cc2_asm_allocate_general_register(allocated, first, last, mask) {
+    return cc2_asm_allocate_general_register_locals_(allocated, first, last,
+        mask, 0);
+}
+
+function asm_compute_constraints_locals_(operands, operand_count,
+    output_count, clobbers, output_register, sorted, allocated, index,
+    other_index, operand_index, operand, other, constraint, current,
+    character, priority, other_priority, temporary, value, registers, symbol,
+    reg, register_mask, satisfied)
 {
-    var sorted;
-    var allocated;
-    var index;
-    var other_index;
-    var operand_index;
-    var operand;
-    var other;
-    var constraint;
-    var current;
-    var character;
-    var priority;
-    var other_priority;
-    var temporary;
-    var value;
-    var registers;
-    var symbol;
-    var reg;
-    var register_mask;
-    var satisfied;
     sorted = malloc(mul(operand_count, CC2_I386_WORD_BYTES));
     allocated = malloc(CC2_ASM_REGISTER_COUNT);
     index = 0;
@@ -9664,6 +9755,13 @@ function asm_compute_constraints(operands, operand_count, output_count,
     return 0;
 }
 
+function asm_compute_constraints(operands, operand_count, output_count,
+    clobbers, output_register) {
+    return asm_compute_constraints_locals_(operands, operand_count,
+        output_count, clobbers, output_register, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 function gen_disp32_(expression, symbol, elf_symbol, section, value,
     type_value)
 {
@@ -9763,9 +9861,8 @@ function asm_modrm(reg, operand)
     return asm_modrm_(reg, operand, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
-function use_section1(state, section)
+function use_section1_locals_(state, section, current)
 {
-    var current;
     current = ri32(cur_text_section_address);
     wi32(add(current, CC2_SECTION_DATA_OFFSET), ind);
     wi32(cur_text_section_address, section);
@@ -9773,24 +9870,29 @@ function use_section1(state, section)
     return 0;
 }
 
+function use_section1(state, section) {
+    return use_section1_locals_(state, section, 0);
+}
+
 function use_section(state, name)
 {
     return use_section1(state, find_section(state, name));
 }
 
-function push_section(state, name)
+function push_section_locals_(state, name, section)
 {
-    var section;
     section = find_section(state, name);
     wi32(add(section, CC2_SECTION_PREVIOUS_OFFSET),
         ri32(cur_text_section_address));
     return use_section1(state, section);
 }
 
-function pop_section(state)
+function push_section(state, name) {
+    return push_section_locals_(state, name, 0);
+}
+
+function pop_section_locals_(state, current, previous)
 {
-    var current;
-    var previous;
     current = ri32(cur_text_section_address);
     previous = ri32(add(current, CC2_SECTION_PREVIOUS_OFFSET));
     if (eq(previous, 0)) {
@@ -9800,48 +9902,21 @@ function pop_section(state)
     return use_section1(state, previous);
 }
 
+function pop_section(state) {
+    return pop_section_locals_(state, 0, 0);
+}
+
 /* Build a Unix archive and its big-endian ELF symbol index without GNU ar. */
-function tcc_tool_ar(state, argument_count, arguments)
+function tcc_tool_ar_locals_(state, argument_count, arguments, library_index,
+    object_index, index, argument, result, failed, verbose, archive,
+    temporary, input, temporary_name, symbol_header, member_header, size_text,
+    buffer, file_size, header, section_headers, section_names, section_count,
+    section_index, section_header, symbol_table, symbol_table_size,
+    string_table, symbol_count, symbol, symbol_name, symbol_name_size,
+    symbol_names, symbol_names_size, member_offsets, member_offset_capacity,
+    exported_symbol_count, temporary_offset, member_name, member_name_size,
+    header_size, padding)
 {
-    var library_index;
-    var object_index;
-    var index;
-    var argument;
-    var result;
-    var failed;
-    var verbose;
-    var archive;
-    var temporary;
-    var input;
-    var temporary_name;
-    var symbol_header;
-    var member_header;
-    var size_text;
-    var buffer;
-    var file_size;
-    var header;
-    var section_headers;
-    var section_names;
-    var section_count;
-    var section_index;
-    var section_header;
-    var symbol_table;
-    var symbol_table_size;
-    var string_table;
-    var symbol_count;
-    var symbol;
-    var symbol_name;
-    var symbol_name_size;
-    var symbol_names;
-    var symbol_names_size;
-    var member_offsets;
-    var member_offset_capacity;
-    var exported_symbol_count;
-    var temporary_offset;
-    var member_name;
-    var member_name_size;
-    var header_size;
-    var padding;
     library_index = 0;
     object_index = 0;
     result = 2;
@@ -10088,13 +10163,15 @@ function tcc_tool_ar(state, argument_count, arguments)
     return result;
 }
 
-function tccelf_begin_file(state)
+function tcc_tool_ar(state, argument_count, arguments) {
+    return tcc_tool_ar_locals_(state, argument_count, arguments, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function tccelf_begin_file_locals_(state, sections, section_count,
+    section_index, section, symbol_table)
 {
-    var sections;
-    var section_count;
-    var section_index;
-    var section;
-    var symbol_table;
     sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
     section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
     section_index = 1;
@@ -10112,24 +10189,15 @@ function tccelf_begin_file(state)
     return 0;
 }
 
-function tccelf_end_file(state)
+function tccelf_begin_file(state) {
+    return tccelf_begin_file_locals_(state, 0, 0, 0, 0, 0);
+}
+
+function tccelf_end_file_locals_(state, symbol_table, string_table,
+    first_symbol, symbol_count, translations, symbol_index, symbol,
+    section_index, information, strings, sections, section_count, section,
+    relocation_offset, relocation_information, temporary_index)
 {
-    var symbol_table;
-    var string_table;
-    var first_symbol;
-    var symbol_count;
-    var translations;
-    var symbol_index;
-    var symbol;
-    var section_index;
-    var information;
-    var strings;
-    var sections;
-    var section_count;
-    var section;
-    var relocation_offset;
-    var relocation_information;
-    var temporary_index;
     symbol_table = ri32(add(state, CC2_TCC_STATE_SYMBOL_TABLE_OFFSET));
     first_symbol = sdiv(ri32(add(symbol_table,
         CC2_SECTION_FILE_OFFSET_OFFSET)), CC2_ELF_SYMBOL_BYTES);
@@ -10207,19 +10275,16 @@ function tccelf_end_file(state)
     return 0;
 }
 
-function squeeze_multi_relocs(section, old_relocation_offset)
+function tccelf_end_file(state) {
+    return tccelf_end_file_locals_(state, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0);
+}
+
+function squeeze_multi_relocs_locals_(section, old_relocation_offset,
+    relocation_section, data, data_offset, current_offset, previous_offset,
+    destination_offset, address, current_address, destination_address,
+    temporary_address, temporary_information)
 {
-    var relocation_section;
-    var data;
-    var data_offset;
-    var current_offset;
-    var previous_offset;
-    var destination_offset;
-    var address;
-    var current_address;
-    var destination_address;
-    var temporary_address;
-    var temporary_information;
     relocation_section = ri32(add(section, CC2_SECTION_RELOCATION_OFFSET));
     data_offset = ri32(add(relocation_section, CC2_SECTION_DATA_OFFSET));
     if (not(lt(add(old_relocation_offset, CC2_ELF_RELOCATION_BYTES),
@@ -10281,10 +10346,14 @@ function squeeze_multi_relocs(section, old_relocation_offset)
     return 0;
 }
 
-function put_stabs(text, type, other, description, value)
+function squeeze_multi_relocs(section, old_relocation_offset) {
+    return squeeze_multi_relocs_locals_(section, old_relocation_offset, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function put_stabs_locals_(text, type, other, description, value, record,
+    string_offset)
 {
-    var record;
-    var string_offset;
     record = section_ptr_add(ri32(stab_section_address),
         CC2_STABS_RECORD_BYTES);
     string_offset = 0;
@@ -10301,16 +10370,25 @@ function put_stabs(text, type, other, description, value)
     return 0;
 }
 
-function put_stabs_r(text, type, other, description, value, section,
-    symbol_index)
+function put_stabs(text, type, other, description, value) {
+    return put_stabs_locals_(text, type, other, description, value, 0, 0);
+}
+
+function put_stabs_r_locals_(text, type, other, description, value, section,
+    symbol_index, stab_section)
 {
-    var stab_section;
     put_stabs(text, type, other, description, value);
     stab_section = ri32(stab_section_address);
     put_elf_reloc(ri32(symtab_section_address), stab_section, sub(ri32(add(
         stab_section, CC2_SECTION_DATA_OFFSET)), CC2_I386_WORD_BYTES),
         CC2_I386_ABSOLUTE_RELOCATION, symbol_index);
     return 0;
+}
+
+function put_stabs_r(text, type, other, description, value, section,
+    symbol_index) {
+    return put_stabs_r_locals_(text, type, other, description, value, section,
+        symbol_index, 0);
 }
 
 function put_stabn(type, other, description, value)
@@ -10323,11 +10401,9 @@ function put_stabd(type, other, description)
     return put_stabs(0, type, other, description, 0);
 }
 
-function get_sym_attr(state, index, allocate)
+function get_sym_attr_locals_(state, index, allocate, count, attributes,
+    new_count)
 {
-    var count;
-    var attributes;
-    var new_count;
     count = ri32(add(state, CC2_TCC_STATE_SYMBOL_ATTRIBUTE_COUNT_OFFSET));
     attributes = ri32(add(state, CC2_TCC_STATE_SYMBOL_ATTRIBUTES_OFFSET));
     if (not(lt(index, count))) {
@@ -10349,25 +10425,16 @@ function get_sym_attr(state, index, allocate)
     return add(attributes, mul(index, CC2_SYMBOL_ATTRIBUTE_BYTES));
 }
 
-function sort_syms(state, symbol_table)
+function get_sym_attr(state, index, allocate) {
+    return get_sym_attr_locals_(state, index, allocate, 0, 0, 0);
+}
+
+function sort_syms_locals_(state, symbol_table, symbol_count, sorted_symbols,
+    old_to_new, source_index, destination_index, source_symbol,
+    destination_symbol, pass, binding, sections, section_count, section_index,
+    relocation_section, relocation_offset, relocation_information,
+    old_symbol_index, new_symbol_index)
 {
-    var symbol_count;
-    var sorted_symbols;
-    var old_to_new;
-    var source_index;
-    var destination_index;
-    var source_symbol;
-    var destination_symbol;
-    var pass;
-    var binding;
-    var sections;
-    var section_count;
-    var section_index;
-    var relocation_section;
-    var relocation_offset;
-    var relocation_information;
-    var old_symbol_index;
-    var new_symbol_index;
     symbol_count = sdiv(ri32(add(symbol_table, CC2_SECTION_DATA_OFFSET)),
         CC2_ELF_SYMBOL_BYTES);
     sorted_symbols = malloc(mul(symbol_count, CC2_ELF_SYMBOL_BYTES));
@@ -10439,16 +10506,14 @@ function sort_syms(state, symbol_table)
     return 0;
 }
 
-function relocate_syms(state, symbol_table)
+function sort_syms(state, symbol_table) {
+    return sort_syms_locals_(state, symbol_table, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function relocate_syms_locals_(state, symbol_table, symbol_offset, symbol,
+    section_index, name, resolved, dynamic_symbols, sections, section)
 {
-    var symbol_offset;
-    var symbol;
-    var section_index;
-    var name;
-    var resolved;
-    var dynamic_symbols;
-    var sections;
-    var section;
     symbol_offset = CC2_ELF_SYMBOL_BYTES;
     dynamic_symbols = ri32(add(state,
         CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
@@ -10494,18 +10559,14 @@ function relocate_syms(state, symbol_table)
     return 0;
 }
 
-function relocate_section(state, section)
+function relocate_syms(state, symbol_table) {
+    return relocate_syms_locals_(state, symbol_table, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function relocate_section_locals_(state, section, relocation_section,
+    relocation_offset, relocation, relocation_information, symbol_index,
+    symbol, type, pointer, value, address)
 {
-    var relocation_section;
-    var relocation_offset;
-    var relocation;
-    var relocation_information;
-    var symbol_index;
-    var symbol;
-    var type;
-    var pointer;
-    var value;
-    var address;
     relocation_section = ri32(add(section, CC2_SECTION_RELOCATION_OFFSET));
     relocate_init(relocation_section);
     relocation_offset = 0;
@@ -10538,13 +10599,14 @@ function relocate_section(state, section)
     return 0;
 }
 
-function relocate_rel(state, relocation_section)
+function relocate_section(state, section) {
+    return relocate_section_locals_(state, section, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0);
+}
+
+function relocate_rel_locals_(state, relocation_section, sections, section,
+    section_address, relocation_offset, relocation)
 {
-    var sections;
-    var section;
-    var section_address;
-    var relocation_offset;
-    var relocation;
     sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
     section = ri32(add(sections, mul(ri32(add(relocation_section,
         CC2_SECTION_INFO_OFFSET)), CC2_I386_WORD_BYTES)));
@@ -10562,16 +10624,14 @@ function relocate_rel(state, relocation_section)
     return 0;
 }
 
-function prepare_dynamic_rel(state, relocation_section)
+function relocate_rel(state, relocation_section) {
+    return relocate_rel_locals_(state, relocation_section, 0, 0, 0, 0, 0);
+}
+
+function prepare_dynamic_rel_locals_(state, relocation_section,
+    relocation_offset, relocation, information, symbol_index, type, count,
+    attributes, symbol)
 {
-    var relocation_offset;
-    var relocation;
-    var information;
-    var symbol_index;
-    var type;
-    var count;
-    var attributes;
-    var symbol;
     count = 0;
     relocation_offset = 0;
     while (lt(relocation_offset, ri32(add(relocation_section,
@@ -10616,9 +10676,13 @@ function prepare_dynamic_rel(state, relocation_section)
     return count;
 }
 
-function build_got(state)
+function prepare_dynamic_rel(state, relocation_section) {
+    return prepare_dynamic_rel_locals_(state, relocation_section, 0, 0, 0, 0,
+        0, 0, 0, 0);
+}
+
+function build_got_locals_(state, got)
 {
-    var got;
     got = new_section(state, mks(".got"), CC2_ELF_SECTION_PROGBITS,
         or(CC2_ELF_ALLOCATE_SECTION_FLAG, CC2_ELF_WRITE_SECTION_FLAG));
     wi32(add(state, CC2_TCC_STATE_GOT_OFFSET), got);
@@ -10633,22 +10697,15 @@ function build_got(state)
     return 0;
 }
 
-function put_got_entry(state, dynamic_relocation_type, size, information,
-    symbol_index)
+function build_got(state) {
+    return build_got_locals_(state, 0);
+}
+
+function put_got_entry_locals_(state, dynamic_relocation_type, size,
+    information, symbol_index, need_plt_entry, attributes, got, got_offset,
+    symbol_table, symbol, name, dynamic_symbols, dynamic_index, plt,
+    plt_offset, plt_suffix, plt_name)
 {
-    var need_plt_entry;
-    var attributes;
-    var got;
-    var got_offset;
-    var symbol_table;
-    var symbol;
-    var name;
-    var dynamic_symbols;
-    var dynamic_index;
-    var plt;
-    var plt_offset;
-    var plt_suffix;
-    var plt_name;
     need_plt_entry = eq(dynamic_relocation_type,
         CC2_I386_JUMP_SLOT_RELOCATION);
     attributes = get_sym_attr(state, symbol_index, 1);
@@ -10723,28 +10780,19 @@ function put_got_entry(state, dynamic_relocation_type, size, information,
     return attributes;
 }
 
-function build_got_entries(state)
+function put_got_entry(state, dynamic_relocation_type, size, information,
+    symbol_index) {
+    return put_got_entry_locals_(state, dynamic_relocation_type, size,
+        information, symbol_index, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function build_got_entries_locals_(state, sections, section_count,
+    section_index, relocation_section, relocation_offset, relocation,
+    relocation_information, relocation_type, dynamic_relocation_type,
+    entry_type, symbol_index, symbol_table, symbol, symbol_section_index,
+    dynamic_symbols, dynamic_index, dynamic_symbol, force_jump_slot,
+    process_entry, attributes)
 {
-    var sections;
-    var section_count;
-    var section_index;
-    var relocation_section;
-    var relocation_offset;
-    var relocation;
-    var relocation_information;
-    var relocation_type;
-    var dynamic_relocation_type;
-    var entry_type;
-    var symbol_index;
-    var symbol_table;
-    var symbol;
-    var symbol_section_index;
-    var dynamic_symbols;
-    var dynamic_index;
-    var dynamic_symbol;
-    var force_jump_slot;
-    var process_entry;
-    var attributes;
     symbol_table = ri32(symtab_section_address);
     dynamic_symbols = ri32(add(state,
         CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
@@ -10852,13 +10900,14 @@ function build_got_entries(state)
     return 0;
 }
 
-function fill_got_entry(state, relocation)
+function build_got_entries(state) {
+    return build_got_entries_locals_(state, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function fill_got_entry_locals_(state, relocation, symbol_index, symbol,
+    attributes, offset, got)
 {
-    var symbol_index;
-    var symbol;
-    var attributes;
-    var offset;
-    var got;
     symbol_index = ushr(ri32(add(relocation,
         CC2_ELF_RELOCATION_INFO_OFFSET)), CC2_ELF_RELOCATION_SYMBOL_SHIFT);
     symbol = add(ri32(add(ri32(symtab_section_address),
@@ -10876,16 +10925,13 @@ function fill_got_entry(state, relocation)
     return 0;
 }
 
-function fill_got(state)
+function fill_got_entry(state, relocation) {
+    return fill_got_entry_locals_(state, relocation, 0, 0, 0, 0, 0);
+}
+
+function fill_got_locals_(state, sections, section_count, section_index,
+    relocation_section, relocation_offset, relocation, type, symbol_table)
 {
-    var sections;
-    var section_count;
-    var section_index;
-    var relocation_section;
-    var relocation_offset;
-    var relocation;
-    var type;
-    var symbol_table;
     symbol_table = ri32(symtab_section_address);
     sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
     section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
@@ -10920,18 +10966,14 @@ function fill_got(state)
     return 0;
 }
 
-function fill_local_got_entries(state)
+function fill_got(state) {
+    return fill_got_locals_(state, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function fill_local_got_entries_locals_(state, got, relocation_section,
+    relocation_offset, relocation, information, symbol_index, symbol,
+    attributes, got_offset, expected_offset)
 {
-    var got;
-    var relocation_section;
-    var relocation_offset;
-    var relocation;
-    var information;
-    var symbol_index;
-    var symbol;
-    var attributes;
-    var got_offset;
-    var expected_offset;
     got = ri32(add(state, CC2_TCC_STATE_GOT_OFFSET));
     relocation_section = ri32(add(got, CC2_SECTION_RELOCATION_OFFSET));
     if (eq(relocation_section, 0)) {
@@ -10970,29 +11012,16 @@ function fill_local_got_entries(state)
     return 0;
 }
 
-function bind_exe_dynsyms(state)
+function fill_local_got_entries(state) {
+    return fill_local_got_entries_locals_(state, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function bind_exe_dynsyms_locals_(state, symbol_table, dynamic_symbols,
+    loaded_symbols, strings, loaded_strings, symbol_offset, symbol_index,
+    symbol, section_index, name, loaded_index, loaded_symbol, symbol_type,
+    dynamic_index, attributes, bss_section, offset, alias_offset,
+    alias_symbol, alias_name, binding)
 {
-    var symbol_table;
-    var dynamic_symbols;
-    var loaded_symbols;
-    var strings;
-    var loaded_strings;
-    var symbol_offset;
-    var symbol_index;
-    var symbol;
-    var section_index;
-    var name;
-    var loaded_index;
-    var loaded_symbol;
-    var symbol_type;
-    var dynamic_index;
-    var attributes;
-    var bss_section;
-    var offset;
-    var alias_offset;
-    var alias_symbol;
-    var alias_name;
-    var binding;
     symbol_table = ri32(symtab_section_address);
     dynamic_symbols = ri32(add(state,
         CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
@@ -11108,20 +11137,15 @@ function bind_exe_dynsyms(state)
     return 0;
 }
 
-function bind_libs_dynsyms(state)
+function bind_exe_dynsyms(state) {
+    return bind_exe_dynsyms_locals_(state, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function bind_libs_dynsyms_locals_(state, symbol_table, dynamic_symbols,
+    loaded_symbols, loaded_strings, loaded_offset, loaded_symbol,
+    loaded_section_index, name, symbol_index, symbol, section_index, binding)
 {
-    var symbol_table;
-    var dynamic_symbols;
-    var loaded_symbols;
-    var loaded_strings;
-    var loaded_offset;
-    var loaded_symbol;
-    var loaded_section_index;
-    var name;
-    var symbol_index;
-    var symbol;
-    var section_index;
-    var binding;
     symbol_table = ri32(symtab_section_address);
     dynamic_symbols = ri32(add(state,
         CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
@@ -11168,18 +11192,14 @@ function bind_libs_dynsyms(state)
     return 0;
 }
 
-function export_global_syms(state)
+function bind_libs_dynsyms(state) {
+    return bind_libs_dynsyms_locals_(state, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function export_global_syms_locals_(state, symbol_table, dynamic_symbols,
+    strings, symbol_offset, symbol_index, symbol, name, dynamic_index,
+    attributes, section_index)
 {
-    var symbol_table;
-    var dynamic_symbols;
-    var strings;
-    var symbol_offset;
-    var symbol_index;
-    var symbol;
-    var name;
-    var dynamic_index;
-    var attributes;
-    var section_index;
     symbol_table = ri32(symtab_section_address);
     dynamic_symbols = ri32(add(state,
         CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
@@ -11212,17 +11232,14 @@ function export_global_syms(state)
     return 0;
 }
 
-function alloc_sec_names(state, file_type, string_section)
+function export_global_syms(state) {
+    return export_global_syms_locals_(state, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function alloc_sec_names_locals_(state, file_type, string_section, sections,
+    section_count, section_index, section, target_section, target_flags,
+    flags, text_relocation, promoted_relocation)
 {
-    var sections;
-    var section_count;
-    var section_index;
-    var section;
-    var target_section;
-    var target_flags;
-    var flags;
-    var text_relocation;
-    var promoted_relocation;
     sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
     section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
     text_relocation = 0;
@@ -11269,22 +11286,27 @@ function alloc_sec_names(state, file_type, string_section)
     return text_relocation;
 }
 
-function put_dt(dynamic_section, tag, value)
+function alloc_sec_names(state, file_type, string_section) {
+    return alloc_sec_names_locals_(state, file_type, string_section, 0, 0, 0,
+        0, 0, 0, 0, 0, 0);
+}
+
+function put_dt_locals_(dynamic_section, tag, value, record)
 {
-    var record;
     record = section_ptr_add(dynamic_section, CC2_ELF_DYNAMIC_RECORD_BYTES);
     wi32(add(record, CC2_ELF_DYNAMIC_TAG_OFFSET), tag);
     wi32(add(record, CC2_ELF_DYNAMIC_VALUE_OFFSET), value);
     return 0;
 }
 
+function put_dt(dynamic_section, tag, value) {
+    return put_dt_locals_(dynamic_section, tag, value, 0);
+}
+
 /* Append the address-dependent i386 dynamic tags after layout is known. */
-function fill_dynamic(state, dynamic_info)
+function fill_dynamic_locals_(state, dynamic_info, dynamic_section,
+    string_section, symbol_section, hash_section)
 {
-    var dynamic_section;
-    var string_section;
-    var symbol_section;
-    var hash_section;
     dynamic_section = ri32(add(dynamic_info,
         CC2_DYNAMIC_INFO_DYNAMIC_OFFSET));
     string_section = ri32(add(dynamic_info,
@@ -11315,14 +11337,14 @@ function fill_dynamic(state, dynamic_info)
     return 0;
 }
 
+function fill_dynamic(state, dynamic_info) {
+    return fill_dynamic_locals_(state, dynamic_info, 0, 0, 0, 0);
+}
+
 /* Apply the non-dynamic relocations after every section has a final address. */
-function final_sections_reloc(state)
+function final_sections_reloc_locals_(state, section_index, section_count,
+    sections, section, relocation_section)
 {
-    var section_index;
-    var section_count;
-    var sections;
-    var section;
-    var relocation_section;
     relocate_syms(state, ri32(add(state, CC2_TCC_STATE_SYMBOL_TABLE_OFFSET)));
     if (not(eq(ri32(add(state, CC2_TCC_STATE_ERROR_COUNT_OFFSET)), 0))) {
         return sub(0, 1);
@@ -11355,13 +11377,14 @@ function final_sections_reloc(state)
     return 0;
 }
 
+function final_sections_reloc(state) {
+    return final_sections_reloc_locals_(state, 0, 0, 0, 0, 0);
+}
+
 /* Complete headers for segments which do not own the normal load sections. */
-function fill_unloadable_phdr(program_headers, header_count,
-    interpreter_section, dynamic_section)
+function fill_unloadable_phdr_locals_(program_headers, header_count,
+    interpreter_section, dynamic_section, header, size, address)
 {
-    var header;
-    var size;
-    var address;
     if (not(eq(interpreter_section, 0))) {
         header = program_headers;
         wi32(add(header, CC2_PROGRAM_HEADER_TYPE_OFFSET),
@@ -11416,10 +11439,16 @@ function fill_unloadable_phdr(program_headers, header_count,
     return 0;
 }
 
+function fill_unloadable_phdr(program_headers, header_count,
+    interpreter_section, dynamic_section) {
+    return fill_unloadable_phdr_locals_(program_headers, header_count,
+        interpreter_section, dynamic_section, 0, 0, 0);
+}
+
 /* Loaded sections are ordered as interpreter, metadata, relocs, data, BSS. */
-function cc2_layout_section_category(section, interpreter_section)
+function cc2_layout_section_category_locals_(section, interpreter_section,
+    section_type)
 {
-    var section_type;
     if (eq(section, interpreter_section)) {
         return 0;
     }
@@ -11438,30 +11467,18 @@ function cc2_layout_section_category(section, interpreter_section)
     return 3;
 }
 
+function cc2_layout_section_category(section, interpreter_section) {
+    return cc2_layout_section_category_locals_(section, interpreter_section, 0);
+}
+
 /* Assign i386 sections to the RX/RW load segments and record file offsets. */
-function layout_sections(state, program_headers, header_count,
-    interpreter_section, section_name_table, dynamic_info, section_order)
+function layout_sections_locals_(state, program_headers, header_count,
+    interpreter_section, section_name_table, dynamic_info, section_order,
+    file_type, output_format, order_index, file_offset, segment_alignment,
+    address, address_offset, page_offset, header, segment, category,
+    section_index, section_count, sections, section, flags, expected_flags,
+    section_alignment, previous_address, section_type)
 {
-    var file_type;
-    var output_format;
-    var order_index;
-    var file_offset;
-    var segment_alignment;
-    var address;
-    var address_offset;
-    var page_offset;
-    var header;
-    var segment;
-    var category;
-    var section_index;
-    var section_count;
-    var sections;
-    var section;
-    var flags;
-    var expected_flags;
-    var section_alignment;
-    var previous_address;
-    var section_type;
     file_type = ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET));
     output_format = ri32(add(state, CC2_TCC_STATE_OUTPUT_FORMAT_OFFSET));
     order_index = 1;
@@ -11638,6 +11655,13 @@ function layout_sections(state, program_headers, header_count,
     return file_offset;
 }
 
+function layout_sections(state, program_headers, header_count,
+    interpreter_section, section_name_table, dynamic_info, section_order) {
+    return layout_sections_locals_(state, program_headers, header_count,
+        interpreter_section, section_name_table, dynamic_info, section_order,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 function cc2_write_little_u16(address, value)
 {
     wi8(address, and(value, 255));
@@ -11651,20 +11675,21 @@ function cc2_read_little_u16(address)
 }
 
 /* Read one object-file region without imposing a compiler-specific ceiling. */
-function load_data(file_descriptor, file_offset, size)
+function load_data_locals_(file_descriptor, file_offset, size, data)
 {
-    var data;
     data = malloc(size);
     lseek(file_descriptor, file_offset, 0);
     read(file_descriptor, data, size);
     return data;
 }
 
+function load_data(file_descriptor, file_offset, size) {
+    return load_data_locals_(file_descriptor, file_offset, size, 0);
+}
+
 /* Classify only the i386 ELF and Unix archive inputs accepted by this layer. */
-function tcc_object_type(file_descriptor, header)
+function tcc_object_type_locals_(file_descriptor, header, size, type)
 {
-    var size;
-    var type;
     size = read(file_descriptor, header, CC2_ELF_HEADER_BYTES);
     if (and(eq(size, CC2_ELF_HEADER_BYTES), and(and(eq(ri8(header), 127),
         eq(ri8(add(header, 1)), mkC("E"))), and(eq(ri8(add(header, 2)),
@@ -11689,6 +11714,10 @@ function tcc_object_type(file_descriptor, header)
     return 0;
 }
 
+function tcc_object_type(file_descriptor, header) {
+    return tcc_object_type_locals_(file_descriptor, header, 0, 0);
+}
+
 function cc2_object_section_supported(type, name)
 {
     return or(or(or(eq(type, CC2_ELF_SECTION_PROGBITS),
@@ -11704,45 +11733,15 @@ function cc2_object_merge_entry(table, index)
 }
 
 /* Merge one i386 ELF32 relocatable object into TCC's live section graph. */
-function tcc_load_object_file(state, file_descriptor, file_offset)
+function tcc_load_object_file_locals_(state, file_descriptor, file_offset,
+    header, section_headers, section_names, string_table, input_symbols,
+    symbol_map, merge_table, section_count, section_name_index, symbol_count,
+    compressed, stab_index, stab_string_index, index, search_index,
+    section_header, target_header, merge, target_merge, section, sections,
+    name, type, flags, alignment, size, offset, target_offset, pointer, end,
+    input_symbol, symbol_index, section_index, information, relocation,
+    relocation_type, result)
 {
-    var header;
-    var section_headers;
-    var section_names;
-    var string_table;
-    var input_symbols;
-    var symbol_map;
-    var merge_table;
-    var section_count;
-    var section_name_index;
-    var symbol_count;
-    var compressed;
-    var stab_index;
-    var stab_string_index;
-    var index;
-    var search_index;
-    var section_header;
-    var target_header;
-    var merge;
-    var target_merge;
-    var section;
-    var sections;
-    var name;
-    var type;
-    var flags;
-    var alignment;
-    var size;
-    var offset;
-    var target_offset;
-    var pointer;
-    var end;
-    var input_symbol;
-    var symbol_index;
-    var section_index;
-    var information;
-    var relocation;
-    var relocation_type;
-    var result;
     header = malloc(CC2_ELF_HEADER_BYTES);
     section_headers = 0;
     section_names = 0;
@@ -12110,6 +12109,12 @@ function tcc_load_object_file(state, file_descriptor, file_offset)
     return result;
 }
 
+function tcc_load_object_file(state, file_descriptor, file_offset) {
+    return tcc_load_object_file_locals_(state, file_descriptor, file_offset,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 function cc2_read_big_u32(address)
 {
     return or(or(shl(ri8(address), 24), shl(ri8(add(address, 1)), 16)),
@@ -12117,19 +12122,10 @@ function cc2_read_big_u32(address)
 }
 
 /* Load archive members until no remaining undefined symbol is resolved. */
-function tcc_load_alacarte(state, file_descriptor, size, entry_size)
+function tcc_load_alacarte_locals_(state, file_descriptor, size, entry_size,
+    data, symbol_count, indexes, names, name, index, bound, symbol_index,
+    symbol, member_offset, result)
 {
-    var data;
-    var symbol_count;
-    var indexes;
-    var names;
-    var name;
-    var index;
-    var bound;
-    var symbol_index;
-    var symbol;
-    var member_offset;
-    var result;
     data = malloc(size);
     if (not(eq(read(file_descriptor, data, size), size))) {
         free(data);
@@ -12181,18 +12177,15 @@ function tcc_load_alacarte(state, file_descriptor, size, entry_size)
     return result;
 }
 
+function tcc_load_alacarte(state, file_descriptor, size, entry_size) {
+    return tcc_load_alacarte_locals_(state, file_descriptor, size, entry_size,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 /* Traverse a Unix archive and pass each selected i386 object to the loader. */
-function tcc_load_archive(state, file_descriptor)
+function tcc_load_archive_locals_(state, file_descriptor, header, name,
+    size_text, object_header, length, size, index, file_offset, result)
 {
-    var header;
-    var name;
-    var size_text;
-    var object_header;
-    var length;
-    var size;
-    var index;
-    var file_offset;
-    var result;
     header = malloc(CC2_ARCHIVE_HEADER_BYTES);
     name = malloc(add(CC2_ARCHIVE_NAME_BYTES, 1));
     size_text = malloc(add(CC2_ARCHIVE_SIZE_BYTES, 1));
@@ -12255,12 +12248,14 @@ function tcc_load_archive(state, file_descriptor)
     return result;
 }
 
-function cc2_dll_is_loaded(state, name)
+function tcc_load_archive(state, file_descriptor) {
+    return tcc_load_archive_locals_(state, file_descriptor, 0, 0, 0, 0, 0, 0,
+        0, 0, 0);
+}
+
+function cc2_dll_is_loaded_locals_(state, name, references, count, index,
+    reference)
 {
-    var references;
-    var count;
-    var index;
-    var reference;
     references = ri32(add(state, CC2_TCC_STATE_LOADED_DLLS_OFFSET));
     count = ri32(add(state, CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET));
     index = 0;
@@ -12274,26 +12269,17 @@ function cc2_dll_is_loaded(state, name)
     return 0;
 }
 
+function cc2_dll_is_loaded(state, name) {
+    return cc2_dll_is_loaded_locals_(state, name, 0, 0, 0, 0);
+}
+
 /* Import one ELF32 shared library and recursively load its dependencies. */
-function tcc_load_dll(state, file_descriptor, filename, level)
+function tcc_load_dll_locals_(state, file_descriptor, filename, level, header,
+    section_headers, section_count, section_index, section_header,
+    linked_section, dynamic_records, dynamic_count, dynamic_symbols,
+    symbol_count, dynamic_strings, record, symbol, soname, name, reference,
+    result)
 {
-    var header;
-    var section_headers;
-    var section_count;
-    var section_index;
-    var section_header;
-    var linked_section;
-    var dynamic_records;
-    var dynamic_count;
-    var dynamic_symbols;
-    var symbol_count;
-    var dynamic_strings;
-    var record;
-    var symbol;
-    var soname;
-    var name;
-    var reference;
-    var result;
     header = malloc(CC2_ELF_HEADER_BYTES);
     read(file_descriptor, header, CC2_ELF_HEADER_BYTES);
     if (or(not(eq(ri8(add(header, CC2_ELF_HEADER_DATA_ENCODING_OFFSET)),
@@ -12410,6 +12396,11 @@ function tcc_load_dll(state, file_descriptor, filename, level)
     return result;
 }
 
+function tcc_load_dll(state, file_descriptor, filename, level) {
+    return tcc_load_dll_locals_(state, file_descriptor, filename, level, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 function cc2_ld_is_space(character)
 {
     return or(or(or(eq(character, mkC(" ")), eq(character, mkC("\t"))),
@@ -12434,12 +12425,9 @@ function cc2_ld_is_name_start(character)
 }
 
 /* Return one token from the linker script currently in the TCC input file. */
-function cc2_ld_next(name, name_size)
+function cc2_ld_next_locals_(name, name_size, output, output_size, token,
+    pointer)
 {
-    var output;
-    var output_size;
-    var token;
-    var pointer;
     token = 0;
     while (eq(token, 0)) {
         if (cc2_ld_is_space(ch)) {
@@ -12496,6 +12484,10 @@ function cc2_ld_next(name, name_size)
     return token;
 }
 
+function cc2_ld_next(name, name_size) {
+    return cc2_ld_next_locals_(name, name_size, 0, 0, 0, 0);
+}
+
 function cc2_ld_add_file(state, filename)
 {
     if (eq(ri8(filename), mkC("/"))) {
@@ -12508,26 +12500,21 @@ function cc2_ld_add_file(state, filename)
     return tcc_add_dll(state, filename, 0);
 }
 
-function cc2_duplicate_string(source)
+function cc2_duplicate_string_locals_(source, duplicate)
 {
-    var duplicate;
     duplicate = malloc(add(strlen(source), 1));
     strcpy(duplicate, source);
     return duplicate;
 }
 
-function cc2_ld_add_file_list(state, command, as_needed)
+function cc2_duplicate_string(source) {
+    return cc2_duplicate_string_locals_(source, 0);
+}
+
+function cc2_ld_add_file_list_locals_(state, command, as_needed, filename,
+    library_name, token, group, result, libraries_pointer,
+    library_count_pointer, libraries, library_count, library_index)
 {
-    var filename;
-    var library_name;
-    var token;
-    var group;
-    var result;
-    var libraries_pointer;
-    var library_count_pointer;
-    var libraries;
-    var library_count;
-    var library_index;
     filename = malloc(CC2_LINKER_FILENAME_BYTES);
     library_name = malloc(CC2_LINKER_FILENAME_BYTES);
     libraries_pointer = malloc(CC2_I386_WORD_BYTES);
@@ -12619,13 +12606,14 @@ function cc2_ld_add_file_list(state, command, as_needed)
     return result;
 }
 
+function cc2_ld_add_file_list(state, command, as_needed) {
+    return cc2_ld_add_file_list_locals_(state, command, as_needed, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0);
+}
+
 /* Interpret the GNU linker-script subset used by glibc's libc.so file. */
-function tcc_load_ldscript(state)
+function tcc_load_ldscript_locals_(state, command, filename, token, result)
 {
-    var command;
-    var filename;
-    var token;
-    var result;
     command = malloc(CC2_LINKER_COMMAND_BYTES);
     filename = malloc(CC2_LINKER_FILENAME_BYTES);
     ch = handle_eob();
@@ -12670,6 +12658,10 @@ function tcc_load_ldscript(state)
     return result;
 }
 
+function tcc_load_ldscript(state) {
+    return tcc_load_ldscript_locals_(state, 0, 0, 0, 0);
+}
+
 function cc2_output_padding(output, offset, target)
 {
     while (lt(offset, target)) {
@@ -12679,14 +12671,9 @@ function cc2_output_padding(output, offset, target)
     return offset;
 }
 
-function tcc_output_binary(state, output, section_order)
+function tcc_output_binary_locals_(state, output, section_order,
+    section_index, section_count, sections, section, offset, size)
 {
-    var section_index;
-    var section_count;
-    var sections;
-    var section;
-    var offset;
-    var size;
     offset = 0;
     section_index = 1;
     section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
@@ -12709,11 +12696,14 @@ function tcc_output_binary(state, output, section_order)
     return 0;
 }
 
-function cc2_fill_elf_header(state, header, header_count, file_offset,
-    section_count)
+function tcc_output_binary(state, output, section_order) {
+    return tcc_output_binary_locals_(state, output, section_order, 0, 0, 0, 0,
+        0, 0);
+}
+
+function cc2_fill_elf_header_locals_(state, header, header_count, file_offset,
+    section_count, file_type, entry)
 {
-    var file_type;
-    var entry;
     memset(header, 0, CC2_ELF_HEADER_BYTES);
     wi8(header, 127);
     wi8(add(header, 1), mkC("E"));
@@ -12764,9 +12754,14 @@ function cc2_fill_elf_header(state, header, header_count, file_offset,
     return 0;
 }
 
-function cc2_fill_section_header(header, section)
+function cc2_fill_elf_header(state, header, header_count, file_offset,
+    section_count) {
+    return cc2_fill_elf_header_locals_(state, header, header_count,
+        file_offset, section_count, 0, 0);
+}
+
+function cc2_fill_section_header_locals_(header, section, link)
 {
-    var link;
     memset(header, 0, CC2_ELF_SECTION_HEADER_BYTES);
     if (eq(section, 0)) {
         return 0;
@@ -12788,17 +12783,14 @@ function cc2_fill_section_header(header, section)
     return 0;
 }
 
-function tcc_output_elf(state, output, header_count, program_headers,
-    file_offset, section_order)
+function cc2_fill_section_header(header, section) {
+    return cc2_fill_section_header_locals_(header, section, 0);
+}
+
+function tcc_output_elf_locals_(state, output, header_count, program_headers,
+    file_offset, section_order, elf_header, section_header, section_count,
+    section_index, sections, section, offset, size)
 {
-    var elf_header;
-    var section_header;
-    var section_count;
-    var section_index;
-    var sections;
-    var section;
-    var offset;
-    var size;
     file_offset = cc2_align_up(file_offset, CC2_I386_WORD_BYTES);
     section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
     elf_header = malloc(CC2_ELF_HEADER_BYTES);
@@ -12843,10 +12835,15 @@ function tcc_output_elf(state, output, header_count, program_headers,
     return 0;
 }
 
-function tcc_write_elf_file(state, filename, header_count, program_headers,
-    file_offset, section_order)
+function tcc_output_elf(state, output, header_count, program_headers,
+    file_offset, section_order) {
+    return tcc_output_elf_locals_(state, output, header_count,
+        program_headers, file_offset, section_order, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function tcc_write_elf_file_locals_(state, filename, header_count,
+    program_headers, file_offset, section_order, output)
 {
-    var output;
     unlink(filename);
     output = fopen(filename, mks("wb"));
     if (ri32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET))) {
@@ -12863,11 +12860,15 @@ function tcc_write_elf_file(state, filename, header_count, program_headers,
     return 0;
 }
 
-function cc2_remap_symbol_sections(symbol_table, backmap)
+function tcc_write_elf_file(state, filename, header_count, program_headers,
+    file_offset, section_order) {
+    return tcc_write_elf_file_locals_(state, filename, header_count,
+        program_headers, file_offset, section_order, 0);
+}
+
+function cc2_remap_symbol_sections_locals_(symbol_table, backmap, symbol, end,
+    section_index)
 {
-    var symbol;
-    var end;
-    var section_index;
     symbol = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
         CC2_ELF_SYMBOL_BYTES);
     end = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
@@ -12886,18 +12887,15 @@ function cc2_remap_symbol_sections(symbol_table, backmap)
     return 0;
 }
 
+function cc2_remap_symbol_sections(symbol_table, backmap) {
+    return cc2_remap_symbol_sections_locals_(symbol_table, backmap, 0, 0, 0);
+}
+
 /* Compact omitted section headers and repair every index into the old array. */
-function tidy_section_headers(state, section_order)
+function tidy_section_headers_locals_(state, section_order, section_count,
+    old_sections, new_sections, backmap, old_index, ordered_index, new_count,
+    tail, section)
 {
-    var section_count;
-    var old_sections;
-    var new_sections;
-    var backmap;
-    var old_index;
-    var ordered_index;
-    var new_count;
-    var tail;
-    var section;
     section_count = ri32(add(state, CC2_TCC_STATE_SECTION_COUNT_OFFSET));
     old_sections = ri32(add(state, CC2_TCC_STATE_SECTIONS_OFFSET));
     new_sections = malloc(shl(section_count, 2));
@@ -12956,14 +12954,15 @@ function tidy_section_headers(state, section_order)
     return 0;
 }
 
-function cc2_add_dynamic_options(state, file_type, dynamic_section,
-    string_section, text_relocation)
+function tidy_section_headers(state, section_order) {
+    return tidy_section_headers_locals_(state, section_order, 0, 0, 0, 0, 0,
+        0, 0, 0, 0);
+}
+
+function cc2_add_dynamic_options_locals_(state, file_type, dynamic_section,
+    string_section, text_relocation, references, reference_count,
+    reference_index, reference, path)
 {
-    var references;
-    var reference_count;
-    var reference_index;
-    var reference;
-    var path;
     references = ri32(add(state, CC2_TCC_STATE_LOADED_DLLS_OFFSET));
     reference_count = ri32(add(state,
         CC2_TCC_STATE_LOADED_DLL_COUNT_OFFSET));
@@ -13003,14 +13002,15 @@ function cc2_add_dynamic_options(state, file_type, dynamic_section,
     return 0;
 }
 
-function cc2_relocate_dynamic_symbols(state)
+function cc2_add_dynamic_options(state, file_type, dynamic_section,
+    string_section, text_relocation) {
+    return cc2_add_dynamic_options_locals_(state, file_type, dynamic_section,
+        string_section, text_relocation, 0, 0, 0, 0, 0);
+}
+
+function cc2_relocate_dynamic_symbols_locals_(state, symbol_table, symbol,
+    end, section_index, sections, section)
 {
-    var symbol_table;
-    var symbol;
-    var end;
-    var section_index;
-    var sections;
-    var section;
     symbol_table = ri32(add(state, CC2_TCC_STATE_DYNAMIC_SYMBOL_TABLE_OFFSET));
     symbol = add(ri32(add(symbol_table, CC2_SECTION_DATA_POINTER_OFFSET)),
         CC2_ELF_SYMBOL_BYTES);
@@ -13032,10 +13032,13 @@ function cc2_relocate_dynamic_symbols(state)
     return 0;
 }
 
-function cc2_add_file_below_directory(state, directory, filename)
+function cc2_relocate_dynamic_symbols(state) {
+    return cc2_relocate_dynamic_symbols_locals_(state, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_add_file_below_directory_locals_(state, directory, filename,
+    path, result)
 {
-    var path;
-    var result;
     path = malloc(add(add(strlen(directory), strlen(filename)), 2));
     strcpy(path, directory);
     strcat(path, mks("/"));
@@ -13045,12 +13048,14 @@ function cc2_add_file_below_directory(state, directory, filename)
     return result;
 }
 
-function cc2_add_crt(state, filename)
+function cc2_add_file_below_directory(state, directory, filename) {
+    return cc2_add_file_below_directory_locals_(state, directory, filename, 0,
+        0);
+}
+
+function cc2_add_crt_locals_(state, filename, paths, path_count, path_index,
+    result)
 {
-    var paths;
-    var path_count;
-    var path_index;
-    var result;
     paths = ri32(add(state, CC2_TCC_STATE_CRT_PATHS_OFFSET));
     path_count = ri32(add(state, CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET));
     path_index = 0;
@@ -13066,13 +13071,14 @@ function cc2_add_crt(state, filename)
     return 0;
 }
 
+function cc2_add_crt(state, filename) {
+    return cc2_add_crt_locals_(state, filename, 0, 0, 0, 0);
+}
+
 /* Add the configured i386 runtime inputs needed after user objects. */
-function tcc_add_runtime(state)
+function tcc_add_runtime_locals_(state, libraries, library_count,
+    library_index, library_root)
 {
-    var libraries;
-    var library_count;
-    var library_index;
-    var library_root;
     libraries = ri32(add(state, CC2_TCC_STATE_PRAGMA_LIBRARIES_OFFSET));
     library_count = ri32(add(state,
         CC2_TCC_STATE_PRAGMA_LIBRARY_COUNT_OFFSET));
@@ -13097,25 +13103,17 @@ function tcc_add_runtime(state)
     return 0;
 }
 
+function tcc_add_runtime(state) {
+    return tcc_add_runtime_locals_(state, 0, 0, 0, 0);
+}
+
 /* Complete the i386 ELF link using only the layered linker implementation. */
-function elf_output_file(state, filename)
+function elf_output_file_locals_(state, filename, file_type, result,
+    header_count, saved_section_count, file_offset, section_order,
+    program_headers, dynamic_info, interpreter_section, dynamic_section,
+    dynamic_string_section, section_name_table, symbol_table, interpreter,
+    data, text_relocation)
 {
-    var file_type;
-    var result;
-    var header_count;
-    var saved_section_count;
-    var file_offset;
-    var section_order;
-    var program_headers;
-    var dynamic_info;
-    var interpreter_section;
-    var dynamic_section;
-    var dynamic_string_section;
-    var section_name_table;
-    var symbol_table;
-    var interpreter;
-    var data;
-    var text_relocation;
     file_type = ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET));
     wi32(add(state, CC2_TCC_STATE_ERROR_COUNT_OFFSET), 0);
     result = sub(0, 1);
@@ -13245,22 +13243,20 @@ function elf_output_file(state, filename)
     return result;
 }
 
+function elf_output_file(state, filename) {
+    return elf_output_file_locals_(state, filename, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0);
+}
+
 function tcc_output_file(state, filename)
 {
     return elf_output_file(state, filename);
 }
 
-function add_init_array_defines(state, section_name)
+function add_init_array_defines_locals_(state, section_name, section,
+    end_offset, prefix, start_suffix, end_suffix, base_name, start_name,
+    end_name, name_bytes)
 {
-    var section;
-    var end_offset;
-    var prefix;
-    var start_suffix;
-    var end_suffix;
-    var base_name;
-    var start_name;
-    var end_name;
-    var name_bytes;
     prefix = mks("__");
     start_suffix = mks("_start");
     end_suffix = mks("_end");
@@ -13296,6 +13292,11 @@ function add_init_array_defines(state, section_name)
     return 0;
 }
 
+function add_init_array_defines(state, section_name) {
+    return add_init_array_defines_locals_(state, section_name, 0, 0, 0, 0, 0,
+        0, 0, 0, 0);
+}
+
 function cc2_linker_symbol_name_character(character)
 {
     if (eq(character, mkC("_"))) {
@@ -13313,10 +13314,9 @@ function cc2_linker_symbol_name_character(character)
     return le(128, character);
 }
 
-function cc2_add_section_boundary_symbol(section, prefix, value)
+function cc2_add_section_boundary_symbol_locals_(section, prefix, value, name,
+    name_bytes)
 {
-    var name;
-    var name_bytes;
     name_bytes = add(add(strlen(prefix), strlen(add(section,
         CC2_SECTION_NAME_OFFSET))), 1);
     name = malloc(name_bytes);
@@ -13329,15 +13329,14 @@ function cc2_add_section_boundary_symbol(section, prefix, value)
     return 0;
 }
 
-function tcc_add_linker_symbols(state)
+function cc2_add_section_boundary_symbol(section, prefix, value) {
+    return cc2_add_section_boundary_symbol_locals_(section, prefix, value, 0,
+        0);
+}
+
+function tcc_add_linker_symbols_locals_(state, section, sections,
+    section_count, section_index, name, name_index, valid_name)
 {
-    var section;
-    var sections;
-    var section_count;
-    var section_index;
-    var name;
-    var name_index;
-    var valid_name;
     section = ri32(text_section_address);
     set_elf_sym(ri32(symtab_section_address), ri32(add(section,
         CC2_SECTION_DATA_OFFSET)), 0, shl(CC2_ELF_SYMBOL_GLOBAL_BINDING,
@@ -13388,13 +13387,13 @@ function tcc_add_linker_symbols(state)
     return 0;
 }
 
-function resolve_common_syms(state)
+function tcc_add_linker_symbols(state) {
+    return tcc_add_linker_symbols_locals_(state, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function resolve_common_syms_locals_(state, symbol_table, symbol_offset,
+    symbol, section_index, bss_section)
 {
-    var symbol_table;
-    var symbol_offset;
-    var symbol;
-    var section_index;
-    var bss_section;
     symbol_table = ri32(symtab_section_address);
     bss_section = ri32(bss_section_address);
     symbol_offset = CC2_ELF_SYMBOL_BYTES;
@@ -13419,6 +13418,10 @@ function resolve_common_syms(state)
     }
     tcc_add_linker_symbols(state);
     return 0;
+}
+
+function resolve_common_syms(state) {
+    return resolve_common_syms_locals_(state, 0, 0, 0, 0, 0);
 }
 
 /* Grow the pool pointer vector with the same power-of-two rule as TCC. */
@@ -15933,19 +15936,10 @@ function force_charshort_cast(type)
     return force_charshort_cast_(type, 0, 0, 0);
 }
 
-function gen_cast_constant(type)
+function gen_cast_constant_locals_(type, destination_type, source_type,
+    destination_basic, source_basic, destination_float, source_float, value,
+    low, high, mask, sign_bit)
 {
-    var destination_type;
-    var source_type;
-    var destination_basic;
-    var source_basic;
-    var destination_float;
-    var source_float;
-    var value;
-    var low;
-    var high;
-    var mask;
-    var sign_bit;
     destination_type = and(ri32(type), or(CC2_TCC_BASIC_TYPE_MASK,
         CC2_TCC_UNSIGNED_TYPE));
     source_type = and(ri32(vtop), or(CC2_TCC_BASIC_TYPE_MASK,
@@ -16033,6 +16027,10 @@ function gen_cast_constant(type)
         wi32(add(value, 4), high);
     }
     return 0;
+}
+
+function gen_cast_constant(type) {
+    return gen_cast_constant_locals_(type, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 function gen_cast_s_(type_value, type)
@@ -16528,9 +16526,8 @@ function gv(required_class)
         0, 0, 0, 0);
 }
 
-function gv2(first_class, second_class)
+function gv2_locals_(first_class, second_class, location)
 {
-    var location;
     location = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
         CC2_VALUE_LOCATION_MASK);
     if (and(and(not(eq(location, CC2_VALUE_COMPARISON)),
@@ -16560,10 +16557,12 @@ function gv2(first_class, second_class)
     return 0;
 }
 
-function gvtst(inverted, jump_chain)
+function gv2(first_class, second_class) {
+    return gv2_locals_(first_class, second_class, 0);
+}
+
+function gvtst_locals_(inverted, jump_chain, location, value)
 {
-    var location;
-    var value;
     location = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
         CC2_VALUE_LOCATION_MASK);
     if (and(not(eq(location, CC2_VALUE_COMPARISON)), and(not(eq(location,
@@ -16581,6 +16580,10 @@ function gvtst(inverted, jump_chain)
         return jump_chain;
     }
     return gtst(inverted, jump_chain);
+}
+
+function gvtst(inverted, jump_chain) {
+    return gvtst_locals_(inverted, jump_chain, 0, 0);
 }
 
 function cc2_swap_svalues_(first, second, temporary)
@@ -17126,11 +17129,8 @@ function parse_asm_str(string)
 }
 
 /* Intern an asm label and return its token number. */
-function asm_label_instr()
+function asm_label_instr_locals_(string, token_symbol, token)
 {
-    var string;
-    var token_symbol;
-    var token;
     string = malloc(CC2_CSTRING_BYTES);
     next();
     parse_asm_str(string);
@@ -17141,6 +17141,10 @@ function asm_label_instr()
     cstr_free(string);
     free(string);
     return token;
+}
+
+function asm_label_instr() {
+    return asm_label_instr_locals_(0, 0, 0);
 }
 
 /* Compare unsigned words by biasing both into the signed ordering. */
@@ -17158,9 +17162,8 @@ function cc2_signed_wide_less(left_low, left_high, right_low, right_high)
     return cc2_unsigned_word_less(left_low, right_low);
 }
 
-function expr_const64_words(words)
+function expr_const64_words_locals_(words, registers)
 {
-    var registers;
     expr_const1();
     registers = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)), 65535);
     if (not(eq(and(registers, CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT))) {
@@ -17173,11 +17176,13 @@ function expr_const64_words(words)
     return 0;
 }
 
-function initializer_repeat(section, offset, element_size, element_count)
+function expr_const64_words(words) {
+    return expr_const64_words_locals_(words, 0);
+}
+
+function initializer_repeat_locals_(section, offset, element_size,
+    element_count, end, source, index)
 {
-    var end;
-    var source;
-    var index;
     end = add(offset, mul(element_count, element_size));
     if (lt(ri32(add(section, CC2_SECTION_DATA_ALLOCATED_OFFSET)), end)) {
         section_realloc(section, end);
@@ -17189,6 +17194,11 @@ function initializer_repeat(section, offset, element_size, element_count)
         index = add(index, 1);
     }
     return 0;
+}
+
+function initializer_repeat(section, offset, element_size, element_count) {
+    return initializer_repeat_locals_(section, offset, element_size,
+        element_count, 0, 0, 0);
 }
 
 function initializer_copy_string(section, offset, source, count)
@@ -17204,11 +17214,9 @@ function initializer_rewind(stream)
     return 0;
 }
 
-function decl_record_inline(symbol)
+function decl_record_inline_locals_(symbol, source_file, filename,
+    inline_record)
 {
-    var source_file;
-    var filename;
-    var inline_record;
     source_file = ri32(file_address);
     if (source_file) {
         filename = add(source_file, CC2_BUFFERED_FILE_FILENAME_OFFSET);
@@ -17224,6 +17232,10 @@ function decl_record_inline(symbol)
         add(tcc_state_address, CC2_TCC_STATE_INLINE_FUNCTION_COUNT_OFFSET),
         inline_record);
     return 0;
+}
+
+function decl_record_inline(symbol) {
+    return decl_record_inline_locals_(symbol, 0, 0, 0);
 }
 
 function cc2_wide_fits_signed_word(low, high)
@@ -17339,15 +17351,17 @@ function struct_decl_enum_(type, symbol, words, member_type, member,
     return 0;
 }
 
-function struct_decl_enum(type, symbol)
+function struct_decl_enum_locals_(type, symbol, scratch, result)
 {
-    var scratch;
-    var result;
     scratch = malloc(16);
     result = struct_decl_enum_(type, symbol, scratch, add(scratch, 8),
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     free(scratch);
     return result;
+}
+
+function struct_decl_enum(type, symbol) {
+    return struct_decl_enum_locals_(type, symbol, 0, 0);
 }
 
 function cc2_copy_type(destination, source)
@@ -17364,17 +17378,10 @@ function cc2_set_symbol_attributes(symbol, attributes)
     return 0;
 }
 
-function struct_decl_fields_(type, structure_kind, symbol, attributes,
-    field_attributes, declared_type, base_type, identifier, alignment)
+function struct_decl_fields__locals_(type, structure_kind, symbol, attributes,
+    field_attributes, declared_type, base_type, identifier, alignment, member,
+    last_member, name, size, bit_size, basic_type, flexible, has_field)
 {
-    var member;
-    var last_member;
-    var name;
-    var size;
-    var bit_size;
-    var basic_type;
-    var flexible;
-    var has_field;
     has_field = 0;
     flexible = 0;
     last_member = 0;
@@ -17512,16 +17519,27 @@ function struct_decl_fields_(type, structure_kind, symbol, attributes,
     return 0;
 }
 
-function struct_decl_fields(type, structure_kind, symbol, attributes)
+function struct_decl_fields_(type, structure_kind, symbol, attributes,
+    field_attributes, declared_type, base_type, identifier, alignment) {
+    return struct_decl_fields__locals_(type, structure_kind, symbol,
+        attributes, field_attributes, declared_type, base_type, identifier,
+        alignment, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function struct_decl_fields_locals_(type, structure_kind, symbol, attributes,
+    scratch, result)
 {
-    var scratch;
-    var result;
     scratch = malloc(48);
     result = struct_decl_fields_(type, structure_kind, symbol, attributes,
         scratch, add(scratch, 24), add(scratch, 32), add(scratch, 40),
         add(scratch, 44));
     free(scratch);
     return result;
+}
+
+function struct_decl_fields(type, structure_kind, symbol, attributes) {
+    return struct_decl_fields_locals_(type, structure_kind, symbol,
+        attributes, 0, 0);
 }
 
 function struct_decl_(type, structure_kind, attributes, declared_type,
@@ -17568,7 +17586,7 @@ function struct_decl_(type, structure_kind, attributes, declared_type,
         wi32(add(declared_type, 4), 0);
         symbol = sym_push(or(name, CC2_SYMBOL_STRUCT_FLAG), declared_type,
             0, sub(0, 1));
-        wi32(add(symbol, 4), and(ri32(add(symbol, 4)), 0xffff0000));
+        wi32(add(symbol, 4), and(ri32(add(symbol, 4)), CC2_HIGH_HALF_MASK));
     }
     wi32(type, ri32(add(symbol, CC2_SYM_TYPE_OFFSET)));
     wi32(add(type, 4), symbol);
@@ -17586,15 +17604,17 @@ function struct_decl_(type, structure_kind, attributes, declared_type,
     return 0;
 }
 
-function struct_decl(type, structure_kind)
+function struct_decl_locals_(type, structure_kind, scratch, result)
 {
-    var scratch;
-    var result;
     scratch = malloc(32);
     result = struct_decl_(type, structure_kind, scratch,
         add(scratch, 24), 0, 0, 0);
     free(scratch);
     return result;
+}
+
+function struct_decl(type, structure_kind) {
+    return struct_decl_locals_(type, structure_kind, 0, 0);
 }
 
 function parse_btype_(type, attributes, temporary_type, current_type,
@@ -17850,10 +17870,8 @@ function parse_btype_(type, attributes, temporary_type, current_type,
     return type_found;
 }
 
-function parse_btype(type, attributes)
+function parse_btype_locals_(type, attributes, temporary_type, result)
 {
-    var temporary_type;
-    var result;
     temporary_type = malloc(8);
     result = parse_btype_(type, attributes, temporary_type,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -17861,20 +17879,15 @@ function parse_btype(type, attributes)
     return result;
 }
 
-function expr_cond_(saved_value, result_type, first_type, second_type)
+function parse_btype(type, attributes) {
+    return parse_btype_locals_(type, attributes, 0, 0);
+}
+
+function expr_cond__locals_(saved_value, result_type, first_type, second_type,
+    condition, gnu_short, jump_false, jump_end, first_value, second_register,
+    register_class, first_basic, second_basic, first_value_type,
+    second_value_type, structure_lvalue)
 {
-    var condition;
-    var gnu_short;
-    var jump_false;
-    var jump_end;
-    var first_value;
-    var second_register;
-    var register_class;
-    var first_basic;
-    var second_basic;
-    var first_value_type;
-    var second_value_type;
-    var structure_lvalue;
     expr_lor();
     if (not(eq(ri32(tok_address), 63))) {
         return 0;
@@ -18050,7 +18063,7 @@ function expr_cond_(saved_value, result_type, first_type, second_type)
         first_value = gv(register_class);
         move_reg(second_register, first_value, ri32(result_type));
         wi32(add(vtop, CC2_SVALUE_REGISTER_OFFSET), or(and(ri32(add(vtop,
-            CC2_SVALUE_REGISTER_OFFSET)), 0xffff0000),
+            CC2_SVALUE_REGISTER_OFFSET)), CC2_HIGH_HALF_MASK),
             and(second_register, 65535)));
         gsym(jump_false);
         if (structure_lvalue) {
@@ -18060,10 +18073,13 @@ function expr_cond_(saved_value, result_type, first_type, second_type)
     return 0;
 }
 
-function expr_cond()
+function expr_cond_(saved_value, result_type, first_type, second_type) {
+    return expr_cond__locals_(saved_value, result_type, first_type,
+        second_type, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function expr_cond_locals_(scratch, result)
 {
-    var scratch;
-    var result;
     scratch = malloc(52);
     result = expr_cond_(scratch, add(scratch, 28), add(scratch, 36),
         add(scratch, 44));
@@ -18071,9 +18087,12 @@ function expr_cond()
     return result;
 }
 
-function cc2_vpush_wide(low, high)
+function expr_cond() {
+    return expr_cond_locals_(0, 0);
+}
+
+function cc2_vpush_wide_locals_(low, high, scratch)
 {
-    var scratch;
     scratch = malloc(16);
     wi32(scratch, CC2_TCC_LONG_LONG_TYPE);
     wi32(add(scratch, 4), 0);
@@ -18084,10 +18103,12 @@ function cc2_vpush_wide(low, high)
     return 0;
 }
 
-function case_cmp(first_pointer, second_pointer)
+function cc2_vpush_wide(low, high) {
+    return cc2_vpush_wide_locals_(low, high, 0);
+}
+
+function case_cmp_locals_(first_pointer, second_pointer, first, second)
 {
-    var first;
-    var second;
     first = ri32(first_pointer);
     second = ri32(second_pointer);
     if (cc2_signed_wide_less(ri32(first), ri32(add(first, 4)),
@@ -18101,6 +18122,10 @@ function case_cmp(first_pointer, second_pointer)
     return 0;
 }
 
+function case_cmp(first_pointer, second_pointer) {
+    return case_cmp_locals_(first_pointer, second_pointer, 0, 0);
+}
+
 function cc2_push_case_value(case_record, offset, wide)
 {
     if (wide) {
@@ -18112,12 +18137,9 @@ function cc2_push_case_value(case_record, offset, wide)
     return 0;
 }
 
-function gcase(base, length, break_symbol)
+function gcase_locals_(base, length, break_symbol, case_record, jump, half,
+    wide)
 {
-    var case_record;
-    var jump;
-    var half;
-    var wide;
     wide = eq(and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK),
         CC2_TCC_LONG_LONG_TYPE);
     gv(CC2_INTEGER_REGISTER_CLASS);
@@ -18172,13 +18194,13 @@ function gcase(base, length, break_symbol)
     return 0;
 }
 
+function gcase(base, length, break_symbol) {
+    return gcase_locals_(base, length, break_symbol, 0, 0, 0, 0);
+}
+
 /* Save or skip one balanced initializer/association token region. */
-function skip_or_save_block(output)
+function skip_or_save_block_locals_(output, braces, level, token, stream)
 {
-    var braces;
-    var level;
-    var token;
-    var stream;
     braces = eq(ri32(tok_address), 123);
     level = 0;
     stream = 0;
@@ -18218,12 +18240,13 @@ function skip_or_save_block(output)
     return 0;
 }
 
-function parse_init_elem(expression_type)
+function skip_or_save_block(output) {
+    return skip_or_save_block_locals_(output, 0, 0, 0, 0);
+}
+
+function parse_init_elem_locals_(expression_type, saved_global_expression,
+    registers, symbol, invalid)
 {
-    var saved_global_expression;
-    var registers;
-    var symbol;
-    var invalid;
     if (eq(expression_type, 1)) {
         saved_global_expression = global_expr;
         global_expr = 1;
@@ -18253,6 +18276,10 @@ function parse_init_elem(expression_type)
     return 0;
 }
 
+function parse_init_elem(expression_type) {
+    return parse_init_elem_locals_(expression_type, 0, 0, 0, 0);
+}
+
 function init_putz(section, offset, size)
 {
     if (not(section)) {
@@ -18265,19 +18292,11 @@ function init_putz(section, offset, size)
     return 0;
 }
 
-function decl_designator(type, section, offset, current_field, size_only,
-    initialized_length)
+function decl_designator_locals_(type, section, offset, current_field,
+    size_only, initialized_length, original_offset, element_size,
+    element_count, index, last_index, alignment, symbol, field, field_token,
+    cursor)
 {
-    var original_offset;
-    var element_size;
-    var element_count;
-    var index;
-    var last_index;
-    var alignment;
-    var symbol;
-    var field;
-    var field_token;
-    var cursor;
     original_offset = offset;
     element_size = 0;
     element_count = 1;
@@ -18417,27 +18436,18 @@ function decl_designator(type, section, offset, current_field, size_only,
     return initialized_length;
 }
 
-function decl_initializer(type, section, offset, first, size_only)
+function decl_designator(type, section, offset, current_field, size_only,
+    initialized_length) {
+    return decl_designator_locals_(type, section, offset, current_field,
+        size_only, initialized_length, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function decl_initializer_locals_(type, section, offset, first, size_only,
+    have_element, type_value, symbol, field, field_holder, index_symbol,
+    element_type, element_size, alignment, count, length, string_length,
+    copy_count, index, character, no_outer_block, string_initializer,
+    is_array, token)
 {
-    var have_element;
-    var type_value;
-    var symbol;
-    var field;
-    var field_holder;
-    var index_symbol;
-    var element_type;
-    var element_size;
-    var alignment;
-    var count;
-    var length;
-    var string_length;
-    var copy_count;
-    var index;
-    var character;
-    var no_outer_block;
-    var string_initializer;
-    var is_array;
-    var token;
     token = ri32(tok_address);
     have_element = or(eq(token, 125), eq(token, 44));
     if (not(have_element)) {
@@ -18643,25 +18653,17 @@ function decl_initializer(type, section, offset, first, size_only)
     return 0;
 }
 
-function decl_initializer_alloc(type, attributes, storage, has_initializer,
-    value, scope)
+function decl_initializer(type, section, offset, first, size_only) {
+    return decl_initializer_locals_(type, section, offset, first, size_only,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function decl_initializer_alloc_locals_(type, attributes, storage,
+    has_initializer, value, scope, size, alignment, address, section,
+    flexible_array, field, symbol, initializer_holder, initializer_stream,
+    saved_no_code, specified_alignment, asm_label, reg, relocation_section,
+    old_relocation_offset, skip_allocation)
 {
-    var size;
-    var alignment;
-    var address;
-    var section;
-    var flexible_array;
-    var field;
-    var symbol;
-    var initializer_holder;
-    var initializer_stream;
-    var saved_no_code;
-    var specified_alignment;
-    var asm_label;
-    var reg;
-    var relocation_section;
-    var old_relocation_offset;
-    var skip_allocation;
     saved_no_code = nocode_wanted;
     alignment = malloc(4);
     initializer_holder = malloc(4);
@@ -18868,23 +18870,18 @@ function decl_initializer_alloc(type, attributes, storage, has_initializer,
     return 0;
 }
 
+function decl_initializer_alloc(type, attributes, storage, has_initializer,
+    value, scope) {
+    return decl_initializer_alloc_locals_(type, attributes, storage,
+        has_initializer, value, scope, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0);
+}
+
 /* Drive declarations after cc2 has recognized their shared base type. */
-function decl0(scope, is_for_loop_initializer, function_symbol)
+function decl0_locals_(scope, is_for_loop_initializer, function_symbol,
+    identifier, has_initializer, storage, type, base_type, attributes, symbol,
+    field, token, type_value, result, finished, alias_symbol, elf_symbol)
 {
-    var identifier;
-    var has_initializer;
-    var storage;
-    var type;
-    var base_type;
-    var attributes;
-    var symbol;
-    var field;
-    var token;
-    var type_value;
-    var result;
-    var finished;
-    var alias_symbol;
-    var elf_symbol;
     type = malloc(8);
     base_type = malloc(8);
     attributes = malloc(CC2_ATTRIBUTE_BYTES);
@@ -19226,13 +19223,14 @@ function decl0(scope, is_for_loop_initializer, function_symbol)
     return result;
 }
 
-function tcc_debug_start(state)
+function decl0(scope, is_for_loop_initializer, function_symbol) {
+    return decl0_locals_(scope, is_for_loop_initializer, function_symbol, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function tcc_debug_start_locals_(state, source_file, text_section,
+    symbol_table, directory, path)
 {
-    var source_file;
-    var text_section;
-    var symbol_table;
-    var directory;
-    var path;
     source_file = ri32(file_address);
     text_section = ri32(text_section_address);
     symbol_table = ri32(symtab_section_address);
@@ -19263,9 +19261,12 @@ function tcc_debug_start(state)
     return 0;
 }
 
-function tcc_debug_end(state)
+function tcc_debug_start(state) {
+    return tcc_debug_start_locals_(state, 0, 0, 0, 0, 0);
+}
+
+function tcc_debug_end_locals_(state, text_section)
 {
-    var text_section;
     if (not(ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET)))) {
         return 0;
     }
@@ -19276,10 +19277,12 @@ function tcc_debug_end(state)
     return 0;
 }
 
-function tcc_debug_line(state)
+function tcc_debug_end(state) {
+    return tcc_debug_end_locals_(state, 0);
+}
+
+function tcc_debug_line_locals_(state, source_file, line)
 {
-    var source_file;
-    var line;
     if (not(ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET)))) {
         return 0;
     }
@@ -19294,11 +19297,13 @@ function tcc_debug_line(state)
     return 0;
 }
 
-function tcc_debug_funcstart(state, symbol)
+function tcc_debug_line(state) {
+    return tcc_debug_line_locals_(state, 0, 0);
+}
+
+function tcc_debug_funcstart_locals_(state, symbol, source_file, buffer_size,
+    buffer)
 {
-    var source_file;
-    var buffer_size;
-    var buffer;
     if (not(ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET)))) {
         return 0;
     }
@@ -19326,6 +19331,10 @@ function tcc_debug_funcstart(state, symbol)
     return 0;
 }
 
+function tcc_debug_funcstart(state, symbol) {
+    return tcc_debug_funcstart_locals_(state, symbol, 0, 0, 0);
+}
+
 function tcc_debug_funcend(state, size)
 {
     if (ri32(add(state, CC2_TCC_STATE_DEBUG_OFFSET))) {
@@ -19334,10 +19343,8 @@ function tcc_debug_funcend(state, size)
     return 0;
 }
 
-function tccgen_compile(state)
+function tccgen_compile_locals_(state, symbol, packed_function)
 {
-    var symbol;
-    var packed_function;
     wi32(cur_text_section_address, 0);
     funcname = mks("");
     anon_sym = CC2_SYMBOL_FIRST_ANONYMOUS;
@@ -19373,16 +19380,13 @@ function tccgen_compile(state)
     return 0;
 }
 
-function gen_inline_functions(state)
+function tccgen_compile(state) {
+    return tccgen_compile_locals_(state, 0, 0);
+}
+
+function gen_inline_functions_locals_(state, source_file, saved_line,
+    generated, index, count, functions, inline_function, symbol)
 {
-    var source_file;
-    var saved_line;
-    var generated;
-    var index;
-    var count;
-    var functions;
-    var inline_function;
-    var symbol;
     source_file = ri32(file_address);
     saved_line = ri32(add(source_file, CC2_BUFFERED_FILE_LINE_OFFSET));
     generated = 1;
@@ -19427,12 +19431,13 @@ function gen_inline_functions(state)
     return 0;
 }
 
-function free_inline_functions(state)
+function gen_inline_functions(state) {
+    return gen_inline_functions_locals_(state, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function free_inline_functions_locals_(state, index, count, functions,
+    inline_function)
 {
-    var index;
-    var count;
-    var functions;
-    var inline_function;
     index = 0;
     count = ri32(add(state, CC2_TCC_STATE_INLINE_FUNCTION_COUNT_OFFSET));
     functions = ri32(add(state, CC2_TCC_STATE_INLINE_FUNCTIONS_OFFSET));
@@ -19449,15 +19454,14 @@ function free_inline_functions(state)
     return 0;
 }
 
-function put_extern_sym2(symbol, section_index, value, size,
-    can_add_underscore)
+function free_inline_functions(state) {
+    return free_inline_functions_locals_(state, 0, 0, 0, 0);
+}
+
+function put_extern_sym2_locals_(symbol, section_index, value, size,
+    can_add_underscore, type_value, symbol_type, binding, information, name,
+    elf_symbol)
 {
-    var type_value;
-    var symbol_type;
-    var binding;
-    var information;
-    var name;
-    var elf_symbol;
     if (eq(ri32(add(symbol, CC2_SYM_CONSTANT_OFFSET)), 0)) {
         name = get_tok_str(ri32(add(symbol, CC2_SYM_VALUE_OFFSET)), 0);
         type_value = ri32(add(symbol, CC2_SYM_TYPE_OFFSET));
@@ -19496,9 +19500,14 @@ function put_extern_sym2(symbol, section_index, value, size,
     return 0;
 }
 
-function put_extern_sym(symbol, section, value, size)
+function put_extern_sym2(symbol, section_index, value, size,
+    can_add_underscore) {
+    return put_extern_sym2_locals_(symbol, section_index, value, size,
+        can_add_underscore, 0, 0, 0, 0, 0, 0);
+}
+
+function put_extern_sym_locals_(symbol, section, value, size, section_index)
 {
-    var section_index;
     section_index = 0;
     if (section) {
         section_index = ri32(add(section, CC2_SECTION_NUMBER_OFFSET));
@@ -19506,9 +19515,12 @@ function put_extern_sym(symbol, section, value, size)
     return put_extern_sym2(symbol, section_index, value, size, 1);
 }
 
-function greloca(section, symbol, offset, type, addend)
+function put_extern_sym(symbol, section, value, size) {
+    return put_extern_sym_locals_(symbol, section, value, size, 0);
+}
+
+function greloca_locals_(section, symbol, offset, type, addend, symbol_index)
 {
-    var symbol_index;
     symbol_index = 0;
     if (nocode_wanted) {
         if (eq(section, ri32(cur_text_section_address))) {
@@ -19524,6 +19536,10 @@ function greloca(section, symbol, offset, type, addend)
     put_elf_reloca(ri32(symtab_section_address), section, offset, type,
         symbol_index, addend);
     return 0;
+}
+
+function greloca(section, symbol, offset, type, addend) {
+    return greloca_locals_(section, symbol, offset, type, addend, 0);
 }
 
 function greloc(section, symbol, offset, type)
@@ -19581,14 +19597,9 @@ function gotplt_entry_type(relocation_type)
     return sub(0, 1);
 }
 
-function create_plt_entry(state, got_offset, attributes)
+function create_plt_entry_locals_(state, got_offset, attributes, plt, got,
+    pointer, modrm, plt_offset, relocation_offset)
 {
-    var plt;
-    var got;
-    var pointer;
-    var modrm;
-    var plt_offset;
-    var relocation_offset;
     plt = ri32(add(state, CC2_TCC_STATE_PLT_OFFSET));
     got = ri32(add(state, CC2_TCC_STATE_GOT_OFFSET));
     if (eq(ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET)),
@@ -19625,13 +19636,13 @@ function create_plt_entry(state, got_offset, attributes)
     return plt_offset;
 }
 
-function relocate_plt(state)
+function create_plt_entry(state, got_offset, attributes) {
+    return create_plt_entry_locals_(state, got_offset, attributes, 0, 0, 0, 0,
+        0, 0);
+}
+
+function relocate_plt_locals_(state, plt, got, pointer, end, got_address)
 {
-    var plt;
-    var got;
-    var pointer;
-    var end;
-    var got_address;
     plt = ri32(add(state, CC2_TCC_STATE_PLT_OFFSET));
     if (eq(plt, 0)) {
         return 0;
@@ -19650,6 +19661,10 @@ function relocate_plt(state)
         }
     }
     return 0;
+}
+
+function relocate_plt(state) {
+    return relocate_plt_locals_(state, 0, 0, 0, 0, 0);
 }
 
 function relocate_init(relocation_section)
@@ -19682,13 +19697,9 @@ function cc2_write_u16(address, value)
     return 0;
 }
 
-function relocate(state, relocation, type, pointer, address, value)
+function relocate_locals_(state, relocation, type, pointer, address, value,
+    information, symbol_index, attributes, dynamic_index, got)
 {
-    var information;
-    var symbol_index;
-    var attributes;
-    var dynamic_index;
-    var got;
     information = ri32(add(relocation, CC2_ELF_RELOCATION_INFO_OFFSET));
     symbol_index = ushr(information, CC2_ELF_RELOCATION_SYMBOL_SHIFT);
     attributes = add(ri32(add(state,
@@ -19775,11 +19786,14 @@ function relocate(state, relocation, type, pointer, address, value)
     return 0;
 }
 
+function relocate(state, relocation, type, pointer, address, value) {
+    return relocate_locals_(state, relocation, type, pointer, address, value,
+        0, 0, 0, 0, 0);
+}
+
 /* i386 target-byte emission belongs to cc2, not the typed C remainder. */
-function g(byte_value)
+function g_locals_(byte_value, section, next_offset)
 {
-    var section;
-    var next_offset;
     if (nocode_wanted) {
         return 0;
     }
@@ -19793,6 +19807,10 @@ function g(byte_value)
         byte_value);
     ind = next_offset;
     return 0;
+}
+
+function g(byte_value) {
+    return g_locals_(byte_value, 0, 0);
 }
 
 function o(instruction)
@@ -19820,11 +19838,8 @@ function gen_le32(value)
     return 0;
 }
 
-function gsym_addr(jump_chain, address)
+function gsym_addr_locals_(jump_chain, address, section, patch, next)
 {
-    var section;
-    var patch;
-    var next;
     section = ri32(cur_text_section_address);
     while (jump_chain) {
         patch = add(ri32(add(section, CC2_SECTION_DATA_POINTER_OFFSET)),
@@ -19836,14 +19851,17 @@ function gsym_addr(jump_chain, address)
     return 0;
 }
 
+function gsym_addr(jump_chain, address) {
+    return gsym_addr_locals_(jump_chain, address, 0, 0, 0);
+}
+
 function gsym(jump_chain)
 {
     return gsym_addr(jump_chain, ind);
 }
 
-function oad(instruction, value)
+function oad_locals_(instruction, value, immediate_offset)
 {
-    var immediate_offset;
     if (nocode_wanted) {
         return value;
     }
@@ -19851,6 +19869,10 @@ function oad(instruction, value)
     immediate_offset = ind;
     gen_le32(value);
     return immediate_offset;
+}
+
+function oad(instruction, value) {
+    return oad_locals_(instruction, value, 0);
 }
 
 function gen_addr32(registers, symbol, value)
@@ -19873,9 +19895,9 @@ function gen_addrpc32(registers, symbol, value)
     return 0;
 }
 
-function gen_modrm(opcode_register, registers, symbol, constant)
+function gen_modrm_locals_(opcode_register, registers, symbol, constant,
+    location)
 {
-    var location;
     opcode_register = shl(opcode_register, 3);
     location = and(registers, CC2_VALUE_LOCATION_MASK);
     if (eq(location, CC2_VALUE_CONSTANT)) {
@@ -19894,13 +19916,13 @@ function gen_modrm(opcode_register, registers, symbol, constant)
     return 0;
 }
 
-function load(target_reg, value)
+function gen_modrm(opcode_register, registers, symbol, constant) {
+    return gen_modrm_locals_(opcode_register, registers, symbol, constant, 0);
+}
+
+function load_locals_(target_reg, value, registers, type_value, constant,
+    location, temporary)
 {
-    var registers;
-    var type_value;
-    var constant;
-    var location;
-    var temporary;
     registers = ri32(add(value, CC2_SVALUE_REGISTER_OFFSET));
     type_value = and(ri32(value), bnot(CC2_TCC_DEFAULT_SIGN));
     constant = ri32(add(value, CC2_SVALUE_CONSTANT_OFFSET));
@@ -19984,13 +20006,13 @@ function load(target_reg, value)
     return 0;
 }
 
-function store(target_reg, value)
+function load(target_reg, value) {
+    return load_locals_(target_reg, value, 0, 0, 0, 0, 0);
+}
+
+function store_locals_(target_reg, value, registers, type_value, basic_type,
+    constant, location)
 {
-    var registers;
-    var type_value;
-    var basic_type;
-    var constant;
-    var location;
     registers = ri32(add(value, CC2_SVALUE_REGISTER_OFFSET));
     type_value = and(ri32(value), bnot(or(CC2_TCC_VOLATILE_QUALIFIER,
         CC2_TCC_CONST_QUALIFIER)));
@@ -20028,6 +20050,10 @@ function store(target_reg, value)
     return 0;
 }
 
+function store(target_reg, value) {
+    return store_locals_(target_reg, value, 0, 0, 0, 0, 0);
+}
+
 function gadd_sp(value)
 {
     if (and(le(sub(0, 128), value), lt(value, 128))) {
@@ -20039,12 +20065,9 @@ function gadd_sp(value)
     return 0;
 }
 
-function gcall_or_jmp(is_jump)
+function gcall_or_jmp_locals_(is_jump, registers, target_reg, function_type,
+    return_type)
 {
-    var registers;
-    var target_reg;
-    var function_type;
-    var return_type;
     registers = ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET));
     if (and(eq(and(registers, or(CC2_VALUE_LOCATION_MASK,
         CC2_TCC_LVALUE)), CC2_VALUE_CONSTANT),
@@ -20081,14 +20104,17 @@ function gcall_or_jmp(is_jump)
     return 0;
 }
 
+function gcall_or_jmp(is_jump) {
+    return gcall_or_jmp_locals_(is_jump, 0, 0, 0, 0);
+}
+
 function gjmp(jump_chain)
 {
     return oad(233, jump_chain);
 }
 
-function gjmp_addr(address)
+function gjmp_addr_locals_(address, displacement)
 {
-    var displacement;
     displacement = sub(sub(address, ind), 2);
     if (and(le(sub(0, 128), displacement), lt(displacement, 128))) {
         g(235);
@@ -20099,10 +20125,12 @@ function gjmp_addr(address)
     return 0;
 }
 
-function gtst_addr(inverted, address)
+function gjmp_addr(address) {
+    return gjmp_addr_locals_(address, 0);
+}
+
+function gtst_addr_locals_(inverted, address, location, constant)
 {
-    var location;
-    var constant;
     location = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
         CC2_VALUE_LOCATION_MASK);
     constant = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
@@ -20131,13 +20159,13 @@ function gtst_addr(inverted, address)
     return 0;
 }
 
-function gtst(inverted, jump_chain)
+function gtst_addr(inverted, address) {
+    return gtst_addr_locals_(inverted, address, 0, 0);
+}
+
+function gtst_locals_(inverted, jump_chain, location, constant, section, link,
+    next)
 {
-    var location;
-    var constant;
-    var section;
-    var link;
-    var next;
     location = and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
         CC2_VALUE_LOCATION_MASK);
     constant = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
@@ -20172,6 +20200,10 @@ function gtst(inverted, jump_chain)
     return jump_chain;
 }
 
+function gtst(inverted, jump_chain) {
+    return gtst_locals_(inverted, jump_chain, 0, 0, 0, 0, 0);
+}
+
 function gen_vla_sp_save(address)
 {
     o(137);
@@ -20186,15 +20218,18 @@ function gen_vla_sp_restore(address)
     return 0;
 }
 
-function gen_vla_alloc(type, alignment)
+function gen_vla_alloc_locals_(type, alignment, size_reg)
 {
-    var size_reg;
     size_reg = gv(CC2_INTEGER_REGISTER_CLASS);
     o(43);
     o(or(224, size_reg));
     o(15787139);
     vpop();
     return 0;
+}
+
+function gen_vla_alloc(type, alignment) {
+    return gen_vla_alloc_locals_(type, alignment, 0);
 }
 
 function gfunc_sret(type, variadic, return_type, alignment, register_size)
@@ -20209,10 +20244,8 @@ function gen_cvt_ftof(type)
     return 0;
 }
 
-function gen_cvt_itof(type)
+function gen_cvt_itof_locals_(type, type_value, value_reg)
 {
-    var type_value;
-    var value_reg;
     save_reg(CC2_I386_FLOAT_RETURN_REGISTER);
     gv(CC2_INTEGER_REGISTER_CLASS);
     type_value = ri32(vtop);
@@ -20243,10 +20276,12 @@ function gen_cvt_itof(type)
     return 0;
 }
 
-function gen_cvt_ftoi(type)
+function gen_cvt_itof(type) {
+    return gen_cvt_itof_locals_(type, 0, 0);
+}
+
+function gen_cvt_ftoi_locals_(type, basic_type, helper)
 {
-    var basic_type;
-    var helper;
     basic_type = and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK);
     if (eq(basic_type, CC2_TCC_FLOAT_TYPE)) {
         helper = CC2_TOKEN_FLOAT_TO_SIGNED_LONG_LONG;
@@ -20266,6 +20301,10 @@ function gen_cvt_ftoi(type)
     return 0;
 }
 
+function gen_cvt_ftoi(type) {
+    return gen_cvt_ftoi_locals_(type, 0, 0);
+}
+
 function cc2_fastcall_register(call_kind, index)
 {
     if (eq(call_kind, CC2_FUNCTION_FASTCALL_WINDOWS)) {
@@ -20283,17 +20322,10 @@ function cc2_fastcall_register(call_kind, index)
     return 1;
 }
 
-function gfunc_prolog(function_type)
+function gfunc_prolog_locals_(function_type, function_symbol, function_call,
+    register_count, parameter_index, stack_address, parameter_address,
+    parameter_type, size, alignment)
 {
-    var function_symbol;
-    var function_call;
-    var register_count;
-    var parameter_index;
-    var stack_address;
-    var parameter_address;
-    var parameter_type;
-    var size;
-    var alignment;
     function_symbol = ri32(add(function_type, 4));
     function_call = and(ri32(add(function_symbol,
         CC2_SYM_FUNCTION_ATTRIBUTES_OFFSET)), CC2_FUNCTION_CALL_MASK);
@@ -20356,10 +20388,12 @@ function gfunc_prolog(function_type)
     return 0;
 }
 
-function gfunc_epilog()
+function gfunc_prolog(function_type) {
+    return gfunc_prolog_locals_(function_type, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function gfunc_epilog_locals_(local_bytes, saved_ind)
 {
-    var local_bytes;
-    var saved_ind;
     local_bytes = and(add(sub(0, loc), 3), bnot(3));
     o(201);
     if (eq(CC2_FUNCTION_RETURN_POP_BYTES, 0)) {
@@ -20379,17 +20413,13 @@ function gfunc_epilog()
     return 0;
 }
 
-function gen_opf(operation)
+function gfunc_epilog() {
+    return gfunc_epilog_locals_(0, 0);
+}
+
+function gen_opf_locals_(operation, first, first_registers, second_registers,
+    swapped, arithmetic_code, type_value, constant, registers, scratch)
 {
-    var first;
-    var first_registers;
-    var second_registers;
-    var swapped;
-    var arithmetic_code;
-    var type_value;
-    var constant;
-    var registers;
-    var scratch;
     first = sub(vtop, CC2_SVALUE_BYTES);
     first_registers = and(ri32(add(first,
         CC2_SVALUE_REGISTER_OFFSET)), 65535);
@@ -20524,6 +20554,10 @@ function gen_opf(operation)
     return 0;
 }
 
+function gen_opf(operation) {
+    return gen_opf_locals_(operation, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 /* SValue packs r and r2 into adjacent 16-bit fields. */
 function cc2_set_primary_register(value, reg)
 {
@@ -20539,12 +20573,9 @@ function cc2_set_secondary_register(value, reg)
     return 0;
 }
 
-function cc2_gen_integer_op8(operation, opcode)
+function cc2_gen_integer_op8_locals_(operation, opcode, first, registers,
+    second_registers, constant)
 {
-    var first;
-    var registers;
-    var second_registers;
-    var constant;
     if (eq(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
         CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT)) {
         vswap();
@@ -20587,11 +20618,12 @@ function cc2_gen_integer_op8(operation, opcode)
     return 0;
 }
 
-function cc2_gen_integer_shift(opcode)
+function cc2_gen_integer_op8(operation, opcode) {
+    return cc2_gen_integer_op8_locals_(operation, opcode, 0, 0, 0, 0);
+}
+
+function cc2_gen_integer_shift_locals_(opcode, first, registers, constant)
 {
-    var first;
-    var registers;
-    var constant;
     opcode = or(192, shl(opcode, 3));
     if (eq(and(ri32(add(vtop, CC2_SVALUE_REGISTER_OFFSET)),
         CC2_VALUE_TEST_MASK), CC2_VALUE_CONSTANT)) {
@@ -20615,11 +20647,12 @@ function cc2_gen_integer_shift(opcode)
     return 0;
 }
 
-function cc2_gen_integer_multiply()
+function cc2_gen_integer_shift(opcode) {
+    return cc2_gen_integer_shift_locals_(opcode, 0, 0, 0);
+}
+
+function cc2_gen_integer_multiply_locals_(first, registers, second_registers)
 {
-    var first;
-    var registers;
-    var second_registers;
     gv2(CC2_INTEGER_REGISTER_CLASS, CC2_INTEGER_REGISTER_CLASS);
     first = sub(vtop, CC2_SVALUE_BYTES);
     registers = and(ri32(add(first,
@@ -20632,11 +20665,13 @@ function cc2_gen_integer_multiply()
     return 0;
 }
 
-function cc2_gen_integer_divide(operation)
+function cc2_gen_integer_multiply() {
+    return cc2_gen_integer_multiply_locals_(0, 0, 0);
+}
+
+function cc2_gen_integer_divide_locals_(operation, first, registers,
+    second_registers)
 {
-    var first;
-    var registers;
-    var second_registers;
     gv2(CC2_I386_INTEGER_RETURN_CLASS, CC2_I386_EXACT_ECX_CLASS);
     first = sub(vtop, CC2_SVALUE_BYTES);
     registers = and(ri32(add(first,
@@ -20670,6 +20705,10 @@ function cc2_gen_integer_divide(operation)
     }
     cc2_set_primary_register(vtop, registers);
     return 0;
+}
+
+function cc2_gen_integer_divide(operation) {
+    return cc2_gen_integer_divide_locals_(operation, 0, 0, 0);
 }
 
 function gen_opi(operation)
@@ -20720,17 +20759,9 @@ function gen_opi(operation)
     return cc2_gen_integer_op8(operation, 7);
 }
 
-function gfunc_call(argument_count)
+function gfunc_call_locals_(argument_count, arguments_size, index, basic_type,
+    size, alignment, value_reg, function_symbol, call_kind, register_count)
 {
-    var arguments_size;
-    var index;
-    var basic_type;
-    var size;
-    var alignment;
-    var value_reg;
-    var function_symbol;
-    var call_kind;
-    var register_count;
     arguments_size = 0;
     alignment = malloc(4);
     index = 0;
@@ -20813,6 +20844,10 @@ function gfunc_call(argument_count)
     return 0;
 }
 
+function gfunc_call(argument_count) {
+    return gfunc_call_locals_(argument_count, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 function ggoto()
 {
     gcall_or_jmp(1);
@@ -20820,31 +20855,13 @@ function ggoto()
     return 0;
 }
 
-function init_putv(type, section, offset)
+function init_putv_locals_(type, section, offset, destination_type, alignment,
+    type_value, basic_type, registers, symbol, size, destination,
+    source_elf_symbol, source_section, source_offset, relocation_section,
+    relocation_count, relocation, relocation_offset, relocation_info,
+    bit_position, bit_size, bits_written, bits_this_byte, byte_value,
+    byte_mask, value)
 {
-    var destination_type;
-    var alignment;
-    var type_value;
-    var basic_type;
-    var registers;
-    var symbol;
-    var size;
-    var destination;
-    var source_elf_symbol;
-    var source_section;
-    var source_offset;
-    var relocation_section;
-    var relocation_count;
-    var relocation;
-    var relocation_offset;
-    var relocation_info;
-    var bit_position;
-    var bit_size;
-    var bits_written;
-    var bits_this_byte;
-    var byte_value;
-    var byte_mask;
-    var value;
     destination_type = malloc(8);
     cc2_copy_type(destination_type, type);
     wi32(destination_type, and(ri32(destination_type),
@@ -21029,11 +21046,15 @@ function init_putv(type, section, offset)
     return 0;
 }
 
+function init_putv(type, section, offset) {
+    return init_putv_locals_(type, section, offset, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 /* Append diagnostic text without relying on C varargs or fixed scratch arrays. */
-function cc2_type_string_append(buffer, buffer_size, suffix)
+function cc2_type_string_append_locals_(buffer, buffer_size, suffix,
+    destination, remaining)
 {
-    var destination;
-    var remaining;
     destination = buffer;
     remaining = buffer_size;
     while (and(lt(1, remaining), not(eq(ri8(destination), 0)))) {
@@ -21052,12 +21073,13 @@ function cc2_type_string_append(buffer, buffer_size, suffix)
     return buffer;
 }
 
-function cc2_type_string_decimal(buffer, buffer_size, value)
+function cc2_type_string_append(buffer, buffer_size, suffix) {
+    return cc2_type_string_append_locals_(buffer, buffer_size, suffix, 0, 0);
+}
+
+function cc2_type_string_decimal_locals_(buffer, buffer_size, value, digits,
+    count, negative, index)
 {
-    var digits;
-    var count;
-    var negative;
-    var index;
     digits = malloc(16);
     count = 0;
     negative = lt(value, 0);
@@ -21087,21 +21109,20 @@ function cc2_type_string_decimal(buffer, buffer_size, value)
     return buffer;
 }
 
+function cc2_type_string_decimal(buffer, buffer_size, value) {
+    return cc2_type_string_decimal_locals_(buffer, buffer_size, value, 0, 0,
+        0, 0);
+}
+
 function cc2_type_is_enum(type_value)
 {
     return eq(and(type_value, CC2_TCC_STRUCT_KIND_MASK),
         CC2_TCC_ENUM_KIND);
 }
 
-function cc2_type_to_str(buffer, buffer_size, type, variable)
+function cc2_type_to_str_locals_(buffer, buffer_size, type, variable,
+    type_value, basic_type, reference, argument, scratch, token, type_name)
 {
-    var type_value;
-    var basic_type;
-    var reference;
-    var argument;
-    var scratch;
-    var token;
-    var type_name;
     type_value = ri32(type);
     basic_type = and(type_value, CC2_TCC_BASIC_TYPE_MASK);
     wi8(buffer, 0);
@@ -21240,10 +21261,14 @@ function cc2_type_to_str(buffer, buffer_size, type, variable)
     return buffer;
 }
 
-function tcc_error_type_pair(source_type, destination_type)
+function cc2_type_to_str(buffer, buffer_size, type, variable) {
+    return cc2_type_to_str_locals_(buffer, buffer_size, type, variable, 0, 0,
+        0, 0, 0, 0, 0);
+}
+
+function tcc_error_type_pair_locals_(source_type, destination_type, source,
+    destination)
 {
-    var source;
-    var destination;
     source = malloc(CC2_TYPE_ERROR_BUFFER_BYTES);
     destination = malloc(CC2_TYPE_ERROR_BUFFER_BYTES);
     cc2_type_to_str(source, CC2_TYPE_ERROR_BUFFER_BYTES, source_type, 0);
@@ -21251,6 +21276,10 @@ function tcc_error_type_pair(source_type, destination_type)
         destination_type, 0);
     tcc_error(mks("cannot cast '%s' to '%s'"), source, destination);
     return 0;
+}
+
+function tcc_error_type_pair(source_type, destination_type) {
+    return tcc_error_type_pair_locals_(source_type, destination_type, 0, 0);
 }
 
 function parse_mult_str(string, message)
@@ -21313,12 +21342,9 @@ function block_continue(continue_symbol)
     return 0;
 }
 
-function block_if(break_symbol, continue_symbol)
+function block_if_locals_(break_symbol, continue_symbol, false_jump, end_jump,
+    condition, saved_nocode)
 {
-    var false_jump;
-    var end_jump;
-    var condition;
-    var saved_nocode;
     saved_nocode = nocode_wanted;
     next();
     skip(40);
@@ -21356,11 +21382,12 @@ function block_if(break_symbol, continue_symbol)
     return 0;
 }
 
-function block_while()
+function block_if(break_symbol, continue_symbol) {
+    return block_if_locals_(break_symbol, continue_symbol, 0, 0, 0, 0);
+}
+
+function block_while_locals_(symbols, loop_address, saved_nocode)
 {
-    var symbols;
-    var loop_address;
-    var saved_nocode;
     nocode_wanted = and(nocode_wanted, bnot(536870912));
     next();
     loop_address = ind;
@@ -21383,12 +21410,12 @@ function block_while()
     return 0;
 }
 
-function block_do()
+function block_while() {
+    return block_while_locals_(0, 0, 0);
+}
+
+function block_do_locals_(symbols, loop_address, condition_jump, saved_nocode)
 {
-    var symbols;
-    var loop_address;
-    var condition_jump;
-    var saved_nocode;
     nocode_wanted = and(nocode_wanted, bnot(536870912));
     next();
     symbols = malloc(8);
@@ -21412,14 +21439,13 @@ function block_do()
     return 0;
 }
 
-function block_for()
+function block_do() {
+    return block_do_locals_(0, 0, 0, 0);
+}
+
+function block_for_locals_(symbols, saved_symbols, loop_address,
+    continue_address, body_jump, saved_nocode)
 {
-    var symbols;
-    var saved_symbols;
-    var loop_address;
-    var continue_address;
-    var body_jump;
-    var saved_nocode;
     nocode_wanted = and(nocode_wanted, bnot(536870912));
     next();
     skip(40);
@@ -21465,10 +21491,12 @@ function block_for()
     return 0;
 }
 
-function block_case()
+function block_for() {
+    return block_for_locals_(0, 0, 0, 0, 0, 0);
+}
+
+function block_case_locals_(case_record, words)
 {
-    var case_record;
-    var words;
     case_record = malloc(20);
     if (not(cur_switch)) {
         expect(mks("switch"));
@@ -21499,6 +21527,10 @@ function block_case()
     return 0;
 }
 
+function block_case() {
+    return block_case_locals_(0, 0);
+}
+
 function block_default()
 {
     next();
@@ -21513,10 +21545,8 @@ function block_default()
     return 0;
 }
 
-function block_goto()
+function block_goto_locals_(symbol, state)
 {
-    var symbol;
-    var state;
     next();
     if (and(eq(ri32(tok_address), 42), ri32(gnu_ext_address))) {
         next();
@@ -21551,6 +21581,10 @@ function block_goto()
     return 0;
 }
 
+function block_goto() {
+    return block_goto_locals_(0, 0);
+}
+
 function block_expression(is_expression)
 {
     if (not(eq(ri32(tok_address), 59))) {
@@ -21566,17 +21600,10 @@ function block_expression(is_expression)
     return 0;
 }
 
-function block_switch(continue_symbol)
+function block_switch_locals_(continue_symbol, switch_record, switch_value,
+    break_symbol, saved_switch, saved_nocode, dispatch_jump, index,
+    previous_case, next_case)
 {
-    var switch_record;
-    var switch_value;
-    var break_symbol;
-    var saved_switch;
-    var saved_nocode;
-    var dispatch_jump;
-    var index;
-    var previous_case;
-    var next_case;
     switch_record = malloc(12);
     switch_value = malloc(CC2_SVALUE_BYTES);
     break_symbol = malloc(4);
@@ -21634,6 +21661,10 @@ function block_switch(continue_symbol)
     return 0;
 }
 
+function block_switch(continue_symbol) {
+    return block_switch_locals_(continue_symbol, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 function block_after_label(break_symbol, continue_symbol, is_expression)
 {
     nocode_wanted = and(nocode_wanted, bnot(536870912));
@@ -21649,10 +21680,9 @@ function block_after_label(break_symbol, continue_symbol, is_expression)
     return 0;
 }
 
-function block_label(label, break_symbol, continue_symbol, is_expression)
+function block_label_locals_(label, break_symbol, continue_symbol,
+    is_expression, symbol, registers)
 {
-    var symbol;
-    var registers;
     next();
     symbol = label_find(label);
     if (symbol) {
@@ -21672,18 +21702,19 @@ function block_label(label, break_symbol, continue_symbol, is_expression)
     return 0;
 }
 
+function block_label(label, break_symbol, continue_symbol, is_expression) {
+    return block_label_locals_(label, break_symbol, continue_symbol,
+        is_expression, 0, 0);
+}
+
 function decl(scope)
 {
     return decl0(scope, 0, 0);
 }
 
-function block_compound(break_symbol, continue_symbol, is_expression)
+function block_compound_locals_(break_symbol, continue_symbol, is_expression,
+    saved_symbols, saved_labels, saved_vla_location, saved_vla_count, label)
 {
-    var saved_symbols;
-    var saved_labels;
-    var saved_vla_location;
-    var saved_vla_count;
-    var label;
     saved_vla_location = vla_sp_loc;
     saved_vla_count = vlas_in_scope;
     next();
@@ -21736,10 +21767,14 @@ function block_compound(break_symbol, continue_symbol, is_expression)
     return 0;
 }
 
-function block(break_symbol, continue_symbol, is_expression)
+function block_compound(break_symbol, continue_symbol, is_expression) {
+    return block_compound_locals_(break_symbol, continue_symbol,
+        is_expression, 0, 0, 0, 0, 0);
+}
+
+function block_locals_(break_symbol, continue_symbol, is_expression, token,
+    label)
 {
-    var token;
-    var label;
     tcc_debug_line(tcc_state_address);
     if (is_expression) {
         vpushi(0);
@@ -21786,13 +21821,13 @@ function block(break_symbol, continue_symbol, is_expression)
     return 0;
 }
 
-function unary_identifier(token)
+function block(break_symbol, continue_symbol, is_expression) {
+    return block_locals_(break_symbol, continue_symbol, is_expression, 0, 0);
+}
+
+function unary_identifier_locals_(token, symbol, type, registers, name,
+    assembler_symbol)
 {
-    var symbol;
-    var type;
-    var registers;
-    var name;
-    var assembler_symbol;
     next();
     if (lt(token, 314)) {
         expect(mks("identifier"));
@@ -21838,11 +21873,12 @@ function unary_identifier(token)
     return 0;
 }
 
-function unary_postfix_field(operator)
+function unary_identifier(token) {
+    return unary_identifier_locals_(token, 0, 0, 0, 0, 0);
+}
+
+function unary_postfix_field_locals_(operator, qualifiers, field, registers)
 {
-    var qualifiers;
-    var field;
-    var registers;
     if (eq(operator, 199)) {
         indir();
     }
@@ -21879,6 +21915,10 @@ function unary_postfix_field(operator)
     }
     next();
     return 0;
+}
+
+function unary_postfix_field(operator) {
+    return unary_postfix_field_locals_(operator, 0, 0, 0);
 }
 
 function unary_postfix_index()
@@ -21936,12 +21976,8 @@ function cc2_integer_constant_u32_max(value, type_value)
         CC2_SVALUE_CONSTANT_OFFSET)), sub(0, 1)));
 }
 
-function gen_opic_power_shift()
+function gen_opic_power_shift_locals_(type_value, low, high, shift)
 {
-    var type_value;
-    var low;
-    var high;
-    var shift;
     type_value = ri32(vtop);
     low = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
     high = ri32(add(vtop, add(CC2_SVALUE_CONSTANT_OFFSET, 4)));
@@ -21983,6 +22019,10 @@ function gen_opic_power_shift()
     return shift;
 }
 
+function gen_opic_power_shift() {
+    return gen_opic_power_shift_locals_(0, 0, 0, 0);
+}
+
 function cc2_u32_less(left, right)
 {
     return lt(xor(left, CC2_SIGNED_INT_LIMIT_LOW),
@@ -21997,13 +22037,9 @@ function cc2_u64_less(left_low, left_high, right_low, right_high)
     return cc2_u32_less(left_low, right_low);
 }
 
-function cc2_u64_multiply(left_low, left_high, right_low, right_high,
-    result)
+function cc2_u64_multiply_locals_(left_low, left_high, right_low, right_high,
+    result, output_low, output_high, carry, index)
 {
-    var output_low;
-    var output_high;
-    var carry;
-    var index;
     output_low = 0;
     output_high = 0;
     index = 0;
@@ -22024,16 +22060,15 @@ function cc2_u64_multiply(left_low, left_high, right_low, right_high,
     return 0;
 }
 
-function cc2_u64_divide(dividend_low, dividend_high, divisor_low,
-    divisor_high, result)
+function cc2_u64_multiply(left_low, left_high, right_low, right_high, result) {
+    return cc2_u64_multiply_locals_(left_low, left_high, right_low,
+        right_high, result, 0, 0, 0, 0);
+}
+
+function cc2_u64_divide_locals_(dividend_low, dividend_high, divisor_low,
+    divisor_high, result, quotient_low, quotient_high, remainder_low,
+    remainder_high, top_bit, borrow, index)
 {
-    var quotient_low;
-    var quotient_high;
-    var remainder_low;
-    var remainder_high;
-    var top_bit;
-    var borrow;
-    var index;
     quotient_low = 0;
     quotient_high = 0;
     remainder_low = 0;
@@ -22064,32 +22099,28 @@ function cc2_u64_divide(dividend_low, dividend_high, divisor_low,
     return 0;
 }
 
-function cc2_u64_negate(words)
+function cc2_u64_divide(dividend_low, dividend_high, divisor_low,
+    divisor_high, result) {
+    return cc2_u64_divide_locals_(dividend_low, dividend_high, divisor_low,
+        divisor_high, result, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_u64_negate_locals_(words, low)
 {
-    var low;
     low = add(bnot(ri32(words)), 1);
     wi32(words, low);
     wi32(add(words, 4), add(bnot(ri32(add(words, 4))), eq(low, 0)));
     return 0;
 }
 
-function gen_opic_fold_constant(operation)
+function cc2_u64_negate(words) {
+    return cc2_u64_negate_locals_(words, 0);
+}
+
+function gen_opic_fold_constant_locals_(operation, first, second, first_type,
+    second_type, first_low, first_high, second_low, second_high, result,
+    carry, borrow, shift, sign_first, sign_second, truth)
 {
-    var first;
-    var second;
-    var first_type;
-    var second_type;
-    var first_low;
-    var first_high;
-    var second_low;
-    var second_high;
-    var result;
-    var carry;
-    var borrow;
-    var shift;
-    var sign_first;
-    var sign_second;
-    var truth;
     first = sub(vtop, CC2_SVALUE_BYTES);
     second = vtop;
     first_type = ri32(first);
@@ -22293,18 +22324,14 @@ function gen_opic_fold_constant(operation)
     return 1;
 }
 
-function gen_opic_merge_addend(operation)
+function gen_opic_fold_constant(operation) {
+    return gen_opic_fold_constant_locals_(operation, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0);
+}
+
+function gen_opic_merge_addend_locals_(operation, left, type_value, low, high,
+    left_low, left_high, sum_low, sum_high, carry, expected_high)
 {
-    var left;
-    var type_value;
-    var low;
-    var high;
-    var left_low;
-    var left_high;
-    var sum_low;
-    var sum_high;
-    var carry;
-    var expected_high;
     left = sub(vtop, CC2_SVALUE_BYTES);
     type_value = ri32(vtop);
     low = ri32(add(vtop, CC2_SVALUE_CONSTANT_OFFSET));
@@ -22343,25 +22370,16 @@ function gen_opic_merge_addend(operation)
     return 1;
 }
 
-function gen_opic(operation)
+function gen_opic_merge_addend(operation) {
+    return gen_opic_merge_addend_locals_(operation, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0);
+}
+
+function gen_opic_locals_(operation, first, second, first_type, second_type,
+    first_registers, second_registers, first_constant, second_constant,
+    first_zero, second_zero, first_minus_one, second_minus_one, second_one,
+    second_u32_max, commutative, shift, left_location)
 {
-    var first;
-    var second;
-    var first_type;
-    var second_type;
-    var first_registers;
-    var second_registers;
-    var first_constant;
-    var second_constant;
-    var first_zero;
-    var second_zero;
-    var first_minus_one;
-    var second_minus_one;
-    var second_one;
-    var second_u32_max;
-    var commutative;
-    var shift;
-    var left_location;
     first = sub(vtop, CC2_SVALUE_BYTES);
     second = vtop;
     first_type = ri32(first);
@@ -22497,12 +22515,14 @@ function gen_opic(operation)
     return 0;
 }
 
-function gen_opif_fold_constant(operation)
+function gen_opic(operation) {
+    return gen_opic_locals_(operation, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0);
+}
+
+function gen_opif_fold_constant_locals_(operation, first, basic_type,
+    first_value, second_value)
 {
-    var first;
-    var basic_type;
-    var first_value;
-    var second_value;
     first = sub(vtop, CC2_SVALUE_BYTES);
     basic_type = and(ri32(first), CC2_TCC_BASIC_TYPE_MASK);
     first_value = add(first, CC2_SVALUE_CONSTANT_OFFSET);
@@ -22532,11 +22552,12 @@ function gen_opif_fold_constant(operation)
     return 1;
 }
 
-function gen_opif(operation)
+function gen_opif_fold_constant(operation) {
+    return gen_opif_fold_constant_locals_(operation, 0, 0, 0, 0);
+}
+
+function gen_opif_locals_(operation, first, first_registers, second_registers)
 {
-    var first;
-    var first_registers;
-    var second_registers;
     first = sub(vtop, CC2_SVALUE_BYTES);
     first_registers = and(ri32(add(first,
         CC2_SVALUE_REGISTER_OFFSET)), 65535);
@@ -22553,23 +22574,15 @@ function gen_opif(operation)
     return 0;
 }
 
-function unary_postfix_call()
+function gen_opif(operation) {
+    return gen_opif_locals_(operation, 0, 0, 0);
+}
+
+function unary_postfix_call_locals_(function_symbol, argument_symbol,
+    return_value, return_alignment, register_size, argument_count,
+    return_registers, variadic, size, alignment, result_register, result_end,
+    address, offset, type_value)
 {
-    var function_symbol;
-    var argument_symbol;
-    var return_value;
-    var return_alignment;
-    var register_size;
-    var argument_count;
-    var return_registers;
-    var variadic;
-    var size;
-    var alignment;
-    var result_register;
-    var result_end;
-    var address;
-    var offset;
-    var type_value;
     type_value = ri32(vtop);
     if (not(eq(and(type_value, CC2_TCC_BASIC_TYPE_MASK),
         CC2_TCC_FUNCTION_TYPE))) {
@@ -22696,11 +22709,13 @@ function unary_postfix_call()
     return 0;
 }
 
-function unary_prefix(operator)
+function unary_postfix_call() {
+    return unary_postfix_call_locals_(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0);
+}
+
+function unary_prefix_locals_(operator, type, registers, value)
 {
-    var type;
-    var registers;
-    var value;
     next();
     unary();
     if (eq(operator, 42)) {
@@ -22747,10 +22762,12 @@ function unary_prefix(operator)
     return 0;
 }
 
-function unary_literal(token)
+function unary_prefix(operator) {
+    return unary_prefix_locals_(operator, 0, 0, 0);
+}
+
+function unary_literal_locals_(token, type, type_value)
 {
-    var type;
-    var type_value;
     type = malloc(8);
     type_value = CC2_TCC_INT_TYPE;
     if (eq(token, 182)) {
@@ -22779,6 +22796,10 @@ function unary_literal(token)
     return 0;
 }
 
+function unary_literal(token) {
+    return unary_literal_locals_(token, 0, 0);
+}
+
 function unary_postfix_increment(operator)
 {
     inc(1, operator);
@@ -22786,12 +22807,9 @@ function unary_postfix_increment(operator)
     return 0;
 }
 
-function unary_builtin_expression(token)
+function unary_builtin_expression_locals_(token, compatible, condition_words,
+    condition, registers)
 {
-    var compatible;
-    var condition_words;
-    var condition;
-    var registers;
     if (eq(token, 378)) {
         parse_builtin_params(0, mks("ee"));
         vpop();
@@ -22844,10 +22862,12 @@ function unary_builtin_expression(token)
     return 0;
 }
 
-function unary_builtin_frame(token)
+function unary_builtin_expression(token) {
+    return unary_builtin_expression_locals_(token, 0, 0, 0, 0);
+}
+
+function unary_builtin_frame_locals_(token, level, type)
 {
-    var level;
-    var type;
     next();
     skip(40);
     if (not(eq(ri32(tok_address), 181))) {
@@ -22882,10 +22902,12 @@ function unary_builtin_frame(token)
     return 0;
 }
 
-function unary_label_address(token)
+function unary_builtin_frame(token) {
+    return unary_builtin_frame_locals_(token, 0, 0);
+}
+
+function unary_label_address_locals_(token, symbol, registers)
 {
-    var symbol;
-    var registers;
     if (eq(ri32(gnu_ext_address), 0)) {
         unary_identifier(token);
         return 0;
@@ -22917,13 +22939,12 @@ function unary_label_address(token)
     return 0;
 }
 
-function unary_sizeof(token)
+function unary_label_address(token) {
+    return unary_label_address_locals_(token, 0, 0);
+}
+
+function unary_sizeof_locals_(token, type, alignment, size, symbol, aligned)
 {
-    var type;
-    var alignment;
-    var size;
-    var symbol;
-    var aligned;
     next();
     in_sizeof = add(in_sizeof, 1);
     type = malloc(8);
@@ -22956,9 +22977,12 @@ function unary_sizeof(token)
     return 0;
 }
 
-function unary_minus()
+function unary_sizeof(token) {
+    return unary_sizeof_locals_(token, 0, 0, 0, 0, 0);
+}
+
+function unary_minus_locals_(basic_type)
 {
-    var basic_type;
     next();
     unary();
     basic_type = and(ri32(vtop), CC2_TCC_BASIC_TYPE_MASK);
@@ -22973,10 +22997,12 @@ function unary_minus()
     return 0;
 }
 
-function unary_ieee_constant(token)
+function unary_minus() {
+    return unary_minus_locals_(0);
+}
+
+function unary_ieee_constant_locals_(token, low_word, high_word)
 {
-    var low_word;
-    var high_word;
     low_word = 0;
     high_word = CC2_IEEE_DOUBLE_INFINITY_HIGH_WORD;
     if (eq(token, CC2_TOKEN_NAN)) {
@@ -22989,14 +23015,13 @@ function unary_ieee_constant(token)
     return 0;
 }
 
-function unary_parenthesized(sizeof_caller)
+function unary_ieee_constant(token) {
+    return unary_ieee_constant_locals_(token, 0, 0);
+}
+
+function unary_parenthesized_locals_(sizeof_caller, type, attributes,
+    identifier, storage, saved_no_code, returns_type)
 {
-    var type;
-    var attributes;
-    var identifier;
-    var storage;
-    var saved_no_code;
-    var returns_type;
     next();
     type = malloc(8);
     attributes = malloc(CC2_ATTRIBUTE_BYTES);
@@ -23042,11 +23067,12 @@ function unary_parenthesized(sizeof_caller)
     return returns_type;
 }
 
-function unary_string(token)
+function unary_parenthesized(sizeof_caller) {
+    return unary_parenthesized_locals_(sizeof_caller, 0, 0, 0, 0, 0, 0);
+}
+
+function unary_string_locals_(token, type, attributes, element_type)
 {
-    var type;
-    var attributes;
-    var element_type;
     type = malloc(8);
     attributes = malloc(CC2_ATTRIBUTE_BYTES);
     element_type = CC2_TCC_INT_TYPE;
@@ -23072,13 +23098,13 @@ function unary_string(token)
     return 0;
 }
 
-function unary_function_name(token)
+function unary_string(token) {
+    return unary_string_locals_(token, 0, 0, 0);
+}
+
+function unary_function_name_locals_(token, type, length, section, offset,
+    destination)
 {
-    var type;
-    var length;
-    var section;
-    var offset;
-    var destination;
     if (and(eq(token, CC2_TOKEN_FUNCTION_NAME_GNU),
         eq(ri32(gnu_ext_address), 0))) {
         return unary_identifier(token);
@@ -23102,18 +23128,14 @@ function unary_function_name(token)
     return 0;
 }
 
-function unary_generic()
+function unary_function_name(token) {
+    return unary_function_name_locals_(token, 0, 0, 0, 0, 0);
+}
+
+function unary_generic_locals_(controlling_type, current_type, attributes,
+    identifier, selected_holder, selected, has_default, has_match, learn,
+    buffer)
 {
-    var controlling_type;
-    var current_type;
-    var attributes;
-    var identifier;
-    var selected_holder;
-    var selected;
-    var has_default;
-    var has_match;
-    var learn;
-    var buffer;
     controlling_type = malloc(8);
     current_type = malloc(8);
     attributes = malloc(CC2_ATTRIBUTE_BYTES);
@@ -23190,10 +23212,12 @@ function unary_generic()
     return 0;
 }
 
-function unary()
+function unary_generic() {
+    return unary_generic_locals_(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function unary_locals_(token, sizeof_caller)
 {
-    var token;
-    var sizeof_caller;
     sizeof_caller = in_sizeof;
     in_sizeof = 0;
     token = ri32(tok_address);
@@ -23256,10 +23280,12 @@ function unary()
     }
 }
 
-function gen_function(symbol)
+function unary() {
+    return unary_locals_(0, 0);
+}
+
+function gen_function_locals_(symbol, section, function_size)
 {
-    var section;
-    var function_size;
     nocode_wanted = 0;
     section = ri32(cur_text_section_address);
     ind = ri32(add(section, CC2_SECTION_DATA_OFFSET));
@@ -23294,14 +23320,14 @@ function gen_function(symbol)
     return 0;
 }
 
+function gen_function(symbol) {
+    return gen_function_locals_(symbol, 0, 0);
+}
+
 /* Parse the pointer and nested-declarator portion of a C declaration. */
-function type_decl(type, attributes, identifier, mode)
+function type_decl_locals_(type, attributes, identifier, mode, post, result,
+    qualifiers, storage, token)
 {
-    var post;
-    var result;
-    var qualifiers;
-    var storage;
-    var token;
     storage = and(ri32(type), CC2_TCC_STORAGE_MASK);
     wi32(type, and(ri32(type), bnot(CC2_TCC_STORAGE_MASK)));
     post = type;
@@ -23362,17 +23388,14 @@ function type_decl(type, attributes, identifier, mode)
     return result;
 }
 
-function post_type_(type, attributes, storage, mode, parameter_type,
-    parameter_attributes, identifier, alignment)
+function type_decl(type, attributes, identifier, mode) {
+    return type_decl_locals_(type, attributes, identifier, mode, 0, 0, 0, 0, 0);
+}
+
+function post_type__locals_(type, attributes, storage, mode, parameter_type,
+    parameter_attributes, identifier, alignment, kind, argument_size, first,
+    last, symbol, size, array_kind, saved_no_code)
 {
-    var kind;
-    var argument_size;
-    var first;
-    var last;
-    var symbol;
-    var size;
-    var array_kind;
-    var saved_no_code;
     if (eq(ri32(tok_address), 40)) {
         next();
         if (mode) {
@@ -23532,13 +23555,15 @@ function post_type_(type, attributes, storage, mode, parameter_type,
     return 1;
 }
 
-function post_type(type, attributes, storage, mode)
+function post_type_(type, attributes, storage, mode, parameter_type,
+    parameter_attributes, identifier, alignment) {
+    return post_type__locals_(type, attributes, storage, mode, parameter_type,
+        parameter_attributes, identifier, alignment, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function post_type_locals_(type, attributes, storage, mode, parameter_type,
+    parameter_attributes, identifier, alignment, result)
 {
-    var parameter_type;
-    var parameter_attributes;
-    var identifier;
-    var alignment;
-    var result;
     parameter_type = malloc(8);
     parameter_attributes = malloc(CC2_ATTRIBUTE_BYTES);
     identifier = malloc(4);
@@ -23550,6 +23575,10 @@ function post_type(type, attributes, storage, mode)
     free(identifier);
     free(alignment);
     return result;
+}
+
+function post_type(type, attributes, storage, mode) {
+    return post_type_locals_(type, attributes, storage, mode, 0, 0, 0, 0, 0);
 }
 
 function vstore_(destination_type, source_basic, destination_basic,
@@ -24288,12 +24317,9 @@ function tcc_strdup(text)
     return tcc_strdup_(text, 0, 0);
 }
 
-function tcc_split_path(state, table_pointer, count_pointer, input)
+function tcc_split_path_locals_(state, table_pointer, count_pointer, input,
+    current, character, string, data)
 {
-    var current;
-    var character;
-    var string;
-    var data;
     current = input;
     while (1) {
         string = malloc(CC2_CSTRING_BYTES);
@@ -24329,6 +24355,11 @@ function tcc_split_path(state, table_pointer, count_pointer, input)
     return 0;
 }
 
+function tcc_split_path(state, table_pointer, count_pointer, input) {
+    return tcc_split_path_locals_(state, table_pointer, count_pointer, input,
+        0, 0, 0, 0);
+}
+
 function tcc_add_include_path(state, pathname)
 {
     tcc_split_path(state, add(state, CC2_TCC_STATE_INCLUDE_PATHS_OFFSET),
@@ -24351,11 +24382,8 @@ function tcc_add_library_path(state, pathname)
     return 0;
 }
 
-function tcc_add_file(state, filename)
+function tcc_add_file_locals_(state, filename, file_type, flags, extension)
 {
-    var file_type;
-    var flags;
-    var extension;
     file_type = ri32(add(state, CC2_TCC_STATE_FILE_TYPE_OFFSET));
     flags = 16;
     if (eq(file_type, 0)) {
@@ -24380,13 +24408,13 @@ function tcc_add_file(state, filename)
     return tcc_add_file_internal(state, filename, flags);
 }
 
-function tcc_add_library_internal(state, format, filename, flags, paths,
-    path_count)
+function tcc_add_file(state, filename) {
+    return tcc_add_file_locals_(state, filename, 0, 0, 0);
+}
+
+function tcc_add_library_internal_locals_(state, format, filename, flags,
+    paths, path_count, index, path, candidate, capacity)
 {
-    var index;
-    var path;
-    var candidate;
-    var capacity;
     index = 0;
     while (lt(index, path_count)) {
         path = ri32(add(paths, shl(index, 2)));
@@ -24412,6 +24440,12 @@ function tcc_add_library_internal(state, format, filename, flags, paths,
     return sub(0, 1);
 }
 
+function tcc_add_library_internal(state, format, filename, flags, paths,
+    path_count) {
+    return tcc_add_library_internal_locals_(state, format, filename, flags,
+        paths, path_count, 0, 0, 0, 0);
+}
+
 function tcc_add_dll(state, filename, flags)
 {
     return tcc_add_library_internal(state, mks("%s/%s"), filename, flags,
@@ -24419,9 +24453,8 @@ function tcc_add_dll(state, filename, flags)
         ri32(add(state, CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET)));
 }
 
-function tcc_add_crt(state, filename)
+function tcc_add_crt_locals_(state, filename, result)
 {
-    var result;
     result = tcc_add_library_internal(state, mks("%s/%s"), filename, 0,
         ri32(add(state, CC2_TCC_STATE_CRT_PATHS_OFFSET)),
         ri32(add(state, CC2_TCC_STATE_CRT_PATH_COUNT_OFFSET)));
@@ -24431,10 +24464,12 @@ function tcc_add_crt(state, filename)
     return 0;
 }
 
-function tcc_add_library(state, library)
+function tcc_add_crt(state, filename) {
+    return tcc_add_crt_locals_(state, filename, 0);
+}
+
+function tcc_add_library_locals_(state, library, paths, path_count)
 {
-    var paths;
-    var path_count;
     paths = ri32(add(state, CC2_TCC_STATE_LIBRARY_PATHS_OFFSET));
     path_count = ri32(add(state, CC2_TCC_STATE_LIBRARY_PATH_COUNT_OFFSET));
     if (eq(ri32(add(state, CC2_TCC_STATE_STATIC_LINK_OFFSET)), 0)) {
@@ -24447,9 +24482,12 @@ function tcc_add_library(state, library)
         paths, path_count);
 }
 
-function tcc_add_library_err(state, library)
+function tcc_add_library(state, library) {
+    return tcc_add_library_locals_(state, library, 0, 0);
+}
+
+function tcc_add_library_err_locals_(state, library, result)
 {
-    var result;
     result = tcc_add_library(state, library);
     if (lt(result, 0)) {
         tcc_error_noabort(mks("library '%s' not found"), library);
@@ -24457,11 +24495,12 @@ function tcc_add_library_err(state, library)
     return result;
 }
 
-function tcc_add_pragma_libs(state)
+function tcc_add_library_err(state, library) {
+    return tcc_add_library_err_locals_(state, library, 0);
+}
+
+function tcc_add_pragma_libs_locals_(state, index, libraries, count)
 {
-    var index;
-    var libraries;
-    var count;
     libraries = ri32(add(state, CC2_TCC_STATE_PRAGMA_LIBRARIES_OFFSET));
     count = ri32(add(state, CC2_TCC_STATE_PRAGMA_LIBRARY_COUNT_OFFSET));
     index = 0;
@@ -24472,13 +24511,13 @@ function tcc_add_pragma_libs(state)
     return 0;
 }
 
-function tcc_add_file_internal(state, filename, flags)
+function tcc_add_pragma_libs(state) {
+    return tcc_add_pragma_libs_locals_(state, 0, 0, 0);
+}
+
+function tcc_add_file_internal_locals_(state, filename, flags, result,
+    source_file, descriptor, header, object_type)
 {
-    var result;
-    var source_file;
-    var descriptor;
-    var header;
-    var object_type;
     result = tcc_open(state, filename);
     if (lt(result, 0)) {
         if (and(flags, 16)) {
@@ -24517,6 +24556,10 @@ function tcc_add_file_internal(state, filename, flags)
     return result;
 }
 
+function tcc_add_file_internal(state, filename, flags) {
+    return tcc_add_file_internal_locals_(state, filename, flags, 0, 0, 0, 0, 0);
+}
+
 function tcc_set_lib_path(state, path)
 {
     tcc_free(ri32(add(state, CC2_TCC_STATE_LIBRARY_ROOT_OFFSET)));
@@ -24531,11 +24574,9 @@ function tcc_set_error_func(state, opaque, error_function)
     return 0;
 }
 
-function tcc_open_bf(state, filename, initial_length)
+function tcc_open_bf_locals_(state, filename, initial_length, buffer_length,
+    source_file, buffer)
 {
-    var buffer_length;
-    var source_file;
-    var buffer;
     if (initial_length) {
         buffer_length = initial_length;
     } else {
@@ -24562,11 +24603,12 @@ function tcc_open_bf(state, filename, initial_length)
     return 0;
 }
 
-function tcc_close()
+function tcc_open_bf(state, filename, initial_length) {
+    return tcc_open_bf_locals_(state, filename, initial_length, 0, 0, 0);
+}
+
+function tcc_close_locals_(source_file, descriptor, true_filename)
 {
-    var source_file;
-    var descriptor;
-    var true_filename;
     source_file = ri32(file_address);
     descriptor = ri32(add(source_file, CC2_BUFFERED_FILE_DESCRIPTOR_OFFSET));
     if (lt(0, descriptor)) {
@@ -24586,16 +24628,17 @@ function tcc_close()
     return 0;
 }
 
-function tcc_open(state, filename)
+function tcc_close() {
+    return tcc_close_locals_(0, 0, 0);
+}
+
+function tcc_open_locals_(state, filename, descriptor, verbose, depth)
 {
-    var descriptor;
-    var verbose;
-    var depth;
     if (eq(strcmp(filename, mks("-")), 0)) {
         descriptor = 0;
         filename = mks("<stdin>");
     } else {
-        descriptor = open(filename, 0);
+        descriptor = open(filename, 0, 0);
     }
     verbose = ri32(add(state, CC2_TCC_STATE_VERBOSE_OFFSET));
     if (or(and(eq(verbose, 2), le(0, descriptor)), eq(verbose, 3))) {
@@ -24617,6 +24660,10 @@ function tcc_open(state, filename)
     return descriptor;
 }
 
+function tcc_open(state, filename) {
+    return tcc_open_locals_(state, filename, 0, 0, 0);
+}
+
 function tcc_add_symbol(state, name, value)
 {
     set_elf_sym(ri32(symtab_section_address), value, 0, 16, 0, 65521,
@@ -24624,13 +24671,9 @@ function tcc_add_symbol(state, name, value)
     return 0;
 }
 
-function tcc_define_symbol(state, name, value)
+function tcc_define_symbol_locals_(state, name, value, name_length,
+    value_length, source_file, buffer, saved_parse_flags)
 {
-    var name_length;
-    var value_length;
-    var source_file;
-    var buffer;
-    var saved_parse_flags;
     if (eq(value, 0)) {
         value = mks("1");
     }
@@ -24656,10 +24699,12 @@ function tcc_define_symbol(state, name, value)
     return 0;
 }
 
-function tcc_undefine_symbol(state, name)
+function tcc_define_symbol(state, name, value) {
+    return tcc_define_symbol_locals_(state, name, value, 0, 0, 0, 0, 0);
+}
+
+function tcc_undefine_symbol_locals_(state, name, token_symbol, symbol)
 {
-    var token_symbol;
-    var symbol;
     token_symbol = tok_alloc(name, strlen(name));
     symbol = define_find(ri32(add(token_symbol,
         CC2_TOKEN_SYMBOL_TOKEN_OFFSET)));
@@ -24667,6 +24712,10 @@ function tcc_undefine_symbol(state, name)
         define_undef(symbol);
     }
     return 0;
+}
+
+function tcc_undefine_symbol(state, name) {
+    return tcc_undefine_symbol_locals_(state, name, 0, 0);
 }
 
 function cc2_sym_pop_global_(boundary, keep, symbol, next, value,
@@ -24720,12 +24769,9 @@ function cc2_compile_body(state, is_assembler, file_type)
     return 0;
 }
 
-function tcc_compile(state)
+function tcc_compile_locals_(state, define_boundary, file_type, is_assembler,
+    result)
 {
-    var define_boundary;
-    var file_type;
-    var is_assembler;
-    var result;
     define_boundary = ri32(define_stack_address);
     file_type = ri32(add(state, CC2_TCC_STATE_FILE_TYPE_OFFSET));
     is_assembler = or(eq(file_type, 2), eq(file_type, 3));
@@ -24746,11 +24792,12 @@ function tcc_compile(state)
     return result;
 }
 
-function tcc_compile_string(state, text)
+function tcc_compile(state) {
+    return tcc_compile_locals_(state, 0, 0, 0, 0);
+}
+
+function tcc_compile_string_locals_(state, text, length, result, source_file)
 {
-    var length;
-    var result;
-    var source_file;
     length = strlen(text);
     tcc_open_bf(state, mks("<string>"), length);
     source_file = ri32(file_address);
@@ -24760,9 +24807,12 @@ function tcc_compile_string(state, text)
     return result;
 }
 
-function tcc_cleanup()
+function tcc_compile_string(state, text) {
+    return tcc_compile_string_locals_(state, text, 0, 0, 0);
+}
+
+function tcc_cleanup_locals_(index)
 {
-    var index;
     if (eq(tcc_state_address, 0)) {
         return 0;
     }
@@ -24782,6 +24832,10 @@ function tcc_cleanup()
     nb_sym_pools = 0;
     sym_free_first = 0;
     return 0;
+}
+
+function tcc_cleanup() {
+    return tcc_cleanup_locals_(0);
 }
 
 function cc2_define_default_symbols(state)
@@ -24817,10 +24871,8 @@ function cc2_define_default_symbols(state)
     return 0;
 }
 
-function tcc_new()
+function tcc_new_locals_(state, count_slot)
 {
-    var state;
-    var count_slot;
     cc2_init_constants();
     cc2_storage_init();
     tcc_cleanup();
@@ -24844,9 +24896,12 @@ function tcc_new()
     return state;
 }
 
-function tcc_delete(state)
+function tcc_new() {
+    return tcc_new_locals_(0, 0);
+}
+
+function tcc_delete_locals_(state, count_slot)
 {
-    var count_slot;
     tcc_cleanup();
     tccelf_delete(state);
     dynarray_reset(add(state, CC2_TCC_STATE_LIBRARY_PATHS_OFFSET),
@@ -24885,6 +24940,10 @@ function tcc_delete(state)
     return 0;
 }
 
+function tcc_delete(state) {
+    return tcc_delete_locals_(state, 0);
+}
+
 function tcc_set_output_type(state, output_type)
 {
     wi32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET), output_type);
@@ -24916,9 +24975,8 @@ function tcc_set_output_type(state, output_type)
     return 0;
 }
 
-function cc2_no_flag(text_pointer)
+function cc2_no_flag_locals_(text_pointer, text)
 {
-    var text;
     text = ri32(text_pointer);
     if (or(not(eq(ri8(text), mkC("n"))), or(not(eq(ri8(add(text, 1)),
         mkC("o"))), not(eq(ri8(add(text, 2)), mkC("-")))))) {
@@ -24928,15 +24986,13 @@ function cc2_no_flag(text_pointer)
     return 1;
 }
 
-function set_flag(state, flags, name)
+function cc2_no_flag(text_pointer) {
+    return cc2_no_flag_locals_(text_pointer, 0);
+}
+
+function set_flag_locals_(state, flags, name, value, result, current,
+    text_slot, text, offset, attributes)
 {
-    var value;
-    var result;
-    var current;
-    var text_slot;
-    var text;
-    var offset;
-    var attributes;
     value = 1;
     text_slot = malloc(4);
     wi32(text_slot, name);
@@ -24980,11 +25036,13 @@ function set_flag(state, flags, name)
     return result;
 }
 
-function cc2_link_option(option, expected, result_slot)
+function set_flag(state, flags, name) {
+    return set_flag_locals_(state, flags, name, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_link_option_locals_(option, expected, result_slot, current,
+    wanted, result)
 {
-    var current;
-    var wanted;
-    var result;
     if (not(eq(ri8(option), mkC("-")))) {
         return 0;
     }
@@ -25025,10 +25083,12 @@ function cc2_link_option(option, expected, result_slot)
     return result;
 }
 
-function cc2_skip_linker_arg(text_slot)
+function cc2_link_option(option, expected, result_slot) {
+    return cc2_link_option_locals_(option, expected, result_slot, 0, 0, 0);
+}
+
+function cc2_skip_linker_arg_locals_(text_slot, start, comma)
 {
-    var start;
-    var comma;
     start = ri32(text_slot);
     comma = strchr(start, mkC(","));
     if (comma) {
@@ -25040,12 +25100,13 @@ function cc2_skip_linker_arg(text_slot)
     return comma;
 }
 
-function cc2_copy_linker_arg(destination_slot, source, separator)
+function cc2_skip_linker_arg(text_slot) {
+    return cc2_skip_linker_arg_locals_(text_slot, 0, 0);
+}
+
+function cc2_copy_linker_arg_locals_(destination_slot, source, separator,
+    end_slot, end, destination, length)
 {
-    var end_slot;
-    var end;
-    var destination;
-    var length;
     end_slot = malloc(4);
     wi32(end_slot, source);
     cc2_skip_linker_arg(end_slot);
@@ -25065,6 +25126,11 @@ function cc2_copy_linker_arg(destination_slot, source, separator)
     return 0;
 }
 
+function cc2_copy_linker_arg(destination_slot, source, separator) {
+    return cc2_copy_linker_arg_locals_(destination_slot, source, separator, 0,
+        0, 0, 0);
+}
+
 function cc2_text_starts_with(prefix, text)
 {
     while (ri8(prefix)) {
@@ -25077,9 +25143,8 @@ function cc2_text_starts_with(prefix, text)
     return 1;
 }
 
-function strstart(prefix, text_slot)
+function strstart_locals_(prefix, text_slot, text)
 {
-    var text;
     text = ri32(text_slot);
     if (not(cc2_text_starts_with(prefix, text))) {
         return 0;
@@ -25088,12 +25153,13 @@ function strstart(prefix, text_slot)
     return 1;
 }
 
-function tcc_set_linker(state, option)
+function strstart(prefix, text_slot) {
+    return strstart_locals_(prefix, text_slot, 0);
+}
+
+function tcc_set_linker_locals_(state, option, argument_slot, argument,
+    ignoring, result)
 {
-    var argument_slot;
-    var argument;
-    var ignoring;
-    var result;
     argument_slot = malloc(4);
     while (ri8(option)) {
         wi32(argument_slot, 0);
@@ -25170,10 +25236,12 @@ function tcc_set_linker(state, option)
     return 1;
 }
 
-function parse_option_D(state, option)
+function tcc_set_linker(state, option) {
+    return tcc_set_linker_locals_(state, option, 0, 0, 0, 0);
+}
+
+function parse_option_D_locals_(state, option, symbol, value)
 {
-    var symbol;
-    var value;
     symbol = tcc_strdup(option);
     value = strchr(symbol, mkC("="));
     if (value) {
@@ -25185,9 +25253,13 @@ function parse_option_D(state, option)
     return 0;
 }
 
-function args_parser_add_file(state, filename, file_type)
+function parse_option_D(state, option) {
+    return parse_option_D_locals_(state, option, 0, 0);
+}
+
+function args_parser_add_file_locals_(state, filename, file_type,
+    file_specification)
 {
-    var file_specification;
     file_specification = tcc_malloc(add(strlen(filename), 3));
     wi8(file_specification, file_type);
     wi8(add(file_specification, 1),
@@ -25198,12 +25270,13 @@ function args_parser_add_file(state, filename, file_type)
     return 0;
 }
 
-function args_parser_make_argv(text, count_pointer, array_pointer)
+function args_parser_add_file(state, filename, file_type) {
+    return args_parser_add_file_locals_(state, filename, file_type, 0);
+}
+
+function args_parser_make_argv_locals_(text, count_pointer, array_pointer,
+    result, quoted, character, string)
 {
-    var result;
-    var quoted;
-    var character;
-    var string;
     result = 0;
     while (1) {
         character = ri8(text);
@@ -25245,17 +25318,16 @@ function args_parser_make_argv(text, count_pointer, array_pointer)
     return result;
 }
 
-function args_parser_listfile(state, filename, option_index, count_pointer,
-    array_pointer)
+function args_parser_make_argv(text, count_pointer, array_pointer) {
+    return args_parser_make_argv_locals_(text, count_pointer, array_pointer,
+        0, 0, 0, 0);
+}
+
+function args_parser_listfile_locals_(state, filename, option_index,
+    count_pointer, array_pointer, descriptor, length, contents,
+    new_count_slot, new_array_slot, index, old_array)
 {
-    var descriptor;
-    var length;
-    var contents;
-    var new_count_slot;
-    var new_array_slot;
-    var index;
-    var old_array;
-    descriptor = open(filename, 0);
+    descriptor = open(filename, 0, 0);
     if (lt(descriptor, 0)) {
         tcc_error(mks("listfile '%s' not found"), filename);
     }
@@ -25292,12 +25364,16 @@ function args_parser_listfile(state, filename, option_index, count_pointer,
     return 0;
 }
 
-function cc2_match_option(body, name, has_argument, no_separate_argument,
-    index_slot, argument_count, arguments, argument_slot, original)
+function args_parser_listfile(state, filename, option_index, count_pointer,
+    array_pointer) {
+    return args_parser_listfile_locals_(state, filename, option_index,
+        count_pointer, array_pointer, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_match_option_locals_(body, name, has_argument,
+    no_separate_argument, index_slot, argument_count, arguments,
+    argument_slot, original, current, expected, index)
 {
-    var current;
-    var expected;
-    var index;
     current = body;
     expected = name;
     while (ri8(expected)) {
@@ -25323,6 +25399,13 @@ function cc2_match_option(body, name, has_argument, no_separate_argument,
     return 1;
 }
 
+function cc2_match_option(body, name, has_argument, no_separate_argument,
+    index_slot, argument_count, arguments, argument_slot, original) {
+    return cc2_match_option_locals_(body, name, has_argument,
+        no_separate_argument, index_slot, argument_count, arguments,
+        argument_slot, original, 0, 0, 0);
+}
+
 function cc2_flag_text(option, text_slot, value_slot)
 {
     wi32(text_slot, option);
@@ -25335,14 +25418,9 @@ function cc2_flag_text(option, text_slot, value_slot)
     return 0;
 }
 
-function cc2_set_f_flag(state, option)
+function cc2_set_f_flag_locals_(state, option, text_slot, value_slot, text,
+    value, offset, invert)
 {
-    var text_slot;
-    var value_slot;
-    var text;
-    var value;
-    var offset;
-    var invert;
     text_slot = malloc(4);
     value_slot = malloc(4);
     cc2_flag_text(option, text_slot, value_slot);
@@ -25377,11 +25455,12 @@ function cc2_set_f_flag(state, option)
     return 0;
 }
 
-function cc2_set_m_flag(state, option)
+function cc2_set_f_flag(state, option) {
+    return cc2_set_f_flag_locals_(state, option, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_set_m_flag_locals_(state, option, text_slot, value_slot, result)
 {
-    var text_slot;
-    var value_slot;
-    var result;
     text_slot = malloc(4);
     value_slot = malloc(4);
     cc2_flag_text(option, text_slot, value_slot);
@@ -25396,13 +25475,13 @@ function cc2_set_m_flag(state, option)
     return result;
 }
 
-function cc2_set_warning_flag(state, option)
+function cc2_set_m_flag(state, option) {
+    return cc2_set_m_flag_locals_(state, option, 0, 0, 0);
+}
+
+function cc2_set_warning_flag_locals_(state, option, text_slot, value_slot,
+    text, value, offset)
 {
-    var text_slot;
-    var value_slot;
-    var text;
-    var value;
-    var offset;
     text_slot = malloc(4);
     value_slot = malloc(4);
     cc2_flag_text(option, text_slot, value_slot);
@@ -25434,6 +25513,10 @@ function cc2_set_warning_flag(state, option)
     return 0;
 }
 
+function cc2_set_warning_flag(state, option) {
+    return cc2_set_warning_flag_locals_(state, option, 0, 0, 0, 0, 0);
+}
+
 function cc2_parser_output(state, output_type, option_name)
 {
     if (ri32(add(state, CC2_TCC_STATE_OUTPUT_TYPE_OFFSET))) {
@@ -25444,27 +25527,12 @@ function cc2_parser_output(state, output_type, option_name)
     return 0;
 }
 
-function tcc_parse_args(state, argument_count_pointer, arguments_pointer,
-    option_index)
+function tcc_parse_args_locals_(state, argument_count_pointer,
+    arguments_pointer, option_index, argument_count, arguments, index_slot,
+    count_slot, array_slot, argument_slot, linker_argument, option, body,
+    argument, run_options, last_optimization, tool, argument_start, no_action,
+    reparse, stop, value)
 {
-    var argument_count;
-    var arguments;
-    var index_slot;
-    var count_slot;
-    var array_slot;
-    var argument_slot;
-    var linker_argument;
-    var option;
-    var body;
-    var argument;
-    var run_options;
-    var last_optimization;
-    var tool;
-    var argument_start;
-    var no_action;
-    var reparse;
-    var stop;
-    var value;
     argument_count = ri32(argument_count_pointer);
     arguments = ri32(arguments_pointer);
     index_slot = malloc(4);
@@ -25788,10 +25856,15 @@ function tcc_parse_args(state, argument_count_pointer, arguments_pointer,
     return 1;
 }
 
-function tcc_set_options(state, options)
+function tcc_parse_args(state, argument_count_pointer, arguments_pointer,
+    option_index) {
+    return tcc_parse_args_locals_(state, argument_count_pointer,
+        arguments_pointer, option_index, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0);
+}
+
+function tcc_set_options_locals_(state, options, count_slot, array_slot)
 {
-    var count_slot;
-    var array_slot;
     count_slot = malloc(4);
     array_slot = malloc(4);
     wi32(count_slot, 0);
@@ -25804,15 +25877,14 @@ function tcc_set_options(state, options)
     return 0;
 }
 
-function tcc_print_stats(state, elapsed_milliseconds)
+function tcc_set_options(state, options) {
+    return tcc_set_options_locals_(state, options, 0, 0);
+}
+
+function tcc_print_stats_locals_(state, elapsed_milliseconds, lines,
+    elapsed_seconds, elapsed_remainder, lines_per_second, throughput_tenths,
+    throughput_whole, throughput_remainder)
 {
-    var lines;
-    var elapsed_seconds;
-    var elapsed_remainder;
-    var lines_per_second;
-    var throughput_tenths;
-    var throughput_whole;
-    var throughput_remainder;
     if (lt(elapsed_milliseconds, 1)) {
         elapsed_milliseconds = 1;
     }
@@ -25835,6 +25907,11 @@ function tcc_print_stats(state, elapsed_milliseconds)
         elapsed_seconds, elapsed_remainder, lines_per_second,
         throughput_whole, throughput_remainder);
     return 0;
+}
+
+function tcc_print_stats(state, elapsed_milliseconds) {
+    return tcc_print_stats_locals_(state, elapsed_milliseconds, 0, 0, 0, 0, 0,
+        0, 0);
 }
 
 function cc2_print_help(more)
@@ -25883,9 +25960,8 @@ function cc2_print_help(more)
     return 0;
 }
 
-function cc2_print_directories(label, paths, path_count)
+function cc2_print_directories_locals_(label, paths, path_count, index)
 {
-    var index;
     printf(mks("%s:"), label);
     fputc(mkC("\n"), cc2_stdout());
     if (eq(path_count, 0)) {
@@ -25900,9 +25976,12 @@ function cc2_print_directories(label, paths, path_count)
     return 0;
 }
 
-function cc2_print_search_directories(state)
+function cc2_print_directories(label, paths, path_count) {
+    return cc2_print_directories_locals_(label, paths, path_count, 0);
+}
+
+function cc2_print_search_directories_locals_(state, library_root)
 {
-    var library_root;
     library_root = ri32(add(state, CC2_TCC_STATE_LIBRARY_ROOT_OFFSET));
     printf(mks("install: %s"), library_root);
     fputc(mkC("\n"), cc2_stdout());
@@ -25923,9 +26002,12 @@ function cc2_print_search_directories(state)
     return 0;
 }
 
-function cc2_set_environment(state)
+function cc2_print_search_directories(state) {
+    return cc2_print_search_directories_locals_(state, 0);
+}
+
+function cc2_set_environment_locals_(state, path)
 {
-    var path;
     path = getenv(mks("C_INCLUDE_PATH"));
     if (path) {
         tcc_add_sysinclude_path(state, path);
@@ -25941,11 +26023,13 @@ function cc2_set_environment(state)
     return 0;
 }
 
-function cc2_default_output_file(state, first_file)
+function cc2_set_environment(state) {
+    return cc2_set_environment_locals_(state, 0);
+}
+
+function cc2_default_output_file_locals_(state, first_file, name, output,
+    extension)
 {
-    var name;
-    var output;
-    var extension;
     name = mks("a");
     if (and(first_file, not(eq(strcmp(first_file, mks("-")), 0)))) {
         name = tcc_basename(first_file);
@@ -25963,22 +26047,15 @@ function cc2_default_output_file(state, first_file)
     return output;
 }
 
-function tcc_driver_main(original_count, original_arguments)
+function cc2_default_output_file(state, first_file) {
+    return cc2_default_output_file_locals_(state, first_file, 0, 0, 0);
+}
+
+function tcc_driver_main_locals_(original_count, original_arguments, state,
+    result, option, files_remaining, start_time, first_file,
+    argument_count_slot, arguments_slot, argument_count, arguments,
+    preprocess_output, repeat, file_specification, file_name)
 {
-    var state;
-    var result;
-    var option;
-    var files_remaining;
-    var start_time;
-    var first_file;
-    var argument_count_slot;
-    var arguments_slot;
-    var argument_count;
-    var arguments;
-    var preprocess_output;
-    var repeat;
-    var file_specification;
-    var file_name;
     cc2_init_constants();
     files_remaining = 0;
     start_time = 0;
@@ -26149,14 +26226,14 @@ function tcc_driver_main(original_count, original_arguments)
     return result;
 }
 
-function cc2_append_diagnostic_location(output, state)
+function tcc_driver_main(original_count, original_arguments) {
+    return tcc_driver_main_locals_(original_count, original_arguments, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+function cc2_append_diagnostic_location_locals_(output, state, source_file,
+    include_pointer, include_end, included_file, temporary, line)
 {
-    var source_file;
-    var include_pointer;
-    var include_end;
-    var included_file;
-    var temporary;
-    var line;
     source_file = ri32(file_address);
     while (source_file) {
         if (not(eq(ri8(add(source_file,
@@ -26202,11 +26279,14 @@ function cc2_append_diagnostic_location(output, state)
     return 0;
 }
 
-function cc2_report_diagnostic(state, is_warning, message)
+function cc2_append_diagnostic_location(output, state) {
+    return cc2_append_diagnostic_location_locals_(output, state, 0, 0, 0, 0,
+        0, 0);
+}
+
+function cc2_report_diagnostic_locals_(state, is_warning, message, output,
+    text, error_function)
 {
-    var output;
-    var text;
-    var error_function;
     if (and(is_warning, ri32(add(state, CC2_TCC_STATE_WARN_NONE_OFFSET)))) {
         return 0;
     }
@@ -26244,6 +26324,10 @@ function cc2_report_diagnostic(state, is_warning, message)
             CC2_TCC_STATE_ERROR_COUNT_OFFSET)), 1));
     }
     return 0;
+}
+
+function cc2_report_diagnostic(state, is_warning, message) {
+    return cc2_report_diagnostic_locals_(state, is_warning, message, 0, 0, 0);
 }
 
 function cc2_abort_diagnostic(state)
@@ -26312,6 +26396,7 @@ function cc2_init_constants()
     CC2_SVALUE_REGISTER_OFFSET = 8;
     CC2_SVALUE_CONSTANT_OFFSET = 12;
     CC2_SVALUE_SYMBOL_OFFSET = 24;
+    CC2_HIGH_HALF_MASK = sub(0, 65536);
     CC2_VALUE_LOCATION_MASK = 63;
     CC2_VALUE_CONSTANT = 48;
     CC2_VALUE_COMPARISON = 51;
@@ -26498,7 +26583,7 @@ function cc2_init_constants()
     CC2_FUNCTION_ARGUMENT_SHIFT = 5;
     CC2_FUNCTION_ARGUMENT_MASK = 8160;
     CC2_TCC_ENUM_VALUE = 3145728;
-    CC2_TCC_STRUCT_MASK = 0xfff00080;
+    CC2_TCC_STRUCT_MASK = 4293918848;
     CC2_BITS_PER_BYTE = 8;
     CC2_TOKEN_SECTION_FIRST = 338;
     CC2_TOKEN_SECTION_SECOND = 339;
@@ -27215,9 +27300,8 @@ function cc2_init()
 }
 
 /* Return log2(value) + 1 for positive values, or zero for zero. */
-function exact_log2p1(value)
+function exact_log2p1_locals_(value, result)
 {
-    var result;
     if (not(value)) {
         return 0;
     }
@@ -27240,14 +27324,21 @@ function exact_log2p1(value)
     return result;
 }
 
-function is_float(type)
+function exact_log2p1(value) {
+    return exact_log2p1_locals_(value, 0);
+}
+
+function is_float_locals_(type, basic_type)
 {
-    var basic_type;
     basic_type = and(type, CC2_TCC_BASIC_TYPE_MASK);
     return or(or(eq(basic_type, CC2_TCC_LONG_DOUBLE_TYPE),
         eq(basic_type, CC2_TCC_DOUBLE_TYPE)),
         or(eq(basic_type, CC2_TCC_FLOAT_TYPE),
         eq(basic_type, CC2_TCC_QUAD_FLOAT_TYPE)));
+}
+
+function is_float(type) {
+    return is_float_locals_(type, 0);
 }
 
 function is_integer_btype(basic_type)

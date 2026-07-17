@@ -119,10 +119,8 @@ function cc2_bind_tcc_globals(state)
     return 0;
 }
 
-function elfsym(symbol)
+function elfsym_locals_(symbol, index, section)
 {
-    var index;
-    var section;
     if (eq(symbol, 0)) {
         return 0;
     }
@@ -135,19 +133,14 @@ function elfsym(symbol)
         mul(index, CC2_ELF_SYMBOL_BYTES));
 }
 
+function elfsym(symbol) {
+    return elfsym_locals_(symbol, 0, 0);
+}
+
 /* Parse an unsigned 64-bit integer using four little-endian 16-bit limbs. */
-function u64_mul_add(words, base, digit)
+function u64_mul_add_locals_(words, base, digit, low, high, limb0, limb1,
+    limb2, limb3, carry, next_low, next_high, overflow)
 {
-    var low;
-    var high;
-    var limb0;
-    var limb1;
-    var limb2;
-    var limb3;
-    var carry;
-    var next_low;
-    var next_high;
-    var overflow;
     low = ri32(words);
     high = ri32(add(words, CC2_I386_WORD_BYTES));
     limb0 = add(mul(and(low, 65535), base), digit);
@@ -162,10 +155,13 @@ function u64_mul_add(words, base, digit)
     return overflow;
 }
 
-function u64_ge(words, low, high)
+function u64_mul_add(words, base, digit) {
+    return u64_mul_add_locals_(words, base, digit, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0);
+}
+
+function u64_ge_locals_(words, low, high, value_low, value_high)
 {
-    var value_low;
-    var value_high;
     value_low = ri32(words);
     value_high = ri32(add(words, CC2_I386_WORD_BYTES));
     if (not(eq(value_high, high))) {
@@ -174,10 +170,13 @@ function u64_ge(words, low, high)
     return not(cc2_u32_less(value_low, low));
 }
 
-function vpush64_words(type, low_word, high_word)
+function u64_ge(words, low, high) {
+    return u64_ge_locals_(words, low, high, 0, 0);
+}
+
+function vpush64_words_locals_(type, low_word, high_word, type_record,
+    constant)
 {
-    var type_record;
-    var constant;
     type_record = calloc(1, 8);
     constant = calloc(1, 12);
     wi32(type_record, type);
@@ -187,6 +186,10 @@ function vpush64_words(type, low_word, high_word)
     free(constant);
     free(type_record);
     return 0;
+}
+
+function vpush64_words(type, low_word, high_word) {
+    return vpush64_words_locals_(type, low_word, high_word, 0, 0);
 }
 
 function cc2_bind_preprocess_types(state)
@@ -227,9 +230,8 @@ function cc2_tcc_state_count_slot()
     return CC2_BOOT_STATE_COUNT_SLOT;
 }
 
-function cc2_boot_add_keyword(text)
+function cc2_boot_add_keyword_locals_(text, character)
 {
-    var character;
     character = ri8(text);
     while (character) {
         wi8(add(CC2_BOOT_KEYWORDS, CC2_BOOT_KEYWORD_POSITION), character);
@@ -242,9 +244,12 @@ function cc2_boot_add_keyword(text)
     return 0;
 }
 
-function cc2_boot_add_keyword_parts(first, second)
+function cc2_boot_add_keyword(text) {
+    return cc2_boot_add_keyword_locals_(text, 0);
+}
+
+function cc2_boot_add_keyword_parts_locals_(first, second, character)
 {
-    var character;
     character = ri8(first);
     while (character) {
         wi8(add(CC2_BOOT_KEYWORDS, CC2_BOOT_KEYWORD_POSITION), character);
@@ -253,6 +258,10 @@ function cc2_boot_add_keyword_parts(first, second)
         character = ri8(first);
     }
     return cc2_boot_add_keyword(second);
+}
+
+function cc2_boot_add_keyword_parts(first, second) {
+    return cc2_boot_add_keyword_parts_locals_(first, second, 0);
 }
 
 function cc2_boot_init_keywords()
@@ -415,11 +424,8 @@ function cc2_boot_init_keywords()
     return CC2_BOOT_KEYWORDS;
 }
 
-function cc2_tccpp_new_bridge(state)
+function cc2_tccpp_new_bridge_locals_(state, used, required, capacity)
 {
-    var used;
-    var required;
-    var capacity;
     cc2_boot_bind_preprocessor_state();
     cc2_tccpp_new(state, cc2_boot_init_keywords());
     used = sub(tok_ident, CC2_TOKEN_IDENTIFIER_BASE);
@@ -435,6 +441,10 @@ function cc2_tccpp_new_bridge(state)
         mul(sub(capacity, used), CC2_I386_WORD_BYTES));
     tok_ident = CC2_BOOT_FIRST_DYNAMIC_IDENTIFIER;
     return 0;
+}
+
+function cc2_tccpp_new_bridge(state) {
+    return cc2_tccpp_new_bridge_locals_(state, 0, 0, 0);
 }
 
 function cc2_preprocess_start_bridge(state, is_assembler)
