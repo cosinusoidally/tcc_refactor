@@ -6,13 +6,19 @@ set -eu
 cd ..
 mkdir -p artifacts
 
+UPSTREAM_MAWKCC=../ai_experiments/mawkcc/artifacts/mawkcc.self.exe
+BUGFIX_MAWKCC=artifacts/mawkcc_self_bugfix.exe
+
+"$UPSTREAM_MAWKCC" tcc_27_layered_take3/mawkcc_self_bugfix.c \
+    -o "$BUGFIX_MAWKCC"
+chmod +x "$BUGFIX_MAWKCC"
+
 cat tcc_27_layered_take3/cc1.c \
     tcc_27_layered_take3/cc2_stubs.c \
     tcc_27_layered_take3/cc0_mawkcc_compat.c \
     > artifacts/cc1_mawkcc.c
 
-../ai_experiments/mawkcc/artifacts/mawkcc.self.exe \
-    artifacts/cc1_mawkcc.c -o artifacts/cc1_mawkcc.exe
+"$BUGFIX_MAWKCC" artifacts/cc1_mawkcc.c -o artifacts/cc1_mawkcc.exe
 chmod +x artifacts/cc1_mawkcc.exe
 
 cd artifacts

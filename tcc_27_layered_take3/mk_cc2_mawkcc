@@ -6,6 +6,13 @@ set -eu
 cd ..
 mkdir -p artifacts
 
+UPSTREAM_MAWKCC=../ai_experiments/mawkcc/artifacts/mawkcc.self.exe
+BUGFIX_MAWKCC=artifacts/mawkcc_self_bugfix.exe
+
+"$UPSTREAM_MAWKCC" tcc_27_layered_take3/mawkcc_self_bugfix.c \
+    -o "$BUGFIX_MAWKCC"
+chmod +x "$BUGFIX_MAWKCC"
+
 RUNTIME_LIBDIR=/lib/i386-linux-gnu
 if test ! -f "$RUNTIME_LIBDIR/libc.so.6"; then
     RUNTIME_LIBDIR=/usr/lib/i386-linux-gnu
@@ -21,8 +28,8 @@ cat tcc_27_layered_take3/cc2.c \
     tcc_27_layered_take3/cc0_mawkcc_compat.c \
     > artifacts/cc2_mawkcc.c
 
-../ai_experiments/mawkcc/artifacts/mawkcc.self.exe \
-    artifacts/cc2_mawkcc.c -o artifacts/cc2_mawkcc_runner.exe
+"$BUGFIX_MAWKCC" artifacts/cc2_mawkcc.c \
+    -o artifacts/cc2_mawkcc_runner.exe
 chmod +x artifacts/cc2_mawkcc_runner.exe
 
 cd artifacts

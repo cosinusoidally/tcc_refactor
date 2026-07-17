@@ -187,17 +187,24 @@ The required seed is:
 ../ai_experiments/mawkcc/artifacts/mawkcc.self.exe
 ```
 
-The script concatenates `cc1.c`, `cc2_stubs.c`, and
-`cc0_mawkcc_compat.c` into `artifacts/cc1_mawkcc.c`. mawkcc produces the
-disposable `cc1_mawkcc.exe`, which then compiles the canonical cc1 objects and
-links `cc1.exe` and `cc1_static.exe`. The compatibility suffix is present only
-in the disposable seed.
+Both mawkcc scripts first use that upstream executable to compile the vendored
+`mawkcc_self_bugfix.c` into `artifacts/mawkcc_self_bugfix.exe`. Future
+take3-specific mawkcc fixes belong in the vendored source; the upstream
+`ai_experiments/mawkcc` tree remains unchanged until those fixes are ready to
+be incorporated there.
+
+`mk_cc1_mawkcc` then concatenates `cc1.c`, `cc2_stubs.c`, and
+`cc0_mawkcc_compat.c` into `artifacts/cc1_mawkcc.c`. The bugfix compiler
+produces the disposable `cc1_mawkcc.exe`, which compiles the canonical cc1
+objects and links `cc1.exe` and `cc1_static.exe`. The compatibility suffix is
+present only in the disposable seed.
 
 `mk_cc2_mawkcc` is the corresponding direct-cc2 experiment. It contains no
 cc1 input and is structured to feed a successful seed into the same
 `mk_cc2_from_seed` self-host check. A current mawkcc probe does not yet compile
-the full cc2 input: it reports unsupported expressions and exhausts its
-relocation capacity. This route is therefore retained for further dialect and
+the full cc2 input: the bugfix compiler reports the unsupported true local
+declarations and subsequently exhausts its unchanged relocation capacity.
+This route is therefore retained for local-variable conversion and vendored
 mawkcc-capacity work, but is not currently a passing bootstrap path.
 
 ## GCC Seed
