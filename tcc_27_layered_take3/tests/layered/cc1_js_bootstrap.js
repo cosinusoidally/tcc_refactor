@@ -1,6 +1,8 @@
 load("../tcc_27_layered_take3/prims.js");
+load("../tcc_27_layered_take3/cc1_libc.c");
 load("../tcc_27_layered_take3/cc1.c");
 load("../tcc_27_layered_take3/cc2_stubs.c");
+cc1_libc_init();
 
 function runCc1(arguments) {
     var argv = malloc(arguments.length * 4);

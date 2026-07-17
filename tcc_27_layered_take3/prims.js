@@ -19,8 +19,6 @@ function ushr(value, count) { return (value >>> count) | 0; }
 /* Integer addresses remain stable when the backing typed array grows. */
 var CC0_PRIMS_MEMORY_SIZE = 4096;
 var cc0_prims_memory = new Uint8Array(CC0_PRIMS_MEMORY_SIZE);
-var cc0_prims_heap_top = 4;
-var cc0_prims_allocation_sizes = {};
 var cc0_prims_string_cache = {};
 
 function cc0_prims_reserve(needed) {
@@ -35,141 +33,6 @@ function cc0_prims_reserve(needed) {
         cc0_prims_memory = memory;
         CC0_PRIMS_MEMORY_SIZE = grown;
     }
-}
-
-function malloc(size) {
-    var pointer = cc0_prims_heap_top;
-    if (size === 0) {
-        size = 1;
-    }
-    cc0_prims_heap_top = (pointer + size + 3) & -4;
-    cc0_prims_reserve(cc0_prims_heap_top);
-    cc0_prims_allocation_sizes[pointer] = size;
-    return pointer;
-}
-
-function realloc(pointer, size) {
-    var replacement = malloc(size);
-    var oldSize = cc0_prims_allocation_sizes[pointer] | 0;
-    var copySize = oldSize < size ? oldSize : size;
-    var index = 0;
-    while (index < copySize) {
-        cc0_prims_memory[replacement + index] =
-            cc0_prims_memory[pointer + index];
-        index++;
-    }
-    return replacement;
-}
-
-/* JavaScript owns allocations, so release needs no explicit heap operation. */
-function free(pointer) {
-    return 0;
-}
-
-function calloc(count, size) {
-    var bytes = Math.imul(count, size) | 0;
-    var pointer = malloc(bytes);
-    var index = 0;
-    while (index < bytes) {
-        wi8(pointer + index, 0);
-        index++;
-    }
-    return pointer;
-}
-
-function memset(destination, value, size) {
-    var index = 0;
-    while (index < size) {
-        wi8(destination + index, value);
-        index++;
-    }
-    return destination;
-}
-
-function memcpy(destination, source, size) {
-    var index = 0;
-    while (index < size) {
-        wi8(destination + index, ri8(source + index));
-        index++;
-    }
-    return destination;
-}
-
-function memmove(destination, source, size) {
-    var index;
-    if (destination <= source) {
-        return memcpy(destination, source, size);
-    }
-    index = size;
-    while (index > 0) {
-        index--;
-        wi8(destination + index, ri8(source + index));
-    }
-    return destination;
-}
-
-function memcmp(left, right, size) {
-    var index = 0;
-    while (index < size && ri8(left + index) === ri8(right + index)) {
-        index++;
-    }
-    if (index === size) {
-        return 0;
-    }
-    return (ri8(left + index) - ri8(right + index)) | 0;
-}
-
-function strlen(text) {
-    var length = 0;
-    while (ri8(text + length) !== 0) {
-        length++;
-    }
-    return length;
-}
-
-function strcpy(destination, source) {
-    var index = 0;
-    do {
-        wi8(destination + index, ri8(source + index));
-        index++;
-    } while (ri8(source + index - 1) !== 0);
-    return destination;
-}
-
-function strcat(destination, source) {
-    strcpy(destination + strlen(destination), source);
-    return destination;
-}
-
-function strcmp(left, right) {
-    var index = 0;
-    while (ri8(left + index) === ri8(right + index) &&
-           ri8(left + index) !== 0) {
-        index++;
-    }
-    return (ri8(left + index) - ri8(right + index)) | 0;
-}
-
-function strncmp(left, right, count) {
-    var index = 0;
-    while (index < count && ri8(left + index) === ri8(right + index) &&
-           ri8(left + index) !== 0) {
-        index++;
-    }
-    if (index === count) {
-        return 0;
-    }
-    return (ri8(left + index) - ri8(right + index)) | 0;
-}
-
-function strchr(text, character) {
-    while (ri8(text) !== character) {
-        if (ri8(text) === 0) {
-            return 0;
-        }
-        text++;
-    }
-    return text;
 }
 
 function mks(value) {
@@ -217,9 +80,11 @@ function wi32(address, value) {
     return value | 0;
 }
 
-/* These functions model the small libc surface used by cc1.c. */
+/* The shared libc is layered over these irreducible host operations. */
 var cc0_prims_files = {};
 var cc0_prims_next_file = 3;
+/* Keep address zero null and leave one word before the first allocation. */
+var cc0_prims_break = 4;
 
 function cc0_prims_path(address) {
     var value = "";
@@ -230,39 +95,47 @@ function cc0_prims_path(address) {
     return value;
 }
 
-function open(path, flags, mode) {
+function cc0_runtime_open(path, flags, mode) {
     var descriptor = cc0_prims_next_file++;
-    var writing = (flags & 1) !== 0;
+    var access = flags & 3;
+    var writing = access !== 0;
+    var truncate = (flags & 512) !== 0;
+    var append = (flags & 1024) !== 0;
     var data;
-    if (writing) {
+    if (truncate) {
         data = [];
     } else {
         try {
             data = os.file.readFile(cc0_prims_path(path), "binary");
         } catch (error) {
-            return -1;
+            if (!writing || (flags & 64) === 0) {
+                return -1;
+            }
+            data = [];
         }
     }
     cc0_prims_files[descriptor] = {
         data: data,
         path: cc0_prims_path(path),
-        position: 0,
+        position: append ? data.length : 0,
         output: writing
     };
     return descriptor;
 }
 
-function lseek(descriptor, offset, origin) {
+function cc0_runtime_lseek(descriptor, offset, origin) {
     var file = cc0_prims_files[descriptor];
     if (origin === 2) {
         file.position = file.data.length;
     } else if (origin === 0) {
         file.position = offset;
+    } else if (origin === 1) {
+        file.position += offset;
     }
     return file.position | 0;
 }
 
-function read(descriptor, buffer, count) {
+function cc0_runtime_read(descriptor, buffer, count) {
     var file = cc0_prims_files[descriptor];
     var index = 0;
     while (index < count && file.position < file.data.length) {
@@ -273,7 +146,7 @@ function read(descriptor, buffer, count) {
     return index | 0;
 }
 
-function write(descriptor, buffer, count) {
+function cc0_runtime_write(descriptor, buffer, count) {
     var index = 0;
     var text = "";
     var file;
@@ -288,18 +161,14 @@ function write(descriptor, buffer, count) {
     file = cc0_prims_files[descriptor];
     index = 0;
     while (index < count) {
-        file.data.push(ri8(buffer + index));
+        file.data[file.position] = ri8(buffer + index);
+        file.position++;
         index++;
     }
     return count | 0;
 }
 
-function puts(text) {
-    putstr(cc0_prims_path(text) + "\n");
-    return 0;
-}
-
-function close(descriptor) {
+function cc0_runtime_close(descriptor) {
     var file = cc0_prims_files[descriptor];
     if (file.output) {
         os.file.writeTypedArrayToFile(file.path, new Uint8Array(file.data));
@@ -308,26 +177,17 @@ function close(descriptor) {
     return 0;
 }
 
-/* The seed represents FILE handles with the existing descriptor integers. */
-function fopen(path, mode) {
-    var modeText = cc0_prims_path(mode);
-    var flags = modeText.charAt(0) === "r" ? 0 : 577;
-    return open(path, flags, 384);
+function cc0_runtime_brk(address) {
+    if (address === 0) {
+        return cc0_prims_break;
+    }
+    cc0_prims_reserve(address);
+    cc0_prims_break = address;
+    return address;
 }
 
-function fwrite(buffer, size, count, stream) {
-    var bytes = write(stream, buffer, Math.imul(size, count));
-    return size === 0 ? 0 : (bytes / size) | 0;
-}
-
-function fputc(character, stream) {
-    var buffer = malloc(1);
-    wi8(buffer, character);
-    return write(stream, buffer, 1) === 1 ? character : -1;
-}
-
-function fclose(stream) {
-    return close(stream);
+function cc0_runtime_exit(status) {
+    quit(status);
 }
 
 function chmod(path, mode) {
@@ -335,11 +195,6 @@ function chmod(path, mode) {
 }
 
 /* Seed execution must never delete host files. */
-function unlink(path) {
-    return 0;
-}
-
-/* The reproducible seed ignores host compiler search-path environment data. */
-function getenv(name) {
+function cc0_runtime_unlink(path) {
     return 0;
 }

@@ -1,6 +1,8 @@
 /* Load the production shared sources directly in SpiderMonkey 45. */
 load("prims.js");
+load("cc1_libc.c");
 load("cc1.c");
+cc1_libc_init();
 
 cc0_init();
 if (!cc0_is_name_start(mkC("_")) || cc0_is_name_start(mkC("-"))) {

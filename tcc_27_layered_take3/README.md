@@ -134,8 +134,9 @@ cd tcc_27_layered_take3
 ```
 
 `js` must be SpiderMonkey jsshell 45 for i686 Linux. The script loads
-`prims.js`, `cc1.c`, and `cc2_stubs.c` directly. JavaScript cc1 compiles the
-canonical `cc1.o` and `cc2_stubs.o`, compiles the static runtime, and links:
+`prims.js`, `cc1_libc.c`, `cc1.c`, and `cc2_stubs.c` directly. JavaScript cc1
+compiles the canonical `cc1.o` and `cc2_stubs.o`, compiles the static runtime,
+and links:
 
 ```text
 artifacts/cc1.exe
@@ -153,12 +154,14 @@ cd tcc_27_layered_take3
 ./mk_cc2_js
 ```
 
-The JavaScript seed loads `prims.js`, bootstrap storage, backend stubs, and
-`cc2.c`. It compiles a disposable native full cc2, then `mk_cc2_from_seed`
+The JavaScript seed loads `prims.js`, `cc1_libc.c`, bootstrap storage, backend
+stubs, and `cc2.c`. It compiles a disposable native full cc2, then
+`mk_cc2_from_seed`
 performs complete dynamic and static two-generation self-host checks and
 publishes `artifacts/cc2.exe` and `artifacts/cc2_static.exe`. `prims.js`
-provides primitive byte-memory and descriptor operations, a no-op `free`, and
-a deliberately inert `unlink`; it is not a JavaScript host-libc replacement.
+provides only operator, byte-memory, and low-level host runtime meanings. The
+shared libc implements allocation, strings, descriptor caching, and FILE
+operations. Its unlink runtime primitive is deliberately inert in JavaScript.
 
 ## mawkcc Seed
 
@@ -267,9 +270,9 @@ From this directory:
 ./mk_js_layers_test
 ```
 
-The test loads production `prims.js`, `cc1.c`, and `cc2.c` without source
-rewriting, initializes both layers, and exercises representative base and cc2
-operations.
+The test loads production `prims.js`, `cc1_libc.c`, `cc1.c`, and `cc2.c`
+without source rewriting, initializes both layers, and exercises
+representative base, libc, and cc2 operations.
 
 ## Compatibility Contract
 
