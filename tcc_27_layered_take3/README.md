@@ -202,10 +202,12 @@ present only in the disposable seed.
 `mk_cc2_mawkcc` is the corresponding direct-cc2 experiment. It contains no
 cc1 input and is structured to feed a successful seed into the same
 `mk_cc2_from_seed` self-host check. A current mawkcc probe does not yet compile
-the full cc2 input: the bugfix compiler reports the unsupported true local
-declarations and subsequently exhausts its unchanged relocation capacity.
-This route is therefore retained for local-variable conversion and vendored
-mawkcc-capacity work, but is not currently a passing bootstrap path.
+the full cc2 input because the bugfix compiler reports the unsupported true
+local declarations. Its relocation and standalone data-patch arrays now grow
+as required; `mk_mawkcc_relocation_test` verifies 12,288 entries, above the
+10,888 conservative upper bound calculated for cc2. The cc2 route is retained
+for the local-variable conversion, but is not currently a passing bootstrap
+path.
 
 ## GCC Seed
 

@@ -3,14 +3,24 @@
 set -eu
 cd ..
 
-MAWKCC=../ai_experiments/mawkcc/artifacts/mawkcc.self.exe
+UPSTREAM_MAWKCC=../ai_experiments/mawkcc/artifacts/mawkcc.self.exe
+BUGFIX_SOURCE=tcc_27_layered_take3/mawkcc_self_bugfix.c
 TEST_ARTIFACTS=artifacts/mawkcc_relocation_test
-MAX_RELOCATIONS=8192
-OVER_LIMIT_RELOCATIONS=$((MAX_RELOCATIONS + 1))
+MAWKCC=$TEST_ARTIFACTS/mawkcc_self_bugfix.exe
+OLD_RELOCATION_LIMIT=8192
+PAST_OLD_LIMIT=$((OLD_RELOCATION_LIMIT + 1))
 
-test -x "$MAWKCC"
+# Source-level counting gives cc2 a conservative upper bound of 10,888:
+# 9,143 global references, 842 external calls, and 903 materialized strings.
+CC2_EXPECTED_UPPER_BOUND=10888
+CC2_TEST_RELOCATIONS=12288
+
+test -x "$UPSTREAM_MAWKCC"
 rm -rf "$TEST_ARTIFACTS"
 mkdir -p "$TEST_ARTIFACTS"
+
+"$UPSTREAM_MAWKCC" "$BUGFIX_SOURCE" -o "$MAWKCC"
+chmod +x "$MAWKCC"
 
 make_source()
 {
@@ -32,21 +42,32 @@ make_source()
     ' > "$output"
 }
 
-make_source "$MAX_RELOCATIONS" "$TEST_ARTIFACTS/at_limit.c"
-make_source "$OVER_LIMIT_RELOCATIONS" "$TEST_ARTIFACTS/over_limit.c"
+check_object_relocations()
+{
+    source=$1
+    object=$2
 
-"$MAWKCC" -c "$TEST_ARTIFACTS/at_limit.c" \
-    -o "$TEST_ARTIFACTS/at_limit.o"
-test -s "$TEST_ARTIFACTS/at_limit.o"
+    "$MAWKCC" -c "$source" -o "$object"
+    test -s "$object"
+}
 
-set +e
-"$MAWKCC" -c "$TEST_ARTIFACTS/over_limit.c" \
-    -o "$TEST_ARTIFACTS/over_limit.o"
-over_limit_status=$?
-set -e
+test "$CC2_TEST_RELOCATIONS" -ge "$CC2_EXPECTED_UPPER_BOUND"
 
-test "$over_limit_status" -ne 0
-test ! -e "$TEST_ARTIFACTS/over_limit.o"
+make_source "$OLD_RELOCATION_LIMIT" "$TEST_ARTIFACTS/at_old_limit.c"
+make_source "$PAST_OLD_LIMIT" "$TEST_ARTIFACTS/past_old_limit.c"
+make_source "$CC2_TEST_RELOCATIONS" "$TEST_ARTIFACTS/cc2_capacity.c"
 
-printf 'mawkcc accepts %s relocations and rejects %s (status %s)\n' \
-    "$MAX_RELOCATIONS" "$OVER_LIMIT_RELOCATIONS" "$over_limit_status"
+check_object_relocations "$TEST_ARTIFACTS/at_old_limit.c" \
+    "$TEST_ARTIFACTS/at_old_limit.o"
+check_object_relocations "$TEST_ARTIFACTS/past_old_limit.c" \
+    "$TEST_ARTIFACTS/past_old_limit.o"
+check_object_relocations "$TEST_ARTIFACTS/cc2_capacity.c" \
+    "$TEST_ARTIFACTS/cc2_capacity.o"
+
+"$MAWKCC" "$TEST_ARTIFACTS/cc2_capacity.c" \
+    -o "$TEST_ARTIFACTS/cc2_capacity.exe"
+chmod +x "$TEST_ARTIFACTS/cc2_capacity.exe"
+"$TEST_ARTIFACTS/cc2_capacity.exe"
+
+printf 'mawkcc object and data relocations grow through %s entries\n' \
+    "$CC2_TEST_RELOCATIONS"

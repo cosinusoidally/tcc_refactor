@@ -51,6 +51,7 @@ var external_count;
 var externals_p;
 var external_types_p;
 var reloc_count;
+var reloc_capacity;
 var reloc_offsets_p;
 var reloc_names_p;
 var reloc_types_p;
@@ -65,6 +66,7 @@ var bin_len;
 var binbuf_p;
 var bin_cap;
 var data_patch_count;
+var data_patch_capacity;
 var data_patch_offsets_p;
 var data_patch_addends_p;
 var builtin1_names_p;
@@ -111,14 +113,16 @@ function init_globals() {
     call_target_p = xmalloc(32768);
     call_pos_p = xmalloc(32768);
     call_argc_p = xmalloc(32768);
-    reloc_offsets_p = xmalloc(32768);
-    reloc_names_p = xmalloc(32768);
-    reloc_types_p = xmalloc(32768);
+    reloc_capacity = 8192;
+    reloc_offsets_p = xmalloc(MUL(reloc_capacity, 4));
+    reloc_names_p = xmalloc(MUL(reloc_capacity, 4));
+    reloc_types_p = xmalloc(MUL(reloc_capacity, 4));
     loop_stack_p = xmalloc(4096);
     break_patch_loop_p = xmalloc(32768);
     break_patch_pos_p = xmalloc(32768);
-    data_patch_offsets_p = xmalloc(32768);
-    data_patch_addends_p = xmalloc(32768);
+    data_patch_capacity = 8192;
+    data_patch_offsets_p = xmalloc(MUL(data_patch_capacity, 4));
+    data_patch_addends_p = xmalloc(MUL(data_patch_capacity, 4));
     init_builtin_names();
     return 0;
 }
@@ -219,6 +223,59 @@ function ensure_data_capacity_(needed, old_cap, new_cap, new_p) {
 
 function ensure_data_capacity(needed) {
     return ensure_data_capacity_(needed, 0, 0, 0);
+}
+
+/* Relocations use parallel word arrays. Grow all three before publishing any
+   replacement pointer so a record can never observe mixed generations. */
+function ensure_reloc_capacity_(needed, new_cap, used_bytes, new_offsets,
+    new_names, new_types) {
+    if (LE(needed, reloc_capacity)) {
+        return 0;
+    }
+    new_cap = reloc_capacity;
+    while (LT(new_cap, needed)) {
+        new_cap = MUL(new_cap, 2);
+    }
+    used_bytes = MUL(reloc_count, 4);
+    new_offsets = xmalloc(MUL(new_cap, 4));
+    new_names = xmalloc(MUL(new_cap, 4));
+    new_types = xmalloc(MUL(new_cap, 4));
+    copy_bytes_(new_offsets, reloc_offsets_p, used_bytes, 0);
+    copy_bytes_(new_names, reloc_names_p, used_bytes, 0);
+    copy_bytes_(new_types, reloc_types_p, used_bytes, 0);
+    reloc_offsets_p = new_offsets;
+    reloc_names_p = new_names;
+    reloc_types_p = new_types;
+    reloc_capacity = new_cap;
+    return 0;
+}
+
+function ensure_reloc_capacity(needed) {
+    return ensure_reloc_capacity_(needed, 0, 0, 0, 0, 0);
+}
+
+function ensure_data_patch_capacity_(needed, new_cap, used_bytes,
+    new_offsets, new_addends) {
+    if (LE(needed, data_patch_capacity)) {
+        return 0;
+    }
+    new_cap = data_patch_capacity;
+    while (LT(new_cap, needed)) {
+        new_cap = MUL(new_cap, 2);
+    }
+    used_bytes = MUL(data_patch_count, 4);
+    new_offsets = xmalloc(MUL(new_cap, 4));
+    new_addends = xmalloc(MUL(new_cap, 4));
+    copy_bytes_(new_offsets, data_patch_offsets_p, used_bytes, 0);
+    copy_bytes_(new_addends, data_patch_addends_p, used_bytes, 0);
+    data_patch_offsets_p = new_offsets;
+    data_patch_addends_p = new_addends;
+    data_patch_capacity = new_cap;
+    return 0;
+}
+
+function ensure_data_patch_capacity(needed) {
+    return ensure_data_patch_capacity_(needed, 0, 0, 0, 0);
 }
 
 function xmalloc_(n, p) {
@@ -1222,9 +1279,7 @@ function record_external(name, type) {
 }
 
 function record_reloc(offset, name, type) {
-    if (GE(reloc_count, 8192)) {
-        fail(mks("too many relocations\n"));
-    }
+    ensure_reloc_capacity(ADD(reloc_count, 1));
     wi32(ADD(reloc_offsets_p, MUL(reloc_count, 4)), offset);
     wi32(ADD(reloc_names_p, MUL(reloc_count, 4)), xstrdup(name));
     wi32(ADD(reloc_types_p, MUL(reloc_count, 4)), type);
@@ -1233,9 +1288,7 @@ function record_reloc(offset, name, type) {
 }
 
 function record_data_patch(offset, addend) {
-    if (GE(data_patch_count, 8192)) {
-        fail(mks("too many relocations\n"));
-    }
+    ensure_data_patch_capacity(ADD(data_patch_count, 1));
     wi32(ADD(data_patch_offsets_p, MUL(data_patch_count, 4)), offset);
     wi32(ADD(data_patch_addends_p, MUL(data_patch_count, 4)), addend);
     data_patch_count = ADD(data_patch_count, 1);
