@@ -66,7 +66,7 @@ bridge is in `cc2_tcc_prims.c`.
 
 `cc2_runtime.c` provides the i386 arithmetic and floating helpers otherwise
 supplied by libgcc. The static chain extends the libc in explicit levels:
-the shared C/JavaScript `cc1_libc.c`, `cc2_libc_qsort.c`, and `cc2_libc.c`.
+the shared C/JavaScript `cc1_libc.c` and typed `cc2_libc.c`.
 Native i386 vararg stack-address primitives live separately in
 `cc1_libc_asm.c` so the libc source itself remains valid JavaScript.
 

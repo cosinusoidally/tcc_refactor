@@ -51,11 +51,9 @@ chmod +x cc2_boot_static.exe
     -c "$SOURCE/tcc_unified.c" -U__linux__ -o tcc_rest_boot.o
 ./cc2_boot_static.exe -nostdinc -c "$SOURCE/cc2_runtime.c" \
     -o cc2_runtime_boot.o
-./cc2_boot_static.exe -nostdinc -c "$SOURCE/cc2_libc_qsort.c" \
-    -o cc2_libc_qsort_boot.o
 ./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
     cc0_static_syscalls.o cc2.o tcc_rest_boot.o \
-    cc2_runtime_boot.o cc1_libc.o cc1_libc_asm.o cc2_libc_qsort_boot.o \
+    cc2_runtime_boot.o cc1_libc.o cc1_libc_asm.o \
     cc2_float_libc_stubs.o -o cc2_static_boot.exe
 chmod +x cc2_static_boot.exe
 
@@ -65,7 +63,7 @@ chmod +x cc2_static_boot.exe
     -o cc2_libc_boot.o
 ./cc1_static.exe cc1_static_start.o linux_i386_syscalls.o \
     cc0_static_syscalls.o cc2.o tcc_rest_boot.o \
-    cc2_runtime_boot.o cc1_libc.o cc1_libc_asm.o cc2_libc_qsort_boot.o \
+    cc2_runtime_boot.o cc1_libc.o cc1_libc_asm.o \
     cc2_libc_boot.o -o cc2_static_transition.exe
 chmod +x cc2_static_transition.exe
 
@@ -103,14 +101,12 @@ build_static_cc2_generation()
             -c "$stage_source/cc1_libc.c" -o cc1_libc.o
         "$compiler" -nostdinc -Dfunction=int -Dvar=int \
             -c "$stage_source/cc1_libc_asm.c" -o cc1_libc_asm.o
-        "$compiler" -nostdinc -c "$stage_source/cc2_libc_qsort.c" \
-            -o cc2_libc_qsort.o
         "$compiler" -nostdinc -c "$stage_source/cc2_libc.c" \
             -o cc2_libc.o
         "$compiler" -nostdlib -static linux_i386_start.o \
             cc2_static_start.o linux_i386_syscalls.o \
             cc0_static_syscalls.o prims.o cc2.o tcc_rest.o cc2_runtime.o \
-            cc1_libc.o cc1_libc_asm.o cc2_libc_qsort.o cc2_libc.o \
+            cc1_libc.o cc1_libc_asm.o cc2_libc.o \
             -o cc2_static.exe
         chmod +x cc2_static.exe
     )
@@ -122,8 +118,8 @@ build_static_cc2_generation ../cc2_static_selfhost_2 \
     ../cc2_static_selfhost_1/cc2_static.exe
 for object in linux_i386_start.o cc2_static_start.o \
     linux_i386_syscalls.o cc0_static_syscalls.o prims.o cc2.o \
-    cc2_runtime.o tcc_rest.o cc1_libc.o cc1_libc_asm.o cc2_libc_qsort.o \
-    cc2_libc.o cc2_static.exe
+    cc2_runtime.o tcc_rest.o cc1_libc.o cc1_libc_asm.o cc2_libc.o \
+    cc2_static.exe
 do
     cmp "../cc2_static_selfhost_1/$object" \
         "../cc2_static_selfhost_2/$object"

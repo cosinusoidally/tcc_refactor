@@ -38,9 +38,6 @@ void *calloc(size_t count, size_t size);
 void *realloc(void *pointer, size_t size);
 void free(void *pointer);
 void exit(int status);
-void qsort(void *base, size_t count, size_t size,
-    int (*compare)(const void *, const void *));
-
 int puts(const char *text);
 int sprintf(char *output, const char *format, ...);
 int vsnprintf(char *output, size_t size, const char *format, char *arguments);

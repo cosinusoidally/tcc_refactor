@@ -91,10 +91,61 @@ int cc2_storage_init(void)
     return 0;
 }
 
-/* The cc2 dialect cannot pass its comparator as a C function pointer. */
+static void case_sort_sift(void **base, int root, int end)
+{
+    int child;
+    int selected;
+    void *temporary;
+
+    if (end == 0) {
+        return;
+    }
+    while (root <= (end - 1) / 2) {
+        child = root * 2 + 1;
+        selected = root;
+        if (case_cmp(&base[selected], &base[child]) < 0) {
+            selected = child;
+        }
+        if (child < end &&
+            case_cmp(&base[selected], &base[child + 1]) < 0) {
+            selected = child + 1;
+        }
+        if (selected == root) {
+            return;
+        }
+        temporary = base[root];
+        base[root] = base[selected];
+        base[selected] = temporary;
+        root = selected;
+    }
+}
+
+/* Switch lowering needs only pointer sorting, not a generic libc qsort. */
 void case_sort(void **base, int count)
 {
-    qsort(base, count, sizeof(void *), case_cmp);
+    int start;
+    int end;
+    void *temporary;
+
+    if (count < 2) {
+        return;
+    }
+    start = (count - 2) / 2;
+    for (;;) {
+        case_sort_sift(base, start, count - 1);
+        if (start == 0) {
+            break;
+        }
+        --start;
+    }
+    end = count - 1;
+    while (end != 0) {
+        temporary = base[0];
+        base[0] = base[end];
+        base[end] = temporary;
+        --end;
+        case_sort_sift(base, 0, end);
+    }
 }
 
 /* Translate TCC's compact symbol-table index into its ELF record address. */
