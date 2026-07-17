@@ -10,7 +10,7 @@ function cc2_toksym_alloc(size)
 
 function cc2_format_token_integer(output, low, high)
 {
-    sprintf(output, mks("%u"), low);
+    sprintf(output, mks("%u"), low, 0);
     return 0;
 }
 

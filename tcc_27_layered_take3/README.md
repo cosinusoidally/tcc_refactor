@@ -43,8 +43,8 @@ body uses braces.
 
 `cc2.c` is the complete typed-C and TCC layer. It contains the migrated TCC
 preprocessor, parser, i386 backend, assembler, archive support, and ELF linker.
-It is also directly valid SpiderMonkey JavaScript and directly compilable by
-cc1.
+It is directly valid SpiderMonkey JavaScript and mawkcc input, and directly
+compilable by cc1.
 
 In the retained cc1 routes, cc1 is used only to produce a transitional cc2
 tool. In the direct routes, GCC or SpiderMonkey produces that disposable cc2
@@ -193,21 +193,34 @@ take3-specific mawkcc fixes belong in the vendored source; the upstream
 `ai_experiments/mawkcc` tree remains unchanged until those fixes are ready to
 be incorporated there.
 
-`mk_cc1_mawkcc` then concatenates `cc1.c`, `cc2_stubs.c`, and
-`cc0_mawkcc_compat.c` into `artifacts/cc1_mawkcc.c`. The bugfix compiler
-produces the disposable `cc1_mawkcc.exe`, which compiles the canonical cc1
-objects and links `cc1.exe` and `cc1_static.exe`. The compatibility suffix is
-present only in the disposable seed.
+`mk_cc1_mawkcc` concatenates `cc1.c`, `cc2_stubs.c`, the shared
+`cc1_libc.c`, and `cc0_mawkcc_compat.c` into `artifacts/cc1_mawkcc.c`. The
+bugfix compiler produces the disposable `cc1_mawkcc.exe`, which compiles the
+canonical cc1 objects and links `cc1.exe` and `cc1_static.exe`. The
+compatibility suffix contains only low-level operations that mawkcc cannot
+express; allocation, strings, streams, and descriptor buffering come from the
+same libc source as every other seed path.
 
-`mk_cc2_mawkcc` is the corresponding direct-cc2 experiment. It contains no
-cc1 input and is structured to feed a successful seed into the same
-`mk_cc2_from_seed` self-host check. A current mawkcc probe does not yet compile
-the full cc2 input because the bugfix compiler reports the unsupported true
-local declarations. Its relocation and standalone data-patch arrays now grow
-as required; `mk_mawkcc_relocation_test` verifies 12,288 entries, above the
-10,888 conservative upper bound calculated for cc2. The cc2 route is retained
-for the local-variable conversion, but is not currently a passing bootstrap
-path.
+To skip cc1 and compile cc2 directly with mawkcc, use:
+
+```sh
+./mk_clean
+cd tcc_27_layered_take3
+./mk_cc2_mawkcc
+```
+
+`mk_cc2_mawkcc` contains no cc1 compiler input. Its disposable mawkcc runner
+compiles the existing static startup, syscall, libc, floating-runtime, cc2,
+and TCC bridge sources, then links `cc2_mawkcc_static_seed.exe`. The runner
+also creates metadata-only `libc.so.6` and `libm.so.6` import objects. A small
+cc2-built ELF utility localizes TCC-generated boundary symbols in that
+metadata before `mk_cc2_from_seed` performs the normal two-generation static
+and dynamic self-host checks. The result is bit-identical to the GCC and
+SpiderMonkey routes and requires no host i386 glibc files or library symlinks.
+
+The vendored mawkcc relocation and standalone data-patch arrays grow as
+required. `mk_mawkcc_relocation_test` verifies 12,288 entries, above the
+10,888 conservative upper bound calculated for cc2.
 
 ## GCC Seed
 

@@ -758,6 +758,8 @@ function emit_sys_open() { emit_mov_eax_imm32(5); emit_int_80(); }
 function emit_sys_read() { emit_mov_eax_imm32(3); emit_int_80(); }
 function emit_sys_write() { emit_mov_eax_imm32(4); emit_int_80(); }
 function emit_sys_close() { emit_mov_ebx_eax(); emit_mov_eax_imm32(6); emit_int_80(); }
+function emit_sys_unlink() { emit_mov_ebx_eax(); emit_mov_eax_imm32(10); emit_int_80(); }
+function emit_sys_lseek() { emit_mov_eax_imm32(19); emit_int_80(); }
 function emit_sys_exit() { emit_mov_ebx_eax(); emit_mov_eax_imm32(1); emit_int_80(); }
 
 function emit1(b) {
@@ -994,7 +996,7 @@ function name_in_list(name, list, count) {
 }
 
 function init_builtin1_names() {
-    builtin1_count = 11;
+    builtin1_count = 12;
     builtin1_names_p = xmalloc(MUL(builtin1_count, 4));
     name_list_set(builtin1_names_p, 0, mks("neg"));
     name_list_set(builtin1_names_p, 1, mks("NEG"));
@@ -1007,6 +1009,7 @@ function init_builtin1_names() {
     name_list_set(builtin1_names_p, 8, mks("exit"));
     name_list_set(builtin1_names_p, 9, mks("mks"));
     name_list_set(builtin1_names_p, 10, mks("mkC"));
+    name_list_set(builtin1_names_p, 11, mks("unlink"));
     return 0;
 }
 
@@ -1051,11 +1054,12 @@ function init_builtin2_names() {
 }
 
 function init_builtin3_names() {
-    builtin3_count = 3;
+    builtin3_count = 4;
     builtin3_names_p = xmalloc(MUL(builtin3_count, 4));
     name_list_set(builtin3_names_p, 0, mks("open"));
     name_list_set(builtin3_names_p, 1, mks("read"));
     name_list_set(builtin3_names_p, 2, mks("write"));
+    name_list_set(builtin3_names_p, 3, mks("lseek"));
     return 0;
 }
 
@@ -1094,6 +1098,8 @@ function emit_builtin1(name) {
         emit_sys_close();
     } else if (name_eq(name, mks("exit"))) {
         emit_sys_exit();
+    } else if (name_eq(name, mks("unlink"))) {
+        emit_sys_unlink();
     } else {
         fail_name(mks("unknown one-argument builtin: "), name);
     }
@@ -1150,6 +1156,8 @@ function emit_builtin3(name) {
         emit_sys_read();
     } else if (name_eq(name, mks("write"))) {
         emit_sys_write();
+    } else if (name_eq(name, mks("lseek"))) {
+        emit_sys_lseek();
     } else {
         fail_name(mks("unknown three-argument builtin: "), name);
     }

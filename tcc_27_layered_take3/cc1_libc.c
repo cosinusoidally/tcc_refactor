@@ -107,9 +107,8 @@ function cc0_libc_string_length(text)
     return cc0_libc_string_length_(text, 0);
 }
 
-function puts(text)
+function puts_locals_(text, result)
 {
-    var result;
 
     result = cc0_runtime_write(cc0_libc_standard_output(), text,
         cc0_libc_string_length(text));
@@ -122,6 +121,10 @@ function puts(text)
         return sub(0, 1);
     }
     return 0;
+}
+
+function puts(text) {
+    return puts_locals_(text, 0);
 }
 
 /* Keep missing services loud until their environment-neutral versions land. */
@@ -628,11 +631,8 @@ function write(descriptor, buffer, count)
     return cc0_libc_write_(descriptor, buffer, count, 0, 0, 0, 0, 0);
 }
 
-function close(descriptor)
+function close_locals_(descriptor, cache, write_cache, result)
 {
-    var cache;
-    var write_cache;
-    var result;
 
     result = cc0_libc_write_cache_flush_descriptor(descriptor);
     write_cache = cc0_libc_write_cache_find(descriptor);
@@ -652,10 +652,12 @@ function close(descriptor)
     return result;
 }
 
-function lseek(descriptor, offset, whence)
+function close(descriptor) {
+    return close_locals_(descriptor, 0, 0, 0);
+}
+
+function lseek_locals_(descriptor, offset, whence, cache, unread)
 {
-    var cache;
-    var unread;
 
     if (lt(cc0_libc_write_cache_flush_descriptor(descriptor), 0)) {
         return sub(0, 1);
@@ -667,6 +669,10 @@ function lseek(descriptor, offset, whence)
     }
     cc0_libc_read_cache_discard(cache);
     return cc0_runtime_lseek(descriptor, offset, whence);
+}
+
+function lseek(descriptor, offset, whence) {
+    return lseek_locals_(descriptor, offset, whence, 0, 0);
 }
 /*
  * Layer-one libc surface required to start the cc2 bootstrap.
@@ -912,6 +918,9 @@ function fflush(stream)
 function fopen_(path, mode, primary, index, byte, plus, flags, readable,
     writable, descriptor, stream)
 {
+    if (eq(CC1_LIBC_STREAM_BYTES, 0)) {
+        cc1_libc_init();
+    }
     primary = ri8(mode);
     if (eq(primary, 0)) {
         return 0;
@@ -969,14 +978,30 @@ function fopen(path, mode)
     return fopen_(path, mode, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
-function fprintf(stream, format)
+function cc1_libc_argument_words_(first, second, third, fourth, fifth,
+    arguments)
 {
-    var arguments;
-    var length;
-    var buffer;
-    var written;
+    arguments = malloc(20);
+    if (arguments) {
+        wi32(arguments, first);
+        wi32(add(arguments, 4), second);
+        wi32(add(arguments, 8), third);
+        wi32(add(arguments, 12), fourth);
+        wi32(add(arguments, 16), fifth);
+    }
+    return arguments;
+}
 
-    arguments = cc1_libc_varargs_after_two(stream, format);
+function cc1_libc_argument_words(first, second, third, fourth, fifth)
+{
+    return cc1_libc_argument_words_(first, second, third, fourth, fifth, 0);
+}
+
+function fprintf_locals_(stream, format, first, second, third, fourth, fifth,
+    arguments, length, buffer, written)
+{
+
+    arguments = cc1_libc_argument_words(first, second, third, fourth, fifth);
     length = vsnprintf(0, 0, format, arguments);
     if (lt(length, 0)) {
         return sub(0, 1);
@@ -992,6 +1017,11 @@ function fprintf(stream, format)
         return sub(0, 1);
     }
     return length;
+}
+
+function fprintf(stream, format, first, second, third, fourth, fifth) {
+    return fprintf_locals_(stream, format, first, second, third, fourth,
+        fifth, 0, 0, 0, 0);
 }
 
 function fputc(character, stream)
@@ -1280,14 +1310,11 @@ function memset(destination, value, size)
     return memset_(destination, value, size, 0, 0);
 }
 
-function printf(format)
+function printf_locals_(format, first, second, third, arguments, length,
+    buffer, written)
 {
-    var arguments;
-    var length;
-    var buffer;
-    var written;
 
-    arguments = cc1_libc_varargs_after_one(format);
+    arguments = cc1_libc_argument_words(first, second, third, 0, 0);
     length = vsnprintf(0, 0, format, arguments);
     if (lt(length, 0)) {
         return sub(0, 1);
@@ -1305,30 +1332,40 @@ function printf(format)
     return length;
 }
 
+function printf(format, first, second, third) {
+    return printf_locals_(format, first, second, third, 0, 0, 0, 0);
+}
+
 function remove(path)
 {
     return cc1_libc_unimplemented(mks("remove"));
 }
 
-function snprintf(output, size, format)
+function snprintf_locals_(output, size, format, first, second, third,
+    arguments)
 {
-    var arguments;
 
-    arguments = cc1_libc_varargs_after_three(output, size, format);
+    arguments = cc1_libc_argument_words(first, second, third, 0, 0);
     return vsnprintf(output, size, format, arguments);
 }
 
-function sprintf(output, format)
-{
-    var arguments;
-    var length;
+function snprintf(output, size, format, first, second, third) {
+    return snprintf_locals_(output, size, format, first, second, third, 0);
+}
 
-    arguments = cc1_libc_varargs_after_two(output, format);
+function sprintf_locals_(output, format, first, second, arguments, length)
+{
+
+    arguments = cc1_libc_argument_words(first, second, 0, 0, 0);
     length = vsnprintf(0, 0, format, arguments);
     if (lt(length, 0)) {
         return length;
     }
     return vsnprintf(output, add(length, 1), format, arguments);
+}
+
+function sprintf(output, format, first, second) {
+    return sprintf_locals_(output, format, first, second, 0, 0);
 }
 
 function setjmp(environment)

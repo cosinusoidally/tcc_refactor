@@ -15,6 +15,7 @@ chmod +x "$BUGFIX_MAWKCC"
 
 cat tcc_27_layered_take3/cc1.c \
     tcc_27_layered_take3/cc2_stubs.c \
+    tcc_27_layered_take3/cc1_libc.c \
     tcc_27_layered_take3/cc0_mawkcc_compat.c \
     > artifacts/cc1_mawkcc.c
 
