@@ -1,16 +1,15 @@
-/* Load the production shared sources directly in SpiderMonkey 45. */
+/* Load the production compiler sources directly in SpiderMonkey 45. */
 load("prims.js");
 load("cc1_libc.c");
-load("cc1.c");
-cc1_libc_init();
-
-cc0_init();
-if (!cc0_is_name_start(mkC("_")) || cc0_is_name_start(mkC("-"))) {
-    throw new Error("cc1 character classification failed");
-}
-
+load("cc2_boot_storage.c");
+load("cc2_backend_stubs.c");
 load("cc2.c");
+
+cc1_libc_init();
 cc2_init();
+if (!cc0_is_name_start(mkC("_")) || cc0_is_name_start(mkC("-"))) {
+    throw new Error("cc2 character classification failed");
+}
 if (CC2_TCC_DOUBLE_TYPE !== 9) {
     throw new Error("cc2 type constants were not initialized");
 }
@@ -21,4 +20,4 @@ if (!is_float(CC2_TCC_LONG_DOUBLE_TYPE)) {
     throw new Error("cc2 floating type classification failed");
 }
 
-print("cc1/cc2 JavaScript smoke ok");
+print("cc2 JavaScript smoke ok");

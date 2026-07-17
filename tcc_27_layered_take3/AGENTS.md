@@ -14,12 +14,12 @@
 
 ## Layering
 
-- `cc1.c` is the minimal bootstrap compiler and must remain human-auditable.
-- There is no separate cc0 compiler layer or executable in take3. The name
-  cc0 refers only to the operator-free source dialect.
-- Higher `ccN.c` files add compiler facilities in explicit, reviewable layers.
-- `cc1.exe` and `cc2.exe` are independently linked compilers. cc1 may build
-  cc2, but no cc1 object may be linked into a cc2 or final TCC executable.
+- `cc2.c` is the sole compiler layer and must remain human-auditable.
+- There are no separate cc0 or cc1 compiler executables in take3. The name
+  cc0 refers only to the operator-free source dialect; `cc1_libc.c` names the
+  lower runtime subset used to seed cc2.
+- GCC, JavaScript, and mawkcc may build disposable cc2 seeds, but no host-built
+  object may be linked into a canonical cc2 or final TCC executable.
 - A lower layer must not depend on an implementation from a higher layer.
 - Prefer ordinary source and direct function calls over generated tables,
   encoded programs, macro metaprogramming, or other opaque mechanisms.
@@ -27,18 +27,19 @@
 
 ## cc0 C/JavaScript Dialect
 
-- The same `cc1.c` text must execute as SpiderMonkey jsshell 45 JavaScript and
+- The same `cc2.c` text must execute as SpiderMonkey jsshell 45 JavaScript and
   compile as GNU89 C and as TCC input.
-- JavaScript reads `cc1.c` without preprocessing or source rewriting.
+- JavaScript reads `cc2.c` without preprocessing or source rewriting.
 - When function or global declarations are added, use the shared source shape
   `function name(args) { ... }` and `var name;`. C builds may map `function`
   and `var` explicitly to `int`; do not hide additional translation in that
   mapping.
 - Use `/* ... */` comments so comments have identical lexical meaning in both
   languages.
-- Do not use arithmetic, comparison, logical, bitwise, or pointer operators in
-  `cc1.c`. Use lowercase primitive calls such as `add(a, b)`, `eq(a, b)`, and
-  `ri32(address)` instead. Assignment remains part of the cc0 statement syntax.
+- In cc0-dialect portions of `cc2.c`, do not use arithmetic, comparison,
+  logical, bitwise, or pointer operators. Use lowercase primitive calls such
+  as `add(a, b)`, `eq(a, b)`, and `ri32(address)` instead. Assignment remains
+  part of the cc0 statement syntax.
 - Express single-byte character constants as `mkC("x")`. Do not use C character
   literals or numeric ASCII values for characters in dialect code.
 - Do not prefix primitive names with `CC0_` or provide uppercase aliases.
@@ -46,13 +47,13 @@
   C and JavaScript support files. Those files must not contain compiler policy,
   parsing, data structures, or convenience helpers that can be written in the
   cc0 dialect.
-- The self-hosted cc0 compiler must recognize the same primitives as builtins
-  and emit their i386 implementations. Host support is only for running cc0
-  before that self-hosted compiler exists.
+- The self-hosted cc2 compiler must recognize the same primitives as builtins
+  and emit their i386 implementations. Host support is only for running the
+  dialect before that self-hosted compiler exists.
 - Treat compiler values as signed 32-bit integers unless a documented helper
   has different semantics.
 - Keep host support primitives small, named, and documented. Compiler policy
-  belongs in `cc1.c`, not in a host runner or compatibility shim.
+  belongs in `cc2.c`, not in a host runner or compatibility shim.
 - Do not depend on JavaScript features newer than SpiderMonkey 45.
 
 ## Auditability
@@ -77,7 +78,7 @@
   the build script compile or execute those checked-in files.
 - Run the repository-level `./mk_tcc_27_layered_take3` after changes affecting
   the compiler or build.
-- Verify `cc1.c` with GCC, the self-hosted compiler, the `cc0` dialect path, and
-  `/home/foo/src/jsshell/js`.
+- Verify `cc2.c` with GCC, mawkcc, the self-hosted compiler, the cc0 dialect
+  path, and `/home/foo/src/jsshell/js`.
 - Require consecutive self-hosted compiler objects to be byte-identical.
 - Require every hash in `sums_tcc_27` to pass without updating the hash file.

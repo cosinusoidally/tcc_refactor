@@ -1,4 +1,4 @@
-/* Verify bounded formatting through cc1's variadic argument address. */
+/* Verify bounded formatting through the shared libc's argument address. */
 function main_(argc, argv, output, length)
 {
     cc1_libc_init();

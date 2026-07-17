@@ -1,4 +1,4 @@
-/* Layer two owns typed syntax. It lowers that syntax into cc1's scalar C. */
+/* The compiler accepts typed syntax while remaining valid scalar-dialect input. */
 /* cc2 owns these small lexical helpers so its executable does not link cc1. */
 function cc0_init()
 {

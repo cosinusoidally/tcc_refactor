@@ -1,6 +1,7 @@
 /*
  * Native meanings for operations that cannot be expressed in the operator-free
- * cc0 dialect. Compiler policy and libc-backed services belong in cc1.c.
+ * cc0 dialect. Compiler policy belongs in cc2.c and libc-backed services
+ * belong in cc1_libc.c.
  */
 int add(int left, int right) { return (int)((unsigned)left + (unsigned)right); }
 int sub(int left, int right) { return (int)((unsigned)left - (unsigned)right); }

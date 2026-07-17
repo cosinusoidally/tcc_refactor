@@ -1223,7 +1223,7 @@ void skip(int c);
 extern NORETURN void expect(const char *msg);
 int cc2_init_constants(void);
 
-/* Implemented in cc1.c and retained here under the original TCC names. */
+/* Implemented in cc2.c and retained here under the original TCC names. */
 int cc0_init();
 int cc0_is_space();
 int cc0_is_name_start();

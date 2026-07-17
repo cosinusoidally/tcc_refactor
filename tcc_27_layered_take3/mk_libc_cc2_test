@@ -1,7 +1,14 @@
 #!/bin/sh
 
-# The full static bootstrap exercises the complete cc1 and cc2 libc surface.
+# Exercise the complete shared and typed libc surfaces using only direct cc2.
 set -eux
 
-./mk_libc_cc1_test
-./mk_tcc_layered_via_cc1_static
+cd ..
+if ! test -x artifacts/cc2_static.exe; then
+    cd tcc_27_layered_take3
+    ./mk_cc2_js
+    cd ..
+fi
+cd tcc_27_layered_take3
+./mk_tcc_layered_via_cc2_static
+./mk_libc_test

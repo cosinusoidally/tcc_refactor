@@ -1,4 +1,4 @@
-/* cc1's entry adapter presents the kernel argument vector as C parameters. */
+/* The linker entry adapter presents the kernel argument vector as C parameters. */
 function _start(argc, argv)
 {
     var status;
