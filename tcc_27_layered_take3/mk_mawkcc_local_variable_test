@@ -1,0 +1,24 @@
+#!/bin/sh
+
+set -eu
+cd ..
+
+MAWKCC=../ai_experiments/mawkcc/artifacts/mawkcc.self.exe
+SOURCE=tcc_27_layered_take3/tests/layered/mawkcc_local_variable.c
+TEST_ARTIFACTS=artifacts/mawkcc_local_variable_test
+
+test -x "$MAWKCC"
+rm -rf "$TEST_ARTIFACTS"
+mkdir -p "$TEST_ARTIFACTS"
+
+# mawkcc currently reports source errors but still exits successfully and
+# writes an object, so its diagnostic is the reliable feature probe.
+"$MAWKCC" -c "$SOURCE" -o "$TEST_ARTIFACTS/local_variable.o" \
+    2> "$TEST_ARTIFACTS/diagnostics.txt"
+
+grep -F "unknown identifier: local_value" \
+    "$TEST_ARTIFACTS/diagnostics.txt" > /dev/null
+grep -F "assignment to unknown variable: local_value" \
+    "$TEST_ARTIFACTS/diagnostics.txt" > /dev/null
+
+printf '%s\n' 'mawkcc does not support true local variable declarations'

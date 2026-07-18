@@ -1,0 +1,49 @@
+#!/bin/sh
+
+# Validate cc2 as native C, then perform the canonical JavaScript-seeded
+# bootstrap without retaining a native compiler dependency.
+set -eux
+
+./mk_clean
+cd artifacts
+
+SOURCE=../tcc_27_layered_take3
+INCLUDE=../../tcc_bootstrap_alt/woody/usr/include
+
+gcc -nostdinc -O0 -m32 -c "$SOURCE/prims.c" -o host_prims.o
+gcc -nostdinc -O0 -m32 -std=gnu89 -Dfunction=int -Dvar=int \
+    -c "$SOURCE/cc2.c" -o host_cc2.o
+gcc -nostdinc -O0 -m32 -std=gnu89 \
+    -c "$SOURCE/cc2_runtime.c" -o host_cc2_runtime.o
+gcc -nostdinc -O0 -m32 -I "$INCLUDE" -I "$SOURCE" -I "$SOURCE/include" \
+    -c "$SOURCE/tcc_unified.c" -o host_tcc_rest.o
+gcc -m32 host_prims.o host_cc2.o host_tcc_rest.o host_cc2_runtime.o \
+    -lm -o cc2_take3_native
+./cc2_take3_native --help > cc2_native_help.txt || test "$?" -eq 1
+test -s cc2_native_help.txt
+
+# The compiler and shared runtime must load directly in SpiderMonkey 45.
+cd "$SOURCE"
+./mk_js_layers_test
+
+# The canonical seed and every later compiler are produced without GCC/TCC or
+# an earlier compiler layer.
+./mk_cc2_js
+./mk_tcc_layered_via_cc2
+
+cd ..
+for object in linux_i386_start.o cc2_start.o prims.o cc2.o \
+    cc2_runtime.o tcc_rest.o cc2.exe
+do
+    cmp "artifacts/cc2_selfhost_1/$object" \
+        "artifacts/cc2_selfhost_2/$object"
+done
+cmp artifacts/cc2_selfhost_2/cc2.exe artifacts/cc2.exe
+cmp artifacts/cc2.exe artifacts/tcc_layered.exe
+if nm -u artifacts/cc2_selfhost_2/cc2.o \
+    artifacts/cc2_selfhost_2/tcc_rest.o | \
+    grep -E ' U cc(0|1)_'; then
+    echo 'cc2 retains a cc0/cc1 object dependency' >&2
+    exit 1
+fi
+sha256sum -c sums_tcc_27

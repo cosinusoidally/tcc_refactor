@@ -1,0 +1,36 @@
+#!/bin/sh
+
+# Continue from a directly seeded, fully self-hosted dynamic cc2. No cc1
+# executable or object is read by this path.
+set -eux
+cd ..
+
+test -x artifacts/cc2.exe
+for object in linux_i386_start.o cc2_start.o prims.o cc2.o \
+    cc2_runtime.o tcc_rest.o cc2.exe
+do
+    cmp "artifacts/cc2_selfhost_1/$object" \
+        "artifacts/cc2_selfhost_2/$object"
+done
+cp artifacts/cc2_selfhost_2/cc2.exe artifacts/tcc_layered.exe
+
+cd artifacts
+ln -sf ../tcc_27/libc_boot4.c libc_boot4.c
+ln -sf ../tcc_27/libc_static.c libc_static.c
+ln -sf ../tcc_27/tcc.c tcc.c
+mkdir -p lib
+ln -sf ../../tcc_27/lib/libtcc1.c lib/libtcc1.c
+
+TCC=./tcc_layered.exe
+"$TCC" -nostdinc \
+    -I ../../tcc_bootstrap_alt/woody/usr/include \
+    -I ../tcc_27/include -I ../tcc_27 \
+    -c tcc.c -U__linux__ -DONE_SOURCE -o tcc.o
+"$TCC" -nostdinc -c ./lib/libtcc1.c -o libtcc1.o
+"$TCC" -nostdinc -c libc_boot4.c -o libc_boot4.o
+"$TCC" -nostdinc -c libc_static.c -o libc_static.o
+"$TCC" -nostdlib -static libc_static.o libc_boot4.o libtcc1.o tcc.o \
+    -o tcc_27_boot_static.exe
+
+cd ..
+sha256sum -c sums_tcc_27

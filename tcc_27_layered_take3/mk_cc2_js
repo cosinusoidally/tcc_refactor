@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# SpiderMonkey directly executes cc2 and builds a disposable static cc2 seed.
+# This path does not require an i386 dynamic loader or glibc installation.
+set -eu
+cd ..
+mkdir -p artifacts
+
+cd artifacts
+js ../tcc_27_layered_take3/tests/layered/cc2_js_bootstrap.js
+chmod +x cc2_js_static_seed.exe
+cd ..
+
+CC2_SEED=artifacts/cc2_js_static_seed.exe CC2_SEED_MODE=static \
+CC2_DYNAMIC_LIBC=artifacts/cc2_js_dynamic_libc.so \
+CC2_DYNAMIC_LIBM=artifacts/cc2_js_dynamic_libm.so \
+    tcc_27_layered_take3/mk_cc2_from_seed

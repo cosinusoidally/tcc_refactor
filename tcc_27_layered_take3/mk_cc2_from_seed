@@ -1,0 +1,139 @@
+#!/bin/sh
+
+# Internal helper: turn a standalone full cc2 seed into canonical dynamic and
+# static cc2 executables. Run from the repository root with CC2_SEED set.
+set -eu
+
+test -n "${CC2_SEED:-}"
+test -x "$CC2_SEED"
+CC2_SEED_MODE=${CC2_SEED_MODE:-dynamic}
+test "$CC2_SEED_MODE" = dynamic -o "$CC2_SEED_MODE" = static
+
+if test -n "${CC2_DYNAMIC_LIBC:-}" -o -n "${CC2_DYNAMIC_LIBM:-}"; then
+    test -f "${CC2_DYNAMIC_LIBC:-}" -a -f "${CC2_DYNAMIC_LIBM:-}"
+    HOST_LIBC=$(pwd)/$CC2_DYNAMIC_LIBC
+    HOST_LIBM=$(pwd)/$CC2_DYNAMIC_LIBM
+else
+    RUNTIME_LIBDIR=/lib/i386-linux-gnu
+    if test ! -f "$RUNTIME_LIBDIR/libc.so.6"; then
+        RUNTIME_LIBDIR=/usr/lib/i386-linux-gnu
+    fi
+    HOST_LIBC=$RUNTIME_LIBDIR/libc.so.6
+    HOST_LIBM=$RUNTIME_LIBDIR/libm.so.6
+    test -f "$HOST_LIBC" -a -f "$HOST_LIBM"
+fi
+
+build_dynamic_generation()
+{
+    directory=$1
+    compiler=$2
+    rm -rf "$directory"
+    mkdir -p "$directory"
+    (
+        cd "$directory"
+        "$compiler" -nostdinc \
+            -c ../../tcc_27_layered_take3/linux_i386_start.c \
+            -o linux_i386_start.o
+        "$compiler" -nostdinc -c ../../tcc_27_layered_take3/cc2_start.c \
+            -o cc2_start.o
+        "$compiler" -nostdinc -c ../../tcc_27_layered_take3/prims.c \
+            -o prims.o
+        "$compiler" -nostdinc -Dfunction=int -Dvar=int \
+            -c ../../tcc_27_layered_take3/cc2.c -o cc2.o
+        "$compiler" -nostdinc \
+            -c ../../tcc_27_layered_take3/cc2_runtime.c -o cc2_runtime.o
+        "$compiler" -nostdinc \
+            -I ../../../tcc_bootstrap_alt/woody/usr/include \
+            -I ../../tcc_27_layered_take3/include \
+            -I ../../tcc_27_layered_take3 \
+            -c ../../tcc_27_layered_take3/tcc_unified.c -U__linux__ \
+            -o tcc_rest.o
+        "$compiler" -nostdlib linux_i386_start.o cc2_start.o prims.o \
+            cc2.o tcc_rest.o cc2_runtime.o "$HOST_LIBC" "$HOST_LIBM" \
+            -o cc2.exe
+        chmod +x cc2.exe
+    )
+}
+
+build_static_generation()
+{
+    directory=$1
+    compiler=$2
+    rm -rf "$directory"
+    mkdir -p "$directory"
+    (
+        cd "$directory"
+        source=../../tcc_27_layered_take3
+        "$compiler" -nostdinc -c "$source/linux_i386_start.c" \
+            -o linux_i386_start.o
+        "$compiler" -nostdinc -c "$source/cc2_static_start.c" \
+            -o cc2_static_start.o
+        "$compiler" -nostdinc -Dfunction=int -Dvar=int \
+            -c "$source/linux_i386_syscalls.c" -o linux_i386_syscalls.o
+        "$compiler" -nostdinc -Dfunction=int -Dvar=int \
+            -c "$source/cc0_static_syscalls.c" -o cc0_static_syscalls.o
+        "$compiler" -nostdinc -c "$source/prims.c" -o prims.o
+        "$compiler" -nostdinc -Dfunction=int -Dvar=int \
+            -c "$source/cc2.c" -o cc2.o
+        "$compiler" -nostdinc -c "$source/cc2_runtime.c" \
+            -o cc2_runtime.o
+        "$compiler" -nostdinc \
+            -I ../../../tcc_bootstrap_alt/woody/usr/include \
+            -I "$source/include" -I "$source" \
+            -c "$source/tcc_unified.c" -U__linux__ -o tcc_rest.o
+        "$compiler" -nostdinc -Dfunction=int -Dvar=int \
+            -c "$source/cc1_libc.c" -o cc1_libc.o
+        "$compiler" -nostdinc -Dfunction=int -Dvar=int \
+            -c "$source/cc1_libc_asm.c" -o cc1_libc_asm.o
+        "$compiler" -nostdinc -c "$source/cc2_libc.c" -o cc2_libc.o
+        "$compiler" -nostdlib -static linux_i386_start.o \
+            cc2_static_start.o linux_i386_syscalls.o \
+            cc0_static_syscalls.o prims.o cc2.o tcc_rest.o cc2_runtime.o \
+            cc1_libc.o cc1_libc_asm.o cc2_libc.o \
+            -o cc2_static.exe
+        chmod +x cc2_static.exe
+    )
+}
+
+dynamic_objects="linux_i386_start.o cc2_start.o prims.o cc2.o cc2_runtime.o tcc_rest.o cc2.exe"
+static_objects="linux_i386_start.o cc2_static_start.o linux_i386_syscalls.o cc0_static_syscalls.o prims.o cc2.o cc2_runtime.o tcc_rest.o cc1_libc.o cc1_libc_asm.o cc2_libc.o cc2_static.exe"
+
+if test "$CC2_SEED_MODE" = static; then
+    build_static_generation artifacts/cc2_static_selfhost_1 \
+        "../../$CC2_SEED"
+else
+    build_dynamic_generation artifacts/cc2_selfhost_1 "../../$CC2_SEED"
+    build_dynamic_generation artifacts/cc2_selfhost_2 \
+        ../cc2_selfhost_1/cc2.exe
+    for object in $dynamic_objects; do
+        cmp "artifacts/cc2_selfhost_1/$object" \
+            "artifacts/cc2_selfhost_2/$object"
+    done
+    build_static_generation artifacts/cc2_static_selfhost_1 \
+        ../cc2_selfhost_2/cc2.exe
+fi
+build_static_generation artifacts/cc2_static_selfhost_2 \
+    ../cc2_static_selfhost_1/cc2_static.exe
+for object in $static_objects; do
+    cmp "artifacts/cc2_static_selfhost_1/$object" \
+        "artifacts/cc2_static_selfhost_2/$object"
+done
+
+cp artifacts/cc2_static_selfhost_2/cc2_static.exe artifacts/cc2_static.exe
+
+if test "$CC2_SEED_MODE" = static; then
+    build_dynamic_generation artifacts/cc2_selfhost_1 \
+        ../cc2_static_selfhost_1/cc2_static.exe
+    build_dynamic_generation artifacts/cc2_selfhost_2 \
+        ../cc2_static_selfhost_2/cc2_static.exe
+    for object in $dynamic_objects; do
+        cmp "artifacts/cc2_selfhost_1/$object" \
+            "artifacts/cc2_selfhost_2/$object"
+    done
+fi
+
+for object in prims.o cc2.o cc2_runtime.o tcc_rest.o; do
+    cmp "artifacts/cc2_selfhost_2/$object" \
+        "artifacts/cc2_static_selfhost_2/$object"
+done
+cp artifacts/cc2_selfhost_2/cc2.exe artifacts/cc2.exe

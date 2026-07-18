@@ -1,0 +1,82 @@
+#!/bin/sh
+
+# Direct mawkcc seed path. This intentionally contains no cc1 executable or
+# host i386 libc dependency.
+set -eu
+cd ..
+mkdir -p artifacts
+
+UPSTREAM_MAWKCC=../ai_experiments/mawkcc/artifacts/mawkcc.self.exe
+BUGFIX_MAWKCC=artifacts/mawkcc_self_bugfix.exe
+
+"$UPSTREAM_MAWKCC" tcc_27_layered_take3/mawkcc_self_bugfix.c \
+    -o "$BUGFIX_MAWKCC"
+chmod +x "$BUGFIX_MAWKCC"
+
+cat tcc_27_layered_take3/cc2.c \
+    tcc_27_layered_take3/cc2_boot_storage.c \
+    tcc_27_layered_take3/cc2_backend_stubs.c \
+    tcc_27_layered_take3/cc1_libc.c \
+    tcc_27_layered_take3/cc0_mawkcc_compat.c \
+    > artifacts/cc2_mawkcc.c
+
+"$BUGFIX_MAWKCC" artifacts/cc2_mawkcc.c \
+    -o artifacts/cc2_mawkcc_runner.exe
+chmod +x artifacts/cc2_mawkcc_runner.exe
+
+cd artifacts
+RUNNER=./cc2_mawkcc_runner.exe
+SOURCE=../tcc_27_layered_take3
+"$RUNNER" -nostdinc -c "$SOURCE/linux_i386_start.c" \
+    -o cc2_mawkcc_linux_i386_start.o
+"$RUNNER" -nostdinc -c "$SOURCE/cc2_static_start.c" \
+    -o cc2_mawkcc_static_start.o
+"$RUNNER" -nostdinc -Dfunction=int -Dvar=int \
+    -c "$SOURCE/linux_i386_syscalls.c" -o cc2_mawkcc_syscalls.o
+"$RUNNER" -nostdinc -Dfunction=int -Dvar=int \
+    -c "$SOURCE/cc0_static_syscalls.c" -o cc2_mawkcc_static_syscalls.o
+"$RUNNER" -nostdinc -c "$SOURCE/prims.c" -o cc2_mawkcc_prims.o
+"$RUNNER" -nostdinc -Dfunction=int -Dvar=int -c "$SOURCE/cc2.c" \
+    -o cc2_mawkcc.o
+"$RUNNER" -nostdinc -c "$SOURCE/cc2_runtime.c" -o cc2_mawkcc_runtime.o
+"$RUNNER" -nostdinc -I ../../tcc_bootstrap_alt/woody/usr/include \
+    -I "$SOURCE/include" -I "$SOURCE" -U__linux__ \
+    -c "$SOURCE/tcc_unified.c" -o cc2_mawkcc_tcc_rest.o
+"$RUNNER" -nostdinc -Dfunction=int -Dvar=int -c "$SOURCE/cc1_libc.c" \
+    -o cc2_mawkcc_libc.o
+"$RUNNER" -nostdinc -Dfunction=int -Dvar=int -c "$SOURCE/cc1_libc_asm.c" \
+    -o cc2_mawkcc_libc_asm.o
+"$RUNNER" -nostdinc -c "$SOURCE/cc2_libc.c" \
+    -o cc2_mawkcc_float_libc.o
+"$RUNNER" -nostdinc -c "$SOURCE/cc2_dynamic_libc_imports.c" \
+    -o cc2_mawkcc_dynamic_libc_imports.o
+"$RUNNER" -nostdlib -shared -soname libc.so.6 \
+    cc2_mawkcc_dynamic_libc_imports.o -o cc2_mawkcc_dynamic_libc.so
+"$RUNNER" -nostdinc -c "$SOURCE/cc2_dynamic_libm_imports.c" \
+    -o cc2_mawkcc_dynamic_libm_imports.o
+"$RUNNER" -nostdlib -shared -soname libm.so.6 \
+    cc2_mawkcc_dynamic_libm_imports.o -o cc2_mawkcc_dynamic_libm.so
+"$RUNNER" -nostdlib -static cc2_mawkcc_linux_i386_start.o \
+    cc2_mawkcc_static_start.o cc2_mawkcc_syscalls.o \
+    cc2_mawkcc_static_syscalls.o cc2_mawkcc_prims.o cc2_mawkcc.o \
+    cc2_mawkcc_tcc_rest.o cc2_mawkcc_runtime.o cc2_mawkcc_libc.o \
+    cc2_mawkcc_libc_asm.o cc2_mawkcc_float_libc.o \
+    -o cc2_mawkcc_static_seed.exe
+chmod +x cc2_mawkcc_static_seed.exe
+SEED=./cc2_mawkcc_static_seed.exe
+"$SEED" -nostdinc -c "$SOURCE/tests/layered/localize_generated_dso.c" \
+    -o cc2_mawkcc_localize_dso.o
+"$SEED" -nostdlib -static cc2_mawkcc_linux_i386_start.o \
+    cc2_mawkcc_static_start.o cc2_mawkcc_syscalls.o \
+    cc2_mawkcc_static_syscalls.o cc2_mawkcc_prims.o \
+    cc2_mawkcc_localize_dso.o cc2_mawkcc_libc.o cc2_mawkcc_libc_asm.o \
+    -o cc2_mawkcc_localize_dso.exe
+chmod +x cc2_mawkcc_localize_dso.exe
+./cc2_mawkcc_localize_dso.exe cc2_mawkcc_dynamic_libc.so
+./cc2_mawkcc_localize_dso.exe cc2_mawkcc_dynamic_libm.so
+cd ..
+
+CC2_SEED=artifacts/cc2_mawkcc_static_seed.exe CC2_SEED_MODE=static \
+CC2_DYNAMIC_LIBC=artifacts/cc2_mawkcc_dynamic_libc.so \
+CC2_DYNAMIC_LIBM=artifacts/cc2_mawkcc_dynamic_libm.so \
+    tcc_27_layered_take3/mk_cc2_from_seed

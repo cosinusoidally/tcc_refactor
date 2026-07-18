@@ -1,0 +1,73 @@
+#!/bin/sh
+
+set -eu
+cd ..
+
+UPSTREAM_MAWKCC=../ai_experiments/mawkcc/artifacts/mawkcc.self.exe
+BUGFIX_SOURCE=tcc_27_layered_take3/mawkcc_self_bugfix.c
+TEST_ARTIFACTS=artifacts/mawkcc_relocation_test
+MAWKCC=$TEST_ARTIFACTS/mawkcc_self_bugfix.exe
+OLD_RELOCATION_LIMIT=8192
+PAST_OLD_LIMIT=$((OLD_RELOCATION_LIMIT + 1))
+
+# Source-level counting gives cc2 a conservative upper bound of 10,888:
+# 9,143 global references, 842 external calls, and 903 materialized strings.
+CC2_EXPECTED_UPPER_BOUND=10888
+CC2_TEST_RELOCATIONS=12288
+
+test -x "$UPSTREAM_MAWKCC"
+rm -rf "$TEST_ARTIFACTS"
+mkdir -p "$TEST_ARTIFACTS"
+
+"$UPSTREAM_MAWKCC" "$BUGFIX_SOURCE" -o "$MAWKCC"
+chmod +x "$MAWKCC"
+
+make_source()
+{
+    relocation_count=$1
+    output=$2
+
+    # Each global load produces one ELF relocation without consuming an entry
+    # in mawkcc's separate function-call table.
+    awk -v count="$relocation_count" '
+        BEGIN {
+            print "var shared_value;"
+            print "function main() {"
+            for (i = 0; i < count; i++) {
+                print "    shared_value;"
+            }
+            print "    return 0;"
+            print "}"
+        }
+    ' > "$output"
+}
+
+check_object_relocations()
+{
+    source=$1
+    object=$2
+
+    "$MAWKCC" -c "$source" -o "$object"
+    test -s "$object"
+}
+
+test "$CC2_TEST_RELOCATIONS" -ge "$CC2_EXPECTED_UPPER_BOUND"
+
+make_source "$OLD_RELOCATION_LIMIT" "$TEST_ARTIFACTS/at_old_limit.c"
+make_source "$PAST_OLD_LIMIT" "$TEST_ARTIFACTS/past_old_limit.c"
+make_source "$CC2_TEST_RELOCATIONS" "$TEST_ARTIFACTS/cc2_capacity.c"
+
+check_object_relocations "$TEST_ARTIFACTS/at_old_limit.c" \
+    "$TEST_ARTIFACTS/at_old_limit.o"
+check_object_relocations "$TEST_ARTIFACTS/past_old_limit.c" \
+    "$TEST_ARTIFACTS/past_old_limit.o"
+check_object_relocations "$TEST_ARTIFACTS/cc2_capacity.c" \
+    "$TEST_ARTIFACTS/cc2_capacity.o"
+
+"$MAWKCC" "$TEST_ARTIFACTS/cc2_capacity.c" \
+    -o "$TEST_ARTIFACTS/cc2_capacity.exe"
+chmod +x "$TEST_ARTIFACTS/cc2_capacity.exe"
+"$TEST_ARTIFACTS/cc2_capacity.exe"
+
+printf 'mawkcc object and data relocations grow through %s entries\n' \
+    "$CC2_TEST_RELOCATIONS"
